@@ -12,6 +12,7 @@ const logger = require('../utils/logger');
  */
 const createReminder = asyncHandler(async (req, res) => {
     const userId = req.userID;
+    const firmId = req.firmId;
 
     // Mass assignment protection - only allow specific fields
     const allowedFields = [
@@ -112,7 +113,7 @@ const createReminder = asyncHandler(async (req, res) => {
         if (!sanitizedRelatedCase) {
             throw CustomException('Invalid relatedCase ID format', 400);
         }
-        const caseDoc = await Case.findById(sanitizedRelatedCase);
+        const caseDoc = await Case.findOne({ _id: sanitizedRelatedCase, firmId });
         if (!caseDoc) {
             throw CustomException('Case not found', 404);
         }
@@ -128,7 +129,7 @@ const createReminder = asyncHandler(async (req, res) => {
         if (!sanitizedRelatedTask) {
             throw CustomException('Invalid relatedTask ID format', 400);
         }
-        const task = await Task.findById(sanitizedRelatedTask);
+        const task = await Task.findOne({ _id: sanitizedRelatedTask, firmId });
         if (!task) {
             throw CustomException('Task not found', 404);
         }
@@ -144,7 +145,7 @@ const createReminder = asyncHandler(async (req, res) => {
         if (!sanitizedRelatedEvent) {
             throw CustomException('Invalid relatedEvent ID format', 400);
         }
-        const event = await Event.findById(sanitizedRelatedEvent);
+        const event = await Event.findOne({ _id: sanitizedRelatedEvent, firmId });
         if (!event) {
             throw CustomException('Event not found', 404);
         }
@@ -321,6 +322,7 @@ const getReminders = asyncHandler(async (req, res) => {
 const getReminder = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
+    const firmId = req.firmId;
 
     // Sanitize and validate ID
     const sanitizedId = sanitizeObjectId(id);
@@ -328,7 +330,7 @@ const getReminder = asyncHandler(async (req, res) => {
         throw CustomException('Invalid reminder ID format', 400);
     }
 
-    const reminder = await Reminder.findById(sanitizedId)
+    const reminder = await Reminder.findOne({ _id: sanitizedId, firmId })
         .populate('relatedCase', 'title caseNumber category')
         .populate('relatedTask', 'title dueDate status')
         .populate('relatedEvent', 'title startDateTime location')
@@ -361,6 +363,7 @@ const getReminder = asyncHandler(async (req, res) => {
 const updateReminder = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
+    const firmId = req.firmId;
 
     // Sanitize and validate ID
     const sanitizedId = sanitizeObjectId(id);
@@ -368,7 +371,7 @@ const updateReminder = asyncHandler(async (req, res) => {
         throw CustomException('Invalid reminder ID format', 400);
     }
 
-    const reminder = await Reminder.findById(sanitizedId);
+    const reminder = await Reminder.findOne({ _id: sanitizedId, firmId });
 
     if (!reminder) {
         throw CustomException('Reminder not found', 404);
@@ -401,7 +404,7 @@ const updateReminder = asyncHandler(async (req, res) => {
         if (!sanitizedRelatedCase) {
             throw CustomException('Invalid relatedCase ID format', 400);
         }
-        const caseDoc = await Case.findById(sanitizedRelatedCase);
+        const caseDoc = await Case.findOne({ _id: sanitizedRelatedCase, firmId });
         if (!caseDoc) {
             throw CustomException('Case not found', 404);
         }
@@ -417,7 +420,7 @@ const updateReminder = asyncHandler(async (req, res) => {
         if (!sanitizedRelatedTask) {
             throw CustomException('Invalid relatedTask ID format', 400);
         }
-        const task = await Task.findById(sanitizedRelatedTask);
+        const task = await Task.findOne({ _id: sanitizedRelatedTask, firmId });
         if (!task) {
             throw CustomException('Task not found', 404);
         }
@@ -433,7 +436,7 @@ const updateReminder = asyncHandler(async (req, res) => {
         if (!sanitizedRelatedEvent) {
             throw CustomException('Invalid relatedEvent ID format', 400);
         }
-        const event = await Event.findById(sanitizedRelatedEvent);
+        const event = await Event.findOne({ _id: sanitizedRelatedEvent, firmId });
         if (!event) {
             throw CustomException('Event not found', 404);
         }
@@ -492,6 +495,7 @@ const updateReminder = asyncHandler(async (req, res) => {
 const deleteReminder = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
+    const firmId = req.firmId;
 
     // Sanitize and validate ID
     const sanitizedId = sanitizeObjectId(id);
@@ -499,7 +503,7 @@ const deleteReminder = asyncHandler(async (req, res) => {
         throw CustomException('Invalid reminder ID format', 400);
     }
 
-    const reminder = await Reminder.findById(sanitizedId);
+    const reminder = await Reminder.findOne({ _id: sanitizedId, firmId });
 
     if (!reminder) {
         throw CustomException('Reminder not found', 404);
@@ -510,7 +514,7 @@ const deleteReminder = asyncHandler(async (req, res) => {
         throw CustomException('You can only delete your own reminders', 403);
     }
 
-    await Reminder.findByIdAndDelete(sanitizedId);
+    await Reminder.findOneAndDelete({ _id: sanitizedId, firmId });
 
     res.status(200).json({
         success: true,
@@ -525,6 +529,7 @@ const deleteReminder = asyncHandler(async (req, res) => {
 const completeReminder = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
+    const firmId = req.firmId;
 
     // Sanitize and validate ID
     const sanitizedId = sanitizeObjectId(id);
@@ -536,7 +541,7 @@ const completeReminder = asyncHandler(async (req, res) => {
     const safeData = pickAllowedFields(req.body, ['completionNote']);
     const { completionNote } = safeData;
 
-    const reminder = await Reminder.findById(sanitizedId);
+    const reminder = await Reminder.findOne({ _id: sanitizedId, firmId });
 
     if (!reminder) {
         throw CustomException('Reminder not found', 404);
@@ -616,6 +621,7 @@ const completeReminder = asyncHandler(async (req, res) => {
 const dismissReminder = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
+    const firmId = req.firmId;
 
     // Sanitize and validate ID
     const sanitizedId = sanitizeObjectId(id);
@@ -623,7 +629,7 @@ const dismissReminder = asyncHandler(async (req, res) => {
         throw CustomException('Invalid reminder ID format', 400);
     }
 
-    const reminder = await Reminder.findById(sanitizedId);
+    const reminder = await Reminder.findOne({ _id: sanitizedId, firmId });
 
     if (!reminder) {
         throw CustomException('Reminder not found', 404);
@@ -657,6 +663,7 @@ const dismissReminder = asyncHandler(async (req, res) => {
 const snoozeReminder = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
+    const firmId = req.firmId;
 
     // Sanitize and validate ID
     const sanitizedId = sanitizeObjectId(id);
@@ -668,7 +675,7 @@ const snoozeReminder = asyncHandler(async (req, res) => {
     const safeData = pickAllowedFields(req.body, ['snoozeMinutes', 'snoozeUntil', 'snoozeReason']);
     const { snoozeMinutes, snoozeUntil, snoozeReason } = safeData;
 
-    const reminder = await Reminder.findById(sanitizedId);
+    const reminder = await Reminder.findOne({ _id: sanitizedId, firmId });
 
     if (!reminder) {
         throw CustomException('Reminder not found', 404);
@@ -742,6 +749,7 @@ const snoozeReminder = asyncHandler(async (req, res) => {
 const delegateReminder = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
+    const firmId = req.firmId;
 
     // Sanitize and validate ID
     const sanitizedId = sanitizeObjectId(id);
@@ -763,7 +771,7 @@ const delegateReminder = asyncHandler(async (req, res) => {
         throw CustomException('Invalid delegateTo user ID format', 400);
     }
 
-    const reminder = await Reminder.findById(sanitizedId);
+    const reminder = await Reminder.findOne({ _id: sanitizedId, firmId });
 
     if (!reminder) {
         throw CustomException('Reminder not found', 404);
@@ -775,7 +783,7 @@ const delegateReminder = asyncHandler(async (req, res) => {
     }
 
     // Verify delegate user exists
-    const delegateUser = await User.findById(sanitizedDelegateTo);
+    const delegateUser = await User.findOne({ _id: sanitizedDelegateTo, firmId });
     if (!delegateUser) {
         throw CustomException('Delegate user not found', 404);
     }

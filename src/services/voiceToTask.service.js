@@ -3,6 +3,14 @@ const { Task, Reminder, Event } = require('../models');
 const logger = require('../utils/logger');
 
 /**
+ * Escape special regex characters to prevent ReDoS attacks
+ */
+const escapeRegex = (str) => {
+  if (typeof str !== 'string') return str;
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
+/**
  * Voice to Task Service
  * Converts voice transcriptions into structured tasks, reminders, and events
  * Integrates with NLP service for intelligent parsing
@@ -194,7 +202,7 @@ class VoiceToTaskService {
       }
 
       // Populate and return
-      const populatedTask = await Task.findById(task._id)
+      const populatedTask = await Task.findOne({ _id: task._id, firmId })
         .populate('assignedTo', 'firstName lastName username email image')
         .populate('createdBy', 'firstName lastName username email image')
         .populate('caseId', 'title caseNumber')
@@ -273,7 +281,7 @@ class VoiceToTaskService {
       });
 
       // Populate and return
-      const populatedReminder = await Reminder.findById(reminder._id)
+      const populatedReminder = await Reminder.findOne({ _id: reminder._id, firmId })
         .populate('userId', 'firstName lastName username email image')
         .populate('completedBy', 'firstName lastName')
         .populate('delegatedTo', 'firstName lastName email');
@@ -345,7 +353,7 @@ class VoiceToTaskService {
       });
 
       // Populate and return
-      const populatedEvent = await Event.findById(event._id)
+      const populatedEvent = await Event.findOne({ _id: event._id, firmId })
         .populate('organizer', 'firstName lastName username email image')
         .populate('createdBy', 'firstName lastName username email image')
         .populate('attendees.userId', 'firstName lastName email image')
@@ -754,7 +762,7 @@ class VoiceToTaskService {
       'you know', 'i mean', 'basically', 'actually'
     ];
 
-    const fillerPattern = new RegExp(`\\b(${fillerWords.join('|')})\\b`, 'gi');
+    const fillerPattern = new RegExp(`\\b(${fillerWords.map(escapeRegex).join('|')})\\b`, 'gi');
     cleaned = cleaned.replace(fillerPattern, ' ');
 
     // Normalize multiple spaces

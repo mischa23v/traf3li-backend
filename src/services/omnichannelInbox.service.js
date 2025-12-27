@@ -18,6 +18,14 @@ const mongoose = require('mongoose');
 const OmnichannelConversation = require('../models/omnichannelConversation.model');
 const AuditLogService = require('./auditLog.service');
 const { getIO } = require('../configs/socket');
+
+/**
+ * Escape special regex characters to prevent ReDoS attacks
+ */
+const escapeRegex = (str) => {
+    if (typeof str !== 'string') return str;
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
 const logger = require('../utils/logger');
 
 class OmnichannelInboxService {
@@ -105,7 +113,7 @@ class OmnichannelInboxService {
 
       // Apply search filter (search in message content)
       if (filters.search) {
-        query['messages.content'] = { $regex: filters.search, $options: 'i' };
+        query['messages.content'] = { $regex: escapeRegex(filters.search), $options: 'i' };
       }
 
       // Pagination
@@ -145,14 +153,18 @@ class OmnichannelInboxService {
   /**
    * Route conversation based on routing rules
    * @param {String|ObjectId} conversationId - OmnichannelConversation ID
+   * @param {String|ObjectId} firmId - Firm ID for IDOR protection
    * @param {Object} rules - Routing rules configuration
    * @param {Object} rules.conditions - Conditions to match (channel, customer tier, language, keywords)
    * @param {Object} rules.action - Routing action (assign to user, team, or queue)
    * @returns {Promise<Object>} - Updated conversation
    */
-  async routeOmnichannelConversation(conversationId, rules) {
+  async routeOmnichannelConversation(conversationId, firmId, rules) {
     try {
-      const conversation = await OmnichannelConversation.findById(conversationId);
+      const conversation = await OmnichannelConversation.findOne({
+        _id: conversationId,
+        firmId: new mongoose.Types.ObjectId(firmId)
+      });
 
       if (!conversation) {
         throw new Error('OmnichannelConversation not found');
@@ -227,12 +239,16 @@ class OmnichannelInboxService {
   /**
    * Get conversation with full history
    * @param {String|ObjectId} conversationId - OmnichannelConversation ID
+   * @param {String|ObjectId} firmId - Firm ID for IDOR protection
    * @param {String|ObjectId} viewingAgentId - Agent viewing the conversation (optional)
    * @returns {Promise<Object>} - OmnichannelConversation with messages
    */
-  async getOmnichannelConversation(conversationId, viewingAgentId = null) {
+  async getOmnichannelConversation(conversationId, firmId, viewingAgentId = null) {
     try {
-      const conversation = await OmnichannelConversation.findById(conversationId)
+      const conversation = await OmnichannelConversation.findOne({
+        _id: conversationId,
+        firmId: new mongoose.Types.ObjectId(firmId)
+      })
         .populate('contactId', 'firstName lastName email phone avatar')
         .populate('assignedTo', 'firstName lastName email avatar')
         .populate('messages.sentBy', 'firstName lastName email avatar')
@@ -257,6 +273,7 @@ class OmnichannelInboxService {
   /**
    * Add message to conversation
    * @param {String|ObjectId} conversationId - OmnichannelConversation ID
+   * @param {String|ObjectId} firmId - Firm ID for IDOR protection
    * @param {Object} messageData - Message data
    * @param {String} messageData.content - Message content
    * @param {String} messageData.direction - 'inbound' or 'outbound'
@@ -265,9 +282,12 @@ class OmnichannelInboxService {
    * @param {String|ObjectId} userId - User ID (for outbound messages)
    * @returns {Promise<Object>} - Updated conversation with new message
    */
-  async addMessage(conversationId, messageData, userId = null) {
+  async addMessage(conversationId, firmId, messageData, userId = null) {
     try {
-      const conversation = await OmnichannelConversation.findById(conversationId);
+      const conversation = await OmnichannelConversation.findOne({
+        _id: conversationId,
+        firmId: new mongoose.Types.ObjectId(firmId)
+      });
 
       if (!conversation) {
         throw new Error('OmnichannelConversation not found');
@@ -328,13 +348,17 @@ class OmnichannelInboxService {
   /**
    * Assign conversation to a user
    * @param {String|ObjectId} conversationId - OmnichannelConversation ID
+   * @param {String|ObjectId} firmId - Firm ID for IDOR protection
    * @param {String|ObjectId} assigneeId - User ID to assign to
    * @param {String|ObjectId} assignedBy - User ID who is assigning
    * @returns {Promise<Object>} - Updated conversation
    */
-  async assignOmnichannelConversation(conversationId, assigneeId, assignedBy) {
+  async assignOmnichannelConversation(conversationId, firmId, assigneeId, assignedBy) {
     try {
-      const conversation = await OmnichannelConversation.findById(conversationId);
+      const conversation = await OmnichannelConversation.findOne({
+        _id: conversationId,
+        firmId: new mongoose.Types.ObjectId(firmId)
+      });
 
       if (!conversation) {
         throw new Error('OmnichannelConversation not found');
@@ -385,13 +409,17 @@ class OmnichannelInboxService {
   /**
    * Snooze conversation until a specific date
    * @param {String|ObjectId} conversationId - OmnichannelConversation ID
+   * @param {String|ObjectId} firmId - Firm ID for IDOR protection
    * @param {Date} until - Date to snooze until
    * @param {String|ObjectId} userId - User ID who is snoozing
    * @returns {Promise<Object>} - Updated conversation
    */
-  async snoozeOmnichannelConversation(conversationId, until, userId) {
+  async snoozeOmnichannelConversation(conversationId, firmId, until, userId) {
     try {
-      const conversation = await OmnichannelConversation.findById(conversationId);
+      const conversation = await OmnichannelConversation.findOne({
+        _id: conversationId,
+        firmId: new mongoose.Types.ObjectId(firmId)
+      });
 
       if (!conversation) {
         throw new Error('OmnichannelConversation not found');
@@ -437,13 +465,17 @@ class OmnichannelInboxService {
   /**
    * Close conversation
    * @param {String|ObjectId} conversationId - OmnichannelConversation ID
+   * @param {String|ObjectId} firmId - Firm ID for IDOR protection
    * @param {String|ObjectId} userId - User ID who is closing
    * @param {Object} resolution - Resolution details (optional)
    * @returns {Promise<Object>} - Updated conversation
    */
-  async closeOmnichannelConversation(conversationId, userId, resolution = {}) {
+  async closeOmnichannelConversation(conversationId, firmId, userId, resolution = {}) {
     try {
-      const conversation = await OmnichannelConversation.findById(conversationId);
+      const conversation = await OmnichannelConversation.findOne({
+        _id: conversationId,
+        firmId: new mongoose.Types.ObjectId(firmId)
+      });
 
       if (!conversation) {
         throw new Error('OmnichannelConversation not found');
@@ -502,12 +534,16 @@ class OmnichannelInboxService {
   /**
    * Reopen a closed conversation
    * @param {String|ObjectId} conversationId - OmnichannelConversation ID
+   * @param {String|ObjectId} firmId - Firm ID for IDOR protection
    * @param {String|ObjectId} userId - User ID who is reopening
    * @returns {Promise<Object>} - Updated conversation
    */
-  async reopenOmnichannelConversation(conversationId, userId) {
+  async reopenOmnichannelConversation(conversationId, firmId, userId) {
     try {
-      const conversation = await OmnichannelConversation.findById(conversationId);
+      const conversation = await OmnichannelConversation.findOne({
+        _id: conversationId,
+        firmId: new mongoose.Types.ObjectId(firmId)
+      });
 
       if (!conversation) {
         throw new Error('OmnichannelConversation not found');
@@ -701,13 +737,17 @@ class OmnichannelInboxService {
   /**
    * Update conversation tags
    * @param {String|ObjectId} conversationId - OmnichannelConversation ID
+   * @param {String|ObjectId} firmId - Firm ID for IDOR protection
    * @param {Array<String>} tags - Array of tags
    * @param {String|ObjectId} userId - User ID
    * @returns {Promise<Object>} - Updated conversation
    */
-  async updateTags(conversationId, tags, userId) {
+  async updateTags(conversationId, firmId, tags, userId) {
     try {
-      const conversation = await OmnichannelConversation.findById(conversationId);
+      const conversation = await OmnichannelConversation.findOne({
+        _id: conversationId,
+        firmId: new mongoose.Types.ObjectId(firmId)
+      });
 
       if (!conversation) {
         throw new Error('OmnichannelConversation not found');
@@ -749,13 +789,17 @@ class OmnichannelInboxService {
   /**
    * Update conversation priority
    * @param {String|ObjectId} conversationId - OmnichannelConversation ID
+   * @param {String|ObjectId} firmId - Firm ID for IDOR protection
    * @param {String} priority - Priority level ('urgent', 'high', 'normal', 'low')
    * @param {String|ObjectId} userId - User ID
    * @returns {Promise<Object>} - Updated conversation
    */
-  async updatePriority(conversationId, priority, userId) {
+  async updatePriority(conversationId, firmId, priority, userId) {
     try {
-      const conversation = await OmnichannelConversation.findById(conversationId);
+      const conversation = await OmnichannelConversation.findOne({
+        _id: conversationId,
+        firmId: new mongoose.Types.ObjectId(firmId)
+      });
 
       if (!conversation) {
         throw new Error('OmnichannelConversation not found');

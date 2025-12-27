@@ -88,7 +88,7 @@ class SalesPrioritizationService {
      */
     static async assignPriority(leadId, firmId) {
         try {
-            const lead = await Lead.findById(leadId);
+            const lead = await Lead.findOne({ _id: leadId, firmId });
             if (!lead) {
                 throw new Error('Lead not found');
             }
@@ -346,7 +346,8 @@ class SalesPrioritizationService {
                     // Escalate lead
                     const escalation = await this.escalateLead(
                         lead._id,
-                        'SLA escalation deadline exceeded'
+                        'SLA escalation deadline exceeded',
+                        firmId
                     );
 
                     escalations.push({
@@ -399,9 +400,9 @@ class SalesPrioritizationService {
      * @param {String} reason - Escalation reason
      * @returns {Object} Escalation result
      */
-    static async escalateLead(leadId, reason) {
+    static async escalateLead(leadId, reason, firmId) {
         try {
-            const lead = await Lead.findById(leadId).populate('assignedTo');
+            const lead = await Lead.findOne({ _id: leadId, firmId }).populate('assignedTo');
             if (!lead) {
                 throw new Error('Lead not found');
             }
@@ -498,9 +499,9 @@ class SalesPrioritizationService {
      * @param {String} contactType - Type of contact (call, email, meeting, etc.)
      * @returns {Object} Updated lead
      */
-    static async recordContact(leadId, userId, contactType) {
+    static async recordContact(leadId, userId, contactType, firmId) {
         try {
-            const lead = await Lead.findById(leadId);
+            const lead = await Lead.findOne({ _id: leadId, firmId });
             if (!lead) {
                 throw new Error('Lead not found');
             }
@@ -721,8 +722,8 @@ class SalesPrioritizationService {
                 const rep = sortedReps[repIndex % sortedReps.length];
 
                 // Assign lead
-                const lead = await Lead.findByIdAndUpdate(
-                    leadId,
+                const lead = await Lead.findOneAndUpdate(
+                    { _id: leadId, firmId: new mongoose.Types.ObjectId(firmId) },
                     {
                         assignedTo: rep._id,
                         lastModifiedBy: rep._id
@@ -874,9 +875,9 @@ class SalesPrioritizationService {
      * @param {String} reason - Reason for moving to nurture
      * @returns {Object} Updated lead
      */
-    static async moveToNurture(leadId, reason) {
+    static async moveToNurture(leadId, reason, firmId) {
         try {
-            const lead = await Lead.findById(leadId);
+            const lead = await Lead.findOne({ _id: leadId, firmId });
             if (!lead) {
                 throw new Error('Lead not found');
             }

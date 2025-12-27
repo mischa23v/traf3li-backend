@@ -29,10 +29,10 @@ class MacroService {
    * @param {String} userId - User ID applying the macro
    * @returns {Promise<Object>} Updated conversation and execution result
    */
-  async applyMacro(macroId, conversationId, variables = {}, userId) {
+  async applyMacro(macroId, conversationId, variables = {}, userId, firmId) {
     try {
       // Get macro
-      const macro = await Macro.findById(macroId)
+      const macro = await Macro.findOne({ _id: macroId, firmId })
         .populate('ownerId', 'firstName lastName')
         .populate('teamId', 'name');
 
@@ -45,7 +45,7 @@ class MacroService {
       }
 
       // Get conversation
-      const conversation = await Conversation.findById(conversationId)
+      const conversation = await Conversation.findOne({ _id: conversationId, firmId })
         .populate('contactId', 'name email phone');
 
       if (!conversation) {
@@ -331,7 +331,7 @@ class MacroService {
   async suggestMacros(conversationId, userId, firmId, userTeams = []) {
     try {
       // Get conversation
-      const conversation = await Conversation.findById(conversationId).lean();
+      const conversation = await Conversation.findOne({ _id: conversationId, firmId }).lean();
       if (!conversation) {
         throw new Error('Conversation not found');
       }
@@ -620,9 +620,9 @@ class MacroService {
    * @param {String} userId - User ID updating the macro
    * @returns {Promise<Object>} Updated macro
    */
-  async updateMacro(macroId, data, userId) {
+  async updateMacro(macroId, data, userId, firmId) {
     try {
-      const macro = await Macro.findById(macroId);
+      const macro = await Macro.findOne({ _id: macroId, firmId });
 
       if (!macro) {
         throw new Error('Macro not found');
@@ -682,9 +682,9 @@ class MacroService {
    * @param {String} userId - User ID deleting the macro
    * @returns {Promise<Object>} Deleted macro
    */
-  async deleteMacro(macroId, userId) {
+  async deleteMacro(macroId, userId, firmId) {
     try {
-      const macro = await Macro.findById(macroId);
+      const macro = await Macro.findOne({ _id: macroId, firmId });
 
       if (!macro) {
         throw new Error('Macro not found');

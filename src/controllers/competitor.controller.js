@@ -9,6 +9,12 @@ const CrmActivity = require('../models/crmActivity.model');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const logger = require('../utils/logger');
 
+// Helper function to escape regex special characters (ReDoS protection)
+const escapeRegex = (str) => {
+    if (!str || typeof str !== 'string') return '';
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 // ═══════════════════════════════════════════════════════════════
 // VALIDATION HELPERS
 // ═══════════════════════════════════════════════════════════════
@@ -118,9 +124,10 @@ exports.getAll = async (req, res) => {
             query.enabled = enabled === 'true';
         }
         if (search) {
+            const escapedSearch = escapeRegex(search);
             query.$or = [
-                { name: { $regex: search, $options: 'i' } },
-                { nameAr: { $regex: search, $options: 'i' } }
+                { name: { $regex: escapedSearch, $options: 'i' } },
+                { nameAr: { $regex: escapedSearch, $options: 'i' } }
             ];
         }
 

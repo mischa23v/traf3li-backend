@@ -5,6 +5,12 @@ const { v4: uuidv4 } = require('uuid');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const mongoose = require('mongoose');
 
+// Helper function to escape regex special characters (ReDoS protection)
+const escapeRegex = (str) => {
+    if (!str || typeof str !== 'string') return '';
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 /**
  * Expense Claim Controller - HR Management
  * Module 12: مطالبات النفقات (Expense Claims)
@@ -263,11 +269,12 @@ const getClaims = asyncHandler(async (req, res) => {
     }
 
     if (search) {
+        const escapedSearch = escapeRegex(search);
         query.$or = [
-            { claimNumber: { $regex: search, $options: 'i' } },
-            { claimTitle: { $regex: search, $options: 'i' } },
-            { employeeName: { $regex: search, $options: 'i' } },
-            { employeeNameAr: { $regex: search, $options: 'i' } }
+            { claimNumber: { $regex: escapedSearch, $options: 'i' } },
+            { claimTitle: { $regex: escapedSearch, $options: 'i' } },
+            { employeeName: { $regex: escapedSearch, $options: 'i' } },
+            { employeeNameAr: { $regex: escapedSearch, $options: 'i' } }
         ];
     }
 

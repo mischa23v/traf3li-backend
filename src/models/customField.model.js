@@ -524,9 +524,14 @@ customFieldSchema.methods.validateValue = function(value) {
                 return { valid: false, error: `${this.name} must be at most ${this.validation.maxLength} characters` };
             }
             if (this.validation?.pattern) {
-                const regex = new RegExp(this.validation.pattern);
-                if (!regex.test(value)) {
-                    return { valid: false, error: this.validation.message || `${this.name} format is invalid` };
+                try {
+                    const regex = new RegExp(this.validation.pattern);
+                    if (!regex.test(value)) {
+                        return { valid: false, error: this.validation.message || `${this.name} format is invalid` };
+                    }
+                } catch (e) {
+                    logger.error('Invalid regex pattern in custom field validation:', e);
+                    return { valid: false, error: `${this.name} has invalid validation pattern` };
                 }
             }
             break;

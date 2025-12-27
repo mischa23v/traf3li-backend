@@ -7,6 +7,14 @@ const ManufacturingSettings = require('../models/manufacturingSettings.model');
 const logger = require('../utils/logger');
 
 /**
+ * Escape special regex characters to prevent ReDoS attacks
+ */
+const escapeRegex = (str) => {
+  if (typeof str !== 'string') return str;
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
+/**
  * Manufacturing Service
  * Handles all manufacturing-related business logic including BOMs, Workstations,
  * Work Orders, and Job Cards.
@@ -50,10 +58,10 @@ class ManufacturingService {
 
       if (search) {
         filter.$or = [
-          { bomId: { $regex: search, $options: 'i' } },
-          { bomNumber: { $regex: search, $options: 'i' } },
-          { itemName: { $regex: search, $options: 'i' } },
-          { itemCode: { $regex: search, $options: 'i' } }
+          { bomId: { $regex: escapeRegex(search), $options: 'i' } },
+          { bomNumber: { $regex: escapeRegex(search), $options: 'i' } },
+          { itemName: { $regex: escapeRegex(search), $options: 'i' } },
+          { itemCode: { $regex: escapeRegex(search), $options: 'i' } }
         ];
       }
 
@@ -364,10 +372,10 @@ class ManufacturingService {
 
       if (search) {
         filter.$or = [
-          { workOrderId: { $regex: search, $options: 'i' } },
-          { workOrderNumber: { $regex: search, $options: 'i' } },
-          { itemName: { $regex: search, $options: 'i' } },
-          { itemCode: { $regex: search, $options: 'i' } }
+          { workOrderId: { $regex: escapeRegex(search), $options: 'i' } },
+          { workOrderNumber: { $regex: escapeRegex(search), $options: 'i' } },
+          { itemName: { $regex: escapeRegex(search), $options: 'i' } },
+          { itemCode: { $regex: escapeRegex(search), $options: 'i' } }
         ];
       }
 

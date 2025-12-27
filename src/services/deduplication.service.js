@@ -11,6 +11,14 @@ const mongoose = require('mongoose');
 const logger = require('../utils/logger');
 
 /**
+ * Escape special regex characters to prevent ReDoS attacks
+ */
+const escapeRegex = (str) => {
+    if (typeof str !== 'string') return str;
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
+/**
  * Contact Deduplication Service
  *
  * Detects and merges duplicate contacts using Jaro-Winkler similarity algorithm
@@ -155,7 +163,7 @@ class DeduplicationService {
             if (contact.email) {
                 const emailDomain = contact.email.split('@')[1];
                 if (emailDomain) {
-                    candidateQueries.push({ email: { $regex: `@${emailDomain}$`, $options: 'i' } });
+                    candidateQueries.push({ email: { $regex: `@${escapeRegex(emailDomain)}$`, $options: 'i' } });
                 }
             }
 
@@ -165,8 +173,8 @@ class DeduplicationService {
                 if (normalizedPhone) {
                     candidateQueries.push({
                         $or: [
-                            { phone: { $regex: normalizedPhone.slice(-8), $options: 'i' } },
-                            { alternatePhone: { $regex: normalizedPhone.slice(-8), $options: 'i' } }
+                            { phone: { $regex: escapeRegex(normalizedPhone.slice(-8)), $options: 'i' } },
+                            { alternatePhone: { $regex: escapeRegex(normalizedPhone.slice(-8)), $options: 'i' } }
                         ]
                     });
                 }
@@ -175,12 +183,12 @@ class DeduplicationService {
             // Block 3: Similar last name (first 3 characters)
             if (contact.lastName && contact.lastName.length >= 3) {
                 const lastNamePrefix = contact.lastName.substring(0, 3);
-                candidateQueries.push({ lastName: { $regex: `^${lastNamePrefix}`, $options: 'i' } });
+                candidateQueries.push({ lastName: { $regex: `^${escapeRegex(lastNamePrefix)}`, $options: 'i' } });
             }
 
             // Block 4: Same company
             if (contact.company) {
-                candidateQueries.push({ company: { $regex: contact.company, $options: 'i' } });
+                candidateQueries.push({ company: { $regex: escapeRegex(contact.company), $options: 'i' } });
             }
 
             // Block 5: Same national ID or iqama
@@ -194,7 +202,7 @@ class DeduplicationService {
             // If no blocking criteria, use first name
             if (candidateQueries.length === 0 && contact.firstName) {
                 const firstNamePrefix = contact.firstName.substring(0, 3);
-                candidateQueries.push({ firstName: { $regex: `^${firstNamePrefix}`, $options: 'i' } });
+                candidateQueries.push({ firstName: { $regex: `^${escapeRegex(firstNamePrefix)}`, $options: 'i' } });
             }
 
             // Get candidates (exclude self and already merged contacts)

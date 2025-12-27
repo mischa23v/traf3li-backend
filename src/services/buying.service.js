@@ -23,6 +23,14 @@ const BuyingSettings = require('../models/buyingSettings.model');
 const { CustomException } = require('../utils');
 const logger = require('../utils/logger');
 
+/**
+ * Escape special regex characters to prevent ReDoS attacks
+ */
+const escapeRegex = (str) => {
+  if (typeof str !== 'string') return str;
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 class BuyingService {
   // ═══════════════════════════════════════════════════════════════
   // SUPPLIERS
@@ -57,10 +65,10 @@ class BuyingService {
 
       if (search) {
         filters.$or = [
-          { name: { $regex: search, $options: 'i' } },
-          { nameAr: { $regex: search, $options: 'i' } },
-          { email: { $regex: search, $options: 'i' } },
-          { supplierId: { $regex: search, $options: 'i' } }
+          { name: { $regex: escapeRegex(search), $options: 'i' } },
+          { nameAr: { $regex: escapeRegex(search), $options: 'i' } },
+          { email: { $regex: escapeRegex(search), $options: 'i' } },
+          { supplierId: { $regex: escapeRegex(search), $options: 'i' } }
         ];
       }
 
@@ -245,9 +253,9 @@ class BuyingService {
 
       if (search) {
         filters.$or = [
-          { purchaseOrderId: { $regex: search, $options: 'i' } },
-          { poNumber: { $regex: search, $options: 'i' } },
-          { supplierName: { $regex: search, $options: 'i' } }
+          { purchaseOrderId: { $regex: escapeRegex(search), $options: 'i' } },
+          { poNumber: { $regex: escapeRegex(search), $options: 'i' } },
+          { supplierName: { $regex: escapeRegex(search), $options: 'i' } }
         ];
       }
 
@@ -910,8 +918,8 @@ class BuyingService {
 
       if (search) {
         filters.$or = [
-          { rfqId: { $regex: search, $options: 'i' } },
-          { rfqNumber: { $regex: search, $options: 'i' } }
+          { rfqId: { $regex: escapeRegex(search), $options: 'i' } },
+          { rfqNumber: { $regex: escapeRegex(search), $options: 'i' } }
         ];
       }
 

@@ -57,18 +57,14 @@ const createReconciliation = asyncHandler(async (req, res) => {
     }
 
     // IDOR protection - Validate account exists and belongs to user
-    const account = await BankAccount.findById(sanitizedAccountId);
+    const account = await BankAccount.findOne({
+        _id: sanitizedAccountId,
+        lawyerId: lawyerId,
+        ...(req.firmId && { firmId: req.firmId })
+    });
+
     if (!account) {
         throw CustomException('Account not found', 404);
-    }
-
-    if (account.lawyerId.toString() !== lawyerId) {
-        throw CustomException('Access denied', 403);
-    }
-
-    // Verify firmId if present
-    if (req.firmId && account.firmId && account.firmId.toString() !== req.firmId.toString()) {
-        throw CustomException('Access denied', 403);
     }
 
     // Check for existing in-progress reconciliation
@@ -123,17 +119,15 @@ const getReconciliations = asyncHandler(async (req, res) => {
             throw CustomException('Invalid account ID format', 400);
         }
 
-        const account = await BankAccount.findById(sanitizedAccountId);
+        // IDOR Protection: Include ownership check in query
+        const account = await BankAccount.findOne({
+            _id: sanitizedAccountId,
+            lawyerId: lawyerId,
+            ...(req.firmId && { firmId: req.firmId })
+        });
+
         if (!account) {
             throw CustomException('Account not found', 404);
-        }
-
-        if (account.lawyerId.toString() !== lawyerId) {
-            throw CustomException('Access denied', 403);
-        }
-
-        if (req.firmId && account.firmId && account.firmId.toString() !== req.firmId.toString()) {
-            throw CustomException('Access denied', 403);
         }
 
         filters.accountId = sanitizedAccountId;
@@ -167,7 +161,11 @@ const getReconciliation = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
 
-    const reconciliation = await BankReconciliation.findById(id)
+    const reconciliation = await BankReconciliation.findOne({
+        _id: id,
+        lawyerId: lawyerId,
+        ...(req.firmId && { firmId: req.firmId })
+    })
         .populate('accountId', 'name bankName accountNumber balance')
         .populate('startedBy', 'firstName lastName')
         .populate('completedBy', 'firstName lastName')
@@ -176,10 +174,6 @@ const getReconciliation = asyncHandler(async (req, res) => {
 
     if (!reconciliation) {
         throw CustomException('Reconciliation not found', 404);
-    }
-
-    if (reconciliation.lawyerId.toString() !== lawyerId) {
-        throw CustomException('You do not have access to this reconciliation', 403);
     }
 
     return res.json({
@@ -211,19 +205,14 @@ const clearTransaction = asyncHandler(async (req, res) => {
     }
 
     // IDOR protection
-    const reconciliation = await BankReconciliation.findById(sanitizedId);
+    const reconciliation = await BankReconciliation.findOne({
+        _id: sanitizedId,
+        lawyerId: lawyerId,
+        ...(req.firmId && { firmId: req.firmId })
+    });
 
     if (!reconciliation) {
         throw CustomException('Reconciliation not found', 404);
-    }
-
-    if (reconciliation.lawyerId.toString() !== lawyerId) {
-        throw CustomException('Access denied', 403);
-    }
-
-    // Verify firmId if present
-    if (req.firmId && reconciliation.firmId && reconciliation.firmId.toString() !== req.firmId.toString()) {
-        throw CustomException('Access denied', 403);
     }
 
     if (reconciliation.status !== 'in_progress') {
@@ -269,19 +258,14 @@ const unclearTransaction = asyncHandler(async (req, res) => {
     }
 
     // IDOR protection
-    const reconciliation = await BankReconciliation.findById(sanitizedId);
+    const reconciliation = await BankReconciliation.findOne({
+        _id: sanitizedId,
+        lawyerId: lawyerId,
+        ...(req.firmId && { firmId: req.firmId })
+    });
 
     if (!reconciliation) {
         throw CustomException('Reconciliation not found', 404);
-    }
-
-    if (reconciliation.lawyerId.toString() !== lawyerId) {
-        throw CustomException('Access denied', 403);
-    }
-
-    // Verify firmId if present
-    if (req.firmId && reconciliation.firmId && reconciliation.firmId.toString() !== req.firmId.toString()) {
-        throw CustomException('Access denied', 403);
     }
 
     if (reconciliation.status !== 'in_progress') {
@@ -316,19 +300,14 @@ const completeReconciliation = asyncHandler(async (req, res) => {
     }
 
     // IDOR protection
-    const reconciliation = await BankReconciliation.findById(sanitizedId);
+    const reconciliation = await BankReconciliation.findOne({
+        _id: sanitizedId,
+        lawyerId: lawyerId,
+        ...(req.firmId && { firmId: req.firmId })
+    });
 
     if (!reconciliation) {
         throw CustomException('Reconciliation not found', 404);
-    }
-
-    if (reconciliation.lawyerId.toString() !== lawyerId) {
-        throw CustomException('Access denied', 403);
-    }
-
-    // Verify firmId if present
-    if (req.firmId && reconciliation.firmId && reconciliation.firmId.toString() !== req.firmId.toString()) {
-        throw CustomException('Access denied', 403);
     }
 
     // Use MongoDB transaction for financial operation
@@ -375,19 +354,14 @@ const cancelReconciliation = asyncHandler(async (req, res) => {
     }
 
     // IDOR protection
-    const reconciliation = await BankReconciliation.findById(sanitizedId);
+    const reconciliation = await BankReconciliation.findOne({
+        _id: sanitizedId,
+        lawyerId: lawyerId,
+        ...(req.firmId && { firmId: req.firmId })
+    });
 
     if (!reconciliation) {
         throw CustomException('Reconciliation not found', 404);
-    }
-
-    if (reconciliation.lawyerId.toString() !== lawyerId) {
-        throw CustomException('Access denied', 403);
-    }
-
-    // Verify firmId if present
-    if (req.firmId && reconciliation.firmId && reconciliation.firmId.toString() !== req.firmId.toString()) {
-        throw CustomException('Access denied', 403);
     }
 
     // Use MongoDB transaction for financial operation
@@ -919,17 +893,13 @@ const updateRule = asyncHandler(async (req, res) => {
     }
 
     // IDOR protection - Verify rule ownership
-    const existingRule = await BankMatchRule.findById(sanitizedId);
+    const existingRule = await BankMatchRule.findOne({
+        _id: sanitizedId,
+        lawyerId: lawyerId,
+        ...(req.firmId && { firmId: req.firmId })
+    });
     if (!existingRule) {
         throw CustomException('Rule not found', 404);
-    }
-
-    if (existingRule.lawyerId && existingRule.lawyerId.toString() !== lawyerId) {
-        throw CustomException('Access denied', 403);
-    }
-
-    if (req.firmId && existingRule.firmId && existingRule.firmId.toString() !== req.firmId.toString()) {
-        throw CustomException('Access denied', 403);
     }
 
     // Mass assignment protection
@@ -949,8 +919,12 @@ const updateRule = asyncHandler(async (req, res) => {
         lastModifiedBy: lawyerId
     };
 
-    const rule = await BankMatchRule.findByIdAndUpdate(
-        sanitizedId,
+    const rule = await BankMatchRule.findOneAndUpdate(
+        {
+            _id: sanitizedId,
+            lawyerId: lawyerId,
+            ...(req.firmId && { firmId: req.firmId })
+        },
         updateData,
         { new: true, runValidators: true }
     );
@@ -974,20 +948,20 @@ const deleteRule = asyncHandler(async (req, res) => {
     }
 
     // IDOR protection - Verify rule ownership
-    const rule = await BankMatchRule.findById(sanitizedId);
+    const rule = await BankMatchRule.findOne({
+        _id: sanitizedId,
+        lawyerId: lawyerId,
+        ...(req.firmId && { firmId: req.firmId })
+    });
     if (!rule) {
         throw CustomException('Rule not found', 404);
     }
 
-    if (rule.lawyerId && rule.lawyerId.toString() !== lawyerId) {
-        throw CustomException('Access denied', 403);
-    }
-
-    if (req.firmId && rule.firmId && rule.firmId.toString() !== req.firmId.toString()) {
-        throw CustomException('Access denied', 403);
-    }
-
-    await BankMatchRule.findByIdAndDelete(sanitizedId);
+    await BankMatchRule.findOneAndDelete({
+        _id: sanitizedId,
+        lawyerId: lawyerId,
+        ...(req.firmId && { firmId: req.firmId })
+    });
 
     return res.status(200).json({
         success: true,
@@ -1433,18 +1407,14 @@ const updateBankFeed = asyncHandler(async (req, res) => {
     }
 
     // IDOR protection - Verify feed ownership
-    const feed = await BankFeed.findById(sanitizedId);
+    const feed = await BankFeed.findOne({
+        _id: sanitizedId,
+        lawyerId: lawyerId,
+        ...(req.firmId && { firmId: req.firmId })
+    });
 
     if (!feed) {
         throw CustomException('Bank feed not found', 404);
-    }
-
-    if (feed.lawyerId.toString() !== lawyerId) {
-        throw CustomException('Access denied', 403);
-    }
-
-    if (req.firmId && feed.firmId && feed.firmId.toString() !== req.firmId.toString()) {
-        throw CustomException('Access denied', 403);
     }
 
     // Mass assignment protection
@@ -1482,8 +1452,12 @@ const updateBankFeed = asyncHandler(async (req, res) => {
         allowedFields.bankAccountId = sanitizedBankAccountId;
     }
 
-    const updatedFeed = await BankFeed.findByIdAndUpdate(
-        sanitizedId,
+    const updatedFeed = await BankFeed.findOneAndUpdate(
+        {
+            _id: sanitizedId,
+            lawyerId: lawyerId,
+            ...(req.firmId && { firmId: req.firmId })
+        },
         allowedFields,
         { new: true, runValidators: true }
     )
@@ -1509,21 +1483,21 @@ const deleteBankFeed = asyncHandler(async (req, res) => {
     }
 
     // IDOR protection - Verify feed ownership
-    const feed = await BankFeed.findById(sanitizedId);
+    const feed = await BankFeed.findOne({
+        _id: sanitizedId,
+        lawyerId: lawyerId,
+        ...(req.firmId && { firmId: req.firmId })
+    });
 
     if (!feed) {
         throw CustomException('Bank feed not found', 404);
     }
 
-    if (feed.lawyerId.toString() !== lawyerId) {
-        throw CustomException('Access denied', 403);
-    }
-
-    if (req.firmId && feed.firmId && feed.firmId.toString() !== req.firmId.toString()) {
-        throw CustomException('Access denied', 403);
-    }
-
-    await BankFeed.findByIdAndDelete(sanitizedId);
+    await BankFeed.findOneAndDelete({
+        _id: sanitizedId,
+        lawyerId: lawyerId,
+        ...(req.firmId && { firmId: req.firmId })
+    });
 
     return res.status(200).json({
         success: true,

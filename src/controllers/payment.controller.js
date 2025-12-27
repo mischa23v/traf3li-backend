@@ -542,19 +542,18 @@ const updatePayment = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const payment = await Payment.findById(id);
+    // SECURITY: IDOR Protection - Query with firmId scope
+    const query = { _id: id };
+    if (firmId) {
+        query.firmId = firmId;
+    } else {
+        query.lawyerId = lawyerId;
+    }
+
+    const payment = await Payment.findOne(query);
 
     if (!payment) {
         throw CustomException('Payment not found', 404);
-    }
-
-    // SECURITY: IDOR Protection - Verify payment belongs to user's firm
-    const hasAccess = firmId
-        ? payment.firmId && payment.firmId.toString() === firmId.toString()
-        : payment.lawyerId.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('You do not have access to this payment', 403);
     }
 
     // Cannot update completed, reconciled, or refunded payments (except notes)
@@ -570,8 +569,8 @@ const updatePayment = asyncHandler(async (req, res) => {
 
         // Use limited fields for completed payments
         safeData.updatedBy = lawyerId;
-        const updatedPayment = await Payment.findByIdAndUpdate(
-            id,
+        const updatedPayment = await Payment.findOneAndUpdate(
+            query,
             { $set: safeData },
             { new: true, runValidators: true }
         )
@@ -607,8 +606,8 @@ const updatePayment = asyncHandler(async (req, res) => {
     session.startTransaction();
 
     try {
-        const updatedPayment = await Payment.findByIdAndUpdate(
-            id,
+        const updatedPayment = await Payment.findOneAndUpdate(
+            query,
             { $set: safeData },
             { new: true, runValidators: true, session }
         )
@@ -792,7 +791,7 @@ const completePayment = asyncHandler(async (req, res) => {
 
     try {
         // Reload payment in session to get updated version
-        const paymentDoc = await Payment.findById(id).session(session);
+        const paymentDoc = await Payment.findOne({ _id: id, ...accessQuery }).session(session);
 
         // Apply to invoices if provided
         if (invoiceApplications && invoiceApplications.length > 0) {
@@ -1704,7 +1703,13 @@ const recordInvoicePayment = asyncHandler(async (req, res) => {
             ]);
 
         if (existingPayment) {
-            const invoice = await Invoice.findById(invoiceId);
+            const invoiceQuery = { _id: invoiceId };
+            if (firmId) {
+                invoiceQuery.firmId = firmId;
+            } else {
+                invoiceQuery.lawyerId = lawyerId;
+            }
+            const invoice = await Invoice.findOne(invoiceQuery);
             return res.status(200).json({
                 success: true,
                 message: 'Payment already recorded (idempotent)',
@@ -1858,7 +1863,10 @@ const recordInvoicePayment = asyncHandler(async (req, res) => {
             const balanceSession = await mongoose.startSession();
             balanceSession.startTransaction();
             try {
-                const client = await Client.findById(invoice.clientId).session(balanceSession);
+                const client = await Client.findOne({
+                    _id: invoice.clientId,
+                    firmId: firmId || null
+                }).session(balanceSession);
                 if (client) {
                     await client.updateBalance();
                 }
@@ -1889,7 +1897,13 @@ const recordInvoicePayment = asyncHandler(async (req, res) => {
         await session.abortTransaction();
         // SECURITY: Clear payment processing flag on error
         try {
-            await Invoice.findByIdAndUpdate(invoiceId, { $set: { paymentProcessing: false } });
+            const cleanupQuery = { _id: invoiceId };
+            if (firmId) {
+                cleanupQuery.firmId = firmId;
+            } else {
+                cleanupQuery.lawyerId = lawyerId;
+            }
+            await Invoice.findOneAndUpdate(cleanupQuery, { $set: { paymentProcessing: false } });
         } catch (cleanupError) {
             // Log cleanup error but don't mask original error
             console.error('Failed to clear payment processing flag:', cleanupError);

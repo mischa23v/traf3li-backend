@@ -12,6 +12,12 @@ const EmailEvent = require('../models/emailEvent.model');
 const { pickAllowedFields, sanitizeObjectId, sanitizeEmail } = require('../utils/securityUtils');
 const logger = require('../utils/logger');
 
+// Helper function to escape regex special characters (ReDoS protection)
+const escapeRegex = (str) => {
+    if (!str || typeof str !== 'string') return '';
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 // ==================== CAMPAIGNS ====================
 
 /**
@@ -855,10 +861,11 @@ exports.getSubscribers = async (req, res) => {
     if (status) query.status = status;
     if (tags) query.tags = { $in: tags.split(',') };
     if (search) {
+      const escapedSearch = escapeRegex(search);
       query.$or = [
-        { email: { $regex: search, $options: 'i' } },
-        { firstName: { $regex: search, $options: 'i' } },
-        { lastName: { $regex: search, $options: 'i' } }
+        { email: { $regex: escapedSearch, $options: 'i' } },
+        { firstName: { $regex: escapedSearch, $options: 'i' } },
+        { lastName: { $regex: escapedSearch, $options: 'i' } }
       ];
     }
 

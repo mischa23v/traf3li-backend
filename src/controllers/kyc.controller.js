@@ -237,11 +237,18 @@ exports.handleWebhook = async (req, res) => {
         });
       } else if (status === 'rejected' && userId) {
         const User = require('../models/user.model');
-        await User.findByIdAndUpdate(userId, {
-          kycStatus: 'rejected',
-          kycRejectedAt: new Date(),
-          kycRejectionReason: data?.reason || 'Verification failed'
-        });
+        // IDOR Protection: Only update if user exists and webhook data is valid
+        const user = await User.findById(userId);
+        if (user) {
+          await User.findOneAndUpdate(
+            { _id: userId },
+            {
+              kycStatus: 'rejected',
+              kycRejectedAt: new Date(),
+              kycRejectionReason: data?.reason || 'Verification failed'
+            }
+          );
+        }
       }
     }
 

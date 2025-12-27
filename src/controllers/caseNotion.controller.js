@@ -8,6 +8,12 @@ const BlockConnection = require('../models/blockConnection.model');
 const SyncedBlock = require('../models/syncedBlock.model');
 const PageTemplate = require('../models/pageTemplate.model');
 const BlockComment = require('../models/blockComment.model');
+
+// Helper function to escape regex special characters (ReDoS protection)
+const escapeRegex = (str) => {
+    if (!str || typeof str !== 'string') return '';
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
 const PageActivity = require('../models/pageActivity.model');
 const Task = require('../models/task.model');
 const Case = require('../models/case.model');
@@ -77,7 +83,12 @@ const verifyPageOwnership = async (pageId, user) => {
         throw new Error('Invalid page ID');
     }
 
-    const page = await CaseNotionPage.findById(sanitizedPageId);
+    const query = { _id: sanitizedPageId };
+    if (user.firmId) {
+        query.firmId = user.firmId;
+    }
+
+    const page = await CaseNotionPage.findOne(query);
     if (!page || page.deletedAt) {
         throw new Error('Page not found');
     }
@@ -97,7 +108,12 @@ const verifyBlockOwnership = async (blockId, user) => {
         throw new Error('Invalid block ID');
     }
 
-    const block = await CaseNotionBlock.findById(sanitizedBlockId);
+    const query = { _id: sanitizedBlockId };
+    if (user.firmId) {
+        query.firmId = user.firmId;
+    }
+
+    const block = await CaseNotionBlock.findOne(query);
     if (!block) {
         throw new Error('Block not found');
     }
@@ -135,8 +151,8 @@ exports.listCasesWithNotion = async (req, res) => {
             // If we already have $or for firm/lawyer filter, we need to use $and
             const searchCondition = {
                 $or: [
-                    { title: { $regex: search, $options: 'i' } },
-                    { caseNumber: { $regex: search, $options: 'i' } }
+                    { title: { $regex: escapeRegex(search), $options: 'i' } },
+                    { caseNumber: { $regex: escapeRegex(search), $options: 'i' } }
                 ]
             };
             if (matchStage.$or) {
@@ -364,6 +380,7 @@ exports.getPage = async (req, res) => {
 
         // Transform blocks for frontend
         const transformedBlocks = blocks.map(block => {
+            // Response Leakage Protection: CaseNotionBlock model has no sensitive fields (verified)
             const blockObj = block.toObject();
 
             // For whiteboard mode, ensure all canvas fields are present
@@ -395,6 +412,7 @@ exports.getPage = async (req, res) => {
             return blockObj;
         });
 
+        // Response Leakage Protection: CaseNotionPage model has no sensitive fields (verified)
         res.json({
             success: true,
             data: {
@@ -463,7 +481,7 @@ exports.createPage = async (req, res) => {
         if (safeData.templateId) {
             const sanitizedTemplateId = sanitizeObjectId(safeData.templateId);
             if (sanitizedTemplateId) {
-                await applyTemplateToPage(page._id, sanitizedTemplateId, req.user._id);
+                await applyTemplateToPage(page._id, sanitizedTemplateId, req.user._id, req.user.firmId, req.user.lawyerId);
             }
         }
 
@@ -471,7 +489,11 @@ exports.createPage = async (req, res) => {
         if (pageData.parentPageId) {
             // Verify parent page ownership
             await verifyPageOwnership(pageData.parentPageId, req.user);
-            await CaseNotionPage.findByIdAndUpdate(pageData.parentPageId, {
+            const query = { _id: pageData.parentPageId };
+            if (req.user.firmId) {
+                query.firmId = req.user.firmId;
+            }
+            await CaseNotionPage.findOneAndUpdate(query, {
                 $push: { childPageIds: page._id }
             });
         }
@@ -520,8 +542,13 @@ exports.updatePage = async (req, res) => {
         if (safeData.snapToGrid !== undefined) updateData.snapToGrid = safeData.snapToGrid;
         if (safeData.showGrid !== undefined) updateData.showGrid = safeData.showGrid;
 
-        const page = await CaseNotionPage.findByIdAndUpdate(
-            pageId,
+        const query = { _id: pageId };
+        if (req.user.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const page = await CaseNotionPage.findOneAndUpdate(
+            query,
             {
                 $set: {
                     ...updateData,
@@ -580,8 +607,13 @@ exports.archivePage = async (req, res) => {
     try {
         const { pageId } = req.params;
 
-        const page = await CaseNotionPage.findByIdAndUpdate(
-            pageId,
+        const query = { _id: pageId };
+        if (req.user.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const page = await CaseNotionPage.findOneAndUpdate(
+            query,
             { archivedAt: new Date() },
             { new: true }
         );
@@ -607,8 +639,13 @@ exports.restorePage = async (req, res) => {
     try {
         const { pageId } = req.params;
 
-        const page = await CaseNotionPage.findByIdAndUpdate(
-            pageId,
+        const query = { _id: pageId };
+        if (req.user.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const page = await CaseNotionPage.findOneAndUpdate(
+            query,
             { archivedAt: null, deletedAt: null },
             { new: true }
         );
@@ -635,7 +672,12 @@ exports.duplicatePage = async (req, res) => {
         const { caseId, pageId } = req.params;
         const { newTitle } = req.body;
 
-        const originalPage = await CaseNotionPage.findById(pageId);
+        const query = { _id: pageId };
+        if (req.user.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const originalPage = await CaseNotionPage.findOne(query);
         if (!originalPage) {
             return res.status(404).json({ error: true, message: 'Page not found' });
         }
@@ -664,6 +706,7 @@ exports.duplicatePage = async (req, res) => {
         const blocks = await CaseNotionBlock.find({ pageId });
         let order = 0;
         for (const block of blocks) {
+            // Response Leakage Protection: CaseNotionBlock model has no sensitive fields (verified)
             const newBlock = block.toObject();
             delete newBlock._id;
             newBlock.pageId = newPage._id;
@@ -681,7 +724,12 @@ exports.toggleFavorite = async (req, res) => {
     try {
         const { pageId } = req.params;
 
-        const page = await CaseNotionPage.findById(pageId);
+        const query = { _id: pageId };
+        if (req.user.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const page = await CaseNotionPage.findOne(query);
         if (!page) {
             return res.status(404).json({ error: true, message: 'Page not found' });
         }
@@ -707,7 +755,12 @@ exports.togglePin = async (req, res) => {
     try {
         const { pageId } = req.params;
 
-        const page = await CaseNotionPage.findById(pageId);
+        const query = { _id: pageId };
+        if (req.user.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const page = await CaseNotionPage.findOne(query);
         if (!page) {
             return res.status(404).json({ error: true, message: 'Page not found' });
         }
@@ -752,7 +805,11 @@ exports.mergePages = async (req, res) => {
 
         let blockOrder = 0;
         for (const sourcePageId of sourcePageIds) {
-            const sourcePage = await CaseNotionPage.findById(sourcePageId);
+            const query = { _id: sourcePageId };
+            if (req.user.firmId) {
+                query.firmId = req.user.firmId;
+            }
+            const sourcePage = await CaseNotionPage.findOne(query);
             if (!sourcePage) continue;
 
             // Add page title as heading
@@ -766,6 +823,7 @@ exports.mergePages = async (req, res) => {
             // Copy blocks
             const blocks = await CaseNotionBlock.find({ pageId: sourcePageId }).sort({ order: 1 });
             for (const block of blocks) {
+                // Response Leakage Protection: CaseNotionBlock model has no sensitive fields (verified)
                 const newBlock = block.toObject();
                 delete newBlock._id;
                 newBlock.pageId = mergedPage._id;
@@ -843,7 +901,11 @@ exports.createBlock = async (req, res) => {
         if (safeData.afterBlockId) {
             const sanitizedAfterId = sanitizeObjectId(safeData.afterBlockId);
             if (sanitizedAfterId) {
-                const afterBlock = await CaseNotionBlock.findById(sanitizedAfterId);
+                const query = { _id: sanitizedAfterId };
+                if (req.user.firmId) {
+                    query.firmId = req.user.firmId;
+                }
+                const afterBlock = await CaseNotionBlock.findOne(query);
                 if (afterBlock) {
                     // Verify the afterBlock belongs to the same page
                     if (afterBlock.pageId.toString() !== pageId) {
@@ -1089,7 +1151,12 @@ exports.moveBlock = async (req, res) => {
         const { blockId } = req.params;
         const { targetPageId, afterBlockId, parentId } = req.body;
 
-        const block = await CaseNotionBlock.findById(blockId);
+        const query = { _id: blockId };
+        if (req.user.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const block = await CaseNotionBlock.findOne(query);
         if (!block) {
             return res.status(404).json({ error: true, message: 'Block not found' });
         }
@@ -1100,7 +1167,11 @@ exports.moveBlock = async (req, res) => {
         // Determine new order
         let newOrder = 0;
         if (afterBlockId) {
-            const afterBlock = await CaseNotionBlock.findById(afterBlockId);
+            const afterQuery = { _id: afterBlockId };
+            if (req.user.firmId) {
+                afterQuery.firmId = req.user.firmId;
+            }
+            const afterBlock = await CaseNotionBlock.findOne(afterQuery);
             if (afterBlock) {
                 newOrder = afterBlock.order + 1;
             }
@@ -1144,7 +1215,12 @@ exports.lockBlock = async (req, res) => {
     try {
         const { blockId } = req.params;
 
-        const block = await CaseNotionBlock.findById(blockId);
+        const query = { _id: blockId };
+        if (req.user.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const block = await CaseNotionBlock.findOne(query);
         if (!block) {
             return res.status(404).json({ error: true, message: 'Block not found' });
         }
@@ -1171,7 +1247,12 @@ exports.unlockBlock = async (req, res) => {
     try {
         const { blockId } = req.params;
 
-        const block = await CaseNotionBlock.findById(blockId);
+        const query = { _id: blockId };
+        if (req.user.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const block = await CaseNotionBlock.findOne(query);
         if (!block) {
             return res.status(404).json({ error: true, message: 'Block not found' });
         }
@@ -1194,7 +1275,12 @@ exports.createSyncedBlock = async (req, res) => {
     try {
         const { originalBlockId, targetPageId } = req.body;
 
-        const originalBlock = await CaseNotionBlock.findById(originalBlockId);
+        const query = { _id: originalBlockId };
+        if (req.user.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const originalBlock = await CaseNotionBlock.findOne(query);
         if (!originalBlock) {
             return res.status(404).json({ error: true, message: 'Original block not found' });
         }
@@ -1259,7 +1345,12 @@ exports.unsyncBlock = async (req, res) => {
     try {
         const { blockId } = req.params;
 
-        const block = await CaseNotionBlock.findById(blockId);
+        const query = { _id: blockId };
+        if (req.user.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const block = await CaseNotionBlock.findOne(query);
         if (!block) {
             return res.status(404).json({ error: true, message: 'Block not found' });
         }
@@ -1348,8 +1439,8 @@ exports.resolveComment = async (req, res) => {
     try {
         const { commentId } = req.params;
 
-        const comment = await BlockComment.findByIdAndUpdate(
-            commentId,
+        const comment = await BlockComment.findOneAndUpdate(
+            { _id: commentId, ...req.firmQuery },
             {
                 isResolved: true,
                 resolvedBy: req.user._id,
@@ -1372,7 +1463,7 @@ exports.deleteComment = async (req, res) => {
     try {
         const { commentId } = req.params;
 
-        const comment = await BlockComment.findById(commentId);
+        const comment = await BlockComment.findOne({ _id: commentId, ...req.firmQuery });
         if (!comment) {
             return res.status(404).json({ error: true, message: 'Comment not found' });
         }
@@ -1462,7 +1553,7 @@ exports.search = async (req, res) => {
         const pageIds = await CaseNotionPage.find(query).distinct('_id');
         const blockMatches = await CaseNotionBlock.find({
             pageId: { $in: pageIds },
-            'content.plainText': { $regex: q, $options: 'i' }
+            'content.plainText': { $regex: escapeRegex(q), $options: 'i' }
         })
             .limit(20)
             .populate('pageId', 'title titleAr');
@@ -1508,12 +1599,18 @@ exports.exportPdf = async (req, res) => {
     try {
         const { pageId } = req.params;
 
-        const page = await CaseNotionPage.findById(pageId);
+        const query = { _id: pageId };
+        if (req.user.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const page = await CaseNotionPage.findOne(query);
         if (!page) {
             return res.status(404).json({ error: true, message: 'Page not found' });
         }
 
         const blocks = await CaseNotionBlock.find({ pageId }).sort({ order: 1 });
+        // Response Leakage Protection: CaseNotionPage model has no sensitive fields (verified)
         const pageWithBlocks = { ...page.toObject(), blocks };
 
         const { exportPageToPdf } = require('../services/pdfExporter.service');
@@ -1531,12 +1628,18 @@ exports.exportMarkdown = async (req, res) => {
     try {
         const { pageId } = req.params;
 
-        const page = await CaseNotionPage.findById(pageId);
+        const query = { _id: pageId };
+        if (req.user.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const page = await CaseNotionPage.findOne(query);
         if (!page) {
             return res.status(404).json({ error: true, message: 'Page not found' });
         }
 
         const blocks = await CaseNotionBlock.find({ pageId }).sort({ order: 1 });
+        // Response Leakage Protection: CaseNotionPage model has no sensitive fields (verified)
         const pageWithBlocks = { ...page.toObject(), blocks };
 
         const { exportPageToMarkdown } = require('../services/markdownExporter.service');
@@ -1554,12 +1657,18 @@ exports.exportHtml = async (req, res) => {
     try {
         const { pageId } = req.params;
 
-        const page = await CaseNotionPage.findById(pageId);
+        const query = { _id: pageId };
+        if (req.user.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const page = await CaseNotionPage.findOne(query);
         if (!page) {
             return res.status(404).json({ error: true, message: 'Page not found' });
         }
 
         const blocks = await CaseNotionBlock.find({ pageId }).sort({ order: 1 });
+        // Response Leakage Protection: CaseNotionPage model has no sensitive fields (verified)
         const pageWithBlocks = { ...page.toObject(), blocks };
 
         const { generateHtmlFromBlocks } = require('../services/pdfExporter.service');
@@ -1613,7 +1722,7 @@ exports.applyTemplate = async (req, res) => {
         const { pageId } = req.params;
         const { templateId } = req.body;
 
-        await applyTemplateToPage(pageId, templateId, req.user._id);
+        await applyTemplateToPage(pageId, templateId, req.user._id, req.user.firmId, req.user.lawyerId);
 
         await PageActivity.create({
             pageId,
@@ -1623,9 +1732,15 @@ exports.applyTemplate = async (req, res) => {
             details: { templateId }
         });
 
-        const page = await CaseNotionPage.findById(pageId);
+        const query = { _id: pageId };
+        if (req.user.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const page = await CaseNotionPage.findOne(query);
         const blocks = await CaseNotionBlock.find({ pageId }).sort({ order: 1 });
 
+        // Response Leakage Protection: CaseNotionPage model has no sensitive fields (verified)
         res.json({ success: true, data: { ...page.toObject(), blocks } });
     } catch (error) {
         res.status(500).json({ error: true, message: error.message });
@@ -1637,7 +1752,12 @@ exports.saveAsTemplate = async (req, res) => {
         const { pageId } = req.params;
         const { name, nameAr, description, descriptionAr, category, isGlobal } = req.body;
 
-        const page = await CaseNotionPage.findById(pageId);
+        const query = { _id: pageId };
+        if (req.user.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const page = await CaseNotionPage.findOne(query);
         if (!page) {
             return res.status(404).json({ error: true, message: 'Page not found' });
         }
@@ -1685,7 +1805,12 @@ exports.linkTask = async (req, res) => {
         const { blockId } = req.params;
         const { taskId } = req.body;
 
-        const block = await CaseNotionBlock.findById(blockId);
+        const query = { _id: blockId };
+        if (req.user.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const block = await CaseNotionBlock.findOne(query);
         if (!block) {
             return res.status(404).json({ error: true, message: 'Block not found' });
         }
@@ -1706,8 +1831,13 @@ exports.unlinkTask = async (req, res) => {
         const { blockId } = req.params;
         const { taskId } = req.body;
 
-        const block = await CaseNotionBlock.findByIdAndUpdate(
-            blockId,
+        const query = { _id: blockId };
+        if (req.user.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const block = await CaseNotionBlock.findOneAndUpdate(
+            query,
             { $pull: { linkedTaskIds: taskId } },
             { new: true }
         );
@@ -1727,7 +1857,12 @@ exports.createTaskFromBlock = async (req, res) => {
         const { caseId, blockId } = req.params;
         const { title, dueDate, assignedTo, priority } = req.body;
 
-        const block = await CaseNotionBlock.findById(blockId);
+        const query = { _id: blockId };
+        if (req.user.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const block = await CaseNotionBlock.findOne(query);
         if (!block) {
             return res.status(404).json({ error: true, message: 'Block not found' });
         }
@@ -1784,8 +1919,13 @@ exports.updateBlockPosition = async (req, res) => {
             });
         }
 
-        const block = await CaseNotionBlock.findByIdAndUpdate(
-            blockId,
+        const query = { _id: blockId };
+        if (req.user.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const block = await CaseNotionBlock.findOneAndUpdate(
+            query,
             {
                 canvasX: Math.round(canvasX),
                 canvasY: Math.round(canvasY),
@@ -1836,8 +1976,13 @@ exports.updateBlockSize = async (req, res) => {
         if (canvasWidth !== undefined) updateData.canvasWidth = Math.round(canvasWidth);
         if (canvasHeight !== undefined) updateData.canvasHeight = Math.round(canvasHeight);
 
-        const block = await CaseNotionBlock.findByIdAndUpdate(
-            blockId,
+        const query = { _id: blockId };
+        if (req.user.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const block = await CaseNotionBlock.findOneAndUpdate(
+            query,
             updateData,
             { new: true }
         );
@@ -1869,8 +2014,13 @@ exports.updateBlockColor = async (req, res) => {
             });
         }
 
-        const block = await CaseNotionBlock.findByIdAndUpdate(
-            blockId,
+        const query = { _id: blockId };
+        if (req.user.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const block = await CaseNotionBlock.findOneAndUpdate(
+            query,
             {
                 blockColor,
                 lastEditedBy: req.user._id,
@@ -1906,8 +2056,13 @@ exports.updateBlockPriority = async (req, res) => {
             });
         }
 
-        const block = await CaseNotionBlock.findByIdAndUpdate(
-            blockId,
+        const query = { _id: blockId };
+        if (req.user.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const block = await CaseNotionBlock.findOneAndUpdate(
+            query,
             {
                 priority,
                 lastEditedBy: req.user._id,
@@ -1940,7 +2095,7 @@ exports.linkBlockToEvent = async (req, res) => {
         const { eventId } = req.body;
 
         // Verify event belongs to this case
-        const caseDoc = await Case.findById(caseId);
+        const caseDoc = await Case.findOne({ _id: caseId, ...req.firmQuery });
         if (!caseDoc) {
             return res.status(404).json({ error: true, message: 'Case not found' });
         }
@@ -1953,8 +2108,13 @@ exports.linkBlockToEvent = async (req, res) => {
             });
         }
 
-        const block = await CaseNotionBlock.findByIdAndUpdate(
-            blockId,
+        const query = { _id: blockId };
+        if (req.user.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const block = await CaseNotionBlock.findOneAndUpdate(
+            query,
             {
                 linkedEventId: eventId,
                 lastEditedBy: req.user._id,
@@ -1996,8 +2156,13 @@ exports.linkBlockToHearing = async (req, res) => {
             });
         }
 
-        const block = await CaseNotionBlock.findByIdAndUpdate(
-            blockId,
+        const query = { _id: blockId };
+        if (req.user.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const block = await CaseNotionBlock.findOneAndUpdate(
+            query,
             {
                 linkedHearingId: hearingId,
                 lastEditedBy: req.user._id,
@@ -2039,8 +2204,13 @@ exports.linkBlockToDocument = async (req, res) => {
             });
         }
 
-        const block = await CaseNotionBlock.findByIdAndUpdate(
-            blockId,
+        const query = { _id: blockId };
+        if (req.user.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const block = await CaseNotionBlock.findOneAndUpdate(
+            query,
             {
                 linkedDocumentId: documentId,
                 lastEditedBy: req.user._id,
@@ -2067,8 +2237,13 @@ exports.unlinkBlock = async (req, res) => {
     try {
         const { blockId } = req.params;
 
-        const block = await CaseNotionBlock.findByIdAndUpdate(
-            blockId,
+        const query = { _id: blockId };
+        if (req.user.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const block = await CaseNotionBlock.findOneAndUpdate(
+            query,
             {
                 linkedEventId: null,
                 linkedTaskId: null,
@@ -2136,9 +2311,14 @@ exports.createConnection = async (req, res) => {
         } = req.body;
 
         // Validate blocks exist
+        const query = {};
+        if (req.user.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
         const [sourceBlock, targetBlock] = await Promise.all([
-            CaseNotionBlock.findById(sourceBlockId),
-            CaseNotionBlock.findById(targetBlockId)
+            CaseNotionBlock.findOne({ _id: sourceBlockId, ...query }),
+            CaseNotionBlock.findOne({ _id: targetBlockId, ...query })
         ]);
 
         if (!sourceBlock || !targetBlock) {
@@ -2182,19 +2362,35 @@ exports.createConnection = async (req, res) => {
         });
 
         // Update boundElements on both blocks (bidirectional binding)
+        const updateQuery = {};
+        if (req.user.firmId) {
+            updateQuery.firmId = req.user.firmId;
+        }
+
         await Promise.all([
-            CaseNotionBlock.findByIdAndUpdate(sourceBlockId, {
-                $push: { boundElements: { id: connection._id, type: 'arrow' } },
-                $inc: { version: 1 }
-            }),
-            CaseNotionBlock.findByIdAndUpdate(targetBlockId, {
-                $push: { boundElements: { id: connection._id, type: 'arrow' } },
-                $inc: { version: 1 }
-            })
+            CaseNotionBlock.findOneAndUpdate(
+                { _id: sourceBlockId, ...updateQuery },
+                {
+                    $push: { boundElements: { id: connection._id, type: 'arrow' } },
+                    $inc: { version: 1 }
+                }
+            ),
+            CaseNotionBlock.findOneAndUpdate(
+                { _id: targetBlockId, ...updateQuery },
+                {
+                    $push: { boundElements: { id: connection._id, type: 'arrow' } },
+                    $inc: { version: 1 }
+                }
+            )
         ]);
 
         // Populate and return
-        const populatedConnection = await BlockConnection.findById(connection._id)
+        const connQuery = { _id: connection._id };
+        if (req.user.firmId) {
+            connQuery.firmId = req.user.firmId;
+        }
+
+        const populatedConnection = await BlockConnection.findOne(connQuery)
             .populate('sourceBlockId', 'canvasX canvasY canvasWidth canvasHeight handles')
             .populate('targetBlockId', 'canvasX canvasY canvasWidth canvasHeight handles');
 
@@ -2219,8 +2415,13 @@ exports.updateConnection = async (req, res) => {
         if (label !== undefined) updateData.label = label;
         if (color !== undefined) updateData.color = color;
 
-        const connection = await BlockConnection.findByIdAndUpdate(
-            connectionId,
+        const query = { _id: connectionId };
+        if (req.user.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const connection = await BlockConnection.findOneAndUpdate(
+            query,
             updateData,
             { new: true }
         );
@@ -2243,25 +2444,46 @@ exports.deleteConnection = async (req, res) => {
     try {
         const { connectionId } = req.params;
 
-        const connection = await BlockConnection.findById(connectionId);
+        const connQuery = { _id: connectionId };
+        if (req.user.firmId) {
+            connQuery.firmId = req.user.firmId;
+        }
+
+        const connection = await BlockConnection.findOne(connQuery);
         if (!connection) {
             return res.status(404).json({ error: true, message: 'Connection not found' });
         }
 
         // Remove from boundElements on both blocks
+        const query = {};
+        if (req.user.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
         await Promise.all([
-            CaseNotionBlock.findByIdAndUpdate(connection.sourceBlockId, {
-                $pull: { boundElements: { id: connection._id } },
-                $inc: { version: 1 }
-            }),
-            CaseNotionBlock.findByIdAndUpdate(connection.targetBlockId, {
-                $pull: { boundElements: { id: connection._id } },
-                $inc: { version: 1 }
-            })
+            CaseNotionBlock.findOneAndUpdate(
+                { _id: connection.sourceBlockId, ...query },
+                {
+                    $pull: { boundElements: { id: connection._id } },
+                    $inc: { version: 1 }
+                }
+            ),
+            CaseNotionBlock.findOneAndUpdate(
+                { _id: connection.targetBlockId, ...query },
+                {
+                    $pull: { boundElements: { id: connection._id } },
+                    $inc: { version: 1 }
+                }
+            )
         ]);
 
         // Soft delete or hard delete
-        await BlockConnection.findByIdAndDelete(connectionId);
+        const delQuery = { _id: connectionId };
+        if (req.user.firmId) {
+            delQuery.firmId = req.user.firmId;
+        }
+
+        await BlockConnection.findOneAndDelete(delQuery);
 
         res.json({ success: true, message: 'Connection deleted' });
     } catch (error) {
@@ -2315,8 +2537,13 @@ exports.updateViewMode = async (req, res) => {
             });
         }
 
-        const page = await CaseNotionPage.findByIdAndUpdate(
-            pageId,
+        const query = { _id: pageId };
+        if (req.user.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const page = await CaseNotionPage.findOneAndUpdate(
+            query,
             {
                 viewMode,
                 lastEditedBy: req.user._id
@@ -2377,6 +2604,7 @@ exports.updateViewMode = async (req, res) => {
             ? await BlockConnection.find({ pageId })
             : [];
 
+        // Response Leakage Protection: CaseNotionPage model has no sensitive fields (verified)
         res.json({
             success: true,
             data: {
@@ -2399,7 +2627,12 @@ exports.updateWhiteboardConfig = async (req, res) => {
         const { pageId } = req.params;
         const { canvasWidth, canvasHeight, zoom, panX, panY, gridEnabled, snapToGrid, gridSize } = req.body;
 
-        const page = await CaseNotionPage.findById(pageId);
+        const query = { _id: pageId };
+        if (req.user.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const page = await CaseNotionPage.findOne(query);
         if (!page) {
             return res.status(404).json({ error: true, message: 'Page not found' });
         }
@@ -2441,12 +2674,22 @@ exports.addToFrame = async (req, res) => {
         const { frameId } = req.params;
         const { elementId } = req.body;
 
-        const frame = await CaseNotionBlock.findById(frameId);
+        const query = { _id: frameId };
+        if (req.user.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const frame = await CaseNotionBlock.findOne(query);
         if (!frame || !frame.isFrame) {
             return res.status(404).json({ error: true, message: 'Frame not found' });
         }
 
-        const element = await CaseNotionBlock.findById(elementId);
+        const elementQuery = { _id: elementId };
+        if (req.user.firmId) {
+            elementQuery.firmId = req.user.firmId;
+        }
+
+        const element = await CaseNotionBlock.findOne(elementQuery);
         if (!element) {
             return res.status(404).json({ error: true, message: 'Element not found' });
         }
@@ -2472,7 +2715,12 @@ exports.removeFromFrame = async (req, res) => {
     try {
         const { frameId, elementId } = req.params;
 
-        const frame = await CaseNotionBlock.findById(frameId);
+        const query = { _id: frameId };
+        if (req.user.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const frame = await CaseNotionBlock.findOne(query);
         if (!frame || !frame.isFrame) {
             return res.status(404).json({ error: true, message: 'Frame not found' });
         }
@@ -2497,7 +2745,12 @@ exports.getFrameChildren = async (req, res) => {
     try {
         const { frameId } = req.params;
 
-        const frame = await CaseNotionBlock.findById(frameId)
+        const query = { _id: frameId };
+        if (req.user.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const frame = await CaseNotionBlock.findOne(query)
             .populate('frameChildren');
 
         if (!frame || !frame.isFrame) {
@@ -2518,7 +2771,12 @@ exports.autoDetectFrameChildren = async (req, res) => {
     try {
         const { frameId } = req.params;
 
-        const frame = await CaseNotionBlock.findById(frameId);
+        const query = { _id: frameId };
+        if (req.user.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const frame = await CaseNotionBlock.findOne(query);
         if (!frame || !frame.isFrame) {
             return res.status(404).json({ error: true, message: 'Frame not found' });
         }
@@ -2557,7 +2815,12 @@ exports.moveFrameWithChildren = async (req, res) => {
         const { frameId } = req.params;
         const { deltaX, deltaY } = req.body;
 
-        const frame = await CaseNotionBlock.findById(frameId)
+        const query = { _id: frameId };
+        if (req.user.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const frame = await CaseNotionBlock.findOne(query)
             .populate('frameChildren');
 
         if (!frame || !frame.isFrame) {
@@ -2597,7 +2860,12 @@ exports.moveFrameWithChildren = async (req, res) => {
         await CaseNotionBlock.bulkWrite(bulkOps);
 
         // Return updated frame with children
-        const updatedFrame = await CaseNotionBlock.findById(frameId)
+        const query = { _id: frameId };
+        if (req.user.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const updatedFrame = await CaseNotionBlock.findOne(query)
             .populate('frameChildren');
 
         res.json({ success: true, data: updatedFrame });
@@ -2697,8 +2965,12 @@ exports.undo = async (req, res) => {
             case 'style_element':
                 // Restore previous state for each element
                 for (const state of previousState) {
-                    await CaseNotionBlock.findByIdAndUpdate(
-                        state._id,
+                    const query = { _id: state._id };
+                    if (req.user.firmId) {
+                        query.firmId = req.user.firmId;
+                    }
+                    await CaseNotionBlock.findOneAndUpdate(
+                        query,
                         { $set: state }
                     );
                 }
@@ -2720,8 +2992,12 @@ exports.undo = async (req, res) => {
 
             case 'batch_update':
                 for (const state of previousState) {
-                    await CaseNotionBlock.findByIdAndUpdate(
-                        state._id,
+                    const query = { _id: state._id };
+                    if (req.user.firmId) {
+                        query.firmId = req.user.firmId;
+                    }
+                    await CaseNotionBlock.findOneAndUpdate(
+                        query,
                         { $set: state }
                     );
                 }
@@ -2736,8 +3012,12 @@ exports.undo = async (req, res) => {
 
             case 'ungroup':
                 for (const state of previousState) {
-                    await CaseNotionBlock.findByIdAndUpdate(
-                        state._id,
+                    const query = { _id: state._id };
+                    if (req.user.firmId) {
+                        query.firmId = req.user.firmId;
+                    }
+                    await CaseNotionBlock.findOneAndUpdate(
+                        query,
                         { $set: { groupId: state.groupId, groupName: state.groupName } }
                     );
                 }
@@ -2807,8 +3087,12 @@ exports.redo = async (req, res) => {
             case 'style_element':
             case 'batch_update':
                 for (const state of newState) {
-                    await CaseNotionBlock.findByIdAndUpdate(
-                        state._id,
+                    const query = { _id: state._id };
+                    if (req.user.firmId) {
+                        query.firmId = req.user.firmId;
+                    }
+                    await CaseNotionBlock.findOneAndUpdate(
+                        query,
                         { $set: state }
                     );
                 }
@@ -2830,8 +3114,12 @@ exports.redo = async (req, res) => {
 
             case 'group':
                 for (const state of newState) {
-                    await CaseNotionBlock.findByIdAndUpdate(
-                        state._id,
+                    const query = { _id: state._id };
+                    if (req.user.firmId) {
+                        query.firmId = req.user.firmId;
+                    }
+                    await CaseNotionBlock.findOneAndUpdate(
+                        query,
                         { $set: { groupId: state.groupId, groupName: state.groupName } }
                     );
                 }
@@ -2919,6 +3207,7 @@ exports.duplicateElements = async (req, res) => {
 
         // Generate new IDs and offset positions
         const duplicates = elements.map(el => {
+            // Response Leakage Protection: CaseNotionBlock model has no sensitive fields (verified)
             const duplicate = el.toObject();
             delete duplicate._id;
             delete duplicate.__v;
@@ -3286,7 +3575,11 @@ async function updateSyncedBlocks(originalBlockId, updateData) {
         await syncedRecord.save();
 
         for (const synced of syncedRecord.syncedToPages) {
-            await CaseNotionBlock.findByIdAndUpdate(synced.blockId, {
+            const query = { _id: synced.blockId };
+            if (syncedRecord.firmId) {
+                query.firmId = syncedRecord.firmId;
+            }
+            await CaseNotionBlock.findOneAndUpdate(query, {
                 content: syncedRecord.content,
                 properties: syncedRecord.properties,
                 lastEditedAt: new Date()
@@ -3295,8 +3588,16 @@ async function updateSyncedBlocks(originalBlockId, updateData) {
     }
 }
 
-async function applyTemplateToPage(pageId, templateId, userId) {
-    const template = await PageTemplate.findById(templateId);
+async function applyTemplateToPage(pageId, templateId, userId, firmId, lawyerId) {
+    // IDOR Protection: Verify template ownership before using it
+    const templateQuery = { _id: templateId };
+    if (firmId) {
+        templateQuery.firmId = firmId;
+    } else if (lawyerId) {
+        templateQuery.lawyerId = lawyerId;
+    }
+
+    const template = await PageTemplate.findOne(templateQuery);
     if (!template) return;
 
     // Get existing max order
@@ -3313,7 +3614,8 @@ async function applyTemplateToPage(pageId, templateId, userId) {
         await CaseNotionBlock.create(block);
     }
 
-    await PageTemplate.findByIdAndUpdate(templateId, { $inc: { usageCount: 1 } });
+    // IDOR Protection: Only update template usage if it belongs to the user's firm/lawyer
+    await PageTemplate.findOneAndUpdate(templateQuery, { $inc: { usageCount: 1 } });
 }
 
 // Export recordHistory for use by other controllers
@@ -3337,7 +3639,12 @@ exports.createShape = async (req, res) => {
         } = req.body;
 
         // Validate page exists and is in whiteboard mode
-        const page = await CaseNotionPage.findById(pageId);
+        const query = { _id: pageId };
+        if (req.user.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const page = await CaseNotionPage.findOne(query);
         if (!page) {
             return res.status(404).json({ error: true, message: 'Page not found' });
         }
@@ -3406,7 +3713,12 @@ exports.createArrow = async (req, res) => {
             sourceHandle, targetHandle
         } = req.body;
 
-        const page = await CaseNotionPage.findById(pageId);
+        const query = { _id: pageId };
+        if (req.user.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const page = await CaseNotionPage.findOne(query);
         if (!page || page.viewMode !== 'whiteboard') {
             return res.status(400).json({ error: true, message: 'Invalid page or not in whiteboard mode' });
         }
@@ -3447,15 +3759,22 @@ exports.createArrow = async (req, res) => {
         });
 
         // Update bound elements on source and target if specified
+        const query = {};
+        if (req.user.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
         if (sourceBlockId) {
-            await CaseNotionBlock.findByIdAndUpdate(sourceBlockId, {
-                $push: { boundElements: { id: arrow._id, type: 'arrow' } }
-            });
+            await CaseNotionBlock.findOneAndUpdate(
+                { _id: sourceBlockId, ...query },
+                { $push: { boundElements: { id: arrow._id, type: 'arrow' } } }
+            );
         }
         if (targetBlockId) {
-            await CaseNotionBlock.findByIdAndUpdate(targetBlockId, {
-                $push: { boundElements: { id: arrow._id, type: 'arrow' } }
-            });
+            await CaseNotionBlock.findOneAndUpdate(
+                { _id: targetBlockId, ...query },
+                { $push: { boundElements: { id: arrow._id, type: 'arrow' } } }
+            );
         }
 
         res.status(201).json({ success: true, data: arrow });
@@ -3474,7 +3793,12 @@ exports.createFrame = async (req, res) => {
         const { pageId } = req.params;
         const { x, y, width, height, name, backgroundColor } = req.body;
 
-        const page = await CaseNotionPage.findById(pageId);
+        const query = { _id: pageId };
+        if (req.user.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const page = await CaseNotionPage.findOne(query);
         if (!page || page.viewMode !== 'whiteboard') {
             return res.status(400).json({ error: true, message: 'Invalid page or not in whiteboard mode' });
         }
@@ -3515,7 +3839,12 @@ exports.updateZIndex = async (req, res) => {
         const { blockId } = req.params;
         const { action } = req.body;  // 'front', 'back', 'forward', 'backward'
 
-        const block = await CaseNotionBlock.findById(blockId);
+        const query = { _id: blockId };
+        if (req.user.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const block = await CaseNotionBlock.findOne(query);
         if (!block) {
             return res.status(404).json({ error: true, message: 'Block not found' });
         }

@@ -483,18 +483,15 @@ const updateCredentialName = asyncHandler(async (req, res) => {
     }
 
     const WebAuthnCredential = require('../models/webauthnCredential.model');
-    const credential = await WebAuthnCredential.findById(sanitizedCredentialId);
+
+    // IDOR Protection - Use findOne with userId instead of findById
+    const credential = await WebAuthnCredential.findOne({
+        _id: sanitizedCredentialId,
+        userId: user._id
+    });
 
     if (!credential) {
         throw new CustomException('Credential not found', 404);
-    }
-
-    // IDOR Protection - Verify ownership using timing-safe comparison
-    const credentialUserId = credential.userId.toString();
-    const requestUserId = user._id.toString();
-
-    if (!timingSafeEqual(credentialUserId, requestUserId)) {
-        throw new CustomException('Unauthorized to update this credential', 403);
     }
 
     if (credential.isRevoked) {

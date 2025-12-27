@@ -4,6 +4,12 @@ const asyncHandler = require('../utils/asyncHandler');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const Joi = require('joi');
 
+// Helper function to escape regex special characters (ReDoS protection)
+const escapeRegex = (str) => {
+    if (!str || typeof str !== 'string') return '';
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 // ============================================
 // VALIDATION SCHEMAS
 // ============================================
@@ -443,10 +449,11 @@ const getVendors = asyncHandler(async (req, res) => {
     if (country) filters.country = country;
 
     if (search) {
+        const escapedSearch = escapeRegex(search);
         filters.$or = [
-            { name: { $regex: search, $options: 'i' } },
-            { nameAr: { $regex: search, $options: 'i' } },
-            { email: { $regex: search, $options: 'i' } }
+            { name: { $regex: escapedSearch, $options: 'i' } },
+            { nameAr: { $regex: escapedSearch, $options: 'i' } },
+            { email: { $regex: escapedSearch, $options: 'i' } }
         ];
     }
 

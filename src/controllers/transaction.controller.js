@@ -4,6 +4,12 @@ const CustomException = require('../utils/CustomException');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const mongoose = require('mongoose');
 
+// Helper function to escape regex special characters (ReDoS protection)
+const escapeRegex = (str) => {
+    if (!str || typeof str !== 'string') return '';
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 /**
  * Create transaction
  * POST /api/transactions
@@ -178,10 +184,10 @@ const getTransactions = asyncHandler(async (req, res) => {
     // Search
     if (search) {
         query.$or = [
-            { description: { $regex: search, $options: 'i' } },
-            { transactionId: { $regex: search, $options: 'i' } },
-            { referenceNumber: { $regex: search, $options: 'i' } },
-            { notes: { $regex: search, $options: 'i' } }
+            { description: { $regex: escapeRegex(search), $options: 'i' } },
+            { transactionId: { $regex: escapeRegex(search), $options: 'i' } },
+            { referenceNumber: { $regex: escapeRegex(search), $options: 'i' } },
+            { notes: { $regex: escapeRegex(search), $options: 'i' } }
         ];
     }
 
@@ -221,7 +227,7 @@ const getTransaction = asyncHandler(async (req, res) => {
     // IDOR protection - sanitize ID
     const transactionId = sanitizeObjectId(req.params.id);
 
-    const transaction = await Transaction.findById(transactionId)
+    const transaction = await Transaction.findOne({ _id: transactionId, ...req.firmQuery })
         .populate('relatedInvoice', 'invoiceNumber totalAmount amountPaid status')
         .populate('relatedExpense', 'description amount category')
         .populate('relatedCase', 'caseNumber title status');
@@ -251,7 +257,7 @@ const updateTransaction = asyncHandler(async (req, res) => {
     // IDOR protection - sanitize ID
     const transactionId = sanitizeObjectId(req.params.id);
 
-    const transaction = await Transaction.findById(transactionId);
+    const transaction = await Transaction.findOne({ _id: transactionId, ...req.firmQuery });
 
     if (!transaction) {
         throw CustomException('المعاملة غير موجودة', 404);
@@ -352,7 +358,7 @@ const deleteTransaction = asyncHandler(async (req, res) => {
     // IDOR protection - sanitize ID
     const transactionId = sanitizeObjectId(req.params.id);
 
-    const transaction = await Transaction.findById(transactionId);
+    const transaction = await Transaction.findOne({ _id: transactionId, ...req.firmQuery });
 
     if (!transaction) {
         throw CustomException('المعاملة غير موجودة', 404);
@@ -528,7 +534,7 @@ const cancelTransaction = asyncHandler(async (req, res) => {
     const allowedFields = ['reason'];
     const sanitizedData = pickAllowedFields(req.body, allowedFields);
 
-    const transaction = await Transaction.findById(transactionId);
+    const transaction = await Transaction.findOne({ _id: transactionId, ...req.firmQuery });
 
     if (!transaction) {
         throw CustomException('المعاملة غير موجودة', 404);

@@ -9,6 +9,14 @@ const axios = require('axios');
 const logger = require('../utils/logger');
 const { wrapExternalCall } = require('../utils/externalServiceWrapper');
 
+/**
+ * Escape special regex characters to prevent ReDoS attacks
+ */
+const escapeRegex = (str) => {
+    if (typeof str !== 'string') return str;
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 // ═══════════════════════════════════════════════════════════════
 // WHATSAPP SERVICE - MULTI-PROVIDER SUPPORT
 // Supports: Meta Cloud API, MSG91, Twilio
@@ -999,7 +1007,7 @@ class WhatsAppService {
                 if (broadcast.textContent.usePersonalization) {
                     broadcast.textContent.personalizedFields.forEach(field => {
                         const value = customData[field] || '';
-                        text = text.replace(new RegExp(`{{${field}}}`, 'g'), value);
+                        text = text.replace(new RegExp(`{{${escapeRegex(field)}}}`, 'g'), value);
                     });
                 }
 
@@ -1434,9 +1442,9 @@ class WhatsAppService {
         // Find firm that has this phone number configured for WhatsApp
         const firm = await Firm.findOne({
             $or: [
-                { 'integrations.whatsapp.phoneNumber': { $regex: normalizedPhone } },
-                { 'settings.whatsappBusinessPhone': { $regex: normalizedPhone } },
-                { 'whatsappPhoneNumbers': { $regex: normalizedPhone } }
+                { 'integrations.whatsapp.phoneNumber': { $regex: escapeRegex(normalizedPhone) } },
+                { 'settings.whatsappBusinessPhone': { $regex: escapeRegex(normalizedPhone) } },
+                { 'whatsappPhoneNumbers': { $regex: escapeRegex(normalizedPhone) } }
             ]
         }).setOptions({ bypassFirmFilter: true });
 
@@ -1452,8 +1460,8 @@ class WhatsAppService {
         const lead = await Lead.findOne({
             firmId,
             $or: [
-                { phone: { $regex: phoneNumber.substring(phoneNumber.length - 9) } },
-                { whatsapp: { $regex: phoneNumber.substring(phoneNumber.length - 9) } }
+                { phone: { $regex: escapeRegex(phoneNumber.substring(phoneNumber.length - 9)) } },
+                { whatsapp: { $regex: escapeRegex(phoneNumber.substring(phoneNumber.length - 9)) } }
             ]
         });
 
@@ -1468,8 +1476,8 @@ class WhatsAppService {
         const client = await Client.findOne({
             firmId,
             $or: [
-                { phone: { $regex: phoneNumber.substring(phoneNumber.length - 9) } },
-                { whatsapp: { $regex: phoneNumber.substring(phoneNumber.length - 9) } }
+                { phone: { $regex: escapeRegex(phoneNumber.substring(phoneNumber.length - 9)) } },
+                { whatsapp: { $regex: escapeRegex(phoneNumber.substring(phoneNumber.length - 9)) } }
             ]
         });
 

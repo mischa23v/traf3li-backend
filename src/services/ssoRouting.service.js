@@ -272,8 +272,8 @@ class SSORoutingService {
      * @param {String} domain - Domain to verify
      * @returns {Promise<Object>} Verification instructions
      */
-    async generateVerificationToken(providerId, domain) {
-        const provider = await SsoProvider.findById(providerId);
+    async generateVerificationToken(providerId, domain, firmId) {
+        const provider = await SsoProvider.findOne({ _id: providerId, firmId });
         if (!provider) {
             throw CustomException('SSO provider not found', 404);
         }
@@ -331,8 +331,8 @@ class SSORoutingService {
      * @param {String} userId - Admin user performing verification
      * @returns {Promise<Object>} Verification result
      */
-    async verifyDomain(providerId, domain, userId) {
-        const provider = await SsoProvider.findById(providerId);
+    async verifyDomain(providerId, domain, userId, firmId) {
+        const provider = await SsoProvider.findOne({ _id: providerId, firmId });
         if (!provider) {
             throw CustomException('SSO provider not found', 404);
         }
@@ -457,8 +457,8 @@ class SSORoutingService {
      * @param {String} userId - Admin user performing verification
      * @returns {Promise<Object>} Verification result
      */
-    async manualVerifyDomain(providerId, domain, userId) {
-        const provider = await SsoProvider.findById(providerId);
+    async manualVerifyDomain(providerId, domain, userId, firmId) {
+        const provider = await SsoProvider.findOne({ _id: providerId, firmId });
         if (!provider) {
             throw CustomException('SSO provider not found', 404);
         }
@@ -510,9 +510,10 @@ class SSORoutingService {
      * Invalidate all domain caches for a provider
      * @param {String} providerId - Provider ID
      */
-    async invalidateProviderCache(providerId) {
+    async invalidateProviderCache(providerId, firmId = null) {
         try {
-            const provider = await SsoProvider.findById(providerId);
+            const query = firmId ? { _id: providerId, firmId } : { _id: providerId };
+            const provider = await SsoProvider.findOne(query);
             if (!provider) {
                 return;
             }

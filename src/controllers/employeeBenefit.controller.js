@@ -229,19 +229,14 @@ function validateBenefitAmounts(benefitType, employerCost, employeeCost) {
  * Verify employee belongs to firm/lawyer (IDOR protection)
  */
 async function verifyEmployeeOwnership(employeeId, firmId, lawyerId) {
-    const employee = await Employee.findById(employeeId);
+    // IDOR PROTECTION - Query includes firmId/lawyerId to ensure employee belongs to user
+    const accessQuery = firmId
+        ? { _id: employeeId, firmId }
+        : { _id: employeeId, lawyerId };
+    const employee = await Employee.findOne(accessQuery);
 
     if (!employee) {
-        throw CustomException('Employee not found', 404);
-    }
-
-    // Check if employee belongs to the requesting firm/lawyer
-    if (firmId && employee.firmId?.toString() !== firmId) {
-        throw CustomException('Employee does not belong to your firm', 403);
-    }
-
-    if (lawyerId && !firmId && employee.lawyerId?.toString() !== lawyerId) {
-        throw CustomException('Employee does not belong to you', 403);
+        throw CustomException('Employee not found or access denied', 404);
     }
 
     return employee;
@@ -286,12 +281,12 @@ const getBenefits = asyncHandler(async (req, res) => {
     // Search filter
     if (search) {
         query.$or = [
-            { benefitName: { $regex: search, $options: 'i' } },
-            { benefitNameAr: { $regex: search, $options: 'i' } },
-            { employeeName: { $regex: search, $options: 'i' } },
-            { employeeNameAr: { $regex: search, $options: 'i' } },
-            { enrollmentNumber: { $regex: search, $options: 'i' } },
-            { benefitEnrollmentId: { $regex: search, $options: 'i' } }
+            { benefitName: { $regex: escapeRegex(search), $options: 'i' } },
+            { benefitNameAr: { $regex: escapeRegex(search), $options: 'i' } },
+            { employeeName: { $regex: escapeRegex(search), $options: 'i' } },
+            { employeeNameAr: { $regex: escapeRegex(search), $options: 'i' } },
+            { enrollmentNumber: { $regex: escapeRegex(search), $options: 'i' } },
+            { benefitEnrollmentId: { $regex: escapeRegex(search), $options: 'i' } }
         ];
     }
 

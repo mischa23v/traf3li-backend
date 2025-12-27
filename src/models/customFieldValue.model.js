@@ -1,5 +1,11 @@
 const mongoose = require('mongoose');
 
+// Helper function to escape regex special characters
+const escapeRegex = (str) => {
+    if (typeof str !== 'string') return '';
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 /**
  * Custom Field Value Model - Store Values
  *
@@ -430,7 +436,7 @@ customFieldValueSchema.statics.searchByValue = async function(fieldId, value, fi
         if (options.exact) {
             query.valueText = value;
         } else {
-            query.valueText = { $regex: value, $options: 'i' };
+            query.valueText = { $regex: escapeRegex(value), $options: 'i' };
         }
     } else if (typeof value === 'number') {
         // Numeric search

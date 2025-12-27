@@ -146,7 +146,7 @@ const getUserLimits = async (req, res) => {
     const { userId } = req.params;
 
     // Validate user exists
-    const user = await User.findById(userId).select('email firstName lastName firmId').lean();
+    const user = await User.findOne({ _id: userId, ...req.firmQuery }).select('email firstName lastName firmId').lean();
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -198,7 +198,7 @@ const getFirmLimits = async (req, res) => {
     const { firmId } = req.params;
 
     // Validate firm exists
-    const firm = await Firm.findById(firmId).select('name subscription').lean();
+    const firm = await Firm.findOne({ _id: firmId, ...req.firmQuery }).select('name subscription').lean();
     if (!firm) {
       return res.status(404).json({
         success: false,
@@ -249,7 +249,7 @@ const getUserStats = async (req, res) => {
     const { period = 'day' } = req.query;
 
     // Validate user exists
-    const user = await User.findById(userId).select('email firstName lastName').lean();
+    const user = await User.findOne({ _id: userId, ...req.firmQuery }).select('email firstName lastName').lean();
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -313,7 +313,7 @@ const getTopUsersForFirm = async (req, res) => {
     // Enrich with user details
     const enrichedUsers = await Promise.all(
       topUsers.map(async (userData) => {
-        const user = await User.findById(userData.userId).select('email firstName lastName').lean();
+        const user = await User.findOne({ _id: userData.userId, firmId }).select('email firstName lastName').lean();
         return {
           ...userData,
           user: user ? {
@@ -370,7 +370,7 @@ const getThrottledRequestsForFirm = async (req, res) => {
     // Enrich users with details
     const enrichedUsers = await Promise.all(
       throttled.users.map(async (userData) => {
-        const user = await User.findById(userData.userId).select('email firstName lastName').lean();
+        const user = await User.findOne({ _id: userData.userId, firmId }).select('email firstName lastName').lean();
         return {
           ...userData,
           user: user ? {

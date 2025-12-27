@@ -23,6 +23,15 @@ const escapeHtml = (text) => {
     };
     return str.replace(/[&<>"']/g, char => htmlEntities[char]);
 };
+
+/**
+ * Escape special regex characters to prevent ReDoS attacks
+ */
+const escapeRegex = (str) => {
+    if (typeof str !== 'string') return str;
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 const EmailCampaign = require('../models/emailCampaign.model');
 const EmailTemplate = require('../models/emailTemplate.model');
 const EmailSubscriber = require('../models/emailSubscriber.model');
@@ -397,7 +406,7 @@ class EmailMarketingService {
 
     // Apply variables
     Object.keys(variables).forEach(key => {
-      const regex = new RegExp(`{{${key}}}`, 'g');
+      const regex = new RegExp(`{{${escapeRegex(key)}}}`, 'g');
       content = content.replace(regex, variables[key]);
       subject = subject.replace(regex, variables[key]);
     });
@@ -426,7 +435,7 @@ class EmailMarketingService {
 
     // Replace template variables with HTML-escaped values to prevent XSS
     Object.keys(variables).forEach(key => {
-      const regex = new RegExp(`{{${key}}}`, 'g');
+      const regex = new RegExp(`{{${escapeRegex(key)}}}`, 'g');
       // HTML escape for email body, plain escape for subject
       html = html.replace(regex, escapeHtml(variables[key] || ''));
       subject = subject.replace(regex, (variables[key] || '').replace(/[<>]/g, ''));
@@ -453,7 +462,7 @@ class EmailMarketingService {
 
     // HTML escape all variable values to prevent XSS
     Object.keys(variables).forEach(key => {
-      const regex = new RegExp(`{{${key}}}`, 'g');
+      const regex = new RegExp(`{{${escapeRegex(key)}}}`, 'g');
       content = content.replace(regex, escapeHtml(variables[key]));
     });
 

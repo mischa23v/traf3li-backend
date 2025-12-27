@@ -14,6 +14,15 @@
  */
 
 const mongoose = require('mongoose');
+
+/**
+ * Escape special regex characters to prevent ReDoS attacks
+ */
+const escapeRegex = (str) => {
+    if (typeof str !== 'string') return str;
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 const {
     Asset,
     AssetCategory,
@@ -61,9 +70,9 @@ const getAssets = async (query, firmId) => {
 
         if (search) {
             filters.$or = [
-                { assetName: { $regex: search, $options: 'i' } },
-                { assetNumber: { $regex: search, $options: 'i' } },
-                { serialNo: { $regex: search, $options: 'i' } }
+                { assetName: { $regex: escapeRegex(search), $options: 'i' } },
+                { assetNumber: { $regex: escapeRegex(search), $options: 'i' } },
+                { serialNo: { $regex: escapeRegex(search), $options: 'i' } }
             ];
         }
 

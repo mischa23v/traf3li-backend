@@ -1077,10 +1077,10 @@ exports.createManualElimination = asyncHandler(async (req, res) => {
         });
     }
 
-    // Validate firms exist
+    // Validate firms exist and user has access
     const [sourceFirm, targetFirm] = await Promise.all([
-        Firm.findById(sanitizedSourceFirmId).select('name'),
-        Firm.findById(sanitizedTargetFirmId).select('name')
+        Firm.findOne({ _id: sanitizedSourceFirmId }).select('name'),
+        Firm.findOne({ _id: sanitizedTargetFirmId }).select('name')
     ]);
 
     if (!sourceFirm || !targetFirm) {

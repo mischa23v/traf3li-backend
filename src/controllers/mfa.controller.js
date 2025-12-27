@@ -66,9 +66,8 @@ const setupMFA = async (request, response) => {
             });
         }
 
-        // Get user (bypass firmFilter for auth operations)
-        const user = await User.findById(userId)
-            .setOptions({ bypassFirmFilter: true });
+        // Get user with IDOR protection
+        const user = await User.findOne({ _id: userId, ...request.firmQuery });
         if (!user) {
             return response.status(404).json({
                 error: true,
@@ -177,9 +176,8 @@ const verifySetup = async (request, response) => {
             });
         }
 
-        // Get user (bypass firmFilter for auth)
-        const user = await User.findById(userId)
-            .setOptions({ bypassFirmFilter: true });
+        // Get user with IDOR protection
+        const user = await User.findOne({ _id: userId, ...request.firmQuery });
         if (!user) {
             return response.status(404).json({
                 error: true,
@@ -458,10 +456,9 @@ const disableMFA = async (request, response) => {
             });
         }
 
-        // Get user with password field (bypass firmFilter for auth)
-        const user = await User.findById(userId)
-            .select('+password')
-            .setOptions({ bypassFirmFilter: true });
+        // Get user with password field and IDOR protection
+        const user = await User.findOne({ _id: userId, ...request.firmQuery })
+            .select('+password');
         if (!user) {
             return response.status(404).json({
                 error: true,

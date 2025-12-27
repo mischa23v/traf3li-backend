@@ -358,7 +358,10 @@ const startImportJob = asyncHandler(async (req, res) => {
  * Process import job (background)
  */
 async function processImportJob(jobId, lawyerId) {
-    const job = await ImportJob.findById(jobId);
+    const job = await ImportJob.findOne({
+        _id: jobId,
+        lawyerId: lawyerId
+    });
     if (!job) return;
 
     try {

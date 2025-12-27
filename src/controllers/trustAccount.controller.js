@@ -287,7 +287,7 @@ const deleteTrustAccount = asyncHandler(async (req, res) => {
         throw CustomException('لا يمكن حذف حساب به معاملات', 400);
     }
 
-    await TrustAccount.findByIdAndDelete(sanitizedId);
+    await TrustAccount.findOneAndDelete({ _id: sanitizedId, lawyerId });
 
     res.status(200).json({
         success: true,

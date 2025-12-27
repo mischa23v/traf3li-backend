@@ -7,6 +7,12 @@ const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils'
 const mongoose = require('mongoose');
 const logger = require('../utils/logger');
 
+// Helper function to escape regex special characters (ReDoS protection)
+const escapeRegex = (str) => {
+    if (!str || typeof str !== 'string') return '';
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 // ═══════════════════════════════════════════════════════════════
 // CREATE INVESTMENT
 // ═══════════════════════════════════════════════════════════════
@@ -246,9 +252,9 @@ const getInvestments = asyncHandler(async (req, res) => {
 
     if (search) {
         filters.$or = [
-            { symbol: { $regex: search, $options: 'i' } },
-            { name: { $regex: search, $options: 'i' } },
-            { nameEn: { $regex: search, $options: 'i' } }
+            { symbol: { $regex: escapeRegex(search), $options: 'i' } },
+            { name: { $regex: escapeRegex(search), $options: 'i' } },
+            { nameEn: { $regex: escapeRegex(search), $options: 'i' } }
         ];
     }
 

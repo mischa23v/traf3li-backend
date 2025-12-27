@@ -105,7 +105,7 @@ class ApprovalService {
       await this.processNextLevel(instance.toObject());
 
       // Reload instance to get updated data
-      const updatedInstance = await ApprovalInstance.findById(instance._id)
+      const updatedInstance = await ApprovalInstance.findOne({ _id: instance._id, firmId })
         .populate('requestedBy', 'firstName lastName email avatar')
         .populate('workflowId')
         .lean();
@@ -125,7 +125,7 @@ class ApprovalService {
   async processNextLevel(instance) {
     try {
       // Fetch full workflow
-      const workflow = await ApprovalWorkflow.findById(instance.workflowId).lean();
+      const workflow = await ApprovalWorkflow.findOne({ _id: instance.workflowId, firmId: instance.firmId }).lean();
       if (!workflow) {
         logger.error('ApprovalService.processNextLevel: Workflow not found');
         return null;
@@ -170,7 +170,7 @@ class ApprovalService {
           }
         );
 
-        return await ApprovalInstance.findById(instance._id).lean();
+        return await ApprovalInstance.findOne({ _id: instance._id, firmId: instance.firmId }).lean();
       }
 
       // Check skip conditions
@@ -239,7 +239,7 @@ class ApprovalService {
         await this.setupEscalation(instance._id, currentLevelConfig.escalation);
       }
 
-      return await ApprovalInstance.findById(instance._id).lean();
+      return await ApprovalInstance.findOne({ _id: instance._id, firmId: instance.firmId }).lean();
     } catch (error) {
       logger.error('ApprovalService.processNextLevel failed:', error.message);
       return null;
@@ -273,7 +273,7 @@ class ApprovalService {
 
         case 'manager':
           // Find entity owner's manager
-          const requester = await User.findById(instance.requestedBy).lean();
+          const requester = await User.findOne({ _id: instance.requestedBy, firmId: instance.firmId }).lean();
           if (requester && requester.managerId) {
             return [requester.managerId];
           }
@@ -294,7 +294,7 @@ class ApprovalService {
             return [];
           }
 
-          const entity = await entityModel.findById(instance.entityId).lean();
+          const entity = await entityModel.findOne({ _id: instance.entityId, firmId: instance.firmId }).lean();
           if (!entity) {
             logger.error('ApprovalService.resolveApprovers: Entity not found');
             return [];
@@ -331,8 +331,13 @@ class ApprovalService {
    */
   async recordDecision(instanceId, approverId, decision, comments = '', ipAddress = 'unknown', context = {}) {
     try {
-      // Find instance and workflow
-      const instance = await ApprovalInstance.findById(instanceId)
+      // Find instance and workflow - need firmId from context
+      if (!context.firmId) {
+        logger.error('ApprovalService.recordDecision: firmId required in context');
+        return null;
+      }
+
+      const instance = await ApprovalInstance.findOne({ _id: instanceId, firmId: context.firmId })
         .populate('workflowId')
         .lean();
 
@@ -431,7 +436,7 @@ class ApprovalService {
       );
 
       // Reload instance with updated data
-      const updatedInstance = await ApprovalInstance.findById(instanceId)
+      const updatedInstance = await ApprovalInstance.findOne({ _id: instanceId, firmId: instance.firmId })
         .populate('workflowId')
         .lean();
 
@@ -442,20 +447,26 @@ class ApprovalService {
 
       if (levelCompletionResult.complete) {
         // Mark level as completed
-        await ApprovalInstance.findByIdAndUpdate(instanceId, {
-          $set: {
-            [`levelHistory.${levelHistoryIndex}.completedAt`]: new Date()
+        await ApprovalInstance.findOneAndUpdate(
+          { _id: instanceId, firmId: instance.firmId },
+          {
+            $set: {
+              [`levelHistory.${levelHistoryIndex}.completedAt`]: new Date()
+            }
           }
-        });
+        );
 
         if (!levelCompletionResult.approved || decision === 'rejected') {
           // Level rejected - mark instance as rejected and execute onRejection
-          await ApprovalInstance.findByIdAndUpdate(instanceId, {
-            status: 'rejected',
-            completedAt: new Date(),
-            completedBy: new mongoose.Types.ObjectId(approverId),
-            finalComments: comments
-          });
+          await ApprovalInstance.findOneAndUpdate(
+            { _id: instanceId, firmId: instance.firmId },
+            {
+              status: 'rejected',
+              completedAt: new Date(),
+              completedBy: new mongoose.Types.ObjectId(approverId),
+              finalComments: comments
+            }
+          );
 
           // Execute onRejection actions
           if (workflow.onRejection && workflow.onRejection.length > 0) {
@@ -482,29 +493,32 @@ class ApprovalService {
           );
         } else {
           // Level approved - move to next level
-          await ApprovalInstance.findByIdAndUpdate(instanceId, {
-            currentLevel: instance.currentLevel + 1,
-            $push: {
-              auditLog: {
-                action: 'level_completed',
-                userId: new mongoose.Types.ObjectId(approverId),
-                timestamp: new Date(),
-                details: {
-                  completedLevel: instance.currentLevel,
-                  nextLevel: instance.currentLevel + 1
+          await ApprovalInstance.findOneAndUpdate(
+            { _id: instanceId, firmId: instance.firmId },
+            {
+              currentLevel: instance.currentLevel + 1,
+              $push: {
+                auditLog: {
+                  action: 'level_completed',
+                  userId: new mongoose.Types.ObjectId(approverId),
+                  timestamp: new Date(),
+                  details: {
+                    completedLevel: instance.currentLevel,
+                    nextLevel: instance.currentLevel + 1
+                  }
                 }
               }
             }
-          });
+          );
 
           // Get updated instance and process next level
-          const finalInstance = await ApprovalInstance.findById(instanceId).lean();
+          const finalInstance = await ApprovalInstance.findOne({ _id: instanceId, firmId: instance.firmId }).lean();
           await this.processNextLevel(finalInstance);
         }
       }
 
       // Return final updated instance
-      return await ApprovalInstance.findById(instanceId)
+      return await ApprovalInstance.findOne({ _id: instanceId, firmId: instance.firmId })
         .populate('requestedBy', 'firstName lastName email avatar')
         .populate('workflowId')
         .lean();
@@ -629,7 +643,7 @@ class ApprovalService {
     try {
       const User = mongoose.model('User');
       const recipientId = params.recipientId || instance.requestedBy;
-      const recipient = await User.findById(recipientId).lean();
+      const recipient = await User.findOne({ _id: recipientId, firmId: instance.firmId }).lean();
 
       if (recipient && recipient.email) {
         await NotificationDeliveryService.sendEmail({
@@ -829,7 +843,12 @@ class ApprovalService {
    */
   async cancelApproval(instanceId, userId, reason = '', context = {}) {
     try {
-      const instance = await ApprovalInstance.findById(instanceId).lean();
+      if (!context.firmId) {
+        logger.error('ApprovalService.cancelApproval: firmId required in context');
+        return null;
+      }
+
+      const instance = await ApprovalInstance.findOne({ _id: instanceId, firmId: context.firmId }).lean();
 
       if (!instance) {
         logger.error('ApprovalService.cancelApproval: Instance not found');
@@ -848,8 +867,8 @@ class ApprovalService {
       }
 
       // Update instance
-      const updatedInstance = await ApprovalInstance.findByIdAndUpdate(
-        instanceId,
+      const updatedInstance = await ApprovalInstance.findOneAndUpdate(
+        { _id: instanceId, firmId: instance.firmId },
         {
           status: 'cancelled',
           completedAt: new Date(),
@@ -907,7 +926,12 @@ class ApprovalService {
    */
   async delegateApproval(instanceId, fromUserId, toUserId, reason = '', context = {}) {
     try {
-      const instance = await ApprovalInstance.findById(instanceId)
+      if (!context.firmId) {
+        logger.error('ApprovalService.delegateApproval: firmId required in context');
+        return null;
+      }
+
+      const instance = await ApprovalInstance.findOne({ _id: instanceId, firmId: context.firmId })
         .populate('workflowId')
         .lean();
 
@@ -939,21 +963,24 @@ class ApprovalService {
       }
 
       // Record delegation in audit log
-      await ApprovalInstance.findByIdAndUpdate(instanceId, {
-        $push: {
-          auditLog: {
-            action: 'delegated',
-            userId: new mongoose.Types.ObjectId(fromUserId),
-            timestamp: new Date(),
-            details: {
-              delegatedTo: toUserId,
-              reason,
-              level: instance.currentLevel
-            },
-            ipAddress: context.ipAddress || 'unknown'
+      await ApprovalInstance.findOneAndUpdate(
+        { _id: instanceId, firmId: instance.firmId },
+        {
+          $push: {
+            auditLog: {
+              action: 'delegated',
+              userId: new mongoose.Types.ObjectId(fromUserId),
+              timestamp: new Date(),
+              details: {
+                delegatedTo: toUserId,
+                reason,
+                level: instance.currentLevel
+              },
+              ipAddress: context.ipAddress || 'unknown'
+            }
           }
         }
-      });
+      );
 
       // Log to audit
       await AuditLogService.log(
@@ -977,7 +1004,7 @@ class ApprovalService {
 
       // Notify new approver
       const User = mongoose.model('User');
-      const toUser = await User.findById(toUserId).lean();
+      const toUser = await User.findOne({ _id: toUserId, firmId: instance.firmId }).lean();
       if (toUser && toUser.email) {
         await NotificationDeliveryService.sendEmail({
           to: toUser.email,
@@ -990,7 +1017,7 @@ class ApprovalService {
         });
       }
 
-      return await ApprovalInstance.findById(instanceId)
+      return await ApprovalInstance.findOne({ _id: instanceId, firmId: instance.firmId })
         .populate('requestedBy', 'firstName lastName email avatar')
         .populate('workflowId')
         .lean();
@@ -1020,7 +1047,7 @@ class ApprovalService {
         return false;
       }
 
-      const entity = await entityModel.findById(instance.entityId).lean();
+      const entity = await entityModel.findOne({ _id: instance.entityId, firmId: instance.firmId }).lean();
       if (!entity) {
         return false;
       }
@@ -1122,7 +1149,7 @@ class ApprovalService {
       const User = mongoose.model('User');
 
       for (const approverId of approvers) {
-        const approver = await User.findById(approverId).lean();
+        const approver = await User.findOne({ _id: approverId, firmId: instance.firmId }).lean();
         if (approver && approver.email) {
           await NotificationDeliveryService.sendEmail({
             to: approver.email,

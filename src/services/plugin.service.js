@@ -71,7 +71,7 @@ const registerPlugin = async (pluginConfig) => {
  */
 const installPlugin = async (pluginId, firmId, userId, settings = {}) => {
     // Check if plugin exists
-    const plugin = await Plugin.findById(pluginId);
+    const plugin = await Plugin.findOne({ _id: pluginId });
     if (!plugin) {
         throw CustomException('Plugin not found', 404);
     }
@@ -120,10 +120,10 @@ const installPlugin = async (pluginId, firmId, userId, settings = {}) => {
     });
 
     // Update plugin install count
-    await Plugin.findByIdAndUpdate(pluginId, { $inc: { installCount: 1 } });
+    await Plugin.findOneAndUpdate({ _id: pluginId }, { $inc: { installCount: 1 } });
 
     // Populate and return
-    return PluginInstallation.findById(installation._id)
+    return PluginInstallation.findOne({ _id: installation._id, firmId })
         .populate('pluginId')
         .populate('installedBy', 'firstName lastName email');
 };
@@ -142,7 +142,7 @@ const uninstallPlugin = async (pluginId, firmId) => {
     }
 
     // Check if other plugins depend on this one
-    const plugin = await Plugin.findById(pluginId);
+    const plugin = await Plugin.findOne({ _id: pluginId });
     if (plugin) {
         const dependentPlugins = await Plugin.find({ dependencies: plugin.name });
 
@@ -161,10 +161,10 @@ const uninstallPlugin = async (pluginId, firmId) => {
     }
 
     // Delete installation
-    await PluginInstallation.findByIdAndDelete(installation._id);
+    await PluginInstallation.findOneAndDelete({ _id: installation._id, firmId });
 
     // Update plugin install count
-    await Plugin.findByIdAndUpdate(pluginId, { $inc: { installCount: -1 } });
+    await Plugin.findOneAndUpdate({ _id: pluginId }, { $inc: { installCount: -1 } });
 
     return {
         success: true,
@@ -175,11 +175,12 @@ const uninstallPlugin = async (pluginId, firmId) => {
 /**
  * Enable a plugin installation
  * @param {String} installationId - Installation ID
+ * @param {String} firmId - Firm ID
  * @param {String} userId - User ID
  * @returns {Promise<Object>} Updated installation
  */
-const enablePlugin = async (installationId, userId) => {
-    const installation = await PluginInstallation.findById(installationId);
+const enablePlugin = async (installationId, firmId, userId) => {
+    const installation = await PluginInstallation.findOne({ _id: installationId, firmId });
 
     if (!installation) {
         throw CustomException('Plugin installation not found', 404);
@@ -191,7 +192,7 @@ const enablePlugin = async (installationId, userId) => {
 
     await installation.enable(userId);
 
-    return PluginInstallation.findById(installationId)
+    return PluginInstallation.findOne({ _id: installationId, firmId })
         .populate('pluginId')
         .populate('lastUpdatedBy', 'firstName lastName email');
 };
@@ -199,11 +200,12 @@ const enablePlugin = async (installationId, userId) => {
 /**
  * Disable a plugin installation
  * @param {String} installationId - Installation ID
+ * @param {String} firmId - Firm ID
  * @param {String} userId - User ID
  * @returns {Promise<Object>} Updated installation
  */
-const disablePlugin = async (installationId, userId) => {
-    const installation = await PluginInstallation.findById(installationId);
+const disablePlugin = async (installationId, firmId, userId) => {
+    const installation = await PluginInstallation.findOne({ _id: installationId, firmId });
 
     if (!installation) {
         throw CustomException('Plugin installation not found', 404);
@@ -215,7 +217,7 @@ const disablePlugin = async (installationId, userId) => {
 
     await installation.disable(userId);
 
-    return PluginInstallation.findById(installationId)
+    return PluginInstallation.findOne({ _id: installationId, firmId })
         .populate('pluginId')
         .populate('lastUpdatedBy', 'firstName lastName email');
 };
@@ -223,12 +225,13 @@ const disablePlugin = async (installationId, userId) => {
 /**
  * Update plugin settings for a firm
  * @param {String} installationId - Installation ID
+ * @param {String} firmId - Firm ID
  * @param {Object} settings - New settings
  * @param {String} userId - User ID
  * @returns {Promise<Object>} Updated installation
  */
-const updatePluginSettings = async (installationId, settings, userId) => {
-    const installation = await PluginInstallation.findById(installationId).populate('pluginId');
+const updatePluginSettings = async (installationId, firmId, settings, userId) => {
+    const installation = await PluginInstallation.findOne({ _id: installationId, firmId }).populate('pluginId');
 
     if (!installation) {
         throw CustomException('Plugin installation not found', 404);
@@ -242,7 +245,7 @@ const updatePluginSettings = async (installationId, settings, userId) => {
 
     await installation.updateSettings(settings, userId);
 
-    return PluginInstallation.findById(installationId)
+    return PluginInstallation.findOne({ _id: installationId, firmId })
         .populate('pluginId')
         .populate('lastUpdatedBy', 'firstName lastName email');
 };
@@ -406,7 +409,7 @@ const validatePlugin = (pluginConfig) => {
  * @returns {Promise<Object>} Plugin
  */
 const getPluginById = async (pluginId) => {
-    const plugin = await Plugin.findById(pluginId);
+    const plugin = await Plugin.findOne({ _id: pluginId });
     if (!plugin) {
         throw CustomException('Plugin not found', 404);
     }
@@ -416,10 +419,11 @@ const getPluginById = async (pluginId) => {
 /**
  * Get plugin installation by ID
  * @param {String} installationId - Installation ID
+ * @param {String} firmId - Firm ID
  * @returns {Promise<Object>} Installation
  */
-const getInstallationById = async (installationId) => {
-    const installation = await PluginInstallation.findById(installationId)
+const getInstallationById = async (installationId, firmId) => {
+    const installation = await PluginInstallation.findOne({ _id: installationId, firmId })
         .populate('pluginId')
         .populate('installedBy', 'firstName lastName email')
         .populate('lastUpdatedBy', 'firstName lastName email');
@@ -460,7 +464,7 @@ const searchPlugins = async (searchTerm, firmId = null) => {
  * @returns {Promise<Object>} Statistics
  */
 const getPluginStats = async (pluginId) => {
-    const plugin = await Plugin.findById(pluginId);
+    const plugin = await Plugin.findOne({ _id: pluginId });
     if (!plugin) {
         throw CustomException('Plugin not found', 404);
     }

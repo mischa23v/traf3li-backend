@@ -79,8 +79,8 @@ class LocationRemindersService {
       // If savedLocationId is provided, validate it exists
       let savedLocationId = null;
       if (location.savedLocationId) {
-        const savedLocation = await UserLocation.findById(location.savedLocationId);
-        if (!savedLocation || savedLocation.userId.toString() !== userId.toString()) {
+        const savedLocation = await UserLocation.findOne({ _id: location.savedLocationId, userId });
+        if (!savedLocation) {
           throw new Error('Invalid saved location ID');
         }
         savedLocationId = location.savedLocationId;

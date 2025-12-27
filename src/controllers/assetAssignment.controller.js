@@ -42,6 +42,12 @@ const ASSET_POLICIES = {
 // HELPER FUNCTIONS
 // ═══════════════════════════════════════════════════════════════
 
+// Escape special regex characters to prevent ReDoS attacks
+function escapeRegex(string) {
+    if (typeof string !== 'string') return '';
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 // Generate unique maintenance ID
 function generateMaintenanceId() {
     return `MNT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -125,15 +131,16 @@ const getAssignments = asyncHandler(async (req, res) => {
     }
 
     if (search) {
+        const escapedSearch = escapeRegex(search);
         query.$or = [
-            { assignmentNumber: { $regex: search, $options: 'i' } },
-            { assetName: { $regex: search, $options: 'i' } },
-            { assetNameAr: { $regex: search, $options: 'i' } },
-            { assetTag: { $regex: search, $options: 'i' } },
-            { serialNumber: { $regex: search, $options: 'i' } },
-            { employeeName: { $regex: search, $options: 'i' } },
-            { employeeNameAr: { $regex: search, $options: 'i' } },
-            { employeeNumber: { $regex: search, $options: 'i' } }
+            { assignmentNumber: { $regex: escapedSearch, $options: 'i' } },
+            { assetName: { $regex: escapedSearch, $options: 'i' } },
+            { assetNameAr: { $regex: escapedSearch, $options: 'i' } },
+            { assetTag: { $regex: escapedSearch, $options: 'i' } },
+            { serialNumber: { $regex: escapedSearch, $options: 'i' } },
+            { employeeName: { $regex: escapedSearch, $options: 'i' } },
+            { employeeNameAr: { $regex: escapedSearch, $options: 'i' } },
+            { employeeNumber: { $regex: escapedSearch, $options: 'i' } }
         ];
     }
 
@@ -454,7 +461,7 @@ const deleteAssignment = asyncHandler(async (req, res) => {
         throw CustomException(`Cannot delete assignment in ${assignment.status} status`, 400);
     }
 
-    await AssetAssignment.findByIdAndDelete(sanitizedAssignmentId);
+    await AssetAssignment.findOneAndDelete(query);
 
     return res.json({
         success: true,

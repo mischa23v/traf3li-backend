@@ -8,6 +8,14 @@ const Anthropic = require('@anthropic-ai/sdk');
 const logger = require('../utils/logger');
 
 /**
+ * Escape special regex characters to prevent ReDoS attacks
+ */
+const escapeRegex = (str) => {
+  if (typeof str !== 'string') return str;
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
+/**
  * CaseNotion Service
  * Handles all CaseNotion operations including blocks, pages, synced blocks,
  * database views, templates, AI features, and real-time collaboration.
@@ -334,8 +342,8 @@ class CaseNotionService {
         caseId,
         isArchived: false,
         $or: [
-          { title: { $regex: query, $options: 'i' } },
-          { 'metadata.tags': { $regex: query, $options: 'i' } }
+          { title: { $regex: escapeRegex(query), $options: 'i' } },
+          { 'metadata.tags': { $regex: escapeRegex(query), $options: 'i' } }
         ]
       }).limit(20);
 
@@ -429,7 +437,10 @@ class CaseNotionService {
       // Calculate order
       let order = 0;
       if (afterBlockId) {
-        const afterBlock = await CaseNotionBlock.findById(afterBlockId);
+        const afterBlock = await CaseNotionBlock.findOne({ _id: afterBlockId, pageId });
+        if (!afterBlock) {
+          throw new Error('After block not found');
+        }
         const nextBlock = await CaseNotionBlock.findOne({
           pageId,
           parentBlockId: parentBlockId || null,
@@ -482,13 +493,18 @@ class CaseNotionService {
    */
   static async updateBlock(blockId, updates, userId, firmId) {
     try {
-      const block = await CaseNotionBlock.findById(blockId);
+      // First verify page exists and belongs to firm to prevent IDOR
+      // Note: blocks don't have firmId, so we verify via page
+      const block = await CaseNotionBlock.findOne({ _id: blockId });
       if (!block) {
         throw new Error('Block not found');
       }
 
       const page = await CaseNotionPage.findOne({ _id: block.pageId, firmId });
-      if (!page || !this._hasEditPermission(page, userId)) {
+      if (!page) {
+        throw new Error('Block not found or access denied');
+      }
+      if (!this._hasEditPermission(page, userId)) {
         throw new Error('You do not have permission to edit this block');
       }
 
@@ -528,13 +544,18 @@ class CaseNotionService {
    */
   static async deleteBlock(blockId, userId, firmId) {
     try {
-      const block = await CaseNotionBlock.findById(blockId);
+      // First verify page exists and belongs to firm to prevent IDOR
+      // Note: blocks don't have firmId, so we verify via page
+      const block = await CaseNotionBlock.findOne({ _id: blockId });
       if (!block) {
         throw new Error('Block not found');
       }
 
       const page = await CaseNotionPage.findOne({ _id: block.pageId, firmId });
-      if (!page || !this._hasEditPermission(page, userId)) {
+      if (!page) {
+        throw new Error('Block not found or access denied');
+      }
+      if (!this._hasEditPermission(page, userId)) {
         throw new Error('You do not have permission to delete this block');
       }
 
@@ -783,7 +804,7 @@ class CaseNotionService {
       const blocks = await CaseNotionBlock.find({
         pageId: { $in: pageIds },
         isDeleted: false,
-        'content.text': { $regex: query, $options: 'i' }
+        'content.text': { $regex: escapeRegex(query), $options: 'i' }
       })
         .limit(50)
         .populate('pageId', 'title');
@@ -1922,7 +1943,7 @@ Generate content suggestions based on the user's request and the existing page c
 
       // Find blocks containing links to this page
       const blocks = await CaseNotionBlock.find({
-        'content.text': { $regex: `\\[\\[${page.title}\\]\\]`, $options: 'i' },
+        'content.text': { $regex: `\\[\\[${escapeRegex(page.title)}\\]\\]`, $options: 'i' },
         isDeleted: false
       }).populate('pageId', 'title caseId');
 

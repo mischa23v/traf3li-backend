@@ -18,6 +18,12 @@ const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
 const { ROLE_PERMISSIONS, getDefaultPermissions } = require('../config/permissions.config');
 const { pickAllowedFields, sanitizeEmail, sanitizePhone, sanitizeString } = require('../utils/securityUtils');
+
+// Helper function to escape regex special characters
+const escapeRegex = (str) => {
+    if (typeof str !== 'string') return '';
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
 const logger = require('../utils/logger');
 
 // ═══════════════════════════════════════════════════════════════
@@ -166,10 +172,10 @@ const getTeam = asyncHandler(async (req, res) => {
 
     if (search) {
         query.$or = [
-            { firstName: { $regex: search, $options: 'i' } },
-            { lastName: { $regex: search, $options: 'i' } },
-            { email: { $regex: search, $options: 'i' } },
-            { staffId: { $regex: search, $options: 'i' } }
+            { firstName: { $regex: escapeRegex(search), $options: 'i' } },
+            { lastName: { $regex: escapeRegex(search), $options: 'i' } },
+            { email: { $regex: escapeRegex(search), $options: 'i' } },
+            { staffId: { $regex: escapeRegex(search), $options: 'i' } }
         ];
     }
 

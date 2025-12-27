@@ -4,6 +4,12 @@ const asyncHandler = require('../utils/asyncHandler');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const mongoose = require('mongoose');
 
+// Helper function to escape regex special characters
+const escapeRegex = (str) => {
+    if (typeof str !== 'string') return '';
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 // Create manual transaction
 const createTransaction = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
@@ -56,7 +62,7 @@ const createTransaction = asyncHandler(async (req, res) => {
     }
 
     // IDOR protection: Validate account exists and belongs to user
-    const account = await BankAccount.findById(sanitizedAccountId);
+    const account = await BankAccount.findOne({ _id: sanitizedAccountId, ...req.firmQuery });
     if (!account) {
         throw CustomException('Account not found', 404);
     }
@@ -144,7 +150,7 @@ const getTransactions = asyncHandler(async (req, res) => {
             throw CustomException('Invalid account ID format', 400);
         }
         // Verify account ownership
-        const account = await BankAccount.findById(sanitizedAccountId);
+        const account = await BankAccount.findOne({ _id: sanitizedAccountId, ...req.firmQuery });
         if (!account) {
             throw CustomException('Account not found', 404);
         }
@@ -215,7 +221,7 @@ const getTransaction = asyncHandler(async (req, res) => {
         throw CustomException('Invalid transaction ID format', 400);
     }
 
-    const transaction = await BankTransaction.findById(sanitizedId)
+    const transaction = await BankTransaction.findOne({ _id: sanitizedId, ...req.firmQuery })
         .populate('accountId', 'name bankName accountNumber');
 
     if (!transaction) {
@@ -245,7 +251,7 @@ const importTransactions = asyncHandler(async (req, res) => {
     }
 
     // Validate account exists and belongs to user
-    const account = await BankAccount.findById(sanitizedAccountId);
+    const account = await BankAccount.findOne({ _id: sanitizedAccountId, ...req.firmQuery });
     if (!account) {
         throw CustomException('Account not found', 404);
     }
@@ -357,7 +363,7 @@ const matchTransaction = asyncHandler(async (req, res) => {
         throw CustomException('Invalid transaction ID format', 400);
     }
 
-    const transaction = await BankTransaction.findById(sanitizedTransactionId);
+    const transaction = await BankTransaction.findOne({ _id: sanitizedTransactionId, ...req.firmQuery });
 
     if (!transaction) {
         throw CustomException('Transaction not found', 404);
@@ -406,7 +412,7 @@ const unmatchTransaction = asyncHandler(async (req, res) => {
         throw CustomException('Invalid transaction ID format', 400);
     }
 
-    const transaction = await BankTransaction.findById(sanitizedTransactionId);
+    const transaction = await BankTransaction.findOne({ _id: sanitizedTransactionId, ...req.firmQuery });
 
     if (!transaction) {
         throw CustomException('Transaction not found', 404);
@@ -477,7 +483,7 @@ function parseOFX(content) {
         const block = match[1];
 
         const getTagValue = (tag) => {
-            const regex = new RegExp(`<${tag}>([^<\\n]+)`, 'i');
+            const regex = new RegExp(`<${escapeRegex(tag)}>([^<\\n]+)`, 'i');
             const m = block.match(regex);
             return m ? m[1].trim() : '';
         };

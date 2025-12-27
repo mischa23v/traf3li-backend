@@ -340,7 +340,7 @@ class GoogleOneTapService {
         updates.lastLogin = new Date();
 
         if (Object.keys(updates).length > 0) {
-            await User.findByIdAndUpdate(user._id, updates);
+            await User.findOneAndUpdate({ _id: user._id, $or: [{ firmId: user.firmId }, { firmId: null }] }, updates);
         }
     }
 

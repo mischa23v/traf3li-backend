@@ -1086,9 +1086,9 @@ class PdfmeService {
     /**
      * Update an existing template
      */
-    static async updateTemplate(templateId, templateData, userId) {
-        return await PdfmeTemplate.findByIdAndUpdate(
-            templateId,
+    static async updateTemplate(templateId, templateData, userId, firmId) {
+        return await PdfmeTemplate.findOneAndUpdate(
+            { _id: templateId, firmId },
             {
                 ...templateData,
                 updatedBy: userId
@@ -1100,8 +1100,8 @@ class PdfmeService {
     /**
      * Delete a template
      */
-    static async deleteTemplate(templateId) {
-        return await PdfmeTemplate.findByIdAndDelete(templateId);
+    static async deleteTemplate(templateId, firmId) {
+        return await PdfmeTemplate.findOneAndDelete({ _id: templateId, firmId });
     }
 
     /**
@@ -1136,15 +1136,15 @@ class PdfmeService {
     /**
      * Get template by ID
      */
-    static async getTemplate(templateId) {
-        return await PdfmeTemplate.findById(templateId);
+    static async getTemplate(templateId, firmId) {
+        return await PdfmeTemplate.findOne({ _id: templateId, firmId });
     }
 
     /**
      * Clone a template
      */
-    static async cloneTemplate(templateId, newName, lawyerId) {
-        const template = await PdfmeTemplate.findById(templateId);
+    static async cloneTemplate(templateId, newName, lawyerId, firmId) {
+        const template = await PdfmeTemplate.findOne({ _id: templateId, firmId });
         if (!template) {
             throw new Error('Template not found');
         }
@@ -1172,7 +1172,7 @@ class PdfmeService {
     /**
      * Generate PDF with QR code (for ZATCA compliance)
      */
-    static async generateInvoiceWithQR(invoiceData, qrCodeData, templateId, lawyerId) {
+    static async generateInvoiceWithQR(invoiceData, qrCodeData, templateId, lawyerId, firmId) {
         const inputs = {
             ...this.mapInvoiceToInputs(invoiceData),
             qrCode: qrCodeData
@@ -1180,8 +1180,8 @@ class PdfmeService {
 
         let template;
         if (templateId) {
-            template = await PdfmeTemplate.findById(templateId);
-            template = template?.toPdfmeFormat();
+            const dbTemplate = await PdfmeTemplate.findOne({ _id: templateId, firmId });
+            template = dbTemplate?.toPdfmeFormat();
         }
 
         if (!template) {

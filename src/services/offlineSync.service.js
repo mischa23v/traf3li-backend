@@ -131,7 +131,7 @@ class OfflineSyncService {
 
       // Fetch user profile and settings
       if (types.includes('user')) {
-        const user = await User.findById(userId)
+        const user = await User.findOne({ _id: userId, $or: [{ firmId }, { firmId: null }] })
           .select('-password -passwordResetToken -refreshTokens')
           .lean();
         data.user = user;
@@ -402,11 +402,11 @@ class OfflineSyncService {
    * @param {String} userId - User ID
    * @returns {Promise<Date|null>} - Last sync timestamp
    */
-  async getLastSyncTimestamp(userId) {
+  async getLastSyncTimestamp(userId, firmId) {
     try {
       const User = require('../models/user.model');
 
-      const user = await User.findById(userId).select('lastSyncedAt').lean();
+      const user = await User.findOne({ _id: userId, firmId }).select('lastSyncedAt').lean();
       return user?.lastSyncedAt || null;
     } catch (error) {
       logger.error('OfflineSyncService.getLastSyncTimestamp failed:', error.message);
@@ -419,13 +419,14 @@ class OfflineSyncService {
    * @param {String} userId - User ID
    * @returns {Promise<Boolean>} - Success status
    */
-  async updateSyncTimestamp(userId) {
+  async updateSyncTimestamp(userId, firmId) {
     try {
       const User = require('../models/user.model');
 
-      await User.findByIdAndUpdate(userId, {
-        lastSyncedAt: new Date()
-      });
+      await User.findOneAndUpdate(
+        { _id: userId, firmId },
+        { lastSyncedAt: new Date() }
+      );
 
       return true;
     } catch (error) {
@@ -715,25 +716,13 @@ class OfflineSyncService {
    * Delete an entity
    * @private
    */
-  async _deleteEntity(Model, userId, entityId) {
+  async _deleteEntity(Model, userId, entityId, firmId) {
     try {
-      // First, verify the entity exists and user has access
-      const entity = await Model.findById(entityId).select('firmId lawyerId').lean();
-      if (!entity) {
-        return { success: false, error: 'Entity not found' };
-      }
-
-      // Verify access control
-      const hasAccess = entity.firmId || entity.lawyerId === userId;
-      if (!hasAccess) {
-        return { success: false, error: 'Access denied' };
-      }
-
       // Build access control query for deletion
       const accessQuery = {
         _id: entityId,
         $or: [
-          { firmId: entity.firmId },
+          { firmId },
           { lawyerId: userId }
         ]
       };
@@ -741,7 +730,7 @@ class OfflineSyncService {
       // Delete with access control
       const deleted = await Model.findOneAndDelete(accessQuery);
       if (!deleted) {
-        return { success: false, error: 'Delete failed or access denied' };
+        return { success: false, error: 'Entity not found or access denied' };
       }
 
       return { success: true, entityId };

@@ -6,7 +6,10 @@ const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils'
 const createDocument = async (request, response) => {
     try {
         // Check if user is lawyer or admin
-        const user = await User.findById(request.userID);
+        const user = await User.findOne({ _id: request.userID, ...request.firmQuery });
+        if (!user) {
+            throw CustomException('User not found!', 404);
+        }
         if (user.role !== 'lawyer' && user.role !== 'admin') {
             throw CustomException('Only lawyers and admins can create legal documents!', 403);
         }
@@ -157,7 +160,10 @@ const getDocument = async (request, response) => {
 const updateDocument = async (request, response) => {
     try {
         // Check if user is admin
-        const user = await User.findById(request.userID);
+        const user = await User.findOne({ _id: request.userID, ...request.firmQuery });
+        if (!user) {
+            throw CustomException('User not found!', 404);
+        }
         if (user.role !== 'admin') {
             throw CustomException('Only admins can update legal documents!', 403);
         }

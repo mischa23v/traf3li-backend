@@ -458,14 +458,15 @@ class SecurityMonitorService {
   /**
    * Update incident status
    * @param {String} incidentId - Incident ID
+   * @param {String} firmId - Firm ID
    * @param {String} status - New status
    * @param {String} userId - User performing the action
    * @param {Object} updateData - Additional update data (resolution, notes, etc.)
    * @returns {Promise<SecurityIncident>}
    */
-  async updateIncident(incidentId, status, userId, updateData = {}) {
+  async updateIncident(incidentId, firmId, status, userId, updateData = {}) {
     try {
-      const incident = await SecurityIncident.findById(incidentId);
+      const incident = await SecurityIncident.findOne({ _id: incidentId, firmId });
 
       if (!incident) {
         throw new Error('Incident not found');

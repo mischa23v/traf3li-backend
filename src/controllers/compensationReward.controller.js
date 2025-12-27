@@ -5,6 +5,12 @@ const asyncHandler = require('../utils/asyncHandler');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const mongoose = require('mongoose');
 
+// Helper function to escape regex special characters (ReDoS protection)
+const escapeRegex = (str) => {
+    if (!str || typeof str !== 'string') return '';
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 // ═══════════════════════════════════════════════════════════════
 // HELPER FUNCTIONS
 // ═══════════════════════════════════════════════════════════════
@@ -136,14 +142,15 @@ const getCompensationRecords = asyncHandler(async (req, res) => {
 
     // Search filter
     if (search) {
+        const escapedSearch = escapeRegex(search);
         query.$or = [
-            { employeeName: { $regex: search, $options: 'i' } },
-            { employeeNameAr: { $regex: search, $options: 'i' } },
-            { recordNumber: { $regex: search, $options: 'i' } },
-            { employeeNumber: { $regex: search, $options: 'i' } },
-            { compensationId: { $regex: search, $options: 'i' } },
-            { department: { $regex: search, $options: 'i' } },
-            { jobTitle: { $regex: search, $options: 'i' } }
+            { employeeName: { $regex: escapedSearch, $options: 'i' } },
+            { employeeNameAr: { $regex: escapedSearch, $options: 'i' } },
+            { recordNumber: { $regex: escapedSearch, $options: 'i' } },
+            { employeeNumber: { $regex: escapedSearch, $options: 'i' } },
+            { compensationId: { $regex: escapedSearch, $options: 'i' } },
+            { department: { $regex: escapedSearch, $options: 'i' } },
+            { jobTitle: { $regex: escapedSearch, $options: 'i' } }
         ];
     }
 

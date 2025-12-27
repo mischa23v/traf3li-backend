@@ -17,6 +17,14 @@ const AuditLog = require('../models/auditLog.model');
 const mongoose = require('mongoose');
 const logger = require('../utils/logger');
 
+/**
+ * Escape special regex characters to prevent ReDoS attacks
+ */
+const escapeRegex = (str) => {
+  if (typeof str !== 'string') return str;
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 class AuditLogService {
   /**
    * Create a single audit log entry
@@ -618,12 +626,12 @@ class AuditLogService {
       // Build search query
       const searchQuery = {
         $or: [
-          { userEmail: { $regex: query, $options: 'i' } },
-          { userName: { $regex: query, $options: 'i' } },
-          { action: { $regex: query, $options: 'i' } },
-          { entityType: { $regex: query, $options: 'i' } },
-          { resourceType: { $regex: query, $options: 'i' } },
-          { 'details.description': { $regex: query, $options: 'i' } },
+          { userEmail: { $regex: escapeRegex(query), $options: 'i' } },
+          { userName: { $regex: escapeRegex(query), $options: 'i' } },
+          { action: { $regex: escapeRegex(query), $options: 'i' } },
+          { entityType: { $regex: escapeRegex(query), $options: 'i' } },
+          { resourceType: { $regex: escapeRegex(query), $options: 'i' } },
+          { 'details.description': { $regex: escapeRegex(query), $options: 'i' } },
         ],
       };
 

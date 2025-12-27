@@ -21,6 +21,12 @@ const {
 } = require('../utils/securityUtils');
 const auditLogService = require('../services/auditLog.service');
 
+// Helper function to escape regex special characters (ReDoS protection)
+const escapeRegex = (str) => {
+    if (!str || typeof str !== 'string') return '';
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 /**
  * Get audit logs with filtering
  * GET /api/admin/audit/logs
@@ -82,7 +88,7 @@ const getAuditLogs = async (req, res) => {
 
         // Filter by user email
         if (req.query.userEmail) {
-            filters.userEmail = new RegExp(sanitizeString(req.query.userEmail), 'i');
+            filters.userEmail = new RegExp(escapeRegex(sanitizeString(req.query.userEmail)), 'i');
         }
 
         // Filter by IP address

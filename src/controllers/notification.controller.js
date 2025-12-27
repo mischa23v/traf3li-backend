@@ -6,7 +6,7 @@ const logger = require('../utils/logger');
 
 // Helper function to get user's firmId for IDOR protection
 const getUserFirmId = async (userId) => {
-    const user = await User.findById(userId).select('firmId').lean();
+    const user = await User.findOne({ _id: sanitizeObjectId(userId) }).select('firmId').lean();
     return user?.firmId || null;
 };
 

@@ -64,7 +64,8 @@ const createReview = async(request, response) => {
         // ✅ CHECK IF USER ALREADY REVIEWED
         const existingReview = await Review.findOne({
             gigID: sanitizedGigID,
-            userID: request.userID
+            userID: request.userID,
+            firmId: request.firmId
         });
 
         if(existingReview) {
@@ -74,11 +75,15 @@ const createReview = async(request, response) => {
         const review = new Review({
             userID: request.userID,
             gigID: sanitizedGigID,
+            firmId: request.firmId,
             star,
             description: sanitizedDescription
         });
 
-        await Gig.findByIdAndUpdate(sanitizedGigID, { $inc: { totalStars: star, starNumber: 1 } });
+        await Gig.findOneAndUpdate(
+            { _id: sanitizedGigID, firmId: request.firmId },
+            { $inc: { totalStars: star, starNumber: 1 } }
+        );
         await review.save();
 
         return response.status(201).send({
@@ -106,7 +111,7 @@ const getReview = async (request, response) => {
         // IDOR Protection - Sanitize ObjectId
         const sanitizedGigID = sanitizeObjectId(gigID);
 
-        const reviews = await Review.find({ gigID: sanitizedGigID })
+        const reviews = await Review.find({ gigID: sanitizedGigID, firmId: request.firmId })
             .populate('userID', 'username image email country')
             .sort({ createdAt: -1 }); // ✅ Newest first
         return response.status(200).send(reviews);
@@ -131,8 +136,8 @@ const deleteReview = async (request, response) => {
         // IDOR Protection - Sanitize ObjectId
         const sanitizedReviewID = sanitizeObjectId(reviewID);
 
-        // Find the review
-        const review = await Review.findById(sanitizedReviewID);
+        // Find the review with firmId filter
+        const review = await Review.findOne({ _id: sanitizedReviewID, firmId: request.firmId });
 
         if (!review) {
             throw CustomException("Review not found", 404);
@@ -144,15 +149,15 @@ const deleteReview = async (request, response) => {
         }
 
         // Update the gig's star count before deleting the review
-        // IDOR protection: Use findOneAndUpdate instead of findByIdAndUpdate
+        // IDOR protection: Use findOneAndUpdate with firmId filter
         await Gig.findOneAndUpdate(
-            { _id: review.gigID },
+            { _id: review.gigID, firmId: request.firmId },
             { $inc: { totalStars: -review.star, starNumber: -1 } }
         );
 
         // Delete the review
-        // IDOR protection: Include userID in delete query
-        await Review.findOneAndDelete({ _id: sanitizedReviewID, userID: request.userID });
+        // IDOR protection: Include userID and firmId in delete query
+        await Review.findOneAndDelete({ _id: sanitizedReviewID, userID: request.userID, firmId: request.firmId });
 
         return response.status(200).send({
             error: false,

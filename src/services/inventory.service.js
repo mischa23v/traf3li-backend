@@ -14,6 +14,14 @@ const ItemPrice = require('../models/itemPrice.model');
 const InventorySettings = require('../models/inventorySettings.model');
 
 /**
+ * Escape special regex characters to prevent ReDoS attacks
+ */
+const escapeRegex = (str) => {
+    if (typeof str !== 'string') return str;
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
+/**
  * Inventory Service - Complete Inventory Management
  *
  * Handles items, warehouses, stock entries, stock ledger, batches, serial numbers,
@@ -45,11 +53,11 @@ class InventoryService {
 
         if (search) {
             filter.$or = [
-                { itemCode: { $regex: search, $options: 'i' } },
-                { name: { $regex: search, $options: 'i' } },
-                { nameAr: { $regex: search, $options: 'i' } },
-                { sku: { $regex: search, $options: 'i' } },
-                { barcode: { $regex: search, $options: 'i' } }
+                { itemCode: { $regex: escapeRegex(search), $options: 'i' } },
+                { name: { $regex: escapeRegex(search), $options: 'i' } },
+                { nameAr: { $regex: escapeRegex(search), $options: 'i' } },
+                { sku: { $regex: escapeRegex(search), $options: 'i' } },
+                { barcode: { $regex: escapeRegex(search), $options: 'i' } }
             ];
         }
 
@@ -185,9 +193,9 @@ class InventoryService {
 
         if (search) {
             filter.$or = [
-                { name: { $regex: search, $options: 'i' } },
-                { nameAr: { $regex: search, $options: 'i' } },
-                { city: { $regex: search, $options: 'i' } }
+                { name: { $regex: escapeRegex(search), $options: 'i' } },
+                { nameAr: { $regex: escapeRegex(search), $options: 'i' } },
+                { city: { $regex: escapeRegex(search), $options: 'i' } }
             ];
         }
 

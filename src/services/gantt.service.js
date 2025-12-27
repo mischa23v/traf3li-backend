@@ -403,11 +403,16 @@ class GanttService {
   /**
    * Adjust task dates based on dependencies
    * @param {ObjectId} taskId - Task ID
+   * @param {ObjectId} firmId - Firm ID for multi-tenant isolation
    * @returns {Object} - Updated task
    */
-  async adjustForDependencies(taskId) {
+  async adjustForDependencies(taskId, firmId = null) {
     try {
-      const task = await Task.findById(taskId);
+      const query = { _id: taskId };
+      if (firmId) {
+        query.firmId = firmId;
+      }
+      const task = await Task.findOne(query);
       if (!task) {
         throw new Error('Task not found');
       }
@@ -644,11 +649,16 @@ class GanttService {
   /**
    * Calculate slack time for a task
    * @param {ObjectId} taskId - Task ID
+   * @param {ObjectId} firmId - Firm ID for multi-tenant isolation
    * @returns {Number} - Slack time in days
    */
-  async calculateSlackTime(taskId) {
+  async calculateSlackTime(taskId, firmId = null) {
     try {
-      const task = await Task.findById(taskId).lean();
+      const query = { _id: taskId };
+      if (firmId) {
+        query.firmId = firmId;
+      }
+      const task = await Task.findOne(query).lean();
       if (!task) {
         throw new Error('Task not found');
       }
@@ -989,11 +999,16 @@ class GanttService {
   /**
    * Suggest optimal assignment for a task
    * @param {ObjectId} taskId - Task ID
+   * @param {ObjectId} firmId - Firm ID for multi-tenant isolation
    * @returns {Array} - Suggested assignees sorted by availability
    */
-  async suggestOptimalAssignment(taskId) {
+  async suggestOptimalAssignment(taskId, firmId = null) {
     try {
-      const task = await Task.findById(taskId).lean();
+      const query = { _id: taskId };
+      if (firmId) {
+        query.firmId = firmId;
+      }
+      const task = await Task.findOne(query).lean();
       if (!task) {
         throw new Error('Task not found');
       }
@@ -1103,7 +1118,7 @@ class GanttService {
       await targetTask.save();
 
       // Recalculate target task dates
-      await this.adjustForDependencies(targetId);
+      await this.adjustForDependencies(targetId, firmId);
 
       return { sourceTask, targetTask };
     } catch (error) {
@@ -1218,11 +1233,16 @@ class GanttService {
   /**
    * Get dependency chain for a task
    * @param {ObjectId} taskId - Task ID
+   * @param {ObjectId} firmId - Firm ID for multi-tenant isolation
    * @returns {Object} - Dependency chain
    */
-  async getDependencyChain(taskId) {
+  async getDependencyChain(taskId, firmId = null) {
     try {
-      const task = await Task.findById(taskId).populate('blocks blockedBy').lean();
+      const query = { _id: taskId };
+      if (firmId) {
+        query.firmId = firmId;
+      }
+      const task = await Task.findOne(query).populate('blocks blockedBy').lean();
 
       if (!task) {
         throw new Error('Task not found');
@@ -1232,7 +1252,7 @@ class GanttService {
       const dependents = await this.getRecursiveDependents(taskId);
 
       // Get tasks this task depends on (recursively)
-      const dependencies = await this.getRecursiveDependencies(taskId);
+      const dependencies = await this.getRecursiveDependencies(taskId, new Set(), firmId);
 
       return {
         task: {
@@ -1285,16 +1305,21 @@ class GanttService {
    * Get recursive dependencies
    * @param {ObjectId} taskId - Task ID
    * @param {Set} visited - Visited tasks
+   * @param {ObjectId} firmId - Firm ID for multi-tenant isolation
    * @returns {Array} - Dependency tasks
    */
-  async getRecursiveDependencies(taskId, visited = new Set()) {
+  async getRecursiveDependencies(taskId, visited = new Set(), firmId = null) {
     if (visited.has(taskId.toString())) {
       return [];
     }
 
     visited.add(taskId.toString());
 
-    const task = await Task.findById(taskId).select('blockedBy').lean();
+    const query = { _id: taskId };
+    if (firmId) {
+      query.firmId = firmId;
+    }
+    const task = await Task.findOne(query).select('blockedBy').lean();
 
     if (!task || !task.blockedBy || task.blockedBy.length === 0) {
       return [];
@@ -1313,7 +1338,7 @@ class GanttService {
         status: dep.status
       });
 
-      const childDeps = await this.getRecursiveDependencies(dep._id, visited);
+      const childDeps = await this.getRecursiveDependencies(dep._id, visited, firmId);
       result.push(...childDeps);
     }
 
@@ -1512,9 +1537,10 @@ class GanttService {
    * Auto-schedule all tasks in a project
    * @param {ObjectId} projectId - Project/Case ID
    * @param {Date} startDate - Project start date
+   * @param {ObjectId} firmId - Firm ID for multi-tenant isolation
    * @returns {Array} - Updated tasks
    */
-  async autoSchedule(projectId, startDate) {
+  async autoSchedule(projectId, startDate, firmId = null) {
     try {
       const tasks = await Task.find({ caseId: projectId }).lean();
 
@@ -1593,7 +1619,11 @@ class GanttService {
         });
 
         // Update task in database
-        await Task.findByIdAndUpdate(currentId, {
+        const updateQuery = { _id: currentId };
+        if (firmId) {
+          updateQuery.firmId = firmId;
+        }
+        await Task.findOneAndUpdate(updateQuery, {
           startDate: taskStartDate,
           dueDate: taskEndDate
         });
@@ -1623,9 +1653,10 @@ class GanttService {
   /**
    * Level resources (redistribute tasks to avoid overallocation)
    * @param {ObjectId} projectId - Project/Case ID
+   * @param {ObjectId} firmId - Firm ID for multi-tenant isolation
    * @returns {Array} - Updated tasks
    */
-  async levelResources(projectId) {
+  async levelResources(projectId, firmId = null) {
     try {
       // This is a complex algorithm - simplified version
       const tasks = await Task.find({ caseId: projectId }).populate('assignedTo').lean();
@@ -1651,7 +1682,11 @@ class GanttService {
           for (const conflict of conflicts.conflicts) {
             for (const conflictTask of conflict.tasks) {
               // Find alternative dates or assignees
-              const task = await Task.findById(conflictTask.id);
+              const taskQuery = { _id: conflictTask.id };
+              if (firmId) {
+                taskQuery.firmId = firmId;
+              }
+              const task = await Task.findOne(taskQuery);
               if (task && !task.blockedBy?.length) {
                 // Task has no dependencies, can be moved
                 const newStartDate = this.addDays(new Date(conflict.date), 1);

@@ -531,8 +531,13 @@ const updateEmployee = asyncHandler(async (req, res) => {
         });
     }
 
-    const updatedEmployee = await Employee.findByIdAndUpdate(
-        id,
+    // IDOR Protection: Build access query
+    const accessQuery = firmId
+        ? { _id: id, firmId }
+        : { _id: id, lawyerId };
+
+    const updatedEmployee = await Employee.findOneAndUpdate(
+        accessQuery,
         { $set: updateData },
         { new: true, runValidators: true }
     )
@@ -576,7 +581,12 @@ const deleteEmployee = asyncHandler(async (req, res) => {
         throw CustomException('Access denied', 403);
     }
 
-    await Employee.findByIdAndDelete(id);
+    // IDOR Protection: Use findOneAndDelete with ownership query
+    const accessQuery = firmId
+        ? { _id: id, firmId }
+        : { _id: id, lawyerId };
+
+    await Employee.findOneAndDelete(accessQuery);
 
     return res.json({
         success: true,

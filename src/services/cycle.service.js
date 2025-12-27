@@ -143,13 +143,14 @@ class CycleService {
   /**
    * Start a cycle
    * @param {ObjectId} cycleId - Cycle ID
+   * @param {ObjectId} firmId - Firm ID for authorization
    * @param {ObjectId} userId - User ID performing the action
    * @returns {Promise<Object|null>} Updated cycle or null
    */
-  async startCycle(cycleId, userId) {
+  async startCycle(cycleId, firmId, userId) {
     try {
       // Get cycle
-      const cycle = await Cycle.findById(cycleId);
+      const cycle = await Cycle.findOne({ _id: cycleId, firmId });
       if (!cycle) {
         logger.error('CycleService.startCycle: Cycle not found');
         return null;
@@ -208,13 +209,14 @@ class CycleService {
   /**
    * Complete a cycle
    * @param {ObjectId} cycleId - Cycle ID
+   * @param {ObjectId} firmId - Firm ID for authorization
    * @param {ObjectId} userId - User ID performing the action
    * @returns {Promise<Object|null>} Completed cycle with metrics or null
    */
-  async completeCycle(cycleId, userId) {
+  async completeCycle(cycleId, firmId, userId) {
     try {
       // Get cycle
-      const cycle = await Cycle.findById(cycleId);
+      const cycle = await Cycle.findOne({ _id: cycleId, firmId });
       if (!cycle) {
         logger.error('CycleService.completeCycle: Cycle not found');
         return null;
@@ -360,12 +362,13 @@ class CycleService {
   /**
    * Get cycle progress
    * @param {ObjectId} cycleId - Cycle ID
+   * @param {ObjectId} firmId - Firm ID for authorization
    * @returns {Promise<Object|null>} Progress summary or null
    */
-  async getCycleProgress(cycleId) {
+  async getCycleProgress(cycleId, firmId) {
     try {
       // Get cycle
-      const cycle = await Cycle.findById(cycleId);
+      const cycle = await Cycle.findOne({ _id: cycleId, firmId });
       if (!cycle) {
         logger.error('CycleService.getCycleProgress: Cycle not found');
         return null;
@@ -430,12 +433,13 @@ class CycleService {
   /**
    * Calculate burndown chart data
    * @param {ObjectId} cycleId - Cycle ID
+   * @param {ObjectId} firmId - Firm ID for authorization
    * @returns {Promise<Array>} Array of burndown data points
    */
-  async calculateBurndown(cycleId) {
+  async calculateBurndown(cycleId, firmId) {
     try {
       // Get cycle
-      const cycle = await Cycle.findById(cycleId);
+      const cycle = await Cycle.findOne({ _id: cycleId, firmId });
       if (!cycle) {
         logger.error('CycleService.calculateBurndown: Cycle not found');
         return [];
@@ -674,20 +678,21 @@ class CycleService {
    * Add task to cycle
    * @param {ObjectId} taskId - Task ID
    * @param {ObjectId} cycleId - Cycle ID
+   * @param {ObjectId} firmId - Firm ID for authorization
    * @param {ObjectId} userId - User ID performing the action
    * @returns {Promise<Object|null>} Updated task or null
    */
-  async addTaskToCycle(taskId, cycleId, userId) {
+  async addTaskToCycle(taskId, cycleId, firmId, userId) {
     try {
       // Get cycle
-      const cycle = await Cycle.findById(cycleId);
+      const cycle = await Cycle.findOne({ _id: cycleId, firmId });
       if (!cycle) {
         logger.error('CycleService.addTaskToCycle: Cycle not found');
         return null;
       }
 
       // Get task
-      const task = await Task.findById(taskId);
+      const task = await Task.findOne({ _id: taskId, firmId });
       if (!task) {
         logger.error('CycleService.addTaskToCycle: Task not found');
         return null;
@@ -737,13 +742,14 @@ class CycleService {
   /**
    * Remove task from cycle
    * @param {ObjectId} taskId - Task ID
+   * @param {ObjectId} firmId - Firm ID for authorization
    * @param {ObjectId} userId - User ID performing the action
    * @returns {Promise<Object|null>} Updated task or null
    */
-  async removeTaskFromCycle(taskId, userId) {
+  async removeTaskFromCycle(taskId, firmId, userId) {
     try {
       // Get task
-      const task = await Task.findById(taskId);
+      const task = await Task.findOne({ _id: taskId, firmId });
       if (!task) {
         logger.error('CycleService.removeTaskFromCycle: Task not found');
         return null;

@@ -22,6 +22,14 @@ const UserActivity = require('../models/userActivity.model');
 const PermissionEnforcer = require('./permissionEnforcer.service');
 const logger = require('../utils/logger');
 
+/**
+ * Escape special regex characters to prevent ReDoS attacks
+ */
+const escapeRegex = (str) => {
+  if (typeof str !== 'string') return str;
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 class CommandPaletteService {
   constructor() {
     // Command registry (in-memory storage for dynamic commands)
@@ -1200,7 +1208,7 @@ class CommandPaletteService {
 
           // Build query with OR conditions for each searchable field
           const $or = fields.map(field => ({
-            [field]: { $regex: normalizedQuery, $options: 'i' }
+            [field]: { $regex: escapeRegex(normalizedQuery), $options: 'i' }
           }));
 
           // Execute search

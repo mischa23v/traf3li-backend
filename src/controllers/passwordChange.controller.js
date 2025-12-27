@@ -138,7 +138,9 @@ const changePassword = async (req, res) => {
 
         if (user.firmId) {
             const firmId = sanitizeObjectId(user.firmId);
-            firm = await Firm.findById(firmId).select('enterpriseSettings').lean();
+            firm = await Firm.findOne({ _id: firmId })
+                .select('enterpriseSettings')
+                .lean();
             historyCount = firm?.enterpriseSettings?.passwordHistoryCount || 12;
             minStrengthScore = firm?.enterpriseSettings?.minPasswordStrengthScore || 50;
         }
@@ -351,7 +353,9 @@ const getPasswordStatus = async (req, res) => {
 
         if (user.firmId) {
             const firmId = sanitizeObjectId(user.firmId);
-            firm = await Firm.findById(firmId).select('enterpriseSettings').lean();
+            firm = await Firm.findOne({ _id: firmId })
+                .select('enterpriseSettings')
+                .lean();
             expirationEnabled = firm?.enterpriseSettings?.enablePasswordExpiration || false;
             maxAgeDays = firm?.enterpriseSettings?.passwordMaxAgeDays || 90;
             warningDays = firm?.enterpriseSettings?.passwordExpiryWarningDays || 7;

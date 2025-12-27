@@ -25,6 +25,14 @@ const logger = require('../utils/logger');
 const auditLogService = require('./auditLog.service');
 const notificationDeliveryService = require('./notificationDelivery.service');
 
+/**
+ * Escape special regex characters to prevent ReDoS attacks
+ */
+const escapeRegex = (str) => {
+    if (typeof str !== 'string') return str;
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 class WorkflowService {
     // PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP
     // TEMPLATE MANAGEMENT
@@ -1140,7 +1148,7 @@ class WorkflowService {
         // Replace instance variables
         if (instance.variables) {
             instance.variables.forEach((value, key) => {
-                result = result.replace(new RegExp(`{{${key}}}`, 'g'), value);
+                result = result.replace(new RegExp(`{{${escapeRegex(key)}}}`, 'g'), value);
             });
         }
 

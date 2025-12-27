@@ -4,6 +4,12 @@ const asyncHandler = require('../utils/asyncHandler');
 const { pickAllowedFields, SENSITIVE_FIELDS } = require('../utils/securityUtils');
 const logger = require('../utils/logger');
 
+// Helper function to escape regex special characters (ReDoS protection)
+const escapeRegex = (str) => {
+    if (!str || typeof str !== 'string') return '';
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 // ═══════════════════════════════════════════════════════════════
 // SALARY FIELD DEFINITIONS & VALIDATION
 // ═══════════════════════════════════════════════════════════════
@@ -159,11 +165,11 @@ const getSalarySlips = asyncHandler(async (req, res) => {
 
     if (search) {
         query.$or = [
-            { employeeName: { $regex: search, $options: 'i' } },
-            { employeeNameAr: { $regex: search, $options: 'i' } },
-            { slipId: { $regex: search, $options: 'i' } },
-            { slipNumber: { $regex: search, $options: 'i' } },
-            { employeeNumber: { $regex: search, $options: 'i' } }
+            { employeeName: { $regex: escapeRegex(search), $options: 'i' } },
+            { employeeNameAr: { $regex: escapeRegex(search), $options: 'i' } },
+            { slipId: { $regex: escapeRegex(search), $options: 'i' } },
+            { slipNumber: { $regex: escapeRegex(search), $options: 'i' } },
+            { employeeNumber: { $regex: escapeRegex(search), $options: 'i' } }
         ];
     }
 
@@ -250,19 +256,18 @@ const createSalarySlip = asyncHandler(async (req, res) => {
         throw CustomException('Employee ID is required', 400);
     }
 
-    // Fetch employee
-    const employee = await Employee.findById(employeeId);
-    if (!employee) {
-        throw CustomException('Employee not found', 404);
+    // SECURITY: IDOR Protection - Fetch employee with ownership verification
+    const isSoloLawyer = req.isSoloLawyer;
+    const employeeQuery = { _id: employeeId };
+    if (isSoloLawyer || !firmId) {
+        employeeQuery.lawyerId = lawyerId;
+    } else {
+        employeeQuery.firmId = firmId;
     }
 
-    // SECURITY: IDOR Protection - Verify user has access to this employee
-    const hasEmployeeAccess = firmId
-        ? employee.firmId?.toString() === firmId.toString()
-        : employee.lawyerId?.toString() === lawyerId;
-
-    if (!hasEmployeeAccess) {
-        throw CustomException('Access denied to this employee', 403);
+    const employee = await Employee.findOne(employeeQuery);
+    if (!employee) {
+        throw CustomException('Employee not found', 404);
     }
 
     // Check for existing slip

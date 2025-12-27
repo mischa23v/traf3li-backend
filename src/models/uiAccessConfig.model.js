@@ -14,6 +14,12 @@
 
 const mongoose = require('mongoose');
 
+// Helper function to escape regex special characters
+const escapeRegex = (str) => {
+    if (typeof str !== 'string') return '';
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 // ═══════════════════════════════════════════════════════════════
 // SIDEBAR ITEM SCHEMA
 // ═══════════════════════════════════════════════════════════════
@@ -594,7 +600,7 @@ function findMatchingPageRule(pageAccess, routePath) {
     // Try wildcard match
     for (const page of pageAccess) {
         if (page.routePattern.includes('*')) {
-            const pattern = page.routePattern.replace(/\*/g, '.*');
+            const pattern = escapeRegex(page.routePattern).replace(/\\\*/g, '.*');
             const regex = new RegExp(`^${pattern}$`);
             if (regex.test(routePath)) {
                 return page;

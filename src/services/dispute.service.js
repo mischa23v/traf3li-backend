@@ -13,7 +13,7 @@ const createDispute = async (disputeData, userId) => {
     try {
         // Validate case exists if caseId provided
         if (disputeData.caseId) {
-            const caseExists = await Case.findById(disputeData.caseId);
+            const caseExists = await Case.findOne({ _id: disputeData.caseId, firmId: disputeData.firmId });
             if (!caseExists) {
                 throw CustomException('Case not found', 404);
             }
@@ -21,7 +21,7 @@ const createDispute = async (disputeData, userId) => {
 
         // Validate payment exists if paymentId provided
         if (disputeData.paymentId) {
-            const paymentExists = await Payment.findById(disputeData.paymentId);
+            const paymentExists = await Payment.findOne({ _id: disputeData.paymentId, firmId: disputeData.firmId });
             if (!paymentExists) {
                 throw CustomException('Payment not found', 404);
             }
@@ -132,11 +132,12 @@ const getDisputes = async (filters = {}, options = {}) => {
 /**
  * Get dispute by ID
  * @param {ObjectId} disputeId - Dispute ID
+ * @param {ObjectId} firmId - Firm ID
  * @returns {Promise<Dispute>}
  */
-const getDisputeById = async (disputeId) => {
+const getDisputeById = async (disputeId, firmId) => {
     try {
-        const dispute = await Dispute.findById(disputeId)
+        const dispute = await Dispute.findOne({ _id: disputeId, firmId })
             .populate('clientId', 'firstName lastName email username phone')
             .populate('lawyerId', 'firstName lastName email username phone')
             .populate('mediatorId', 'firstName lastName email username')
@@ -163,11 +164,12 @@ const getDisputeById = async (disputeId) => {
  * @param {ObjectId} disputeId - Dispute ID
  * @param {Object} responseData - Response data
  * @param {ObjectId} userId - User ID (lawyer)
+ * @param {ObjectId} firmId - Firm ID
  * @returns {Promise<Dispute>}
  */
-const lawyerRespond = async (disputeId, responseData, userId) => {
+const lawyerRespond = async (disputeId, responseData, userId, firmId) => {
     try {
-        const dispute = await Dispute.findById(disputeId);
+        const dispute = await Dispute.findOne({ _id: disputeId, firmId });
 
         if (!dispute) {
             throw CustomException('Dispute not found', 404);
@@ -215,11 +217,12 @@ const lawyerRespond = async (disputeId, responseData, userId) => {
  * @param {ObjectId} disputeId - Dispute ID
  * @param {Object} escalationData - Escalation data
  * @param {ObjectId} userId - User escalating
+ * @param {ObjectId} firmId - Firm ID
  * @returns {Promise<Dispute>}
  */
-const escalateDispute = async (disputeId, escalationData, userId) => {
+const escalateDispute = async (disputeId, escalationData, userId, firmId) => {
     try {
-        const dispute = await Dispute.findById(disputeId);
+        const dispute = await Dispute.findOne({ _id: disputeId, firmId });
 
         if (!dispute) {
             throw CustomException('Dispute not found', 404);
@@ -265,11 +268,12 @@ const escalateDispute = async (disputeId, escalationData, userId) => {
  * @param {ObjectId} disputeId - Dispute ID
  * @param {Object} resolutionData - Resolution data
  * @param {ObjectId} userId - User resolving (admin/mediator)
+ * @param {ObjectId} firmId - Firm ID
  * @returns {Promise<Dispute>}
  */
-const resolveDispute = async (disputeId, resolutionData, userId) => {
+const resolveDispute = async (disputeId, resolutionData, userId, firmId) => {
     try {
-        const dispute = await Dispute.findById(disputeId);
+        const dispute = await Dispute.findOne({ _id: disputeId, firmId });
 
         if (!dispute) {
             throw CustomException('Dispute not found', 404);
@@ -301,11 +305,12 @@ const resolveDispute = async (disputeId, resolutionData, userId) => {
  * @param {Object} evidenceData - Evidence data
  * @param {ObjectId} userId - User adding evidence
  * @param {String} userRole - 'client' or 'lawyer'
+ * @param {ObjectId} firmId - Firm ID
  * @returns {Promise<Dispute>}
  */
-const addEvidence = async (disputeId, evidenceData, userId, userRole) => {
+const addEvidence = async (disputeId, evidenceData, userId, userRole, firmId) => {
     try {
-        const dispute = await Dispute.findById(disputeId);
+        const dispute = await Dispute.findOne({ _id: disputeId, firmId });
 
         if (!dispute) {
             throw CustomException('Dispute not found', 404);
@@ -369,11 +374,12 @@ const addEvidence = async (disputeId, evidenceData, userId, userRole) => {
  * @param {ObjectId} disputeId - Dispute ID
  * @param {String} note - Note text
  * @param {ObjectId} userId - Mediator user ID
+ * @param {ObjectId} firmId - Firm ID
  * @returns {Promise<Dispute>}
  */
-const addMediatorNote = async (disputeId, note, userId) => {
+const addMediatorNote = async (disputeId, note, userId, firmId) => {
     try {
-        const dispute = await Dispute.findById(disputeId);
+        const dispute = await Dispute.findOne({ _id: disputeId, firmId });
 
         if (!dispute) {
             throw CustomException('Dispute not found', 404);
@@ -441,11 +447,12 @@ const getDisputesByType = async (filters = {}) => {
  * @param {ObjectId} disputeId - Dispute ID
  * @param {String} status - New status
  * @param {ObjectId} userId - User updating
+ * @param {ObjectId} firmId - Firm ID
  * @returns {Promise<Dispute>}
  */
-const updateDisputeStatus = async (disputeId, status, userId) => {
+const updateDisputeStatus = async (disputeId, status, userId, firmId) => {
     try {
-        const dispute = await Dispute.findById(disputeId);
+        const dispute = await Dispute.findOne({ _id: disputeId, firmId });
 
         if (!dispute) {
             throw CustomException('Dispute not found', 404);

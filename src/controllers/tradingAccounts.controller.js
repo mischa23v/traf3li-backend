@@ -214,8 +214,8 @@ const getTradingAccounts = asyncHandler(async (req, res) => {
 
     if (search) {
         filters.$or = [
-            { name: { $regex: search, $options: 'i' } },
-            { accountNumber: { $regex: search, $options: 'i' } }
+            { name: { $regex: escapeRegex(search), $options: 'i' } },
+            { accountNumber: { $regex: escapeRegex(search), $options: 'i' } }
         ];
     }
 

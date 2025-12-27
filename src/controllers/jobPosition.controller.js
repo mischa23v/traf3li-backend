@@ -3,6 +3,12 @@ const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
+// Helper function to escape regex special characters (ReDoS protection)
+const escapeRegex = (str) => {
+    if (!str || typeof str !== 'string') return '';
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 // ═══════════════════════════════════════════════════════════════
 // GET ALL JOB POSITIONS
 // ═══════════════════════════════════════════════════════════════
@@ -45,13 +51,14 @@ const getJobPositions = asyncHandler(async (req, res) => {
 
     // Search
     if (search) {
+        const escapedSearch = escapeRegex(search);
         query.$or = [
-            { positionId: { $regex: search, $options: 'i' } },
-            { positionNumber: { $regex: search, $options: 'i' } },
-            { positionCode: { $regex: search, $options: 'i' } },
-            { jobTitle: { $regex: search, $options: 'i' } },
-            { jobTitleAr: { $regex: search, $options: 'i' } },
-            { 'incumbent.employeeName': { $regex: search, $options: 'i' } }
+            { positionId: { $regex: escapedSearch, $options: 'i' } },
+            { positionNumber: { $regex: escapedSearch, $options: 'i' } },
+            { positionCode: { $regex: escapedSearch, $options: 'i' } },
+            { jobTitle: { $regex: escapedSearch, $options: 'i' } },
+            { jobTitleAr: { $regex: escapedSearch, $options: 'i' } },
+            { 'incumbent.employeeName': { $regex: escapedSearch, $options: 'i' } }
         ];
     }
 

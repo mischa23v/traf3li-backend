@@ -3196,6 +3196,18 @@ const getCaseFull = async (request, response) => {
         // SECURITY: Build secure query with firm/user isolation to prevent IDOR
         const secureQuery = buildSecureCaseQuery(_id, request);
 
+        // SECURITY: Build audit log and task queries with firmId to prevent IDOR
+        const auditLogQuery = { caseId: _id };
+        const taskQuery = { caseId: _id };
+
+        if (firmId) {
+            auditLogQuery.firmId = firmId;
+            taskQuery.firmId = firmId;
+        } else if (isSoloLawyer) {
+            // Solo lawyers can only see audit logs and tasks for their own cases
+            // The case query will ensure they have access
+        }
+
         const [caseDoc, auditLog, relatedTasks] = await Promise.all([
             // Full case with populated fields
             Case.findOne(secureQuery)
@@ -3204,15 +3216,15 @@ const getCaseFull = async (request, response) => {
                 .populate('assignedLawyers', 'firstName lastName email')
                 .lean(),
 
-            // Audit log (last 50 entries)
-            CaseAuditLog.find({ caseId: _id })
+            // Audit log (last 50 entries) - SECURITY: with firmId filter
+            CaseAuditLog.find(auditLogQuery)
                 .populate('userId', 'firstName lastName email')
                 .sort({ createdAt: -1 })
                 .limit(50)
                 .lean(),
 
-            // Related tasks
-            Task.find({ caseId: _id })
+            // Related tasks - SECURITY: with firmId filter
+            Task.find(taskQuery)
                 .populate('assignedTo', 'firstName lastName email')
                 .sort({ dueDate: 1 })
                 .lean()

@@ -5,6 +5,12 @@ const asyncHandler = require('../utils/asyncHandler');
 const { v4: uuidv4 } = require('uuid');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
+// Helper function to escape regex special characters (ReDoS protection)
+const escapeRegex = (str) => {
+    if (!str || typeof str !== 'string') return '';
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 /**
  * Training Controller - HR Management
  * Module 13: التدريب والتطوير (Training & Development)
@@ -172,13 +178,14 @@ const getTrainings = asyncHandler(async (req, res) => {
     }
 
     if (search) {
+        const escapedSearch = escapeRegex(search);
         query.$or = [
-            { trainingNumber: { $regex: search, $options: 'i' } },
-            { trainingTitle: { $regex: search, $options: 'i' } },
-            { trainingTitleAr: { $regex: search, $options: 'i' } },
-            { employeeName: { $regex: search, $options: 'i' } },
-            { employeeNameAr: { $regex: search, $options: 'i' } },
-            { employeeNumber: { $regex: search, $options: 'i' } }
+            { trainingNumber: { $regex: escapedSearch, $options: 'i' } },
+            { trainingTitle: { $regex: escapedSearch, $options: 'i' } },
+            { trainingTitleAr: { $regex: escapedSearch, $options: 'i' } },
+            { employeeName: { $regex: escapedSearch, $options: 'i' } },
+            { employeeNameAr: { $regex: escapedSearch, $options: 'i' } },
+            { employeeNumber: { $regex: escapedSearch, $options: 'i' } }
         ];
     }
 
@@ -295,18 +302,18 @@ const createTraining = asyncHandler(async (req, res) => {
         throw CustomException('End date must be after start date', 400);
     }
 
-    // Validate employee and IDOR protection
-    const employee = await Employee.findById(sanitizedEmployeeId);
-    if (!employee) {
-        throw CustomException('Employee not found', 404);
+    // IDOR Protection: Validate employee belongs to the same firm/lawyer with atomic query
+    const isSoloLawyer = req.isSoloLawyer;
+    const employeeQuery = { _id: sanitizedEmployeeId };
+    if (isSoloLawyer || !firmId) {
+        employeeQuery.lawyerId = lawyerId;
+    } else {
+        employeeQuery.firmId = firmId;
     }
 
-    // IDOR Protection - verify employee belongs to the same firm/lawyer
-    if (firmId && employee.firmId?.toString() !== firmId.toString()) {
-        throw CustomException('Employee not found', 404);
-    }
-    if (!firmId && employee.lawyerId?.toString() !== lawyerId.toString()) {
-        throw CustomException('Employee not found', 404);
+    const employee = await Employee.findOne(employeeQuery);
+    if (!employee) {
+        throw CustomException('Employee not found or access denied', 404);
     }
 
     // Generate training number and ID

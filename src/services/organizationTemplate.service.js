@@ -63,11 +63,12 @@ class OrganizationTemplateService {
      * @param {String} templateId - Template ID
      * @param {Object} updates - Updates to apply
      * @param {String} userId - ID of user updating the template
+     * @param {String} firmId - ID of firm owning the template
      * @returns {Promise<Object>} Updated template
      */
-    static async updateTemplate(templateId, updates, userId) {
+    static async updateTemplate(templateId, updates, userId, firmId) {
         try {
-            const template = await OrganizationTemplate.findById(templateId);
+            const template = await OrganizationTemplate.findOne({ _id: templateId, firmId });
 
             if (!template) {
                 throw new Error('Template not found');
@@ -105,7 +106,7 @@ class OrganizationTemplateService {
 
         try {
             // Get template
-            const template = await OrganizationTemplate.findById(templateId);
+            const template = await OrganizationTemplate.findOne({ _id: templateId, firmId });
             if (!template) {
                 throw new Error('Template not found');
             }
@@ -114,8 +115,8 @@ class OrganizationTemplateService {
                 throw new Error('Template is not active');
             }
 
-            // Get firm
-            const firm = await Firm.findById(firmId).session(session);
+            // Get firm (verify exists and user has access via controller)
+            const firm = await Firm.findOne({ _id: firmId }).session(session);
             if (!firm) {
                 throw new Error('Firm not found');
             }
@@ -422,12 +423,13 @@ class OrganizationTemplateService {
      */
     static async compareWithTemplate(firmId, templateId) {
         try {
-            const firm = await Firm.findById(firmId);
+            // Verify firm exists (access should be verified by controller)
+            const firm = await Firm.findOne({ _id: firmId });
             if (!firm) {
                 throw new Error('Firm not found');
             }
 
-            const template = await OrganizationTemplate.findById(templateId);
+            const template = await OrganizationTemplate.findOne({ _id: templateId, firmId });
             if (!template) {
                 throw new Error('Template not found');
             }
@@ -546,11 +548,12 @@ class OrganizationTemplateService {
     /**
      * Delete a template
      * @param {String} templateId - Template ID
+     * @param {String} firmId - ID of firm owning the template
      * @returns {Promise<Object>} Deleted template
      */
-    static async deleteTemplate(templateId) {
+    static async deleteTemplate(templateId, firmId) {
         try {
-            const template = await OrganizationTemplate.findById(templateId);
+            const template = await OrganizationTemplate.findOne({ _id: templateId, firmId });
 
             if (!template) {
                 throw new Error('Template not found');

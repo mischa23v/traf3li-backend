@@ -361,11 +361,11 @@ const getCollectionForecast = async (firmId) => {
  * @param {ObjectId} invoiceId - Invoice ID
  * @returns {Promise<Object>} Priority score and details
  */
-const getCollectionPriorityScore = async (invoiceId) => {
+const getCollectionPriorityScore = async (invoiceId, firmId) => {
   try {
     logger.info('Calculating collection priority score', { invoiceId });
 
-    const invoice = await Invoice.findById(invoiceId)
+    const invoice = await Invoice.findOne({ _id: invoiceId, firmId })
       .populate('clientId', 'displayName totalOutstanding activeCases clientTier')
       .lean();
 

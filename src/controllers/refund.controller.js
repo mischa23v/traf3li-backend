@@ -159,8 +159,10 @@ exports.getRefundDetails = async (req, res) => {
     try {
         const { id } = req.params;
         const userId = req.user.id;
+        const firmId = req.user.firmId;
 
-        const refund = await Refund.findById(id)
+        // IDOR Protection: Use findOne with firmId
+        const refund = await Refund.findOne({ _id: id, firmId })
             .populate('paymentId', 'paymentNumber amount paymentDate')
             .populate('customerId', 'firstName lastName email')
             .populate('approvedBy', 'firstName lastName')
@@ -450,8 +452,10 @@ exports.retryRefund = async (req, res) => {
     try {
         const { id } = req.params;
         const processedBy = req.user.id;
+        const firmId = req.user.firmId;
 
-        const refund = await Refund.findById(id);
+        // IDOR Protection: Use findOne with firmId
+        const refund = await Refund.findOne({ _id: id, firmId });
 
         if (!refund) {
             return res.status(404).json({

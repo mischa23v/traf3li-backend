@@ -139,7 +139,7 @@ const removeFollower = asyncHandler(async (req, res) => {
         throw CustomException('المتابع غير موجود', 404);
     }
 
-    await ChatterFollower.findByIdAndDelete(sanitizedId);
+    await ChatterFollower.findOneAndDelete({ _id: sanitizedId, firmId });
 
     res.status(200).json({
         success: true,
@@ -370,7 +370,7 @@ const toggleFollow = asyncHandler(async (req, res) => {
 
     if (existingFollower) {
         // Unfollow
-        await ChatterFollower.findByIdAndDelete(existingFollower._id);
+        await ChatterFollower.findOneAndDelete({ _id: existingFollower._id, firmId });
 
         res.status(200).json({
             success: true,

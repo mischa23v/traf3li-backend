@@ -3,6 +3,12 @@ const { CustomException } = require('../utils');
 const asyncHandler = require('../utils/asyncHandler');
 const { pickAllowedFields } = require('../utils/securityUtils');
 
+// Helper function to escape regex special characters (ReDoS protection)
+const escapeRegex = (str) => {
+    if (!str || typeof str !== 'string') return '';
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 // Allowed fields for bank account creation and updates
 const ALLOWED_CREATE_FIELDS = [
     'name',
@@ -174,9 +180,9 @@ const getBankAccounts = asyncHandler(async (req, res) => {
 
     if (search) {
         filters.$or = [
-            { name: { $regex: search, $options: 'i' } },
-            { accountNumber: { $regex: search, $options: 'i' } },
-            { bankName: { $regex: search, $options: 'i' } }
+            { name: { $regex: escapeRegex(search), $options: 'i' } },
+            { accountNumber: { $regex: escapeRegex(search), $options: 'i' } },
+            { bankName: { $regex: escapeRegex(search), $options: 'i' } }
         ];
     }
 

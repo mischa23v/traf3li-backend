@@ -563,8 +563,10 @@ const getRecordThread = asyncHandler(async (req, res) => {
 const deleteMessage = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
+    const firmId = req.firmId;
 
-    const message = await ThreadMessage.findById(id);
+    // IDOR Protection: Use findOne with firmId
+    const message = await ThreadMessage.findOne({ _id: id, firmId });
 
     if (!message) {
         throw CustomException('الرسالة غير موجودة', 404);

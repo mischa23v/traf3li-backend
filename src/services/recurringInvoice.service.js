@@ -733,7 +733,7 @@ const generateInvoiceFromRecurring = async (recurringInvoiceId, firmId, userId =
         logger.error('Error generating invoice from recurring:', error);
 
         // Log failure
-        await handleGenerationFailure(recurringInvoiceId, error, false);
+        await handleGenerationFailure(recurringInvoiceId, firmId, error, false);
 
         throw error;
     } finally {
@@ -1018,13 +1018,14 @@ const updateNextGenerationDate = async (recurringInvoiceId, fromDate = null, fir
 /**
  * Handle and log generation failures with retry logic
  * @param {String} recurringInvoiceId - Recurring invoice ID
+ * @param {String} firmId - Firm ID
  * @param {Error} error - Error that occurred
  * @param {Boolean} autoPause - Whether to auto-pause after max retries (default: true)
  * @returns {Promise<Object>} - Updated recurring invoice with failure info
  */
-const handleGenerationFailure = async (recurringInvoiceId, error, autoPause = true) => {
+const handleGenerationFailure = async (recurringInvoiceId, firmId, error, autoPause = true) => {
     try {
-        const recurring = await RecurringInvoice.findById(recurringInvoiceId);
+        const recurring = await RecurringInvoice.findOne({ _id: recurringInvoiceId, firmId });
 
         if (!recurring) {
             logger.error(`Cannot log failure for non-existent recurring invoice: ${recurringInvoiceId}`);

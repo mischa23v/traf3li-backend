@@ -135,11 +135,11 @@ async function setupFollowers() {
 // EXAMPLE 5: Using the service directly (advanced)
 // ═══════════════════════════════════════════════════════════════
 
-async function manualNotification() {
+async function manualNotification(firmId) {
     const chatterNotificationService = require('./chatterNotification.service');
 
-    // Get a message
-    const message = await ThreadMessage.findById('507f1f77bcf86cd799439017')
+    // Get a message with firmId validation
+    const message = await ThreadMessage.findOne({ _id: '507f1f77bcf86cd799439017', firmId })
         .populate('author_id', 'firstName lastName email')
         .populate('partner_ids', 'firstName lastName email');
 

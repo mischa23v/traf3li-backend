@@ -349,11 +349,14 @@ const createInvoice = asyncHandler(async (req, res) => {
 
         // Apply retainer if specified
         if (applyFromRetainer > 0) {
-            const retainer = await Retainer.findOne({
-                clientId,
-                lawyerId,
-                status: 'active'
-            }).session(session);
+            // SECURITY: IDOR Protection - Query with firmId check
+            const retainerQuery = { clientId, status: 'active' };
+            if (isSoloLawyer || !firmId) {
+                retainerQuery.lawyerId = lawyerId;
+            } else {
+                retainerQuery.firmId = firmId;
+            }
+            const retainer = await Retainer.findOne(retainerQuery).session(session);
 
             if (retainer) {
                 await retainer.consume(applyFromRetainer, invoice._id, `Applied to invoice ${invoice.invoiceNumber}`, { session });
@@ -456,7 +459,7 @@ const getInvoices = asyncHandler(async (req, res) => {
 
     if (search) {
         filters.$or = [
-            { invoiceNumber: { $regex: search, $options: 'i' } }
+            { invoiceNumber: { $regex: escapeRegex(search), $options: 'i' } }
         ];
     }
 

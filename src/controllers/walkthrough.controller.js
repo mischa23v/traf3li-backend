@@ -657,7 +657,7 @@ exports.getStats = asyncHandler(async (req, res) => {
     const adminUserId = req.userID || req.userId;
 
     // Verify admin access
-    const adminUser = await User.findById(adminUserId).select('role').lean();
+    const adminUser = await User.findOne({ _id: adminUserId, ...req.firmQuery }).select('role').lean();
     if (!adminUser || adminUser.role !== 'admin') {
         throw CustomException('Admin access required', 403);
     }
@@ -723,7 +723,7 @@ exports.createWalkthrough = asyncHandler(async (req, res) => {
     const adminUserId = req.userID || req.userId;
 
     // Verify admin access
-    const adminUser = await User.findById(adminUserId).select('role email').lean();
+    const adminUser = await User.findOne({ _id: adminUserId, ...req.firmQuery }).select('role email').lean();
     if (!adminUser || adminUser.role !== 'admin') {
         throw CustomException('Admin access required', 403);
     }
@@ -781,7 +781,7 @@ exports.updateWalkthrough = asyncHandler(async (req, res) => {
     const adminUserId = req.userID || req.userId;
 
     // Verify admin access
-    const adminUser = await User.findById(adminUserId).select('role email').lean();
+    const adminUser = await User.findOne({ _id: adminUserId, ...req.firmQuery }).select('role email').lean();
     if (!adminUser || adminUser.role !== 'admin') {
         throw CustomException('Admin access required', 403);
     }
@@ -833,7 +833,7 @@ exports.deleteWalkthrough = asyncHandler(async (req, res) => {
     const adminUserId = req.userID || req.userId;
 
     // Verify admin access
-    const adminUser = await User.findById(adminUserId).select('role email').lean();
+    const adminUser = await User.findOne({ _id: adminUserId, ...req.firmQuery }).select('role email').lean();
     if (!adminUser || adminUser.role !== 'admin') {
         throw CustomException('Admin access required', 403);
     }
@@ -888,7 +888,7 @@ exports.listAllWalkthroughs = asyncHandler(async (req, res) => {
     const adminUserId = req.userID || req.userId;
 
     // Verify admin access
-    const adminUser = await User.findById(adminUserId).select('role').lean();
+    const adminUser = await User.findOne({ _id: adminUserId, ...req.firmQuery }).select('role').lean();
     if (!adminUser || adminUser.role !== 'admin') {
         throw CustomException('Admin access required', 403);
     }

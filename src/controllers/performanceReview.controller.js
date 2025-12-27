@@ -3,6 +3,12 @@ const mongoose = require('mongoose');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const logger = require('../utils/logger');
 
+// Helper function to escape regex special characters (ReDoS protection)
+const escapeRegex = (str) => {
+    if (!str || typeof str !== 'string') return '';
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 /**
  * Performance Review Controller
  * MODULE 6: إدارة الأداء
@@ -63,9 +69,9 @@ const getPerformanceReviews = async (req, res) => {
 
         if (search) {
             query.$or = [
-                { employeeName: { $regex: search, $options: 'i' } },
-                { employeeNameAr: { $regex: search, $options: 'i' } },
-                { reviewId: { $regex: search, $options: 'i' } }
+                { employeeName: { $regex: escapeRegex(search), $options: 'i' } },
+                { employeeNameAr: { $regex: escapeRegex(search), $options: 'i' } },
+                { reviewId: { $regex: escapeRegex(search), $options: 'i' } }
             ];
         }
 
@@ -235,7 +241,18 @@ const getPerformanceStats = async (req, res) => {
  */
 const getPerformanceReviewById = async (req, res) => {
     try {
-        const review = await PerformanceReview.findById(req.params.id)
+        const firmId = req.firmId;
+        const lawyerId = req.userID || req.userId;
+        const isSoloLawyer = req.isSoloLawyer;
+
+        const query = { _id: req.params.id };
+        if (isSoloLawyer || !firmId) {
+            query.lawyerId = lawyerId;
+        } else {
+            query.firmId = firmId;
+        }
+
+        const review = await PerformanceReview.findOne(query)
             .populate('employeeId', 'employeeId personalInfo employmentDetails')
             .populate('reviewerId', 'employeeId personalInfo')
             .populate('managerId', 'employeeId personalInfo')
@@ -297,9 +314,17 @@ const createPerformanceReview = async (req, res) => {
 
         const firmId = req.firmId; // From firmContext middleware
         const lawyerId = req.userID || req.userId;
+        const isSoloLawyer = req.isSoloLawyer;
 
-        // Get employee details
-        const employee = await Employee.findById(employeeId);
+        // Get employee details with IDOR protection
+        const employeeQuery = { _id: employeeId };
+        if (isSoloLawyer || !firmId) {
+            employeeQuery.lawyerId = lawyerId;
+        } else {
+            employeeQuery.firmId = firmId;
+        }
+
+        const employee = await Employee.findOne(employeeQuery);
         if (!employee) {
             return res.status(404).json({
                 success: false,
@@ -307,10 +332,16 @@ const createPerformanceReview = async (req, res) => {
             });
         }
 
-        // Get template if provided
+        // Get template if provided with IDOR protection
         let template = null;
         if (templateId) {
-            template = await ReviewTemplate.findById(templateId);
+            const templateQuery = { _id: templateId };
+            if (isSoloLawyer || !firmId) {
+                templateQuery.lawyerId = lawyerId;
+            } else {
+                templateQuery.firmId = firmId;
+            }
+            template = await ReviewTemplate.findOne(templateQuery);
         }
 
         // Build review object
@@ -338,9 +369,15 @@ const createPerformanceReview = async (req, res) => {
                         employee.employmentDetails?.jobTitle?.toLowerCase().includes('attorney')
         };
 
-        // Get reviewer name
+        // Get reviewer name with IDOR protection
         if (reviewData.reviewerId) {
-            const reviewer = await Employee.findById(reviewData.reviewerId);
+            const reviewerQuery = { _id: reviewData.reviewerId };
+            if (isSoloLawyer || !firmId) {
+                reviewerQuery.lawyerId = lawyerId;
+            } else {
+                reviewerQuery.firmId = firmId;
+            }
+            const reviewer = await Employee.findOne(reviewerQuery);
             if (reviewer) {
                 reviewData.reviewerName = reviewer.personalInfo?.fullNameEnglish || reviewer.personalInfo?.fullNameArabic;
                 reviewData.reviewerNameAr = reviewer.personalInfo?.fullNameArabic;
@@ -348,9 +385,15 @@ const createPerformanceReview = async (req, res) => {
             }
         }
 
-        // Get manager name
+        // Get manager name with IDOR protection
         if (reviewData.managerId) {
-            const manager = await Employee.findById(reviewData.managerId);
+            const managerQuery = { _id: reviewData.managerId };
+            if (isSoloLawyer || !firmId) {
+                managerQuery.lawyerId = lawyerId;
+            } else {
+                managerQuery.firmId = firmId;
+            }
+            const manager = await Employee.findOne(managerQuery);
             if (manager) {
                 reviewData.managerName = manager.personalInfo?.fullNameEnglish || manager.personalInfo?.fullNameArabic;
                 reviewData.managerNameAr = manager.personalInfo?.fullNameArabic;
@@ -445,9 +488,19 @@ const createPerformanceReview = async (req, res) => {
 const updatePerformanceReview = async (req, res) => {
     try {
         const { id } = req.params;
+        const firmId = req.firmId;
+        const lawyerId = req.userID || req.userId;
+        const isSoloLawyer = req.isSoloLawyer;
 
-        // Fetch review first for IDOR protection
-        const review = await PerformanceReview.findById(id);
+        // Fetch review first with IDOR protection
+        const query = { _id: id };
+        if (isSoloLawyer || !firmId) {
+            query.lawyerId = lawyerId;
+        } else {
+            query.firmId = firmId;
+        }
+
+        const review = await PerformanceReview.findOne(query);
 
         if (!review) {
             return res.status(404).json({
@@ -461,15 +514,8 @@ const updatePerformanceReview = async (req, res) => {
         const isReviewer = review.reviewerId?.toString() === userId;
         const isManager = review.managerId?.toString() === userId;
         const isEmployee = review.employeeId?.toString() === userId;
-        const firmId = req.firmId;
-        const lawyerId = req.userID || req.userId;
 
-        // Verify user has access to this review's firm/lawyer context
-        const hasAccess = firmId
-            ? review.firmId?.toString() === firmId?.toString()
-            : review.lawyerId?.toString() === lawyerId?.toString();
-
-        if (!hasAccess || (!isReviewer && !isManager && !isEmployee)) {
+        if (!isReviewer && !isManager && !isEmployee) {
             return res.status(403).json({
                 success: false,
                 message: 'Unauthorized to update this performance review'
@@ -484,8 +530,15 @@ const updatePerformanceReview = async (req, res) => {
 
         const filteredUpdates = pickAllowedFields(req.body, allowedUpdates);
 
+        const updateQuery = { _id: id };
+        if (isSoloLawyer || !firmId) {
+            updateQuery.lawyerId = lawyerId;
+        } else {
+            updateQuery.firmId = firmId;
+        }
+
         const updatedReview = await PerformanceReview.findOneAndUpdate(
-            { _id: id, firmId: req.firmId },
+            updateQuery,
             {
                 $set: {
                     ...filteredUpdates,
@@ -517,8 +570,19 @@ const updatePerformanceReview = async (req, res) => {
  */
 const deletePerformanceReview = async (req, res) => {
     try {
+        const firmId = req.firmId;
+        const lawyerId = req.userID || req.userId;
+        const isSoloLawyer = req.isSoloLawyer;
+
+        const query = { _id: req.params.id };
+        if (isSoloLawyer || !firmId) {
+            query.lawyerId = lawyerId;
+        } else {
+            query.firmId = firmId;
+        }
+
         const review = await PerformanceReview.findOneAndUpdate(
-            { _id: req.params.id, firmId: req.firmId },
+            query,
             {
                 $set: {
                     isDeleted: true,
@@ -561,6 +625,9 @@ const deletePerformanceReview = async (req, res) => {
 const submitSelfAssessment = async (req, res) => {
     try {
         const { id } = req.params;
+        const firmId = req.firmId;
+        const lawyerId = req.userID || req.userId;
+        const isSoloLawyer = req.isSoloLawyer;
 
         // Mass assignment protection
         const allowedFields = [
@@ -604,7 +671,14 @@ const submitSelfAssessment = async (req, res) => {
             goalRatings
         } = sanitizedBody;
 
-        const review = await PerformanceReview.findById(id);
+        const query = { _id: id };
+        if (isSoloLawyer || !firmId) {
+            query.lawyerId = lawyerId;
+        } else {
+            query.firmId = firmId;
+        }
+
+        const review = await PerformanceReview.findOne(query);
 
         if (!review) {
             return res.status(404).json({
@@ -741,6 +815,9 @@ const submitSelfAssessment = async (req, res) => {
 const submitManagerAssessment = async (req, res) => {
     try {
         const { id } = req.params;
+        const firmId = req.firmId;
+        const lawyerId = req.userID || req.userId;
+        const isSoloLawyer = req.isSoloLawyer;
 
         // Mass assignment protection
         const allowedFields = [
@@ -808,7 +885,14 @@ const submitManagerAssessment = async (req, res) => {
             areasForImprovement
         } = sanitizedBody;
 
-        const review = await PerformanceReview.findById(id);
+        const query = { _id: id };
+        if (isSoloLawyer || !firmId) {
+            query.lawyerId = lawyerId;
+        } else {
+            query.firmId = firmId;
+        }
+
+        const review = await PerformanceReview.findOne(query);
 
         if (!review) {
             return res.status(404).json({
@@ -999,13 +1083,23 @@ const submitManagerAssessment = async (req, res) => {
 const request360Feedback = async (req, res) => {
     try {
         const { id } = req.params;
+        const firmId = req.firmId;
+        const lawyerId = req.userID || req.userId;
+        const isSoloLawyer = req.isSoloLawyer;
 
         // Mass assignment protection
         const allowedFields = ['providers'];
         const sanitizedBody = pickAllowedFields(req.body, allowedFields);
         const { providers } = sanitizedBody;
 
-        const review = await PerformanceReview.findById(id);
+        const query = { _id: id };
+        if (isSoloLawyer || !firmId) {
+            query.lawyerId = lawyerId;
+        } else {
+            query.firmId = firmId;
+        }
+
+        const review = await PerformanceReview.findOne(query);
 
         if (!review) {
             return res.status(404).json({
@@ -1045,8 +1139,14 @@ const request360Feedback = async (req, res) => {
             );
 
             if (!exists) {
-                // Get provider details
-                const provider = await Employee.findById(p.providerId);
+                // Get provider details with IDOR protection
+                const providerQuery = { _id: p.providerId };
+                if (isSoloLawyer || !firmId) {
+                    providerQuery.lawyerId = lawyerId;
+                } else {
+                    providerQuery.firmId = firmId;
+                }
+                const provider = await Employee.findOne(providerQuery);
                 review.feedback360.providers.push({
                     providerId: p.providerId,
                     providerName: provider?.personalInfo?.fullNameEnglish || p.providerName,
@@ -1086,13 +1186,23 @@ const request360Feedback = async (req, res) => {
 const submit360Feedback = async (req, res) => {
     try {
         const { id, providerId } = req.params;
+        const firmId = req.firmId;
+        const lawyerId = req.userID || req.userId;
+        const isSoloLawyer = req.isSoloLawyer;
 
         // Mass assignment protection
         const allowedFields = ['ratings', 'overallRating', 'strengths', 'areasForImprovement', 'specificFeedback'];
         const sanitizedBody = pickAllowedFields(req.body, allowedFields);
         const { ratings, overallRating, strengths, areasForImprovement, specificFeedback } = sanitizedBody;
 
-        const review = await PerformanceReview.findById(id);
+        const query = { _id: id };
+        if (isSoloLawyer || !firmId) {
+            query.lawyerId = lawyerId;
+        } else {
+            query.firmId = firmId;
+        }
+
+        const review = await PerformanceReview.findOne(query);
 
         if (!review || !review.feedback360) {
             return res.status(404).json({
@@ -1222,13 +1332,23 @@ const submit360Feedback = async (req, res) => {
 const createDevelopmentPlan = async (req, res) => {
     try {
         const { id } = req.params;
+        const firmId = req.firmId;
+        const lawyerId = req.userID || req.userId;
+        const isSoloLawyer = req.isSoloLawyer;
 
         // Mass assignment protection
         const allowedFields = ['items', 'trainingRecommendations', 'mentorAssigned', 'careerPath', 'careerAspirations', 'successionPlanning'];
         const sanitizedBody = pickAllowedFields(req.body, allowedFields);
         const { items, trainingRecommendations, mentorAssigned, careerPath, careerAspirations, successionPlanning } = sanitizedBody;
 
-        const review = await PerformanceReview.findById(id);
+        const query = { _id: id };
+        if (isSoloLawyer || !firmId) {
+            query.lawyerId = lawyerId;
+        } else {
+            query.firmId = firmId;
+        }
+
+        const review = await PerformanceReview.findOne(query);
 
         if (!review) {
             return res.status(404).json({
@@ -1291,13 +1411,23 @@ const createDevelopmentPlan = async (req, res) => {
 const updateDevelopmentPlanItem = async (req, res) => {
     try {
         const { id, itemId } = req.params;
+        const firmId = req.firmId;
+        const lawyerId = req.userID || req.userId;
+        const isSoloLawyer = req.isSoloLawyer;
 
         // Mass assignment protection
         const allowedFields = ['status', 'progress', 'actions', 'completedActions'];
         const sanitizedBody = pickAllowedFields(req.body, allowedFields);
         const { status, progress, actions, completedActions } = sanitizedBody;
 
-        const review = await PerformanceReview.findById(id);
+        const query = { _id: id };
+        if (isSoloLawyer || !firmId) {
+            query.lawyerId = lawyerId;
+        } else {
+            query.firmId = firmId;
+        }
+
+        const review = await PerformanceReview.findOne(query);
 
         if (!review || !review.developmentPlan) {
             return res.status(404).json({
@@ -1366,8 +1496,18 @@ const updateDevelopmentPlanItem = async (req, res) => {
 const completeReview = async (req, res) => {
     try {
         const { id } = req.params;
+        const firmId = req.firmId;
+        const lawyerId = req.userID || req.userId;
+        const isSoloLawyer = req.isSoloLawyer;
 
-        const review = await PerformanceReview.findById(id);
+        const query = { _id: id };
+        if (isSoloLawyer || !firmId) {
+            query.lawyerId = lawyerId;
+        } else {
+            query.firmId = firmId;
+        }
+
+        const review = await PerformanceReview.findOne(query);
 
         if (!review) {
             return res.status(404).json({
@@ -1418,8 +1558,15 @@ const completeReview = async (req, res) => {
         await review.save();
 
         // Update employee record with latest performance data
+        const employeeUpdateQuery = { _id: review.employeeId };
+        if (isSoloLawyer || !firmId) {
+            employeeUpdateQuery.lawyerId = lawyerId;
+        } else {
+            employeeUpdateQuery.firmId = firmId;
+        }
+
         await Employee.findOneAndUpdate(
-            { _id: review.employeeId, firmId: req.firmId },
+            employeeUpdateQuery,
             {
                 $set: {
                     'performanceInfo.lastPerformanceRating': review.finalRating,
@@ -1460,6 +1607,9 @@ const completeReview = async (req, res) => {
 const acknowledgeReview = async (req, res) => {
     try {
         const { id } = req.params;
+        const firmId = req.firmId;
+        const lawyerId = req.userID || req.userId;
+        const isSoloLawyer = req.isSoloLawyer;
 
         // Mass assignment protection
         const allowedFields = [
@@ -1489,7 +1639,14 @@ const acknowledgeReview = async (req, res) => {
             signature
         } = sanitizedBody;
 
-        const review = await PerformanceReview.findById(id);
+        const query = { _id: id };
+        if (isSoloLawyer || !firmId) {
+            query.lawyerId = lawyerId;
+        } else {
+            query.firmId = firmId;
+        }
+
+        const review = await PerformanceReview.findOne(query);
 
         if (!review) {
             return res.status(404).json({
@@ -1580,13 +1737,23 @@ const acknowledgeReview = async (req, res) => {
 const submitForCalibration = async (req, res) => {
     try {
         const { id } = req.params;
+        const firmId = req.firmId;
+        const lawyerId = req.userID || req.userId;
+        const isSoloLawyer = req.isSoloLawyer;
 
         // Mass assignment protection
         const allowedFields = ['calibrationSessionId'];
         const sanitizedBody = pickAllowedFields(req.body, allowedFields);
         const { calibrationSessionId } = sanitizedBody;
 
-        const review = await PerformanceReview.findById(id);
+        const reviewQuery = { _id: id };
+        if (isSoloLawyer || !firmId) {
+            reviewQuery.lawyerId = lawyerId;
+        } else {
+            reviewQuery.firmId = firmId;
+        }
+
+        const review = await PerformanceReview.findOne(reviewQuery);
 
         if (!review) {
             return res.status(404).json({
@@ -1595,7 +1762,14 @@ const submitForCalibration = async (req, res) => {
             });
         }
 
-        const session = await CalibrationSession.findById(calibrationSessionId);
+        const sessionQuery = { _id: calibrationSessionId };
+        if (isSoloLawyer || !firmId) {
+            sessionQuery.lawyerId = lawyerId;
+        } else {
+            sessionQuery.firmId = firmId;
+        }
+
+        const session = await CalibrationSession.findOne(sessionQuery);
 
         if (!session) {
             return res.status(404).json({
@@ -1646,13 +1820,23 @@ const submitForCalibration = async (req, res) => {
 const applyCalibration = async (req, res) => {
     try {
         const { id } = req.params;
+        const firmId = req.firmId;
+        const lawyerId = req.userID || req.userId;
+        const isSoloLawyer = req.isSoloLawyer;
 
         // Mass assignment protection
         const allowedFields = ['finalRating', 'adjustmentReason', 'comparativeRanking', 'calibrationNotes'];
         const sanitizedBody = pickAllowedFields(req.body, allowedFields);
         const { finalRating, adjustmentReason, comparativeRanking, calibrationNotes } = sanitizedBody;
 
-        const review = await PerformanceReview.findById(id);
+        const query = { _id: id };
+        if (isSoloLawyer || !firmId) {
+            query.lawyerId = lawyerId;
+        } else {
+            query.firmId = firmId;
+        }
+
+        const review = await PerformanceReview.findOne(query);
 
         if (!review) {
             return res.status(404).json({
@@ -2000,8 +2184,18 @@ const sendReminder = async (req, res) => {
     try {
         const { id } = req.params;
         const { reminderType } = req.body;
+        const firmId = req.firmId;
+        const lawyerId = req.userID || req.userId;
+        const isSoloLawyer = req.isSoloLawyer;
 
-        const review = await PerformanceReview.findById(id)
+        const query = { _id: id };
+        if (isSoloLawyer || !firmId) {
+            query.lawyerId = lawyerId;
+        } else {
+            query.firmId = firmId;
+        }
+
+        const review = await PerformanceReview.findOne(query)
             .populate('employeeId', 'personalInfo.email personalInfo.fullNameEnglish')
             .populate('reviewerId', 'personalInfo.email personalInfo.fullNameEnglish');
 
@@ -2152,6 +2346,10 @@ const createTemplate = async (req, res) => {
  */
 const updateTemplate = async (req, res) => {
     try {
+        const firmId = req.firmId;
+        const lawyerId = req.userID || req.userId;
+        const isSoloLawyer = req.isSoloLawyer;
+
         // Mass assignment protection
         const allowedFields = [
             'name',
@@ -2167,8 +2365,15 @@ const updateTemplate = async (req, res) => {
         ];
         const sanitizedBody = pickAllowedFields(req.body, allowedFields);
 
+        const query = { _id: req.params.id };
+        if (isSoloLawyer || !firmId) {
+            query.lawyerId = lawyerId;
+        } else {
+            query.firmId = firmId;
+        }
+
         const template = await ReviewTemplate.findOneAndUpdate(
-            { _id: req.params.id, firmId: req.firmId },
+            query,
             {
                 $set: {
                     ...sanitizedBody,
@@ -2302,7 +2507,18 @@ const createCalibrationSession = async (req, res) => {
  */
 const completeCalibrationSession = async (req, res) => {
     try {
-        const session = await CalibrationSession.findById(req.params.id)
+        const firmId = req.firmId;
+        const lawyerId = req.userID || req.userId;
+        const isSoloLawyer = req.isSoloLawyer;
+
+        const query = { _id: req.params.id };
+        if (isSoloLawyer || !firmId) {
+            query.lawyerId = lawyerId;
+        } else {
+            query.firmId = firmId;
+        }
+
+        const session = await CalibrationSession.findOne(query)
             .populate('reviewsIncluded');
 
         if (!session) {
