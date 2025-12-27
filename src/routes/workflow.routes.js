@@ -100,9 +100,9 @@ router.get('/quotes/pending-approvals', quoteWorkflowController.getPendingApprov
 /**
  * Quote Delivery Workflows
  */
-router.post('/quotes/:id/send', quoteWorkflowController.sendToClient);
+router.post('/quotes/:id/send', quoteWorkflowController.sendQuote);
 router.post('/quotes/:id/resend', quoteWorkflowController.resendQuote);
-router.get('/quotes/:id/view-link', quoteWorkflowController.generateViewLink);
+router.get('/quotes/:id/view-link', quoteWorkflowController.getViewLink);
 router.post('/quotes/:id/track-view', quoteWorkflowController.trackView);
 
 /**
@@ -115,12 +115,12 @@ router.post('/quotes/:id/convert-to-invoice', quoteWorkflowController.convertToI
  */
 router.get('/quotes/:id/check-expiry', quoteWorkflowController.checkExpiry);
 router.post('/quotes/:id/extend-validity', quoteWorkflowController.extendValidity);
-router.post('/quotes/process-expired', quoteWorkflowController.processExpiredQuotes);
+router.post('/quotes/process-expired', quoteWorkflowController.processExpired);
 
 /**
  * Quote Analytics
  */
-router.get('/quotes/metrics', quoteWorkflowController.getQuoteMetrics);
+router.get('/quotes/metrics', quoteWorkflowController.getMetrics);
 router.get('/quotes/conversion-rate', quoteWorkflowController.getConversionRate);
 
 // ============================================
@@ -191,7 +191,7 @@ router.get('/activities/load', activityWorkflowController.getActivityLoad);
  */
 router.post('/campaigns/create', campaignWorkflowController.createCampaign);
 router.post('/campaigns/:id/duplicate', campaignWorkflowController.duplicateCampaign);
-router.post('/campaigns/from-template/:templateId', campaignWorkflowController.createFromTemplate);
+// router.post('/campaigns/from-template/:templateId', campaignWorkflowController.createFromTemplate); // TODO: Not implemented
 
 /**
  * Campaign Lifecycle Workflows
@@ -199,22 +199,22 @@ router.post('/campaigns/from-template/:templateId', campaignWorkflowController.c
 router.post('/campaigns/:id/launch', campaignWorkflowController.launchCampaign);
 router.post('/campaigns/:id/pause', campaignWorkflowController.pauseCampaign);
 router.post('/campaigns/:id/resume', campaignWorkflowController.resumeCampaign);
-router.post('/campaigns/:id/complete', campaignWorkflowController.completeCampaign);
-router.post('/campaigns/:id/cancel', campaignWorkflowController.cancelCampaign);
+// router.post('/campaigns/:id/complete', campaignWorkflowController.completeCampaign); // TODO: Not implemented
+// router.post('/campaigns/:id/cancel', campaignWorkflowController.cancelCampaign); // TODO: Not implemented
 
 /**
  * Campaign Audience Management Workflows
  */
-router.post('/campaigns/:id/add-contacts', campaignWorkflowController.addContacts);
-router.post('/campaigns/:id/remove-contacts', campaignWorkflowController.removeContacts);
-router.post('/campaigns/:id/segment-audience', campaignWorkflowController.segmentAudience);
-router.get('/campaigns/:id/eligible-contacts', campaignWorkflowController.getEligibleContacts);
+router.post('/campaigns/:id/add-contacts', campaignWorkflowController.addContactsToCampaign);
+router.post('/campaigns/:id/remove-contacts', campaignWorkflowController.removeContactsFromCampaign);
+// router.post('/campaigns/:id/segment-audience', campaignWorkflowController.segmentAudience); // TODO: Not implemented
+// router.get('/campaigns/:id/eligible-contacts', campaignWorkflowController.getEligibleContacts); // TODO: Not implemented
 
 /**
  * Campaign Execution Workflows
  */
-router.post('/campaigns/:id/send-batch', campaignWorkflowController.sendBatch);
-router.post('/campaigns/:id/schedule-send', campaignWorkflowController.scheduleSend);
+router.post('/campaigns/:id/send-batch', campaignWorkflowController.sendCampaignEmails);
+// router.post('/campaigns/:id/schedule-send', campaignWorkflowController.scheduleSend); // TODO: Not implemented
 router.post('/campaigns/:id/send-test', campaignWorkflowController.sendTestEmail);
 
 /**
@@ -222,16 +222,16 @@ router.post('/campaigns/:id/send-test', campaignWorkflowController.sendTestEmail
  */
 router.post('/campaigns/:id/track-open', campaignWorkflowController.trackOpen);
 router.post('/campaigns/:id/track-click', campaignWorkflowController.trackClick);
-router.post('/campaigns/:id/track-response', campaignWorkflowController.trackResponse);
-router.post('/campaigns/:id/track-conversion', campaignWorkflowController.trackConversion);
+router.post('/campaigns/:id/track-response', campaignWorkflowController.trackReply);
+router.post('/campaigns/:id/track-conversion', campaignWorkflowController.attributeConversion);
 
 /**
  * Campaign Analytics & Reporting
  */
-router.get('/campaigns/:id/performance', campaignWorkflowController.getCampaignPerformance);
-router.get('/campaigns/:id/roi', campaignWorkflowController.calculateROI);
-router.get('/campaigns/:id/engagement-stats', campaignWorkflowController.getEngagementStats);
-router.get('/campaigns/analytics/overview', campaignWorkflowController.getCampaignOverview);
+router.get('/campaigns/:id/performance', campaignWorkflowController.getCampaignStats);
+router.get('/campaigns/:id/roi', campaignWorkflowController.calculateCampaignROI);
+router.get('/campaigns/:id/engagement-stats', campaignWorkflowController.getEngagementMetrics);
+// router.get('/campaigns/analytics/overview', campaignWorkflowController.getCampaignOverview); // TODO: Not implemented
 
 // ============================================
 // CLIENT WORKFLOWS - /api/workflows/clients
@@ -249,59 +249,59 @@ router.post('/clients/:id/complete-onboarding', clientWorkflowController.complet
 /**
  * Client Document Workflows
  */
-router.post('/clients/:id/request-documents', clientWorkflowController.requestDocuments);
-router.post('/clients/:id/approve-document', clientWorkflowController.approveDocument);
-router.post('/clients/:id/reject-document', clientWorkflowController.rejectDocument);
-router.get('/clients/:id/pending-documents', clientWorkflowController.getPendingDocuments);
+// router.post('/clients/:id/request-documents', clientWorkflowController.requestDocuments); // TODO: Not implemented
+// router.post('/clients/:id/approve-document', clientWorkflowController.approveDocument); // TODO: Not implemented
+// router.post('/clients/:id/reject-document', clientWorkflowController.rejectDocument); // TODO: Not implemented
+// router.get('/clients/:id/pending-documents', clientWorkflowController.getPendingDocuments); // TODO: Not implemented
 
 /**
  * Client Engagement Workflows
  */
-router.post('/clients/:id/schedule-check-in', clientWorkflowController.scheduleCheckIn);
-router.post('/clients/:id/record-interaction', clientWorkflowController.recordInteraction);
-router.post('/clients/:id/send-update', clientWorkflowController.sendUpdate);
-router.get('/clients/:id/engagement-score', clientWorkflowController.getEngagementScore);
+// router.post('/clients/:id/schedule-check-in', clientWorkflowController.scheduleCheckIn); // TODO: Not implemented
+// router.post('/clients/:id/record-interaction', clientWorkflowController.recordInteraction); // TODO: Not implemented
+// router.post('/clients/:id/send-update', clientWorkflowController.sendUpdate); // TODO: Not implemented
+// router.get('/clients/:id/engagement-score', clientWorkflowController.getEngagementScore); // TODO: Not implemented
 
 /**
  * Client Status Workflows
  */
-router.post('/clients/:id/activate', clientWorkflowController.activateClient);
-router.post('/clients/:id/deactivate', clientWorkflowController.deactivateClient);
-router.post('/clients/:id/mark-at-risk', clientWorkflowController.markAtRisk);
-router.post('/clients/:id/upgrade-tier', clientWorkflowController.upgradeTier);
-router.post('/clients/:id/downgrade-tier', clientWorkflowController.downgradeTier);
+// router.post('/clients/:id/activate', clientWorkflowController.activateClient); // TODO: Not implemented
+// router.post('/clients/:id/deactivate', clientWorkflowController.deactivateClient); // TODO: Not implemented
+// router.post('/clients/:id/mark-at-risk', clientWorkflowController.markAtRisk); // TODO: Not implemented
+router.post('/clients/:id/upgrade-tier', clientWorkflowController.upgradeClient);
+router.post('/clients/:id/downgrade-tier', clientWorkflowController.downgradeClient);
 
 /**
  * Client Retention Workflows
  */
-router.post('/clients/:id/start-retention-campaign', clientWorkflowController.startRetentionCampaign);
-router.post('/clients/:id/schedule-renewal', clientWorkflowController.scheduleRenewal);
-router.get('/clients/:id/renewal-probability', clientWorkflowController.getRenewalProbability);
-router.post('/clients/:id/win-back', clientWorkflowController.initiateWinBack);
+router.post('/clients/:id/start-retention-campaign', clientWorkflowController.startReactivation);
+// router.post('/clients/:id/schedule-renewal', clientWorkflowController.scheduleRenewal); // TODO: Not implemented
+// router.get('/clients/:id/renewal-probability', clientWorkflowController.getRenewalProbability); // TODO: Not implemented
+// router.post('/clients/:id/win-back', clientWorkflowController.initiateWinBack); // TODO: Not implemented
 
 /**
  * Client Offboarding Workflows
  */
-router.post('/clients/:id/start-offboarding', clientWorkflowController.startOffboarding);
-router.post('/clients/:id/complete-offboarding-step', clientWorkflowController.completeOffboardingStep);
-router.get('/clients/:id/offboarding-progress', clientWorkflowController.getOffboardingProgress);
-router.post('/clients/:id/complete-offboarding', clientWorkflowController.completeOffboarding);
+// router.post('/clients/:id/start-offboarding', clientWorkflowController.startOffboarding); // TODO: Not implemented
+// router.post('/clients/:id/complete-offboarding-step', clientWorkflowController.completeOffboardingStep); // TODO: Not implemented
+// router.get('/clients/:id/offboarding-progress', clientWorkflowController.getOffboardingProgress); // TODO: Not implemented
+// router.post('/clients/:id/complete-offboarding', clientWorkflowController.completeOffboarding); // TODO: Not implemented
 
 /**
  * Client Communication Workflows
  */
-router.post('/clients/:id/send-portal-invite', clientWorkflowController.sendPortalInvite);
-router.post('/clients/:id/send-satisfaction-survey', clientWorkflowController.sendSatisfactionSurvey);
-router.post('/clients/:id/request-review', clientWorkflowController.requestReview);
-router.post('/clients/:id/send-referral-request', clientWorkflowController.sendReferralRequest);
+// router.post('/clients/:id/send-portal-invite', clientWorkflowController.sendPortalInvite); // TODO: Not implemented
+// router.post('/clients/:id/send-satisfaction-survey', clientWorkflowController.sendSatisfactionSurvey); // TODO: Not implemented
+// router.post('/clients/:id/request-review', clientWorkflowController.requestReview); // TODO: Not implemented
+// router.post('/clients/:id/send-referral-request', clientWorkflowController.sendReferralRequest); // TODO: Not implemented
 
 /**
  * Client Lifecycle Analytics
  */
 router.get('/clients/:id/lifecycle-stage', clientWorkflowController.getLifecycleStage);
 router.get('/clients/:id/lifetime-value', clientWorkflowController.calculateLifetimeValue);
-router.get('/clients/:id/health-score', clientWorkflowController.getHealthScore);
-router.get('/clients/retention-metrics', clientWorkflowController.getRetentionMetrics);
+router.get('/clients/:id/health-score', clientWorkflowController.calculateHealthScore);
+// router.get('/clients/retention-metrics', clientWorkflowController.getRetentionMetrics); // TODO: Not implemented
 
 // ============================================
 // APPROVAL WORKFLOWS - /api/workflows/approvals
@@ -310,63 +310,63 @@ router.get('/clients/retention-metrics', clientWorkflowController.getRetentionMe
 /**
  * Approval Request Workflows
  */
-router.post('/approvals/submit', approvalWorkflowController.submitApprovalRequest);
-router.post('/approvals/:id/reassign', approvalWorkflowController.reassignApproval);
-router.post('/approvals/:id/escalate', approvalWorkflowController.escalateApproval);
-router.post('/approvals/:id/recall', approvalWorkflowController.recallApproval);
+router.post('/approvals/submit', approvalWorkflowController.createApprovalRequest);
+// router.post('/approvals/:id/reassign', approvalWorkflowController.reassignApproval); // TODO: Not implemented
+router.post('/approvals/:id/escalate', approvalWorkflowController.escalate);
+router.post('/approvals/:id/recall', approvalWorkflowController.cancelApprovalRequest);
 
 /**
  * Approval Decision Workflows
  */
 router.post('/approvals/:id/approve', approvalWorkflowController.approve);
 router.post('/approvals/:id/reject', approvalWorkflowController.reject);
-router.post('/approvals/:id/request-changes', approvalWorkflowController.requestChanges);
-router.post('/approvals/:id/conditional-approve', approvalWorkflowController.conditionalApprove);
+router.post('/approvals/:id/request-changes', approvalWorkflowController.requestMoreInfo);
+// router.post('/approvals/:id/conditional-approve', approvalWorkflowController.conditionalApprove); // TODO: Not implemented
 
 /**
  * Multi-Step Approval Workflows
  */
-router.post('/approvals/:id/advance-stage', approvalWorkflowController.advanceStage);
-router.post('/approvals/:id/skip-stage', approvalWorkflowController.skipStage);
-router.get('/approvals/:id/current-stage', approvalWorkflowController.getCurrentStage);
-router.get('/approvals/:id/approval-chain', approvalWorkflowController.getApprovalChain);
+// router.post('/approvals/:id/advance-stage', approvalWorkflowController.advanceStage); // TODO: Not implemented
+// router.post('/approvals/:id/skip-stage', approvalWorkflowController.skipStage); // TODO: Not implemented
+// router.get('/approvals/:id/current-stage', approvalWorkflowController.getCurrentStage); // TODO: Not implemented
+router.get('/approvals/:id/approval-chain', approvalWorkflowController.getApprovalChains);
 
 /**
  * Approval Delegation Workflows
  */
-router.post('/approvals/:id/delegate', approvalWorkflowController.delegateApproval);
-router.post('/approvals/:id/add-parallel-approver', approvalWorkflowController.addParallelApprover);
-router.post('/approvals/:id/remove-approver', approvalWorkflowController.removeApprover);
+router.post('/approvals/:id/delegate', approvalWorkflowController.delegate);
+// router.post('/approvals/:id/add-parallel-approver', approvalWorkflowController.addParallelApprover); // TODO: Not implemented
+// router.post('/approvals/:id/remove-approver', approvalWorkflowController.removeApprover); // TODO: Not implemented
 
 /**
  * Approval Notification Workflows
  */
 router.post('/approvals/:id/send-reminder', approvalWorkflowController.sendReminder);
-router.post('/approvals/:id/notify-stakeholders', approvalWorkflowController.notifyStakeholders);
-router.post('/approvals/send-daily-digest', approvalWorkflowController.sendDailyDigest);
+router.post('/approvals/:id/notify-stakeholders', approvalWorkflowController.notifyApprovers);
+// router.post('/approvals/send-daily-digest', approvalWorkflowController.sendDailyDigest); // TODO: Not implemented
 
 /**
  * Approval Query & Status Workflows
  */
 router.get('/approvals/pending', approvalWorkflowController.getPendingApprovals);
-router.get('/approvals/my-approvals', approvalWorkflowController.getMyApprovals);
-router.get('/approvals/:id/status', approvalWorkflowController.getApprovalStatus);
+router.get('/approvals/my-approvals', approvalWorkflowController.getMyRequests);
+router.get('/approvals/:id/status', approvalWorkflowController.getApprovalRequest);
 router.get('/approvals/:id/history', approvalWorkflowController.getApprovalHistory);
-router.get('/approvals/:id/comments', approvalWorkflowController.getApprovalComments);
+// router.get('/approvals/:id/comments', approvalWorkflowController.getApprovalComments); // TODO: Not implemented
 
 /**
  * Approval Policy Workflows
  */
-router.post('/approvals/:id/apply-policy', approvalWorkflowController.applyApprovalPolicy);
-router.post('/approvals/:id/override-policy', approvalWorkflowController.overridePolicy);
-router.get('/approvals/policies/applicable', approvalWorkflowController.getApplicablePolicies);
+router.post('/approvals/:id/apply-policy', approvalWorkflowController.evaluateRules);
+// router.post('/approvals/:id/override-policy', approvalWorkflowController.overridePolicy); // TODO: Not implemented
+router.get('/approvals/policies/applicable', approvalWorkflowController.getApplicableRules);
 
 /**
  * Approval Analytics
  */
-router.get('/approvals/metrics/cycle-time', approvalWorkflowController.getAverageCycleTime);
+router.get('/approvals/metrics/cycle-time', approvalWorkflowController.getAverageApprovalTime);
 router.get('/approvals/metrics/bottlenecks', approvalWorkflowController.getBottlenecks);
-router.get('/approvals/metrics/approval-rate', approvalWorkflowController.getApprovalRate);
-router.get('/approvals/analytics/overview', approvalWorkflowController.getApprovalAnalytics);
+router.get('/approvals/metrics/approval-rate', approvalWorkflowController.getApprovalRates);
+router.get('/approvals/analytics/overview', approvalWorkflowController.getApprovalStats);
 
 module.exports = router;
