@@ -26,48 +26,40 @@ router.use(verifyToken);
  * @desc    Get all lost reasons
  * @access  Private
  */
-router.get('/', lostReasonController.getAll);
+router.get('/', lostReasonController.getLostReasons);
 
-/**
- * @route   GET /api/v1/lost-reasons/categories
- * @desc    Get valid lost reason categories
- * @access  Private
- */
-router.get('/categories', lostReasonController.getCategories);
+// TODO: getCategories not implemented
+// router.get('/categories', lostReasonController.getCategories);
 
 /**
  * @route   GET /api/v1/lost-reasons/:id
  * @desc    Get lost reason by ID
  * @access  Private
  */
-router.get('/:id', validateIdParam, lostReasonController.getById);
+router.get('/:id', validateIdParam, lostReasonController.getLostReasonById);
 
 /**
  * @route   POST /api/v1/lost-reasons
  * @desc    Create a new lost reason
  * @access  Private
  */
-router.post('/', validateCreateLostReason, lostReasonController.create);
+router.post('/', validateCreateLostReason, lostReasonController.createLostReason);
 
-/**
- * @route   POST /api/v1/lost-reasons/defaults
- * @desc    Create default lost reasons
- * @access  Private
- */
-router.post('/defaults', lostReasonController.createDefaults);
+// TODO: createDefaults not implemented
+// router.post('/defaults', lostReasonController.createDefaults);
 
 /**
  * @route   PUT /api/v1/lost-reasons/:id
  * @desc    Update a lost reason
  * @access  Private
  */
-router.put('/:id', validateIdParam, validateUpdateLostReason, lostReasonController.update);
+router.put('/:id', validateIdParam, validateUpdateLostReason, lostReasonController.updateLostReason);
 
 /**
  * @route   DELETE /api/v1/lost-reasons/:id
  * @desc    Delete a lost reason
  * @access  Private
  */
-router.delete('/:id', validateIdParam, lostReasonController.delete);
+router.delete('/:id', validateIdParam, lostReasonController.deleteLostReason);
 
 module.exports = router;

@@ -26,41 +26,37 @@ router.use(verifyToken);
  * @desc    Get all competitors (with optional stats)
  * @access  Private
  */
-router.get('/', competitorController.getAll);
+router.get('/', competitorController.getCompetitors);
 
-/**
- * @route   GET /api/v1/competitors/top-losses
- * @desc    Get top competitors by cases lost
- * @access  Private
- */
-router.get('/top-losses', competitorController.getTopByLosses);
+// TODO: getTopByLosses not implemented
+// router.get('/top-losses', competitorController.getTopByLosses);
 
 /**
  * @route   GET /api/v1/competitors/:id
  * @desc    Get competitor by ID
  * @access  Private
  */
-router.get('/:id', validateIdParam, competitorController.getById);
+router.get('/:id', validateIdParam, competitorController.getCompetitor);
 
 /**
  * @route   POST /api/v1/competitors
  * @desc    Create a new competitor
  * @access  Private
  */
-router.post('/', validateCreateCompetitor, competitorController.create);
+router.post('/', validateCreateCompetitor, competitorController.createCompetitor);
 
 /**
  * @route   PUT /api/v1/competitors/:id
  * @desc    Update a competitor
  * @access  Private
  */
-router.put('/:id', validateIdParam, validateUpdateCompetitor, competitorController.update);
+router.put('/:id', validateIdParam, validateUpdateCompetitor, competitorController.updateCompetitor);
 
 /**
  * @route   DELETE /api/v1/competitors/:id
  * @desc    Delete a competitor
  * @access  Private
  */
-router.delete('/:id', validateIdParam, competitorController.delete);
+router.delete('/:id', validateIdParam, competitorController.deleteCompetitor);
 
 module.exports = router;
