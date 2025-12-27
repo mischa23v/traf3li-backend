@@ -520,7 +520,7 @@ const authRegister = async (request, response) => {
             message: 'حدث خطأ ما، يرجى المحاولة مرة أخرى'
         });
     }
-}
+};
 
 const authLogin = async (request, response) => {
     const { username, email, password, mfaCode } = request.body;
@@ -1085,7 +1085,7 @@ const authLogin = async (request, response) => {
             message
         });
     }
-}
+};
 
 const authLogout = async (request, response) => {
     try {
@@ -1210,7 +1210,7 @@ const authLogout = async (request, response) => {
                 message: 'User have been logged out!'
             });
     }
-}
+};
 
 /**
  * SECURITY WARNING: This endpoint can be used for user enumeration
@@ -1302,7 +1302,7 @@ const checkAvailability = async (request, response) => {
             message
         });
     }
-}
+};
 
 const authStatus = async (request, response) => {
     try {
@@ -1399,7 +1399,7 @@ const authStatus = async (request, response) => {
             message
         });
     }
-}
+};
 
 const authLogoutAll = async (request, response) => {
     try {
@@ -1876,9 +1876,10 @@ const verifyEmail = async (request, response) => {
             user: result.user
         });
     } catch (error) {
+        const reqToken = request.body?.token;
         logger.error('Email verification failed', {
             error: error.message,
-            token: token ? token.substring(0, 8) + '...' : undefined // Log only token prefix
+            token: reqToken ? reqToken.substring(0, 8) + '...' : undefined // Log only token prefix
         });
         return response.status(500).json({
             error: true,
@@ -1992,9 +1993,10 @@ const refreshAccessToken = async (request, response) => {
             });
     } catch (error) {
         // Sanitize error logging - don't log sensitive token data
+        const hasToken = !!(request.cookies?.refreshToken || request.body?.refreshToken);
         logger.error('Token refresh failed', {
             error: error.message,
-            hasRefreshToken: !!refreshToken
+            hasRefreshToken: hasToken
         });
 
         // Handle specific error codes
@@ -2440,7 +2442,6 @@ module.exports = {
     getOnboardingStatus,
     refreshAccessToken,
     getCookieConfig,
-    getCookieDomain,
     sendMagicLink,
     verifyMagicLink,
     verifyEmail,
