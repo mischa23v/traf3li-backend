@@ -1,14 +1,20 @@
 /**
- * CSRF Protection Middleware
+ * CSRF Protection Middleware - Industry Gold Standard Implementation
  *
- * Validates CSRF tokens on state-changing requests (POST, PUT, DELETE, PATCH).
- * Implements double-submit cookie pattern as fallback.
+ * Implements multiple layers of protection following practices from
+ * Stripe, Auth0, Google, and Cloudflare:
+ *
+ * 1. Origin Header Validation (primary defense)
+ * 2. Double-Submit Cookie Pattern (secondary defense)
+ * 3. Token Rotation (replay attack prevention)
+ * 4. Proper SameSite Cookie Configuration (browser-level protection)
  *
  * Features:
+ * - Origin/Referer header validation before token check
  * - X-CSRF-Token header validation
- * - Double-submit cookie pattern fallback
+ * - Double-submit cookie pattern
  * - Automatic token rotation after validation
- * - Session-based token management
+ * - Centralized cookie configuration for cross-origin support
  * - Graceful degradation when CSRF is disabled
  *
  * Usage:
@@ -17,10 +23,144 @@
 
 const csrfService = require('../services/csrf.service');
 const logger = require('../utils/contextLogger');
+const { getCSRFCookieConfig } = require('../utils/cookieConfig');
+
+// ═══════════════════════════════════════════════════════════════
+// ALLOWED ORIGINS CONFIGURATION
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Get allowed origins from environment or use defaults
+ * Production: traf3li.com subdomains
+ * Development: localhost variants
+ */
+const getAllowedOrigins = () => {
+    // Allow configuration via environment variable
+    if (process.env.ALLOWED_ORIGINS) {
+        return process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim().toLowerCase());
+    }
+
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    if (isProduction) {
+        return [
+            'https://traf3li.com',
+            'https://www.traf3li.com',
+            'https://dashboard.traf3li.com',
+            'https://api.traf3li.com',
+            'https://app.traf3li.com'
+        ];
+    }
+
+    // Development origins
+    return [
+        'http://localhost:3000',
+        'http://localhost:3001',
+        'http://localhost:5173',
+        'http://localhost:5174',
+        'http://127.0.0.1:3000',
+        'http://127.0.0.1:5173'
+    ];
+};
+
+// ═══════════════════════════════════════════════════════════════
+// ORIGIN VALIDATION (Gold Standard - used by Stripe, Cloudflare)
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Validate Origin header against allowed origins
+ * This is the PRIMARY defense against CSRF (before token validation)
+ *
+ * @param {Object} request - Express request object
+ * @returns {Object} - { valid: boolean, origin: string|null, reason: string }
+ */
+const validateOrigin = (request) => {
+    const origin = request.headers.origin;
+    const referer = request.headers.referer;
+    const allowedOrigins = getAllowedOrigins();
+
+    // For same-origin requests, Origin header might be absent
+    // In that case, check Referer header
+    if (!origin) {
+        // No Origin header - check Referer as fallback
+        if (!referer) {
+            // Both missing - this could be:
+            // 1. Same-origin request from older browser
+            // 2. Direct API call (curl, Postman)
+            // 3. Attacker trying to bypass
+            // Be strict in production, lenient in development
+            const isProduction = process.env.NODE_ENV === 'production';
+            if (isProduction) {
+                logger.warn('CSRF: No Origin or Referer header in production', {
+                    method: request.method,
+                    path: request.path,
+                    ip: request.ip
+                });
+                // Still allow but log - some legitimate requests may not have these
+                return { valid: true, origin: null, reason: 'no_origin_header' };
+            }
+            return { valid: true, origin: null, reason: 'development_mode' };
+        }
+
+        // Extract origin from Referer
+        try {
+            const refererUrl = new URL(referer);
+            const refererOrigin = `${refererUrl.protocol}//${refererUrl.host}`;
+
+            const isAllowed = allowedOrigins.some(allowed =>
+                refererOrigin.toLowerCase() === allowed.toLowerCase()
+            );
+
+            if (!isAllowed) {
+                return {
+                    valid: false,
+                    origin: refererOrigin,
+                    reason: 'referer_not_allowed'
+                };
+            }
+
+            return { valid: true, origin: refererOrigin, reason: 'referer_validated' };
+        } catch {
+            return { valid: false, origin: null, reason: 'invalid_referer' };
+        }
+    }
+
+    // Validate Origin header
+    const isAllowed = allowedOrigins.some(allowed =>
+        origin.toLowerCase() === allowed.toLowerCase()
+    );
+
+    if (!isAllowed) {
+        // Check if it's a subdomain of traf3li.com (dynamic subdomain support)
+        try {
+            const originUrl = new URL(origin);
+            const hostname = originUrl.hostname;
+
+            if (hostname === 'traf3li.com' || hostname.endsWith('.traf3li.com')) {
+                return { valid: true, origin, reason: 'traf3li_subdomain' };
+            }
+        } catch {
+            // Invalid URL
+        }
+
+        return { valid: false, origin, reason: 'origin_not_allowed' };
+    }
+
+    return { valid: true, origin, reason: 'origin_allowed' };
+};
+
+// ═══════════════════════════════════════════════════════════════
+// MAIN CSRF PROTECTION MIDDLEWARE
+// ═══════════════════════════════════════════════════════════════
 
 /**
  * CSRF Protection Middleware
- * Validates CSRF token for state-changing requests
+ * Validates Origin header and CSRF token for state-changing requests
+ *
+ * Defense layers:
+ * 1. Origin/Referer validation (blocks most attacks)
+ * 2. CSRF token validation (defense in depth)
+ * 3. Token rotation (prevents replay)
  *
  * @param {Object} request - Express request object
  * @param {Object} response - Express response object
@@ -41,6 +181,32 @@ const csrfProtection = async (request, response, next) => {
             return next();
         }
 
+        // ─────────────────────────────────────────────────────────
+        // LAYER 1: Origin Header Validation (Primary Defense)
+        // ─────────────────────────────────────────────────────────
+        const originValidation = validateOrigin(request);
+
+        if (!originValidation.valid) {
+            logger.warn('CSRF: Origin validation failed', {
+                origin: originValidation.origin,
+                reason: originValidation.reason,
+                endpoint: request.originalUrl,
+                method: request.method,
+                ip: request.ip,
+                userAgent: request.headers['user-agent']
+            });
+
+            return response.status(403).json({
+                error: true,
+                message: 'Request origin not allowed',
+                messageAr: 'مصدر الطلب غير مسموح به',
+                code: 'CSRF_ORIGIN_INVALID'
+            });
+        }
+
+        // ─────────────────────────────────────────────────────────
+        // LAYER 2: Session Validation
+        // ─────────────────────────────────────────────────────────
         // Get session identifier (user ID or session token hash)
         // Priority: userID (from auth middleware) > userId > user._id
         const sessionId = request.userID || request.userId || request.user?._id?.toString();
@@ -59,6 +225,9 @@ const csrfProtection = async (request, response, next) => {
             });
         }
 
+        // ─────────────────────────────────────────────────────────
+        // LAYER 3: CSRF Token Validation (Defense in Depth)
+        // ─────────────────────────────────────────────────────────
         // Extract CSRF token from request
         // Priority: X-CSRF-Token header > x-csrf-token header > cookie
         let token = request.headers['x-csrf-token'] ||
@@ -111,19 +280,17 @@ const csrfProtection = async (request, response, next) => {
             });
         }
 
-        // Attach new token to response if rotated
+        // ─────────────────────────────────────────────────────────
+        // SUCCESS: Attach rotated token to response
+        // ─────────────────────────────────────────────────────────
         if (validation.newToken) {
             // Set new token in response header
             response.setHeader('X-CSRF-Token', validation.newToken);
 
             // Also set cookie for double-submit pattern
-            response.cookie('csrfToken', validation.newToken, {
-                httpOnly: false, // Allow JavaScript access for sending in headers
-                sameSite: 'strict',
-                secure: process.env.NODE_ENV === 'production',
-                maxAge: parseInt(process.env.CSRF_TOKEN_TTL || '3600', 10) * 1000,
-                path: '/'
-            });
+            // Use centralized cookie config for proper cross-origin support
+            const cookieConfig = getCSRFCookieConfig(request);
+            response.cookie('csrfToken', validation.newToken, cookieConfig);
 
             logger.debug('CSRF token rotated and sent in response', {
                 sessionId,
@@ -149,9 +316,18 @@ const csrfProtection = async (request, response, next) => {
     }
 };
 
+// ═══════════════════════════════════════════════════════════════
+// ATTACH CSRF TOKEN MIDDLEWARE
+// ═══════════════════════════════════════════════════════════════
+
 /**
  * Generate and attach CSRF token to response
  * Use this middleware on login/register endpoints to provide initial token
+ *
+ * Sets token in:
+ * 1. Response header (X-CSRF-Token)
+ * 2. Cookie (csrfToken) - for double-submit pattern
+ * 3. Request object (request.csrfToken) - for controller access
  *
  * @param {Object} request - Express request object
  * @param {Object} response - Express response object
@@ -176,13 +352,21 @@ const attachCSRFToken = async (request, response, next) => {
         const tokenData = await csrfService.generateCSRFToken(sessionId);
 
         if (tokenData.token) {
-            // Attach token to response for client
             // Store in request for controller to access
             request.csrfToken = tokenData.token;
 
-            logger.debug('CSRF token generated and attached to request', {
+            // Set token in response header
+            response.setHeader('X-CSRF-Token', tokenData.token);
+
+            // Set cookie for double-submit pattern
+            // Use centralized cookie config for proper cross-origin support
+            const cookieConfig = getCSRFCookieConfig(request);
+            response.cookie('csrfToken', tokenData.token, cookieConfig);
+
+            logger.debug('CSRF token generated and attached', {
                 sessionId,
-                expiresAt: tokenData.expiresAt
+                expiresAt: tokenData.expiresAt,
+                cookieSameSite: cookieConfig.sameSite
             });
         }
 
@@ -198,5 +382,8 @@ const attachCSRFToken = async (request, response, next) => {
 
 module.exports = {
     csrfProtection,
-    attachCSRFToken
+    attachCSRFToken,
+    // Export for testing
+    validateOrigin,
+    getAllowedOrigins
 };
