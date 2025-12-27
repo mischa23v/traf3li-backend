@@ -72,16 +72,30 @@ const calculateDueDate = (paymentTerms, issueDate = new Date()) => {
  * @param {String} bodyClientId - Client ID from request body
  * @param {String} caseId - Case ID
  * @param {String} contractId - Contract ID
+ * @param {String} firmId - Firm ID for isolation
+ * @param {String} lawyerId - Lawyer ID for isolation (solo lawyers)
  * @returns {Promise<String>} - Client ID
  */
-const resolveClientId = async (bodyClientId, caseId, contractId) => {
+const resolveClientId = async (bodyClientId, caseId, contractId, firmId, lawyerId) => {
     let clientId = bodyClientId;
 
     if (!clientId && caseId) {
-        const caseDoc = await Case.findById(caseId);
+        const query = { _id: caseId };
+        if (firmId) {
+            query.firmId = firmId;
+        } else if (lawyerId) {
+            query.lawyerId = lawyerId;
+        }
+        const caseDoc = await Case.findOne(query);
         if (caseDoc) clientId = caseDoc.clientId;
     } else if (!clientId && contractId) {
-        const contract = await Order.findById(contractId);
+        const query = { _id: contractId };
+        if (firmId) {
+            query.firmId = firmId;
+        } else if (lawyerId) {
+            query.lawyerId = lawyerId;
+        }
+        const contract = await Order.findOne(query);
         if (contract) clientId = contract.buyerID;
     }
 
@@ -193,7 +207,7 @@ const createInvoice = async (data, firmId, userId, context = {}) => {
         } = safeData;
 
         // Resolve client ID
-        const clientId = await resolveClientId(bodyClientId, caseId, contractId);
+        const clientId = await resolveClientId(bodyClientId, caseId, contractId, firmId, userId);
 
         // Calculate totals from items to prevent manipulation
         const { calculatedSubtotal, calculatedVatAmount, calculatedTotalAmount } = calculateTotals({
@@ -320,19 +334,18 @@ const createInvoice = async (data, firmId, userId, context = {}) => {
  */
 const updateInvoice = async (invoiceId, data, firmId, userId, context = {}) => {
     try {
-        const invoice = await Invoice.findById(sanitizeObjectId(invoiceId));
+        // IDOR Protection - include firmId/lawyerId in query
+        const query = { _id: sanitizeObjectId(invoiceId) };
+        if (firmId) {
+            query.firmId = firmId;
+        } else {
+            query.lawyerId = userId;
+        }
+
+        const invoice = await Invoice.findOne(query);
 
         if (!invoice) {
             throw CustomException('Invoice not found!', 404);
-        }
-
-        // IDOR Protection - verify ownership
-        const hasAccess = firmId
-            ? invoice.firmId && invoice.firmId.toString() === firmId.toString()
-            : invoice.lawyerId.toString() === userId;
-
-        if (!hasAccess) {
-            throw CustomException('You do not have permission to update this invoice!', 403);
         }
 
         // State machine check - only allow updates in certain states
@@ -412,20 +425,19 @@ const updateInvoice = async (invoiceId, data, firmId, userId, context = {}) => {
  */
 const sendInvoice = async (invoiceId, firmId, userId, context = {}) => {
     try {
-        const invoice = await Invoice.findById(sanitizeObjectId(invoiceId))
+        // IDOR Protection - include firmId/lawyerId in query
+        const query = { _id: sanitizeObjectId(invoiceId) };
+        if (firmId) {
+            query.firmId = firmId;
+        } else {
+            query.lawyerId = userId;
+        }
+
+        const invoice = await Invoice.findOne(query)
             .populate('clientId', 'firstName lastName email');
 
         if (!invoice) {
             throw CustomException('Invoice not found!', 404);
-        }
-
-        // IDOR Protection
-        const hasAccess = firmId
-            ? invoice.firmId && invoice.firmId.toString() === firmId.toString()
-            : invoice.lawyerId.toString() === userId;
-
-        if (!hasAccess) {
-            throw CustomException('You do not have permission to send this invoice!', 403);
         }
 
         // Validate status transition
@@ -498,19 +510,18 @@ const sendInvoice = async (invoiceId, firmId, userId, context = {}) => {
  */
 const voidInvoice = async (invoiceId, reason, firmId, userId, context = {}) => {
     try {
-        const invoice = await Invoice.findById(sanitizeObjectId(invoiceId));
+        // IDOR Protection - include firmId/lawyerId in query
+        const query = { _id: sanitizeObjectId(invoiceId) };
+        if (firmId) {
+            query.firmId = firmId;
+        } else {
+            query.lawyerId = userId;
+        }
+
+        const invoice = await Invoice.findOne(query);
 
         if (!invoice) {
             throw CustomException('الفاتورة غير موجودة', 404);
-        }
-
-        // IDOR Protection
-        const hasAccess = firmId
-            ? invoice.firmId && invoice.firmId.toString() === firmId.toString()
-            : invoice.lawyerId.toString() === userId;
-
-        if (!hasAccess) {
-            throw CustomException('You do not have permission to void this invoice!', 403);
         }
 
         if (invoice.status === 'void') {
@@ -525,7 +536,13 @@ const voidInvoice = async (invoiceId, reason, firmId, userId, context = {}) => {
         if (invoice.glEntries && invoice.glEntries.length > 0) {
             const GeneralLedger = mongoose.model('GeneralLedger');
             for (const glEntryId of invoice.glEntries) {
-                const glEntry = await GeneralLedger.findById(glEntryId);
+                const glQuery = { _id: glEntryId };
+                if (firmId) {
+                    glQuery.firmId = firmId;
+                } else {
+                    glQuery.lawyerId = userId;
+                }
+                const glEntry = await GeneralLedger.findOne(glQuery);
                 if (glEntry && glEntry.status === 'posted') {
                     await glEntry.reverse({
                         description: `Void invoice ${invoice.invoiceNumber}`,
@@ -538,7 +555,13 @@ const voidInvoice = async (invoiceId, reason, firmId, userId, context = {}) => {
 
         // Reverse retainer application if any
         if (invoice.applyFromRetainer > 0 && invoice.retainerTransactionId) {
-            const retainer = await Retainer.findById(invoice.retainerTransactionId);
+            const retainerQuery = { _id: invoice.retainerTransactionId };
+            if (firmId) {
+                retainerQuery.firmId = firmId;
+            } else {
+                retainerQuery.lawyerId = userId;
+            }
+            const retainer = await Retainer.findOne(retainerQuery);
             if (retainer) {
                 await retainer.deposit(invoice.applyFromRetainer);
             }
@@ -589,19 +612,18 @@ const applyPayment = async (invoiceId, paymentData, firmId, userId, context = {}
     try {
         const { amount, paymentMethod, reference, paymentDate, notes, bankAccountId } = paymentData;
 
-        const invoice = await Invoice.findById(sanitizeObjectId(invoiceId));
+        // IDOR Protection - include firmId/lawyerId in query
+        const query = { _id: sanitizeObjectId(invoiceId) };
+        if (firmId) {
+            query.firmId = firmId;
+        } else {
+            query.lawyerId = userId;
+        }
+
+        const invoice = await Invoice.findOne(query);
 
         if (!invoice) {
             throw CustomException('الفاتورة غير موجودة - Invoice not found!', 404);
-        }
-
-        // IDOR Protection
-        const hasAccess = firmId
-            ? invoice.firmId && invoice.firmId.toString() === firmId.toString()
-            : invoice.lawyerId.toString() === userId;
-
-        if (!hasAccess) {
-            throw CustomException('You do not have permission to record payment for this invoice!', 403);
         }
 
         if (invoice.status === 'void' || invoice.status === 'paid') {
@@ -758,19 +780,18 @@ const applyDiscount = async (invoiceId, discountData, firmId, userId) => {
     try {
         const { discountType, discountValue } = discountData;
 
-        const invoice = await Invoice.findById(sanitizeObjectId(invoiceId));
+        // IDOR Protection - include firmId/lawyerId in query
+        const query = { _id: sanitizeObjectId(invoiceId) };
+        if (firmId) {
+            query.firmId = firmId;
+        } else {
+            query.lawyerId = userId;
+        }
+
+        const invoice = await Invoice.findOne(query);
 
         if (!invoice) {
             throw CustomException('Invoice not found!', 404);
-        }
-
-        // IDOR Protection
-        const hasAccess = firmId
-            ? invoice.firmId && invoice.firmId.toString() === firmId.toString()
-            : invoice.lawyerId.toString() === userId;
-
-        if (!hasAccess) {
-            throw CustomException('You do not have permission to apply discount to this invoice!', 403);
         }
 
         // State machine check
@@ -811,18 +832,19 @@ const applyDiscount = async (invoiceId, discountData, firmId, userId) => {
  */
 const generatePDF = async (invoiceId, firmId, options = {}) => {
     try {
-        const invoice = await Invoice.findById(sanitizeObjectId(invoiceId))
+        // IDOR Protection - include firmId in query
+        const query = { _id: sanitizeObjectId(invoiceId) };
+        if (firmId) {
+            query.firmId = firmId;
+        }
+
+        const invoice = await Invoice.findOne(query)
             .populate('clientId', 'name email phone address')
             .populate('lawyerId', 'name')
             .populate('caseId', 'caseNumber title');
 
         if (!invoice) {
             throw CustomException('الفاتورة غير موجودة', 404);
-        }
-
-        // IDOR Protection
-        if (firmId && invoice.firmId && invoice.firmId.toString() !== firmId.toString()) {
-            throw CustomException('You do not have permission to generate PDF for this invoice!', 403);
         }
 
         // Import QueueService
@@ -876,19 +898,18 @@ const generatePDF = async (invoiceId, firmId, options = {}) => {
  */
 const duplicateInvoice = async (invoiceId, firmId, userId) => {
     try {
-        const originalInvoice = await Invoice.findById(sanitizeObjectId(invoiceId));
+        // IDOR Protection - include firmId/lawyerId in query
+        const query = { _id: sanitizeObjectId(invoiceId) };
+        if (firmId) {
+            query.firmId = firmId;
+        } else {
+            query.lawyerId = userId;
+        }
+
+        const originalInvoice = await Invoice.findOne(query);
 
         if (!originalInvoice) {
             throw CustomException('الفاتورة غير موجودة', 404);
-        }
-
-        // IDOR Protection
-        const hasAccess = firmId
-            ? originalInvoice.firmId && originalInvoice.firmId.toString() === firmId.toString()
-            : originalInvoice.lawyerId.toString() === userId;
-
-        if (!hasAccess) {
-            throw CustomException('You do not have permission to duplicate this invoice!', 403);
         }
 
         // Create duplicate
@@ -950,19 +971,18 @@ const duplicateInvoice = async (invoiceId, firmId, userId) => {
  */
 const convertToRecurring = async (invoiceId, schedule, firmId, userId) => {
     try {
-        const invoice = await Invoice.findById(sanitizeObjectId(invoiceId));
+        // IDOR Protection - include firmId/lawyerId in query
+        const query = { _id: sanitizeObjectId(invoiceId) };
+        if (firmId) {
+            query.firmId = firmId;
+        } else {
+            query.lawyerId = userId;
+        }
+
+        const invoice = await Invoice.findOne(query);
 
         if (!invoice) {
             throw CustomException('Invoice not found!', 404);
-        }
-
-        // IDOR Protection
-        const hasAccess = firmId
-            ? invoice.firmId && invoice.firmId.toString() === firmId.toString()
-            : invoice.lawyerId.toString() === userId;
-
-        if (!hasAccess) {
-            throw CustomException('You do not have permission to convert this invoice!', 403);
         }
 
         const RecurringInvoice = mongoose.model('RecurringInvoice');
@@ -1015,7 +1035,21 @@ const convertToRecurring = async (invoiceId, schedule, firmId, userId) => {
  */
 const getInvoiceWithRelations = async (invoiceId, firmId, userId = null) => {
     try {
-        const invoice = await Invoice.findById(sanitizeObjectId(invoiceId))
+        // IDOR Protection - include firmId/lawyerId in query when userId is provided
+        const query = { _id: sanitizeObjectId(invoiceId) };
+        if (userId) {
+            if (firmId) {
+                query.firmId = firmId;
+            } else {
+                // For solo lawyers or when checking access
+                query.$or = [
+                    { lawyerId: userId },
+                    { clientId: userId }
+                ];
+            }
+        }
+
+        const invoice = await Invoice.findOne(query)
             .populate('lawyerId', 'firstName lastName username image email country phone')
             .populate('clientId', 'firstName lastName username image email country phone')
             .populate('caseId', 'title caseNumber')
@@ -1027,24 +1061,6 @@ const getInvoiceWithRelations = async (invoiceId, firmId, userId = null) => {
 
         if (!invoice) {
             throw CustomException('Invoice not found!', 404);
-        }
-
-        // Check access if userId provided
-        if (userId) {
-            const lawyerIdStr = invoice.lawyerId._id ? invoice.lawyerId._id.toString() : invoice.lawyerId.toString();
-            const clientIdStr = invoice.clientId._id ? invoice.clientId._id.toString() : invoice.clientId.toString();
-
-            let hasAccess = false;
-            if (firmId) {
-                hasAccess = invoice.firmId && invoice.firmId.toString() === firmId.toString();
-            }
-            if (!hasAccess) {
-                hasAccess = lawyerIdStr === userId || clientIdStr === userId;
-            }
-
-            if (!hasAccess) {
-                throw CustomException('You do not have access to this invoice!', 403);
-            }
         }
 
         return invoice;

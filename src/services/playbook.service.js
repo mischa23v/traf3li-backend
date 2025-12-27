@@ -67,11 +67,12 @@ class PlaybookService {
    * @param {String} playbookId - Playbook ID
    * @param {Object} data - Updated data
    * @param {String} userId - User updating
+   * @param {String} firmId - Firm ID for isolation
    * @returns {Promise<Object|null>} - Updated playbook or null
    */
-  async updatePlaybook(playbookId, data, userId) {
+  async updatePlaybook(playbookId, data, userId, firmId) {
     try {
-      const playbook = await Playbook.findById(playbookId);
+      const playbook = await Playbook.findOne({ _id: playbookId, firmId });
 
       if (!playbook) {
         logger.error('PlaybookService.updatePlaybook: Playbook not found');
@@ -108,13 +109,15 @@ class PlaybookService {
   /**
    * Delete a playbook
    * @param {String} playbookId - Playbook ID
+   * @param {String} firmId - Firm ID for isolation
    * @returns {Promise<Boolean>} - Success status
    */
-  async deletePlaybook(playbookId) {
+  async deletePlaybook(playbookId, firmId) {
     try {
       // Check for active executions
       const activeExecutions = await IncidentExecution.countDocuments({
         playbookId,
+        firmId,
         status: 'running'
       });
 
@@ -123,7 +126,7 @@ class PlaybookService {
         return false;
       }
 
-      await Playbook.findByIdAndDelete(playbookId);
+      await Playbook.findOneAndDelete({ _id: playbookId, firmId });
 
       logger.info('PlaybookService.deletePlaybook: Playbook deleted', { playbookId });
 
@@ -178,14 +181,15 @@ class PlaybookService {
    * @param {String} incidentId - Incident ID
    * @param {String} playbookId - Playbook ID
    * @param {String} userId - User starting execution
+   * @param {String} firmId - Firm ID for isolation
    * @returns {Promise<Object|null>} - Execution instance or null
    */
-  async startExecution(incidentId, playbookId, userId) {
+  async startExecution(incidentId, playbookId, userId, firmId) {
     try {
       // Fetch incident and playbook
       const [incident, playbook] = await Promise.all([
-        Incident.findById(incidentId).lean(),
-        Playbook.findById(playbookId).lean()
+        Incident.findOne({ _id: incidentId, firmId }).lean(),
+        Playbook.findOne({ _id: playbookId, firmId }).lean()
       ]);
 
       if (!incident) {
@@ -232,7 +236,7 @@ class PlaybookService {
         playbookId
       });
 
-      return await IncidentExecution.findById(execution._id)
+      return await IncidentExecution.findOne({ _id: execution._id, firmId })
         .populate('playbookId', 'name category severity steps')
         .populate('executedBy', 'firstName lastName')
         .lean();
@@ -246,11 +250,12 @@ class PlaybookService {
    * Advance to next step
    * @param {String} executionId - Execution ID
    * @param {Object} result - Current step result
+   * @param {String} firmId - Firm ID for isolation
    * @returns {Promise<Object|null>} - Updated execution or null
    */
-  async advanceStep(executionId, result = {}) {
+  async advanceStep(executionId, result = {}, firmId) {
     try {
-      const execution = await IncidentExecution.findById(executionId)
+      const execution = await IncidentExecution.findOne({ _id: executionId, firmId })
         .populate('playbookId');
 
       if (!execution) {
@@ -288,7 +293,7 @@ class PlaybookService {
           executionId: execution._id
         });
 
-        return await IncidentExecution.findById(executionId)
+        return await IncidentExecution.findOne({ _id: executionId, firmId })
           .populate('playbookId', 'name category severity')
           .populate('executedBy', 'firstName lastName')
           .populate('completedBy', 'firstName lastName')
@@ -319,7 +324,7 @@ class PlaybookService {
         });
       }
 
-      return await IncidentExecution.findById(executionId)
+      return await IncidentExecution.findOne({ _id: executionId, firmId })
         .populate('playbookId', 'name category severity steps')
         .populate('executedBy', 'firstName lastName')
         .lean();
@@ -333,11 +338,12 @@ class PlaybookService {
    * Skip a step
    * @param {String} executionId - Execution ID
    * @param {String} reason - Skip reason
+   * @param {String} firmId - Firm ID for isolation
    * @returns {Promise<Object|null>} - Updated execution or null
    */
-  async skipStep(executionId, reason) {
+  async skipStep(executionId, reason, firmId) {
     try {
-      const execution = await IncidentExecution.findById(executionId)
+      const execution = await IncidentExecution.findOne({ _id: executionId, firmId })
         .populate('playbookId');
 
       if (!execution) {
@@ -356,7 +362,7 @@ class PlaybookService {
       return await this.advanceStep(executionId, {
         success: true,
         notes: `Step ${execution.currentStep} skipped: ${reason}`
-      });
+      }, firmId);
     } catch (error) {
       logger.error('PlaybookService.skipStep failed:', error.message);
       return null;
@@ -368,11 +374,12 @@ class PlaybookService {
    * @param {String} executionId - Execution ID
    * @param {String} userId - User aborting
    * @param {String} reason - Abort reason
+   * @param {String} firmId - Firm ID for isolation
    * @returns {Promise<Object|null>} - Updated execution or null
    */
-  async abortExecution(executionId, userId, reason) {
+  async abortExecution(executionId, userId, reason, firmId) {
     try {
-      const execution = await IncidentExecution.findById(executionId);
+      const execution = await IncidentExecution.findOne({ _id: executionId, firmId });
 
       if (!execution) {
         logger.error('PlaybookService.abortExecution: Execution not found');
@@ -391,7 +398,7 @@ class PlaybookService {
         reason
       });
 
-      return await IncidentExecution.findById(executionId)
+      return await IncidentExecution.findOne({ _id: executionId, firmId })
         .populate('playbookId', 'name category severity')
         .populate('executedBy', 'firstName lastName')
         .populate('abortedBy', 'firstName lastName')
@@ -406,11 +413,12 @@ class PlaybookService {
    * Retry a failed step
    * @param {String} executionId - Execution ID
    * @param {Number} stepIndex - Step index to retry
+   * @param {String} firmId - Firm ID for isolation
    * @returns {Promise<Object|null>} - Updated execution or null
    */
-  async retryStep(executionId, stepIndex) {
+  async retryStep(executionId, stepIndex, firmId) {
     try {
-      const execution = await IncidentExecution.findById(executionId)
+      const execution = await IncidentExecution.findOne({ _id: executionId, firmId })
         .populate('playbookId');
 
       if (!execution) {
@@ -459,7 +467,7 @@ class PlaybookService {
         retryCount: stepResult.retryCount
       });
 
-      return await IncidentExecution.findById(executionId)
+      return await IncidentExecution.findOne({ _id: executionId, firmId })
         .populate('playbookId', 'name category severity steps')
         .populate('executedBy', 'firstName lastName')
         .lean();
@@ -472,11 +480,12 @@ class PlaybookService {
   /**
    * Get execution status
    * @param {String} executionId - Execution ID
+   * @param {String} firmId - Firm ID for isolation
    * @returns {Promise<Object|null>} - Execution status or null
    */
-  async getExecutionStatus(executionId) {
+  async getExecutionStatus(executionId, firmId) {
     try {
-      const execution = await IncidentExecution.findById(executionId)
+      const execution = await IncidentExecution.findOne({ _id: executionId, firmId })
         .populate('playbookId', 'name category severity steps')
         .populate('incidentId', 'title status impact')
         .populate('executedBy', 'firstName lastName')
@@ -500,11 +509,12 @@ class PlaybookService {
   /**
    * Get execution history for incident
    * @param {String} incidentId - Incident ID
+   * @param {String} firmId - Firm ID for isolation
    * @returns {Promise<Array>} - Execution history
    */
-  async getExecutionHistory(incidentId) {
+  async getExecutionHistory(incidentId, firmId) {
     try {
-      const executions = await IncidentExecution.find({ incidentId })
+      const executions = await IncidentExecution.find({ incidentId, firmId })
         .sort({ startedAt: -1 })
         .populate('playbookId', 'name category severity')
         .populate('executedBy', 'firstName lastName')
@@ -560,11 +570,12 @@ class PlaybookService {
    * @param {String} executionId - Execution ID
    * @param {String} userId - User to escalate to
    * @param {String} reason - Escalation reason
+   * @param {String} firmId - Firm ID for isolation
    * @returns {Promise<Object|null>} - Updated execution or null
    */
-  async escalateExecution(executionId, userId, reason) {
+  async escalateExecution(executionId, userId, reason, firmId) {
     try {
-      const execution = await IncidentExecution.findById(executionId);
+      const execution = await IncidentExecution.findOne({ _id: executionId, firmId });
 
       if (!execution) {
         logger.error('PlaybookService.escalateExecution: Execution not found');
@@ -579,7 +590,7 @@ class PlaybookService {
         reason
       });
 
-      return await IncidentExecution.findById(executionId)
+      return await IncidentExecution.findOne({ _id: executionId, firmId })
         .populate('playbookId', 'name category severity')
         .populate('executedBy', 'firstName lastName')
         .populate('escalatedTo', 'firstName lastName email')

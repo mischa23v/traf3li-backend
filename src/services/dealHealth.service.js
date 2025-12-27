@@ -89,6 +89,7 @@ class DealHealthService {
         try {
             // Get last activity for this deal
             const lastActivity = await CrmActivity.findOne({
+                firmId: deal.firmId,
                 entityType: 'lead',
                 entityId: deal._id,
                 type: { $in: ['call', 'email', 'meeting', 'whatsapp', 'sms', 'note'] }
@@ -128,6 +129,7 @@ class DealHealthService {
 
             // Count activities in last 30 days
             const recentCount = await CrmActivity.countDocuments({
+                firmId: deal.firmId,
                 entityType: 'lead',
                 entityId: deal._id,
                 createdAt: { $gte: thirtyDaysAgo },
@@ -136,6 +138,7 @@ class DealHealthService {
 
             // Count activities in previous 30 days (30-60 days ago)
             const previousCount = await CrmActivity.countDocuments({
+                firmId: deal.firmId,
                 entityType: 'lead',
                 entityId: deal._id,
                 createdAt: { $gte: sixtyDaysAgo, $lt: thirtyDaysAgo },
@@ -264,6 +267,7 @@ class DealHealthService {
 
             // Check for scheduled future activities (meetings, calls, tasks)
             const upcomingActivities = await CrmActivity.countDocuments({
+                firmId: deal.firmId,
                 entityType: 'lead',
                 entityId: deal._id,
                 type: { $in: ['meeting', 'task', 'call'] },
@@ -279,6 +283,7 @@ class DealHealthService {
 
             // Check for recent notes with next steps mentioned
             const recentNoteWithNextSteps = await CrmActivity.findOne({
+                firmId: deal.firmId,
                 entityType: 'lead',
                 entityId: deal._id,
                 type: 'note',
@@ -310,6 +315,7 @@ class DealHealthService {
         try {
             // Check for competitor mentions in recent activities
             const competitorMentions = await CrmActivity.countDocuments({
+                firmId: deal.firmId,
                 entityType: 'lead',
                 entityId: deal._id,
                 type: 'note',
@@ -571,6 +577,7 @@ class DealHealthService {
             // Check each deal for recent activity
             for (const deal of potentiallyStuckDeals) {
                 const lastActivity = await CrmActivity.findOne({
+                    firmId: deal.firmId,
                     entityType: 'lead',
                     entityId: deal._id,
                     type: { $in: ['call', 'email', 'meeting', 'whatsapp', 'sms'] }

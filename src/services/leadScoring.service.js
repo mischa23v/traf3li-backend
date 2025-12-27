@@ -17,11 +17,12 @@ class LeadScoringService {
     /**
      * Calculate complete lead score
      * @param {ObjectId} leadId - Lead ID
+     * @param {ObjectId} firmId - Firm ID for access control
      * @returns {Object} Calculated score data
      */
-    static async calculateScore(leadId) {
+    static async calculateScore(leadId, firmId) {
         try {
-            const lead = await Lead.findById(leadId).populate('firmId');
+            const lead = await Lead.findOne({ _id: leadId, firmId }).populate('firmId');
             if (!lead) {
                 throw new Error('Lead not found');
             }
@@ -29,7 +30,7 @@ class LeadScoringService {
             const config = await LeadScoringConfig.getOrCreateConfig(lead.firmId);
 
             // Get or create lead score record
-            let leadScore = await LeadScore.findOne({ leadId });
+            let leadScore = await LeadScore.findOne({ leadId, firmId });
             if (!leadScore) {
                 leadScore = new LeadScore({
                     firmId: lead.firmId,
@@ -41,8 +42,8 @@ class LeadScoringService {
             // Calculate each dimension
             const demographic = await this.calculateDemographicScore(lead, config);
             const bant = await this.calculateBANTScore(lead, config);
-            const behavioral = await this.calculateBehavioralScore(leadId, config);
-            const engagement = await this.calculateEngagementScore(leadId, config);
+            const behavioral = await this.calculateBehavioralScore(leadId, firmId, config);
+            const engagement = await this.calculateEngagementScore(leadId, firmId, config);
 
             // Store breakdown
             leadScore.breakdown.demographic = demographic;
@@ -68,7 +69,7 @@ class LeadScoringService {
             leadScore.updateCategory();
 
             // Calculate conversion probability
-            leadScore.conversionProbability = await this.predictConversion(leadId, leadScore.totalScore);
+            leadScore.conversionProbability = await this.predictConversion(leadId, firmId, leadScore.totalScore);
 
             // Update calculation metadata
             leadScore.calculation.lastCalculatedAt = new Date();
@@ -200,7 +201,7 @@ class LeadScoringService {
     /**
      * Calculate behavioral score (emails, calls, meetings, documents, etc.)
      */
-    static async calculateBehavioralScore(leadId, config) {
+    static async calculateBehavioralScore(leadId, firmId, config) {
         const factors = {
             emailEngagement: { score: 0, opens: 0, clicks: 0, replies: 0 },
             responseTime: { score: 0, avgHours: null },
@@ -214,6 +215,7 @@ class LeadScoringService {
 
         // Get all activities for this lead
         const activities = await CrmActivity.find({
+            firmId,
             entityType: 'lead',
             entityId: leadId
         }).sort({ createdAt: -1 });
@@ -313,15 +315,16 @@ class LeadScoringService {
     /**
      * Calculate engagement score (Recency, Frequency, Depth)
      */
-    static async calculateEngagementScore(leadId, config) {
+    static async calculateEngagementScore(leadId, firmId, config) {
         const factors = {
             recency: { score: 0, daysSinceContact: null, lastContactDate: null },
             frequency: { score: 0, touchpoints: 0, touchpointsLast30Days: 0 },
             depth: { score: 0, avgEngagementTimeMinutes: null, qualityInteractions: 0 }
         };
 
-        const lead = await Lead.findById(leadId);
+        const lead = await Lead.findOne({ _id: leadId, firmId });
         const activities = await CrmActivity.find({
+            firmId,
             entityType: 'lead',
             entityId: leadId
         }).sort({ createdAt: -1 });
@@ -415,44 +418,44 @@ class LeadScoringService {
     // BEHAVIORAL TRACKING
     // ═══════════════════════════════════════════════════════════
 
-    static async trackEmailOpen(leadId, campaignId = null) {
-        await this.recalculateScore(leadId, 'email_open');
+    static async trackEmailOpen(leadId, firmId, campaignId = null) {
+        await this.recalculateScore(leadId, firmId, 'email_open');
     }
 
-    static async trackEmailClick(leadId, campaignId = null, link = null) {
-        await this.recalculateScore(leadId, 'email_click');
+    static async trackEmailClick(leadId, firmId, campaignId = null, link = null) {
+        await this.recalculateScore(leadId, firmId, 'email_click');
     }
 
-    static async trackMeetingScheduled(leadId) {
-        await this.recalculateScore(leadId, 'meeting_scheduled');
+    static async trackMeetingScheduled(leadId, firmId) {
+        await this.recalculateScore(leadId, firmId, 'meeting_scheduled');
     }
 
-    static async trackMeetingAttended(leadId) {
-        await this.recalculateScore(leadId, 'meeting_attended');
+    static async trackMeetingAttended(leadId, firmId) {
+        await this.recalculateScore(leadId, firmId, 'meeting_attended');
     }
 
-    static async trackCallCompleted(leadId, durationMinutes) {
-        await this.recalculateScore(leadId, 'call_completed');
+    static async trackCallCompleted(leadId, firmId, durationMinutes) {
+        await this.recalculateScore(leadId, firmId, 'call_completed');
     }
 
-    static async trackDocumentView(leadId, documentId) {
-        await this.recalculateScore(leadId, 'document_view');
+    static async trackDocumentView(leadId, firmId, documentId) {
+        await this.recalculateScore(leadId, firmId, 'document_view');
     }
 
-    static async trackWebsiteVisit(leadId, page, duration) {
-        await this.recalculateScore(leadId, 'website_visit');
+    static async trackWebsiteVisit(leadId, firmId, page, duration) {
+        await this.recalculateScore(leadId, firmId, 'website_visit');
     }
 
-    static async trackFormSubmission(leadId, formId) {
-        await this.recalculateScore(leadId, 'form_submission');
+    static async trackFormSubmission(leadId, firmId, formId) {
+        await this.recalculateScore(leadId, firmId, 'form_submission');
     }
 
-    static async trackResponse(leadId, responseTimeHours) {
-        await this.recalculateScore(leadId, 'response');
+    static async trackResponse(leadId, firmId, responseTimeHours) {
+        await this.recalculateScore(leadId, firmId, 'response');
     }
 
-    static async trackWhatsAppMessage(leadId) {
-        await this.recalculateScore(leadId, 'whatsapp_message');
+    static async trackWhatsAppMessage(leadId, firmId) {
+        await this.recalculateScore(leadId, firmId, 'whatsapp_message');
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -462,8 +465,8 @@ class LeadScoringService {
     /**
      * Apply decay to a specific lead score
      */
-    static async applyDecay(leadScoreId) {
-        const leadScore = await LeadScore.findById(leadScoreId);
+    static async applyDecay(leadScoreId, firmId) {
+        const leadScore = await LeadScore.findOne({ _id: leadScoreId, firmId });
         if (!leadScore) return;
 
         const config = await LeadScoringConfig.findOne({ firmId: leadScore.firmId });
@@ -498,7 +501,7 @@ class LeadScoringService {
         const firmScores = leadScores.filter(ls => ls.firmId.toString() === firmId.toString());
 
         for (const leadScore of firmScores) {
-            await this.applyDecay(leadScore._id);
+            await this.applyDecay(leadScore._id, firmId);
         }
 
         return { processed: firmScores.length };
@@ -507,8 +510,8 @@ class LeadScoringService {
     /**
      * Reset decay when lead has new activity
      */
-    static async resetDecay(leadId) {
-        const leadScore = await LeadScore.findOne({ leadId });
+    static async resetDecay(leadId, firmId) {
+        const leadScore = await LeadScore.findOne({ leadId, firmId });
         if (!leadScore) return;
 
         leadScore.decay.applied = 0;
@@ -528,7 +531,7 @@ class LeadScoringService {
 
         for (const lead of leads) {
             try {
-                const score = await this.calculateScore(lead._id);
+                const score = await this.calculateScore(lead._id, firmId);
                 results.push({ leadId: lead._id, success: true, score: score.totalScore });
             } catch (error) {
                 results.push({ leadId: lead._id, success: false, error: error.message });
@@ -538,12 +541,12 @@ class LeadScoringService {
         return results;
     }
 
-    static async recalculateBatch(leadIds) {
+    static async recalculateBatch(leadIds, firmId) {
         const results = [];
 
         for (const leadId of leadIds) {
             try {
-                const score = await this.calculateScore(leadId);
+                const score = await this.calculateScore(leadId, firmId);
                 results.push({ leadId, success: true, score: score.totalScore });
             } catch (error) {
                 results.push({ leadId, success: false, error: error.message });
@@ -553,10 +556,10 @@ class LeadScoringService {
         return results;
     }
 
-    static async recalculateScore(leadId, triggeredBy = 'activity') {
+    static async recalculateScore(leadId, firmId, triggeredBy = 'activity') {
         try {
-            const leadScore = await this.calculateScore(leadId);
-            await this.resetDecay(leadId);
+            const leadScore = await this.calculateScore(leadId, firmId);
+            await this.resetDecay(leadId, firmId);
             return leadScore;
         } catch (error) {
             logger.error(`Error recalculating score for lead ${leadId}:`, error);
@@ -567,9 +570,9 @@ class LeadScoringService {
     // PREDICTIONS & INSIGHTS
     // ═══════════════════════════════════════════════════════════
 
-    static async predictConversion(leadId, currentScore) {
+    static async predictConversion(leadId, firmId, currentScore) {
         try {
-            const lead = await Lead.findById(leadId);
+            const lead = await Lead.findOne({ _id: leadId, firmId });
 
             // Simple ML-like prediction based on multiple factors
             let probability = currentScore; // Base on score (0-100)
@@ -654,8 +657,8 @@ class LeadScoringService {
         leadScore.insights = insights;
     }
 
-    static async getLeadInsights(leadId) {
-        const leadScore = await LeadScore.findOne({ leadId }).populate('leadId');
+    static async getLeadInsights(leadId, firmId) {
+        const leadScore = await LeadScore.findOne({ leadId, firmId }).populate('leadId');
         if (!leadScore) {
             throw new Error('Lead score not found');
         }
@@ -663,10 +666,10 @@ class LeadScoringService {
         return leadScore.insights;
     }
 
-    static async getSimilarConvertedLeads(leadId, limit = 5) {
+    static async getSimilarConvertedLeads(leadId, firmId, limit = 5) {
         // Find similar leads that converted successfully
-        const lead = await Lead.findById(leadId);
-        const leadScore = await LeadScore.findOne({ leadId });
+        const lead = await Lead.findOne({ _id: leadId, firmId });
+        const leadScore = await LeadScore.findOne({ leadId, firmId });
 
         if (!lead || !leadScore) return [];
 
@@ -725,8 +728,8 @@ class LeadScoringService {
         return similarLeads;
     }
 
-    static async getRecommendedActions(leadId) {
-        const leadScore = await LeadScore.findOne({ leadId }).populate('leadId');
+    static async getRecommendedActions(leadId, firmId) {
+        const leadScore = await LeadScore.findOne({ leadId, firmId }).populate('leadId');
         if (!leadScore) return [];
 
         const actions = [];

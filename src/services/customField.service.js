@@ -159,7 +159,10 @@ class CustomFieldService {
             }
 
             // Delete field (this will cascade delete values via post hook)
-            await CustomField.findByIdAndDelete(fieldId);
+            await CustomField.findOneAndDelete({
+                _id: new mongoose.Types.ObjectId(fieldId),
+                firmId: new mongoose.Types.ObjectId(firmId)
+            });
 
             logger.info(`Custom field deleted: ${fieldId}`);
 

@@ -91,14 +91,15 @@ class PayoutService {
     /**
      * Create a Stripe Connect account for a lawyer
      * @param {string} lawyerId - Lawyer's user ID
+     * @param {string} firmId - Firm ID for access control
      * @returns {Promise<Object>} - Account details
      */
-    async createConnectAccount(lawyerId) {
+    async createConnectAccount(lawyerId, firmId) {
         if (!this.isConfigured()) {
             throw new Error('Stripe not configured. Please set STRIPE_SECRET_KEY environment variable.');
         }
 
-        const lawyer = await User.findById(lawyerId);
+        const lawyer = await User.findOne({ _id: lawyerId, firmId });
         if (!lawyer) {
             throw new Error('Lawyer not found');
         }
@@ -314,6 +315,7 @@ class PayoutService {
      * Create a payout for a lawyer
      * @param {Object} params - Payout parameters
      * @param {string} params.lawyerId - Lawyer's user ID
+     * @param {string} params.firmId - Firm ID for access control
      * @param {number} params.amount - Gross amount to pay out
      * @param {string} params.currency - Currency code (default: SAR)
      * @param {string} params.description - Payout description
@@ -329,6 +331,7 @@ class PayoutService {
 
         const {
             lawyerId,
+            firmId,
             amount,
             currency = 'SAR',
             description,
@@ -339,8 +342,13 @@ class PayoutService {
             createdBy
         } = params;
 
+        // Validate firmId is provided
+        if (!firmId) {
+            throw new Error('firmId is required for access control');
+        }
+
         // Get lawyer details
-        const lawyer = await User.findById(lawyerId);
+        const lawyer = await User.findOne({ _id: lawyerId, firmId });
         if (!lawyer) {
             throw new Error('Lawyer not found');
         }
@@ -389,7 +397,7 @@ class PayoutService {
 
         // Attempt to process the payout immediately
         try {
-            await this.processPayout(payout._id.toString());
+            await this.processPayout(payout._id.toString(), firmId);
         } catch (error) {
             logger.error('Failed to process payout immediately', {
                 payoutId: payout._id,
@@ -404,14 +412,20 @@ class PayoutService {
     /**
      * Process a pending payout
      * @param {string} payoutId - Payout ID
+     * @param {string} firmId - Firm ID for access control
      * @returns {Promise<Object>} - Updated payout
      */
-    async processPayout(payoutId) {
+    async processPayout(payoutId, firmId) {
         if (!this.isConfigured()) {
             throw new Error('Stripe not configured');
         }
 
-        const payout = await Payout.findById(payoutId);
+        // Validate firmId is provided
+        if (!firmId) {
+            throw new Error('firmId is required for access control');
+        }
+
+        const payout = await Payout.findOne({ _id: payoutId, firmId });
         if (!payout) {
             throw new Error('Payout not found');
         }
@@ -479,11 +493,17 @@ class PayoutService {
     /**
      * Get payout history for a lawyer
      * @param {string} lawyerId - Lawyer's user ID
+     * @param {string} firmId - Firm ID for access control
      * @param {Object} filters - Filter options
      * @returns {Promise<Array>} - List of payouts
      */
-    async getPayoutHistory(lawyerId, filters = {}) {
-        const query = { lawyerId };
+    async getPayoutHistory(lawyerId, firmId, filters = {}) {
+        // Validate firmId is provided
+        if (!firmId) {
+            throw new Error('firmId is required for access control');
+        }
+
+        const query = { lawyerId, firmId };
 
         if (filters.status) {
             query.status = filters.status;
@@ -524,10 +544,16 @@ class PayoutService {
     /**
      * Get payout details
      * @param {string} payoutId - Payout ID
+     * @param {string} firmId - Firm ID for access control
      * @returns {Promise<Object>} - Payout details
      */
-    async getPayoutDetails(payoutId) {
-        const payout = await Payout.findById(payoutId)
+    async getPayoutDetails(payoutId, firmId) {
+        // Validate firmId is provided
+        if (!firmId) {
+            throw new Error('firmId is required for access control');
+        }
+
+        const payout = await Payout.findOne({ _id: payoutId, firmId })
             .populate('lawyerId', 'firstName lastName email stripeConnectAccountId')
             .populate('createdBy', 'firstName lastName')
             .populate('approvedBy', 'firstName lastName')
@@ -543,12 +569,18 @@ class PayoutService {
     /**
      * Cancel a payout
      * @param {string} payoutId - Payout ID
+     * @param {string} firmId - Firm ID for access control
      * @param {string} userId - User cancelling the payout
      * @param {string} reason - Cancellation reason
      * @returns {Promise<Object>} - Cancelled payout
      */
-    async cancelPayout(payoutId, userId, reason) {
-        const payout = await Payout.findById(payoutId);
+    async cancelPayout(payoutId, firmId, userId, reason) {
+        // Validate firmId is provided
+        if (!firmId) {
+            throw new Error('firmId is required for access control');
+        }
+
+        const payout = await Payout.findOne({ _id: payoutId, firmId });
 
         if (!payout) {
             throw new Error('Payout not found');
@@ -569,10 +601,16 @@ class PayoutService {
     /**
      * Retry a failed payout
      * @param {string} payoutId - Payout ID
+     * @param {string} firmId - Firm ID for access control
      * @returns {Promise<Object>} - Retried payout
      */
-    async retryPayout(payoutId) {
-        const payout = await Payout.findById(payoutId);
+    async retryPayout(payoutId, firmId) {
+        // Validate firmId is provided
+        if (!firmId) {
+            throw new Error('firmId is required for access control');
+        }
+
+        const payout = await Payout.findOne({ _id: payoutId, firmId });
 
         if (!payout) {
             throw new Error('Payout not found');
@@ -587,7 +625,7 @@ class PayoutService {
         });
 
         // Attempt to process again
-        await this.processPayout(payoutId);
+        await this.processPayout(payoutId, firmId);
 
         return payout;
     }

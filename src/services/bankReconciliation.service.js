@@ -15,7 +15,7 @@ class BankReconciliationService {
      */
     async importFromCSV(firmId, bankAccountId, fileBuffer, settings, userId, lawyerId) {
         try {
-            const account = await BankAccount.findById(bankAccountId);
+            const account = await BankAccount.findOne({ _id: bankAccountId, firmId });
             if (!account) {
                 throw new Error('Bank account not found');
             }
@@ -43,7 +43,7 @@ class BankReconciliationService {
             );
 
             // Update bank feed statistics
-            const feed = await BankFeed.findOne({ bankAccountId, provider: 'csv_import' });
+            const feed = await BankFeed.findOne({ bankAccountId, provider: 'csv_import', firmId });
             if (feed) {
                 feed.recordImport(result.imported, batchId);
                 await feed.save();
@@ -67,7 +67,7 @@ class BankReconciliationService {
      */
     async importFromOFX(firmId, bankAccountId, fileBuffer, userId, lawyerId) {
         try {
-            const account = await BankAccount.findById(bankAccountId);
+            const account = await BankAccount.findOne({ _id: bankAccountId, firmId });
             if (!account) {
                 throw new Error('Bank account not found');
             }
@@ -95,7 +95,7 @@ class BankReconciliationService {
             );
 
             // Update bank feed statistics
-            const feed = await BankFeed.findOne({ bankAccountId, provider: 'ofx_import' });
+            const feed = await BankFeed.findOne({ bankAccountId, provider: 'ofx_import', firmId });
             if (feed) {
                 feed.recordImport(result.imported, batchId);
                 await feed.save();
@@ -415,7 +415,10 @@ class BankReconciliationService {
      * Match a single transaction
      */
     async matchTransaction(bankTransactionId, options = {}) {
-        const transaction = await BankTransaction.findById(bankTransactionId);
+        if (!options.firmId) {
+            throw new Error('firmId is required');
+        }
+        const transaction = await BankTransaction.findOne({ _id: bankTransactionId, firmId: options.firmId });
         if (!transaction) {
             throw new Error('Transaction not found');
         }
@@ -747,8 +750,11 @@ class BankReconciliationService {
     /**
      * Confirm a match
      */
-    async confirmMatch(matchId, userId) {
-        const match = await BankTransactionMatch.findById(matchId);
+    async confirmMatch(matchId, userId, firmId) {
+        if (!firmId) {
+            throw new Error('firmId is required');
+        }
+        const match = await BankTransactionMatch.findOne({ _id: matchId, firmId });
         if (!match) {
             throw new Error('Match not found');
         }
@@ -759,8 +765,11 @@ class BankReconciliationService {
     /**
      * Reject a match
      */
-    async rejectMatch(matchId, userId, reason) {
-        const match = await BankTransactionMatch.findById(matchId);
+    async rejectMatch(matchId, userId, reason, firmId) {
+        if (!firmId) {
+            throw new Error('firmId is required');
+        }
+        const match = await BankTransactionMatch.findOne({ _id: matchId, firmId });
         if (!match) {
             throw new Error('Match not found');
         }
@@ -784,8 +793,11 @@ class BankReconciliationService {
     /**
      * Unmatch a transaction
      */
-    async unmatch(matchId, userId) {
-        const match = await BankTransactionMatch.findById(matchId);
+    async unmatch(matchId, userId, firmId) {
+        if (!firmId) {
+            throw new Error('firmId is required');
+        }
+        const match = await BankTransactionMatch.findOne({ _id: matchId, firmId });
         if (!match) {
             throw new Error('Match not found');
         }
@@ -880,8 +892,11 @@ class BankReconciliationService {
     /**
      * Get match suggestions
      */
-    async getMatchSuggestions(bankAccountId, limit = 20) {
-        const account = await BankAccount.findById(bankAccountId);
+    async getMatchSuggestions(bankAccountId, firmId, limit = 20) {
+        if (!firmId) {
+            throw new Error('firmId is required');
+        }
+        const account = await BankAccount.findOne({ _id: bankAccountId, firmId });
         if (!account) {
             throw new Error('Bank account not found');
         }
@@ -895,8 +910,11 @@ class BankReconciliationService {
     /**
      * Get reconciliation report
      */
-    async getReconciliationReport(reconciliationId) {
-        const reconciliation = await BankReconciliation.findById(reconciliationId)
+    async getReconciliationReport(reconciliationId, firmId) {
+        if (!firmId) {
+            throw new Error('firmId is required');
+        }
+        const reconciliation = await BankReconciliation.findOne({ _id: reconciliationId, firmId })
             .populate('accountId')
             .populate('startedBy', 'firstName lastName email')
             .populate('completedBy', 'firstName lastName email');

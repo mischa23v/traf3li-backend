@@ -32,8 +32,8 @@ class DealRoomService {
    */
   async createDealRoom(dealId, name, userId, firmId) {
     try {
-      // Verify deal exists
-      const deal = await Lead.findById(dealId).lean();
+      // Verify deal exists and belongs to firm
+      const deal = await Lead.findOne({ _id: dealId, firmId }).lean();
       if (!deal) {
         logger.error('DealRoomService.createDealRoom: Deal not found', { dealId });
         return null;
@@ -93,7 +93,7 @@ class DealRoomService {
 
       // If not found, create one
       if (!dealRoom) {
-        const deal = await Lead.findById(dealId).lean();
+        const deal = await Lead.findOne({ _id: dealId, firmId }).lean();
         if (!deal) {
           logger.error('DealRoomService.getDealRoomByDeal: Deal not found', { dealId });
           return null;
@@ -126,11 +126,12 @@ class DealRoomService {
    * @param {String} title - Page title
    * @param {Object} content - Page content (block-based)
    * @param {String} userId - User creating the page
+   * @param {String} firmId - Firm ID
    * @returns {Promise<Object|null>} - Created page or null
    */
-  async addPage(dealRoomId, title, content, userId) {
+  async addPage(dealRoomId, title, content, userId, firmId) {
     try {
-      const dealRoom = await DealRoom.findById(dealRoomId);
+      const dealRoom = await DealRoom.findOne({ _id: dealRoomId, firmId });
       if (!dealRoom) {
         logger.error('DealRoomService.addPage: Deal room not found', { dealRoomId });
         return null;
@@ -158,11 +159,12 @@ class DealRoomService {
    * @param {String} pageId - Page ID
    * @param {Object} updates - Updates to apply (title and/or content)
    * @param {String} userId - User updating the page
+   * @param {String} firmId - Firm ID
    * @returns {Promise<Object|null>} - Updated deal room or null
    */
-  async updatePage(dealRoomId, pageId, updates, userId) {
+  async updatePage(dealRoomId, pageId, updates, userId, firmId) {
     try {
-      const dealRoom = await DealRoom.findById(dealRoomId);
+      const dealRoom = await DealRoom.findOne({ _id: dealRoomId, firmId });
       if (!dealRoom) {
         logger.error('DealRoomService.updatePage: Deal room not found', { dealRoomId });
         return null;
@@ -189,11 +191,12 @@ class DealRoomService {
    * @param {String} dealRoomId - Deal room ID
    * @param {String} pageId - Page ID
    * @param {String} userId - User deleting the page
+   * @param {String} firmId - Firm ID
    * @returns {Promise<Object|null>} - Updated deal room or null
    */
-  async deletePage(dealRoomId, pageId, userId) {
+  async deletePage(dealRoomId, pageId, userId, firmId) {
     try {
-      const dealRoom = await DealRoom.findById(dealRoomId);
+      const dealRoom = await DealRoom.findOne({ _id: dealRoomId, firmId });
       if (!dealRoom) {
         logger.error('DealRoomService.deletePage: Deal room not found', { dealRoomId });
         return null;
@@ -240,11 +243,12 @@ class DealRoomService {
    * @param {String} dealRoomId - Deal room ID
    * @param {Object} documentData - Document data (name, url, type, size)
    * @param {String} userId - User uploading the document
+   * @param {String} firmId - Firm ID
    * @returns {Promise<Object|null>} - Updated deal room or null
    */
-  async uploadDocument(dealRoomId, documentData, userId) {
+  async uploadDocument(dealRoomId, documentData, userId, firmId) {
     try {
-      const dealRoom = await DealRoom.findById(dealRoomId);
+      const dealRoom = await DealRoom.findOne({ _id: dealRoomId, firmId });
       if (!dealRoom) {
         logger.error('DealRoomService.uploadDocument: Deal room not found', { dealRoomId });
         return null;
@@ -270,11 +274,12 @@ class DealRoomService {
    * @param {String} dealRoomId - Deal room ID
    * @param {Number} documentIndex - Index of document in documents array
    * @param {String} userId - User viewing the document
+   * @param {String} firmId - Firm ID
    * @returns {Promise<Object|null>} - Updated deal room or null
    */
-  async trackDocumentView(dealRoomId, documentIndex, userId) {
+  async trackDocumentView(dealRoomId, documentIndex, userId, firmId) {
     try {
-      const dealRoom = await DealRoom.findById(dealRoomId);
+      const dealRoom = await DealRoom.findOne({ _id: dealRoomId, firmId });
       if (!dealRoom) {
         logger.error('DealRoomService.trackDocumentView: Deal room not found', { dealRoomId });
         return null;
@@ -301,11 +306,12 @@ class DealRoomService {
    * @param {String} dealRoomId - Deal room ID
    * @param {Object} accessData - Access data (email, name, company, permissions, expiresAt)
    * @param {String} userId - User granting access
+   * @param {String} firmId - Firm ID
    * @returns {Promise<Object|null>} - { dealRoom, accessToken, accessUrl } or null
    */
-  async grantExternalAccess(dealRoomId, accessData, userId) {
+  async grantExternalAccess(dealRoomId, accessData, userId, firmId) {
     try {
-      const dealRoom = await DealRoom.findById(dealRoomId);
+      const dealRoom = await DealRoom.findOne({ _id: dealRoomId, firmId });
       if (!dealRoom) {
         logger.error('DealRoomService.grantExternalAccess: Deal room not found', { dealRoomId });
         return null;
@@ -384,11 +390,12 @@ class DealRoomService {
    * @param {String} dealRoomId - Deal room ID
    * @param {String} accessToken - Access token to revoke
    * @param {String} userId - User revoking access
+   * @param {String} firmId - Firm ID
    * @returns {Promise<Object|null>} - Updated deal room or null
    */
-  async revokeExternalAccess(dealRoomId, accessToken, userId) {
+  async revokeExternalAccess(dealRoomId, accessToken, userId, firmId) {
     try {
-      const dealRoom = await DealRoom.findById(dealRoomId);
+      const dealRoom = await DealRoom.findOne({ _id: dealRoomId, firmId });
       if (!dealRoom) {
         logger.error('DealRoomService.revokeExternalAccess: Deal room not found', { dealRoomId });
         return null;
@@ -412,12 +419,13 @@ class DealRoomService {
   /**
    * Get activity feed
    * @param {String} dealRoomId - Deal room ID
+   * @param {String} firmId - Firm ID
    * @param {Number} limit - Number of activities to return (default 50)
    * @returns {Promise<Array>} - Activity array sorted by timestamp desc
    */
-  async getActivityFeed(dealRoomId, limit = 50) {
+  async getActivityFeed(dealRoomId, firmId, limit = 50) {
     try {
-      const dealRoom = await DealRoom.findById(dealRoomId)
+      const dealRoom = await DealRoom.findOne({ _id: dealRoomId, firmId })
         .populate('activity.userId', 'firstName lastName avatar')
         .lean();
 
@@ -441,11 +449,12 @@ class DealRoomService {
   /**
    * Get external viewers
    * @param {String} dealRoomId - Deal room ID
+   * @param {String} firmId - Firm ID
    * @returns {Promise<Array>} - External access with last access info
    */
-  async getExternalViewers(dealRoomId) {
+  async getExternalViewers(dealRoomId, firmId) {
     try {
-      const dealRoom = await DealRoom.findById(dealRoomId).lean();
+      const dealRoom = await DealRoom.findOne({ _id: dealRoomId, firmId }).lean();
 
       if (!dealRoom) {
         logger.error('DealRoomService.getExternalViewers: Deal room not found', { dealRoomId });
