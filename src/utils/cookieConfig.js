@@ -97,6 +97,15 @@ const getCookieDomain = (request) => {
         return undefined;
     }
 
+    // Check if the backend itself is on traf3li.com domain
+    // This handles OAuth callbacks where Origin/Referer come from external providers (Google, Microsoft)
+    const host = request.headers.host || '';
+    if (host === 'traf3li.com' || host.endsWith('.traf3li.com')) {
+        // Backend is on traf3li.com, set domain for cross-subdomain cookie sharing
+        return '.traf3li.com';
+    }
+
+    // Fallback: Check Origin/Referer headers
     const origin = request.headers.origin || request.headers.referer || '';
 
     // SECURITY FIX: Use proper URL parsing to prevent domain spoofing
