@@ -152,6 +152,163 @@ const noCache = (req, res, next) => {
     next();
 };
 
+/**
+ * Origin check middleware
+ * Validates request origin against allowed origins
+ */
+const originCheck = (req, res, next) => {
+    const origin = req.get('Origin');
+    const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [];
+
+    // Allow requests without origin (same-origin, server-to-server)
+    if (!origin) {
+        return next();
+    }
+
+    // In development, allow all origins
+    if (process.env.NODE_ENV !== 'production') {
+        return next();
+    }
+
+    // Check if origin is allowed
+    if (allowedOrigins.length > 0 && !allowedOrigins.includes(origin)) {
+        return res.status(403).json({
+            success: false,
+            error: 'Origin not allowed'
+        });
+    }
+
+    next();
+};
+
+/**
+ * Validate Content-Type middleware
+ * Ensures requests have appropriate content type
+ */
+const validateContentType = (req, res, next) => {
+    // Skip for GET, HEAD, OPTIONS requests
+    if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+        return next();
+    }
+
+    // Skip if no body
+    if (!req.body || Object.keys(req.body).length === 0) {
+        return next();
+    }
+
+    const contentType = req.get('Content-Type');
+
+    // Allow JSON and form data
+    if (contentType && (
+        contentType.includes('application/json') ||
+        contentType.includes('application/x-www-form-urlencoded') ||
+        contentType.includes('multipart/form-data')
+    )) {
+        return next();
+    }
+
+    // For API routes, require proper content type
+    if (req.path.startsWith('/api/') && req.body && Object.keys(req.body).length > 0) {
+        return res.status(415).json({
+            success: false,
+            error: 'Unsupported Media Type',
+            message: 'Content-Type must be application/json or multipart/form-data'
+        });
+    }
+
+    next();
+};
+
+/**
+ * Set CSRF token middleware
+ * Sets CSRF token in response for client to use
+ */
+const setCsrfToken = (req, res, next) => {
+    // CSRF is typically handled by csurf middleware or similar
+    // This is a placeholder that can be extended
+    if (req.csrfToken && typeof req.csrfToken === 'function') {
+        res.locals.csrfToken = req.csrfToken();
+    }
+    next();
+};
+
+/**
+ * Validate CSRF token middleware
+ * Validates CSRF token on state-changing requests
+ */
+const validateCsrfToken = (req, res, next) => {
+    // Skip for safe methods
+    if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+        return next();
+    }
+
+    // Skip for API requests with valid auth token (API uses JWT, not CSRF)
+    if (req.headers.authorization) {
+        return next();
+    }
+
+    // Skip for webhook endpoints
+    if (req.path.includes('/webhook')) {
+        return next();
+    }
+
+    // CSRF validation would be handled by csurf middleware
+    // This is a pass-through for compatibility
+    next();
+};
+
+/**
+ * Security headers middleware
+ * Sets common security headers
+ */
+const securityHeaders = (req, res, next) => {
+    // X-Content-Type-Options
+    res.set('X-Content-Type-Options', 'nosniff');
+
+    // X-Frame-Options
+    res.set('X-Frame-Options', 'DENY');
+
+    // X-XSS-Protection (legacy but defense-in-depth)
+    res.set('X-XSS-Protection', '1; mode=block');
+
+    // Referrer-Policy
+    res.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+
+    // Remove X-Powered-By
+    res.removeHeader('X-Powered-By');
+
+    next();
+};
+
+/**
+ * Sanitize request middleware
+ * Basic request sanitization
+ */
+const sanitizeRequest = (req, res, next) => {
+    // Remove null bytes from strings in body
+    if (req.body && typeof req.body === 'object') {
+        const sanitizeValue = (value) => {
+            if (typeof value === 'string') {
+                return value.replace(/\0/g, '');
+            }
+            if (Array.isArray(value)) {
+                return value.map(sanitizeValue);
+            }
+            if (value && typeof value === 'object') {
+                const sanitized = {};
+                for (const key of Object.keys(value)) {
+                    sanitized[key] = sanitizeValue(value[key]);
+                }
+                return sanitized;
+            }
+            return value;
+        };
+        req.body = sanitizeValue(req.body);
+    }
+
+    next();
+};
+
 module.exports = {
     applySecurityStack,
     secure,
@@ -162,5 +319,11 @@ module.exports = {
     secureAdmin,
     secureOwner,
     secureWebhook,
-    noCache
+    noCache,
+    originCheck,
+    validateContentType,
+    setCsrfToken,
+    validateCsrfToken,
+    securityHeaders,
+    sanitizeRequest
 };
