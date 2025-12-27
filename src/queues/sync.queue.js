@@ -192,15 +192,19 @@ async function syncBankTransactions(data, job) {
  * Sync payment status
  */
 async function syncPaymentStatus(data, job) {
-  const { paymentId, paymentProvider } = data;
+  const { paymentId, paymentProvider, firmId } = data;
+
+  if (!firmId) {
+    throw new Error('firmId is required for payment sync');
+  }
 
   await job.progress(20);
 
   const Payment = require('../models/payment.model');
-  const payment = await Payment.findById(paymentId);
+  const payment = await Payment.findOne({ _id: paymentId, firmId });
 
   if (!payment) {
-    throw new Error('Payment not found');
+    throw new Error('Payment not found or access denied');
   }
 
   await job.progress(40);
@@ -249,7 +253,11 @@ async function syncPaymentStatus(data, job) {
  * Sync ZATCA invoice
  */
 async function syncZATCAInvoice(data, job) {
-  const { invoiceId } = data;
+  const { invoiceId, firmId } = data;
+
+  if (!firmId) {
+    throw new Error('firmId is required for ZATCA invoice sync');
+  }
 
   await job.progress(10);
 
@@ -258,10 +266,10 @@ async function syncZATCAInvoice(data, job) {
 
   await job.progress(20);
 
-  const invoice = await Invoice.findById(invoiceId);
+  const invoice = await Invoice.findOne({ _id: invoiceId, firmId });
 
   if (!invoice) {
-    throw new Error('Invoice not found');
+    throw new Error('Invoice not found or access denied');
   }
 
   await job.progress(30);
@@ -292,7 +300,11 @@ async function syncZATCAInvoice(data, job) {
  * Sync Mudad payment
  */
 async function syncMudadPayment(data, job) {
-  const { paymentId } = data;
+  const { paymentId, firmId } = data;
+
+  if (!firmId) {
+    throw new Error('firmId is required for Mudad payment sync');
+  }
 
   await job.progress(20);
 
@@ -305,10 +317,10 @@ async function syncMudadPayment(data, job) {
 
   await job.progress(70);
 
-  // Update payment record
+  // Update payment record - ensure firmId match
   const Payment = require('../models/payment.model');
   await Payment.findOneAndUpdate(
-    { mudadBillNumber: paymentId },
+    { mudadBillNumber: paymentId, firmId },
     {
       status: status.isPaid ? 'completed' : 'pending',
       paidAt: status.isPaid ? new Date(status.paidAt) : null,
@@ -330,7 +342,11 @@ async function syncMudadPayment(data, job) {
  * Sync Wathq contract
  */
 async function syncWathqContract(data, job) {
-  const { contractId } = data;
+  const { contractId, firmId } = data;
+
+  if (!firmId) {
+    throw new Error('firmId is required for Wathq contract sync');
+  }
 
   await job.progress(20);
 
@@ -343,14 +359,17 @@ async function syncWathqContract(data, job) {
 
   await job.progress(70);
 
-  // Update contract record
+  // Update contract record - ensure firmId match
   // Assuming you have a Contract model
   const Contract = require('../models/contract.model');
-  await Contract.findByIdAndUpdate(contractId, {
-    wathqStatus: status.status,
-    wathqVerified: status.verified,
-    wathqVerifiedAt: status.verified ? new Date() : null
-  });
+  await Contract.findOneAndUpdate(
+    { _id: contractId, firmId },
+    {
+      wathqStatus: status.status,
+      wathqVerified: status.verified,
+      wathqVerifiedAt: status.verified ? new Date() : null
+    }
+  );
 
   await job.progress(100);
 

@@ -744,6 +744,9 @@ const exportUsers = async (req, res) => {
         );
 
         if (format === 'csv') {
+            // SECURITY: Import sanitization function to prevent CSV injection
+            const { sanitizeForCSV } = require('../utils/securityUtils');
+
             // Convert to CSV
             const csvRows = [];
 
@@ -753,16 +756,16 @@ const exportUsers = async (req, res) => {
             // Data
             users.forEach(user => {
                 csvRows.push([
-                    user.firstName || '',
-                    user.lastName || '',
-                    user.email || '',
-                    user.role || '',
-                    user.status || '',
-                    user.isVerified ? 'Yes' : 'No',
-                    user.createdAt ? new Date(user.createdAt).toISOString() : '',
-                    user.lastLogin ? new Date(user.lastLogin).toISOString() : '',
-                    user.phone || '',
-                    user.firmId?.name || ''
+                    sanitizeForCSV(user.firstName || ''),
+                    sanitizeForCSV(user.lastName || ''),
+                    sanitizeForCSV(user.email || ''),
+                    sanitizeForCSV(user.role || ''),
+                    sanitizeForCSV(user.status || ''),
+                    sanitizeForCSV(user.isVerified ? 'Yes' : 'No'),
+                    sanitizeForCSV(user.createdAt ? new Date(user.createdAt).toISOString() : ''),
+                    sanitizeForCSV(user.lastLogin ? new Date(user.lastLogin).toISOString() : ''),
+                    sanitizeForCSV(user.phone || ''),
+                    sanitizeForCSV(user.firmId?.name || '')
                 ].map(field => `"${field}"`).join(','));
             });
 

@@ -1522,6 +1522,9 @@ const exportCompensation = asyncHandler(async (req, res) => {
         .lean();
 
     if (format === 'csv') {
+        // SECURITY: Import sanitization function to prevent CSV injection
+        const { sanitizeForCSV } = require('../utils/securityUtils');
+
         const headers = [
             'Record Number', 'Employee Name', 'Employee Number', 'Department',
             'Job Title', 'Pay Grade', 'Basic Salary', 'Total Allowances', 'Gross Salary',
@@ -1529,20 +1532,20 @@ const exportCompensation = asyncHandler(async (req, res) => {
         ];
 
         const rows = records.map(r => [
-            r.recordNumber,
-            r.employeeName,
-            r.employeeNumber,
-            r.department,
-            r.jobTitle,
-            r.payGrade,
-            r.basicSalary,
-            r.totalAllowances,
-            r.grossSalary,
-            r.compaRatio,
-            r.compaRatioCategory,
-            r.effectiveDate?.toISOString().split('T')[0],
-            r.status,
-            r.currency
+            sanitizeForCSV(r.recordNumber),
+            sanitizeForCSV(r.employeeName),
+            sanitizeForCSV(r.employeeNumber),
+            sanitizeForCSV(r.department),
+            sanitizeForCSV(r.jobTitle),
+            sanitizeForCSV(r.payGrade),
+            sanitizeForCSV(r.basicSalary),
+            sanitizeForCSV(r.totalAllowances),
+            sanitizeForCSV(r.grossSalary),
+            sanitizeForCSV(r.compaRatio),
+            sanitizeForCSV(r.compaRatioCategory),
+            sanitizeForCSV(r.effectiveDate?.toISOString().split('T')[0]),
+            sanitizeForCSV(r.status),
+            sanitizeForCSV(r.currency)
         ]);
 
         const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');

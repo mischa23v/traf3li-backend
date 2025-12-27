@@ -7,6 +7,12 @@ const billingRateSchema = new mongoose.Schema({
         required: true,
         index: true
     },
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false
+    },
     rateType: {
         type: String,
         enum: ['standard', 'custom_client', 'custom_case_type', 'activity_based'],
@@ -70,6 +76,7 @@ const billingRateSchema = new mongoose.Schema({
 billingRateSchema.index({ lawyerId: 1, effectiveDate: -1 });
 billingRateSchema.index({ clientId: 1, lawyerId: 1 });
 billingRateSchema.index({ lawyerId: 1, isActive: 1 });
+billingRateSchema.index({ firmId: 1, lawyerId: 1 });
 
 // Static method: Get applicable rate
 billingRateSchema.statics.getApplicableRate = async function(lawyerId, clientId, caseType, activityCode) {

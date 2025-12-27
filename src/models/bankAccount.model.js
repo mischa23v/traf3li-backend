@@ -25,6 +25,12 @@ const bankAccountSchema = new mongoose.Schema({
         trim: true,
         index: true
     },
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false
+    },
     name: {
         type: String,
         required: true,
@@ -157,6 +163,7 @@ const bankAccountSchema = new mongoose.Schema({
 bankAccountSchema.index({ lawyerId: 1, type: 1 });
 bankAccountSchema.index({ lawyerId: 1, isActive: 1 });
 bankAccountSchema.index({ lawyerId: 1, currency: 1 });
+bankAccountSchema.index({ firmId: 1, isActive: 1 });
 bankAccountSchema.index({ name: 'text', accountNumber: 'text', bankName: 'text' });
 
 // Pre-save hook to ensure only one default account per user

@@ -344,7 +344,16 @@ const getExpense = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const expense = await Expense.findById(id)
+    // IDOR Protection: Build query with firmId/lawyerId check
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: id };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
+
+    const expense = await Expense.findOne(query)
         .populate('caseId', 'title caseNumber category')
         .populate('clientId', 'firstName lastName companyName email phone')
         .populate('employeeId', 'firstName lastName email')
@@ -358,16 +367,6 @@ const getExpense = asyncHandler(async (req, res) => {
 
     if (!expense) {
         throw CustomException('Expense not found', 404);
-    }
-
-    // Check access - solo lawyer or no firmId uses lawyerId
-    const isSoloLawyer = req.isSoloLawyer;
-    const hasAccess = (isSoloLawyer || !firmId)
-        ? expense.lawyerId._id.toString() === lawyerId
-        : expense.firmId && expense.firmId.toString() === firmId.toString();
-
-    if (!hasAccess) {
-        throw CustomException('You do not have access to this expense', 403);
     }
 
     return res.json({
@@ -390,20 +389,19 @@ const updateExpense = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const expense = await Expense.findById(id);
+    // IDOR Protection: Build query with firmId/lawyerId check
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: id };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
+
+    const expense = await Expense.findOne(query);
 
     if (!expense) {
         throw CustomException('Expense not found', 404);
-    }
-
-    // IDOR Protection: Check access - solo lawyer or no firmId uses lawyerId
-    const isSoloLawyer = req.isSoloLawyer;
-    const hasAccess = (isSoloLawyer || !firmId)
-        ? expense.lawyerId.toString() === lawyerId
-        : expense.firmId && expense.firmId.toString() === firmId.toString();
-
-    if (!hasAccess) {
-        throw CustomException('You do not have access to this expense', 403);
     }
 
     // Don't allow editing if already approved, reimbursed or billed
@@ -487,20 +485,19 @@ const deleteExpense = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const expense = await Expense.findById(id);
+    // IDOR Protection: Build query with firmId/lawyerId check
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: id };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
+
+    const expense = await Expense.findOne(query);
 
     if (!expense) {
         throw CustomException('Expense not found', 404);
-    }
-
-    // Check access - solo lawyer or no firmId uses lawyerId
-    const isSoloLawyer = req.isSoloLawyer;
-    const hasAccess = (isSoloLawyer || !firmId)
-        ? expense.lawyerId.toString() === lawyerId
-        : expense.firmId && expense.firmId.toString() === firmId.toString();
-
-    if (!hasAccess) {
-        throw CustomException('You do not have access to this expense', 403);
     }
 
     // Don't allow deleting if approved, reimbursed or billed
@@ -548,20 +545,19 @@ const submitExpense = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const expense = await Expense.findById(id);
+    // IDOR Protection: Build query with firmId/lawyerId check
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: id };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
+
+    const expense = await Expense.findOne(query);
 
     if (!expense) {
         throw CustomException('Expense not found', 404);
-    }
-
-    // Check access
-    const isSoloLawyer = req.isSoloLawyer;
-    const hasAccess = (isSoloLawyer || !firmId)
-        ? expense.lawyerId.toString() === lawyerId
-        : expense.firmId && expense.firmId.toString() === firmId.toString();
-
-    if (!hasAccess) {
-        throw CustomException('You do not have access to this expense', 403);
     }
 
     // Use the model method
@@ -604,20 +600,19 @@ const approveExpense = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const expense = await Expense.findById(id);
+    // IDOR Protection: Build query with firmId/lawyerId check
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: id };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
+
+    const expense = await Expense.findOne(query);
 
     if (!expense) {
         throw CustomException('Expense not found', 404);
-    }
-
-    // Check access
-    const isSoloLawyer = req.isSoloLawyer;
-    const hasAccess = (isSoloLawyer || !firmId)
-        ? expense.lawyerId.toString() === lawyerId
-        : expense.firmId && expense.firmId.toString() === firmId.toString();
-
-    if (!hasAccess) {
-        throw CustomException('You do not have access to this expense', 403);
     }
 
     // Check permission to approve
@@ -684,20 +679,19 @@ const rejectExpense = asyncHandler(async (req, res) => {
         throw CustomException('Rejection reason is required', 400);
     }
 
-    const expense = await Expense.findById(id);
+    // IDOR Protection: Build query with firmId/lawyerId check
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: id };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
+
+    const expense = await Expense.findOne(query);
 
     if (!expense) {
         throw CustomException('Expense not found', 404);
-    }
-
-    // Check access
-    const isSoloLawyer = req.isSoloLawyer;
-    const hasAccess = (isSoloLawyer || !firmId)
-        ? expense.lawyerId.toString() === lawyerId
-        : expense.firmId && expense.firmId.toString() === firmId.toString();
-
-    if (!hasAccess) {
-        throw CustomException('You do not have access to this expense', 403);
     }
 
     // Check permission to reject
@@ -745,20 +739,19 @@ const markAsReimbursed = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const expense = await Expense.findById(id);
+    // IDOR Protection: Build query with firmId/lawyerId check
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: id };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
+
+    const expense = await Expense.findOne(query);
 
     if (!expense) {
         throw CustomException('Expense not found', 404);
-    }
-
-    // Check access
-    const isSoloLawyer = req.isSoloLawyer;
-    const hasAccess = (isSoloLawyer || !firmId)
-        ? expense.lawyerId.toString() === lawyerId
-        : expense.firmId && expense.firmId.toString() === firmId.toString();
-
-    if (!hasAccess) {
-        throw CustomException('You do not have access to this expense', 403);
     }
 
     // Use the model method
@@ -936,20 +929,19 @@ const uploadReceipt = asyncHandler(async (req, res) => {
         throw CustomException('Receipt URL is required', 400);
     }
 
-    const expense = await Expense.findById(id);
+    // IDOR Protection: Build query with firmId/lawyerId check
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: id };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
+
+    const expense = await Expense.findOne(query);
 
     if (!expense) {
         throw CustomException('Expense not found', 404);
-    }
-
-    // Check access
-    const isSoloLawyer = req.isSoloLawyer;
-    const hasAccess = (isSoloLawyer || !firmId)
-        ? expense.lawyerId.toString() === lawyerId
-        : expense.firmId && expense.firmId.toString() === firmId.toString();
-
-    if (!hasAccess) {
-        throw CustomException('You do not have access to this expense', 403);
     }
 
     const attachment = {
@@ -1075,23 +1067,23 @@ const bulkApproveExpenses = asyncHandler(async (req, res) => {
         failed: []
     };
 
+    // IDOR Protection: Build base query with firmId/lawyerId check
+    const isSoloLawyer = req.isSoloLawyer;
+
     for (const expenseId of expenseIds) {
         try {
-            const expense = await Expense.findById(expenseId);
+            // Build query with firmId/lawyerId check
+            const query = { _id: expenseId };
+            if (isSoloLawyer || !firmId) {
+                query.lawyerId = lawyerId;
+            } else {
+                query.firmId = firmId;
+            }
+
+            const expense = await Expense.findOne(query);
 
             if (!expense) {
                 results.failed.push({ id: expenseId, error: 'Not found' });
-                continue;
-            }
-
-            // Check access
-            const isSoloLawyer = req.isSoloLawyer;
-            const hasAccess = (isSoloLawyer || !firmId)
-                ? expense.lawyerId.toString() === lawyerId
-                : expense.firmId && expense.firmId.toString() === firmId.toString();
-
-            if (!hasAccess) {
-                results.failed.push({ id: expenseId, error: 'No access' });
                 continue;
             }
 

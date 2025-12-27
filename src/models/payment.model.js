@@ -30,6 +30,7 @@ const PAYMENT_METHODS = [
 
 const PAYMENT_STATUSES = [
     'pending',
+    'processing',
     'completed',
     'failed',
     'cancelled',
@@ -211,6 +212,16 @@ const paymentSchema = new mongoose.Schema({
     },
     transactionId: String,
     gatewayResponse: mongoose.Schema.Types.Mixed,
+
+    // ═══════════════════════════════════════════════════════════════
+    // IDEMPOTENCY - SECURITY: Prevent duplicate payment processing
+    // ═══════════════════════════════════════════════════════════════
+    idempotencyKey: {
+        type: String,
+        sparse: true,
+        unique: true,
+        index: true
+    },
 
     // ═══════════════════════════════════════════════════════════════
     // INVOICE APPLICATIONS

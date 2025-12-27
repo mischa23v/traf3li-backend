@@ -11,6 +11,12 @@ const orderSchema = new mongoose.Schema({
         ref: 'Job',
         required: false,
     },
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false
+    },
     image: {
         type: String,
         required: false,
@@ -70,5 +76,6 @@ const orderSchema = new mongoose.Schema({
 
 orderSchema.index({ sellerID: 1, status: 1 });
 orderSchema.index({ buyerID: 1, status: 1 });
+orderSchema.index({ firmId: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Order', orderSchema);

@@ -347,6 +347,9 @@ class AuditLogService {
       return '';
     }
 
+    // SECURITY: Import sanitization function to prevent CSV injection
+    const { sanitizeForCSV } = require('../utils/securityUtils');
+
     const headers = [
       'Timestamp',
       'User Email',
@@ -362,17 +365,17 @@ class AuditLogService {
     ];
 
     const csvRows = logs.map(log => [
-      log.timestamp?.toISOString() || '',
-      log.userEmail || '',
-      log.userName || (log.userId?.firstName ? `${log.userId.firstName} ${log.userId.lastName || ''}` : ''),
-      log.action || '',
-      log.entityType || log.resourceType || '',
-      log.entityId || log.resourceId || '',
-      log.status || '',
-      log.ipAddress || '',
-      log.userAgent || '',
-      log.severity || '',
-      JSON.stringify(log.details || {}).replace(/"/g, '""')
+      sanitizeForCSV(log.timestamp?.toISOString() || ''),
+      sanitizeForCSV(log.userEmail || ''),
+      sanitizeForCSV(log.userName || (log.userId?.firstName ? `${log.userId.firstName} ${log.userId.lastName || ''}` : '')),
+      sanitizeForCSV(log.action || ''),
+      sanitizeForCSV(log.entityType || log.resourceType || ''),
+      sanitizeForCSV(log.entityId || log.resourceId || ''),
+      sanitizeForCSV(log.status || ''),
+      sanitizeForCSV(log.ipAddress || ''),
+      sanitizeForCSV(log.userAgent || ''),
+      sanitizeForCSV(log.severity || ''),
+      sanitizeForCSV(JSON.stringify(log.details || {}).replace(/"/g, '""'))
     ]);
 
     const csv = [

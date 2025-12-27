@@ -6,6 +6,12 @@ const gigSchema = new mongoose.Schema({
         ref: 'User',
         required: true
     },
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false
+    },
     title: {
         type: String,
         required: true,
@@ -88,5 +94,6 @@ const gigSchema = new mongoose.Schema({
 });
 
 gigSchema.index({ category: 1, price: 1, totalStars: -1 });
+gigSchema.index({ firmId: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Gig', gigSchema);

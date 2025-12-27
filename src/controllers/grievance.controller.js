@@ -1886,6 +1886,9 @@ const exportGrievances = asyncHandler(async (req, res) => {
         .lean();
 
     if (format === 'csv') {
+        // SECURITY: Import sanitization function to prevent CSV injection
+        const { sanitizeForCSV } = require('../utils/securityUtils');
+
         const headers = [
             'Grievance ID', 'Employee Name', 'Employee Number', 'Department',
             'Type', 'Category', 'Subject', 'Filed Date', 'Status',
@@ -1893,19 +1896,19 @@ const exportGrievances = asyncHandler(async (req, res) => {
         ];
 
         const rows = grievances.map(g => [
-            g.grievanceId,
-            g.employeeName,
-            g.employeeNumber,
-            g.department,
-            g.grievanceType,
-            g.grievanceCategory,
-            g.grievanceSubject,
-            g.filedDate?.toISOString().split('T')[0],
-            g.status,
-            g.priority,
-            g.severity,
-            g.resolution?.resolutionDate?.toISOString().split('T')[0] || '',
-            g.resolution?.decision?.outcome || ''
+            sanitizeForCSV(g.grievanceId),
+            sanitizeForCSV(g.employeeName),
+            sanitizeForCSV(g.employeeNumber),
+            sanitizeForCSV(g.department),
+            sanitizeForCSV(g.grievanceType),
+            sanitizeForCSV(g.grievanceCategory),
+            sanitizeForCSV(g.grievanceSubject),
+            sanitizeForCSV(g.filedDate?.toISOString().split('T')[0]),
+            sanitizeForCSV(g.status),
+            sanitizeForCSV(g.priority),
+            sanitizeForCSV(g.severity),
+            sanitizeForCSV(g.resolution?.resolutionDate?.toISOString().split('T')[0] || ''),
+            sanitizeForCSV(g.resolution?.decision?.outcome || '')
         ]);
 
         const csv = [headers.join(','), ...rows.map(r => r.map(c => `"${c || ''}"`).join(','))].join('\n');

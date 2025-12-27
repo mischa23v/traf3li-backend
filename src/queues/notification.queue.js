@@ -127,7 +127,19 @@ async function sendPushNotification(data, job) {
  * Send in-app notification
  */
 async function sendInAppNotification(data, job) {
-  const { userId, title, message, type, link, metadata } = data;
+  const { userId, title, message, type, link, metadata, firmId } = data;
+
+  // If firmId is provided, verify the user belongs to that firm
+  if (firmId) {
+    await job.progress(20);
+
+    const User = require('../models/user.model');
+    const user = await User.findOne({ _id: userId, firmId });
+
+    if (!user) {
+      throw new Error('User not found in the specified firm - access denied');
+    }
+  }
 
   await job.progress(30);
 
@@ -144,6 +156,7 @@ async function sendInAppNotification(data, job) {
     type: type || 'info',
     link,
     metadata,
+    ...(firmId && { firmId }), // Include firmId if provided
     isRead: false,
     createdAt: new Date()
   });

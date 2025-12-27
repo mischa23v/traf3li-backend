@@ -2361,14 +2361,18 @@ const exportTrainings = asyncHandler(async (req, res) => {
     }));
 
     if (format === 'csv') {
+        // SECURITY: Import sanitization function to prevent CSV injection
+        const { sanitizeForCSV } = require('../utils/securityUtils');
+
         // Return CSV format
         const headers = Object.keys(exportData[0] || {}).join(',');
         const rows = exportData.map(row =>
-            Object.values(row).map(v =>
-                v === null || v === undefined ? '' :
-                    typeof v === 'string' && v.includes(',') ? `"${v}"` :
-                        v instanceof Date ? v.toISOString() : v
-            ).join(',')
+            Object.values(row).map(v => {
+                const val = v === null || v === undefined ? '' :
+                    v instanceof Date ? v.toISOString() : v;
+                const sanitized = sanitizeForCSV(val);
+                return typeof sanitized === 'string' && sanitized.includes(',') ? `"${sanitized}"` : sanitized;
+            }).join(',')
         );
         const csv = [headers, ...rows].join('\n');
 

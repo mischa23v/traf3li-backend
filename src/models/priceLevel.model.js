@@ -128,6 +128,12 @@ const priceLevelSchema = new mongoose.Schema({
     },
 
     // Ownership
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false
+    },
     lawyerId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
@@ -151,6 +157,7 @@ const priceLevelSchema = new mongoose.Schema({
 });
 
 // Indexes
+priceLevelSchema.index({ firmId: 1, lawyerId: 1 });
 priceLevelSchema.index({ lawyerId: 1, isActive: 1 });
 priceLevelSchema.index({ lawyerId: 1, priority: -1 });
 priceLevelSchema.index({ code: 1, lawyerId: 1 }, { unique: true });

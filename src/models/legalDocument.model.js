@@ -1,6 +1,12 @@
 const mongoose = require('mongoose');
 
 const legalDocumentSchema = new mongoose.Schema({
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false
+    },
     title: {
         type: String,
         required: true
@@ -59,5 +65,6 @@ const legalDocumentSchema = new mongoose.Schema({
 
 legalDocumentSchema.index({ title: 'text', summary: 'text', keywords: 1 });
 legalDocumentSchema.index({ category: 1, type: 1 });
+legalDocumentSchema.index({ firmId: 1, createdAt: -1 });
 
 module.exports = mongoose.model('LegalDocument', legalDocumentSchema);

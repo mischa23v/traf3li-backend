@@ -406,10 +406,15 @@ const updateSettings = asyncHandler(async (req, res) => {
 /**
  * Handle incoming webhook from Telegram
  * POST /api/telegram/webhook/:firmId
+ *
+ * Security: Validates X-Telegram-Bot-Api-Secret-Token header against stored webhook secret
  */
 const handleWebhook = asyncHandler(async (req, res) => {
     const { firmId } = req.params;
     const update = req.body;
+
+    // Extract and validate Telegram webhook secret token from header
+    // This token is set when configuring the webhook and must match for security
     const secretToken = req.headers['x-telegram-bot-api-secret-token'];
 
     // Validate firmId
@@ -424,6 +429,7 @@ const handleWebhook = asyncHandler(async (req, res) => {
     }
 
     try {
+        // Service layer will validate the secret token against stored value
         const result = await telegramService.handleWebhook(sanitizedFirmId, update, secretToken);
 
         res.json({

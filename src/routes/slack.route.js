@@ -1,5 +1,6 @@
 const express = require('express');
 const { userMiddleware } = require('../middlewares');
+const { createWebhookAuth } = require('../middlewares/webhookAuth.middleware');
 const {
     getAuthUrl,
     handleCallback,
@@ -162,10 +163,10 @@ router.put('/settings', userMiddleware, updateSettings);
  * Receives events from Slack (messages, mentions, etc.)
  * This endpoint is called by Slack, not by the frontend.
  *
- * Note: No authentication middleware - Slack signature verification
- * is handled in the controller.
+ * Security: Slack signature verification using HMAC-SHA256
+ * Validates x-slack-signature header with x-slack-request-timestamp
  */
-router.post('/webhook', handleWebhook);
+router.post('/webhook', createWebhookAuth('slack'), handleWebhook);
 
 // ═══════════════════════════════════════════════════════════════
 // USER INFO

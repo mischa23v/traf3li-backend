@@ -10,6 +10,12 @@ const messageSchema = new mongoose.Schema({
         ref: 'User',
         required: true,
     },
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false
+    },
     description: {
         type: String,
         required: false, // ✅ CHANGED: Not required if there's an attachment
@@ -48,5 +54,7 @@ const messageSchema = new mongoose.Schema({
     timestamps: true,
     versionKey: false
 });
+
+messageSchema.index({ firmId: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Message', messageSchema);

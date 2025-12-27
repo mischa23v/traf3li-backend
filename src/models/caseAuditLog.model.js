@@ -12,6 +12,12 @@ const caseAuditLogSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
+  firmId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Firm',
+    index: true,
+    required: false
+  },
   action: {
     type: String,
     enum: ['create', 'update', 'delete', 'view'],
@@ -49,6 +55,9 @@ caseAuditLogSchema.index({ caseId: 1, createdAt: -1 });
 
 // Index for user activity
 caseAuditLogSchema.index({ userId: 1, createdAt: -1 });
+
+// Index for firm activity
+caseAuditLogSchema.index({ firmId: 1, createdAt: -1 });
 
 // Index for resource type queries
 caseAuditLogSchema.index({ resource: 1, createdAt: -1 });

@@ -693,7 +693,15 @@ app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 
 // ✅ PERFORMANCE: JSON body parser with size limit
-app.use(express.json({ limit: '10mb' })); // Prevent large payload attacks
+// ✅ SECURITY: Preserve raw body for webhook signature validation
+app.use(express.json({
+    limit: '10mb', // Prevent large payload attacks
+    verify: (req, res, buf, encoding) => {
+        // Save raw body for webhook signature verification
+        // Required by: Stripe, Zoom, DocuSign, Slack, GitHub, and other webhook providers
+        req.rawBody = buf.toString(encoding || 'utf8');
+    }
+}));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 

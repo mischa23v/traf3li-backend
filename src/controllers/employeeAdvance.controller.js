@@ -321,7 +321,12 @@ const getAdvance = asyncHandler(async (req, res) => {
         throw CustomException('Invalid advance ID', 400);
     }
 
-    const advance = await EmployeeAdvance.findById(advanceId)
+    // IDOR PROTECTION - Query includes firmId/lawyerId to ensure advance belongs to user
+    const accessQuery = firmId
+        ? { _id: advanceId, firmId }
+        : { _id: advanceId, lawyerId };
+
+    const advance = await EmployeeAdvance.findOne(accessQuery)
         .populate('employeeId', 'employeeId personalInfo employment compensation')
         .populate('createdBy', 'firstName lastName')
         .populate('lastModifiedBy', 'firstName lastName')
@@ -331,15 +336,6 @@ const getAdvance = asyncHandler(async (req, res) => {
 
     if (!advance) {
         throw CustomException('Advance not found', 404);
-    }
-
-    // IDOR PROTECTION - Check access
-    const hasAccess = firmId
-        ? advance.firmId?.toString() === firmId.toString()
-        : advance.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
     }
 
     return res.json({
@@ -657,19 +653,15 @@ const updateAdvance = asyncHandler(async (req, res) => {
         throw CustomException('Invalid advance ID', 400);
     }
 
-    const advance = await EmployeeAdvance.findById(advanceId);
+    // IDOR PROTECTION - Query includes firmId/lawyerId to ensure advance belongs to user
+    const accessQuery = firmId
+        ? { _id: advanceId, firmId }
+        : { _id: advanceId, lawyerId };
+
+    const advance = await EmployeeAdvance.findOne(accessQuery);
 
     if (!advance) {
         throw CustomException('Advance not found', 404);
-    }
-
-    // IDOR PROTECTION - Check access
-    const hasAccess = firmId
-        ? advance.firmId?.toString() === firmId.toString()
-        : advance.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
     }
 
     // Prevent updates if disbursed or completed
@@ -750,19 +742,15 @@ const deleteAdvance = asyncHandler(async (req, res) => {
         throw CustomException('Invalid advance ID', 400);
     }
 
-    const advance = await EmployeeAdvance.findById(advanceId);
+    // IDOR PROTECTION - Query includes firmId/lawyerId to ensure advance belongs to user
+    const accessQuery = firmId
+        ? { _id: advanceId, firmId }
+        : { _id: advanceId, lawyerId };
+
+    const advance = await EmployeeAdvance.findOne(accessQuery);
 
     if (!advance) {
         throw CustomException('Advance not found', 404);
-    }
-
-    // IDOR PROTECTION - Check access
-    const hasAccess = firmId
-        ? advance.firmId?.toString() === firmId.toString()
-        : advance.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
     }
 
     // Only allow deletion if pending or rejected
@@ -797,19 +785,15 @@ const approveAdvance = asyncHandler(async (req, res) => {
     const safeData = pickAllowedFields(req.body, allowedFields);
     const { approvedAmount, approvedInstallments, comments, conditions } = safeData;
 
-    const advance = await EmployeeAdvance.findById(advanceId);
+    // IDOR PROTECTION - Query includes firmId/lawyerId to ensure advance belongs to user
+    const accessQuery = firmId
+        ? { _id: advanceId, firmId }
+        : { _id: advanceId, lawyerId };
+
+    const advance = await EmployeeAdvance.findOne(accessQuery);
 
     if (!advance) {
         throw CustomException('Advance not found', 404);
-    }
-
-    // IDOR PROTECTION - Check access
-    const hasAccess = firmId
-        ? advance.firmId?.toString() === firmId.toString()
-        : advance.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
     }
 
     if (advance.status !== 'pending') {
@@ -953,19 +937,15 @@ const rejectAdvance = asyncHandler(async (req, res) => {
     const safeData = pickAllowedFields(req.body, allowedFields);
     const { rejectionReason, comments } = safeData;
 
-    const advance = await EmployeeAdvance.findById(advanceId);
+    // IDOR PROTECTION - Query includes firmId/lawyerId to ensure advance belongs to user
+    const accessQuery = firmId
+        ? { _id: advanceId, firmId }
+        : { _id: advanceId, lawyerId };
+
+    const advance = await EmployeeAdvance.findOne(accessQuery);
 
     if (!advance) {
         throw CustomException('Advance not found', 404);
-    }
-
-    // IDOR PROTECTION - Check access
-    const hasAccess = firmId
-        ? advance.firmId?.toString() === firmId.toString()
-        : advance.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
     }
 
     if (advance.status !== 'pending') {
@@ -1044,21 +1024,16 @@ const disburseAdvance = asyncHandler(async (req, res) => {
     session.startTransaction();
 
     try {
-        const advance = await EmployeeAdvance.findById(advanceId).session(session);
+        // IDOR PROTECTION - Query includes firmId/lawyerId to ensure advance belongs to user
+        const accessQuery = firmId
+            ? { _id: advanceId, firmId }
+            : { _id: advanceId, lawyerId };
+
+        const advance = await EmployeeAdvance.findOne(accessQuery).session(session);
 
         if (!advance) {
             await session.abortTransaction();
             throw CustomException('Advance not found', 404);
-        }
-
-        // IDOR PROTECTION - Check access
-        const hasAccess = firmId
-            ? advance.firmId?.toString() === firmId.toString()
-            : advance.lawyerId?.toString() === lawyerId;
-
-        if (!hasAccess) {
-            await session.abortTransaction();
-            throw CustomException('Access denied', 403);
         }
 
         if (advance.status !== 'approved') {
@@ -1225,21 +1200,16 @@ const recordRecovery = asyncHandler(async (req, res) => {
     session.startTransaction();
 
     try {
-        const advance = await EmployeeAdvance.findById(advanceId).session(session);
+        // IDOR PROTECTION - Query includes firmId/lawyerId to ensure advance belongs to user
+        const accessQuery = firmId
+            ? { _id: advanceId, firmId }
+            : { _id: advanceId, lawyerId };
+
+        const advance = await EmployeeAdvance.findOne(accessQuery).session(session);
 
         if (!advance) {
             await session.abortTransaction();
             throw CustomException('Advance not found', 404);
-        }
-
-        // IDOR PROTECTION - Check access
-        const hasAccess = firmId
-            ? advance.firmId?.toString() === firmId.toString()
-            : advance.lawyerId?.toString() === lawyerId;
-
-        if (!hasAccess) {
-            await session.abortTransaction();
-            throw CustomException('Access denied', 403);
         }
 
         if (!['disbursed', 'recovering'].includes(advance.status)) {
@@ -1898,19 +1868,15 @@ const uploadDocument = asyncHandler(async (req, res) => {
     const safeData = pickAllowedFields(req.body, allowedFields);
     const { documentType, documentName, documentNameAr, fileUrl, notes } = safeData;
 
-    const advance = await EmployeeAdvance.findById(advanceId);
+    // IDOR PROTECTION - Query includes firmId/lawyerId to ensure advance belongs to user
+    const accessQuery = firmId
+        ? { _id: advanceId, firmId }
+        : { _id: advanceId, lawyerId };
+
+    const advance = await EmployeeAdvance.findOne(accessQuery);
 
     if (!advance) {
         throw CustomException('Advance not found', 404);
-    }
-
-    // IDOR PROTECTION - Check access
-    const hasAccess = firmId
-        ? advance.firmId?.toString() === firmId.toString()
-        : advance.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
     }
 
     if (!documentType || !fileUrl) {
@@ -1958,19 +1924,15 @@ const addCommunication = asyncHandler(async (req, res) => {
     const safeData = pickAllowedFields(req.body, allowedFields);
     const { communicationType, purpose, subject, message, sentTo, attachments } = safeData;
 
-    const advance = await EmployeeAdvance.findById(advanceId);
+    // IDOR PROTECTION - Query includes firmId/lawyerId to ensure advance belongs to user
+    const accessQuery = firmId
+        ? { _id: advanceId, firmId }
+        : { _id: advanceId, lawyerId };
+
+    const advance = await EmployeeAdvance.findOne(accessQuery);
 
     if (!advance) {
         throw CustomException('Advance not found', 404);
-    }
-
-    // IDOR PROTECTION - Check access
-    const hasAccess = firmId
-        ? advance.firmId?.toString() === firmId.toString()
-        : advance.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
     }
 
     const communication = {

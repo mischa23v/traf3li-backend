@@ -37,6 +37,12 @@ const billingActivitySchema = new mongoose.Schema({
         required: true,
         index: true
     },
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false
+    },
     userId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
@@ -71,6 +77,7 @@ const billingActivitySchema = new mongoose.Schema({
 });
 
 // Indexes
+billingActivitySchema.index({ firmId: 1, createdAt: -1 });
 billingActivitySchema.index({ userId: 1, timestamp: -1 });
 billingActivitySchema.index({ clientId: 1, timestamp: -1 });
 billingActivitySchema.index({ activityType: 1, timestamp: -1 });

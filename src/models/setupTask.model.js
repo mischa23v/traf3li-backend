@@ -27,6 +27,12 @@ const setupTaskSchema = new mongoose.Schema({
         required: true,
         index: true
     },
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false
+    },
     name: {
         type: String,
         required: true
@@ -100,6 +106,7 @@ const setupTaskSchema = new mongoose.Schema({
 setupTaskSchema.index({ sectionId: 1, orderIndex: 1 });
 setupTaskSchema.index({ isActive: 1, sectionId: 1 });
 setupTaskSchema.index({ isRequired: 1, isActive: 1 });
+setupTaskSchema.index({ firmId: 1, createdAt: -1 });
 
 // Static methods
 setupTaskSchema.statics.getTasksBySection = async function(sectionId) {

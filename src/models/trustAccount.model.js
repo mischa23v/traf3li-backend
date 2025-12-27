@@ -99,6 +99,12 @@ trustAccountSchema.statics.updateBalance = async function(accountId, amount, typ
         filter.firmId = firmId;
     }
 
+    // For withdrawals, add minimum balance check in the atomic operation
+    if (type !== 'add') {
+        filter.balance = { $gte: amount };
+        filter.availableBalance = { $gte: amount };
+    }
+
     return await this.findOneAndUpdate(filter, update, { new: true });
 };
 

@@ -34,6 +34,12 @@ const retainerSchema = new mongoose.Schema({
         required: true,
         index: true
     },
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false
+    },
     caseId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Case',
@@ -127,6 +133,7 @@ const retainerSchema = new mongoose.Schema({
 retainerSchema.index({ clientId: 1, status: 1 });
 retainerSchema.index({ retainerNumber: 1 });
 retainerSchema.index({ lawyerId: 1, status: 1 });
+retainerSchema.index({ firmId: 1, status: 1 });
 
 // Auto-generate retainer number
 retainerSchema.pre('save', async function(next) {

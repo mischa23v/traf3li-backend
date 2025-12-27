@@ -393,16 +393,19 @@ const exportAnalytics = asyncHandler(async (req, res) => {
 function convertToCSV(events) {
     if (events.length === 0) return '';
 
+    // SECURITY: Import sanitization function to prevent CSV injection
+    const { sanitizeForCSV } = require('../utils/securityUtils');
+
     const headers = ['timestamp', 'eventType', 'eventName', 'userId', 'firmId', 'sessionId', 'duration'];
     const rows = events.map(event => {
         return [
-            event.timestamp,
-            event.eventType,
-            event.eventName,
-            event.userId || '',
-            event.firmId || '',
-            event.sessionId || '',
-            event.duration || ''
+            sanitizeForCSV(event.timestamp),
+            sanitizeForCSV(event.eventType),
+            sanitizeForCSV(event.eventName),
+            sanitizeForCSV(event.userId || ''),
+            sanitizeForCSV(event.firmId || ''),
+            sanitizeForCSV(event.sessionId || ''),
+            sanitizeForCSV(event.duration || '')
         ].join(',');
     });
 

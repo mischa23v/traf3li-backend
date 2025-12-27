@@ -11,6 +11,12 @@ const proposalSchema = new mongoose.Schema({
         ref: 'User',
         required: true
     },
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false
+    },
     coverLetter: {
         type: String,
         required: true
@@ -39,6 +45,7 @@ const proposalSchema = new mongoose.Schema({
 
 proposalSchema.index({ jobId: 1, status: 1 });
 proposalSchema.index({ lawyerId: 1, status: 1 });
+proposalSchema.index({ firmId: 1, status: 1 });
 proposalSchema.index({ jobId: 1, lawyerId: 1 }, { unique: true }); // One proposal per lawyer per job
 
 module.exports = mongoose.model('Proposal', proposalSchema);

@@ -113,14 +113,21 @@ trustTransactionSchema.statics.createDeposit = async function(data) {
         throw new Error('firmId is required for trust transactions');
     }
 
-    // SECURITY: Get account with firm isolation
-    const account = await TrustAccount.findOne({
-        _id: data.accountId,
-        firmId: data.firmId
-    });
-    if (!account) throw new Error('Trust account not found');
+    // Update account balance atomically and get the new balance
+    const updatedAccount = await TrustAccount.findOneAndUpdate(
+        {
+            _id: data.accountId,
+            firmId: data.firmId
+        },
+        {
+            $inc: { balance: data.amount, availableBalance: data.amount }
+        },
+        { new: true }
+    );
 
-    const runningBalance = account.balance + data.amount;
+    if (!updatedAccount) throw new Error('Trust account not found');
+
+    const runningBalance = updatedAccount.balance;
 
     // Create transaction with firmId
     const transaction = await this.create({
@@ -129,10 +136,7 @@ trustTransactionSchema.statics.createDeposit = async function(data) {
         runningBalance
     });
 
-    // Update account balance with firmId
-    await TrustAccount.updateBalance(data.accountId, data.amount, 'add', data.firmId);
-
-    // Update client balance with firmId
+    // Update client balance with firmId atomically
     await ClientTrustBalance.getOrCreate(data.firmId, data.lawyerId, data.accountId, data.clientId, data.caseId);
     await ClientTrustBalance.updateBalance(data.firmId, data.accountId, data.clientId, data.amount, 'add', 'deposit');
 
@@ -149,25 +153,55 @@ trustTransactionSchema.statics.createWithdrawal = async function(data) {
         throw new Error('firmId is required for trust transactions');
     }
 
-    // SECURITY: Get account with firm isolation
-    const account = await TrustAccount.findOne({
-        _id: data.accountId,
-        firmId: data.firmId
-    });
-    if (!account) throw new Error('Trust account not found');
+    // SECURITY: Check client balance with firm isolation and update atomically with minimum balance check
+    const updatedClientBalance = await ClientTrustBalance.findOneAndUpdate(
+        {
+            accountId: data.accountId,
+            clientId: data.clientId,
+            firmId: data.firmId,
+            availableBalance: { $gte: data.amount } // Ensure sufficient balance
+        },
+        {
+            $inc: { balance: -data.amount, availableBalance: -data.amount },
+            lastTransaction: new Date(),
+            lastTransactionType: 'withdrawal',
+            lastTransactionAmount: -data.amount
+        },
+        { new: false }
+    );
 
-    // SECURITY: Check client balance with firm isolation
-    const clientBalance = await ClientTrustBalance.findOne({
-        accountId: data.accountId,
-        clientId: data.clientId,
-        firmId: data.firmId
-    });
-
-    if (!clientBalance || clientBalance.availableBalance < data.amount) {
+    if (!updatedClientBalance) {
         throw new Error('Insufficient client balance');
     }
 
-    const runningBalance = account.balance - data.amount;
+    // Update account balance atomically
+    const updatedAccount = await TrustAccount.findOneAndUpdate(
+        {
+            _id: data.accountId,
+            firmId: data.firmId
+        },
+        {
+            $inc: { balance: -data.amount, availableBalance: -data.amount }
+        },
+        { new: true }
+    );
+
+    if (!updatedAccount) {
+        // Rollback client balance
+        await ClientTrustBalance.findOneAndUpdate(
+            {
+                accountId: data.accountId,
+                clientId: data.clientId,
+                firmId: data.firmId
+            },
+            {
+                $inc: { balance: data.amount, availableBalance: data.amount }
+            }
+        );
+        throw new Error('Trust account not found');
+    }
+
+    const runningBalance = updatedAccount.balance;
 
     // Create transaction with firmId
     const transaction = await this.create({
@@ -175,12 +209,6 @@ trustTransactionSchema.statics.createWithdrawal = async function(data) {
         type: 'withdrawal',
         runningBalance
     });
-
-    // Update account balance with firmId
-    await TrustAccount.updateBalance(data.accountId, data.amount, 'subtract', data.firmId);
-
-    // Update client balance with firmId
-    await ClientTrustBalance.updateBalance(data.firmId, data.accountId, data.clientId, data.amount, 'subtract', 'withdrawal');
 
     return transaction;
 };

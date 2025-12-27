@@ -89,6 +89,12 @@ const conflictCheckSchema = new mongoose.Schema({
         required: true,
         index: true
     },
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false
+    },
     entityType: {
         type: String,
         enum: ['client', 'case', 'matter'],
@@ -139,6 +145,7 @@ const conflictCheckSchema = new mongoose.Schema({
 // Indexes
 conflictCheckSchema.index({ lawyerId: 1, status: 1 });
 conflictCheckSchema.index({ lawyerId: 1, entityType: 1, entityId: 1 });
+conflictCheckSchema.index({ firmId: 1, status: 1 });
 
 // Static method: Calculate match score using Levenshtein distance
 conflictCheckSchema.statics.calculateMatchScore = function(str1, str2) {

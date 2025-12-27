@@ -7,6 +7,12 @@ const exportTemplateSchema = new mongoose.Schema({
         required: true,
         index: true
     },
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false
+    },
     name: {
         type: String,
         required: true
@@ -53,6 +59,7 @@ const exportTemplateSchema = new mongoose.Schema({
 // Indexes
 exportTemplateSchema.index({ lawyerId: 1, entityType: 1 });
 exportTemplateSchema.index({ lawyerId: 1, isDefault: 1 });
+exportTemplateSchema.index({ firmId: 1, entityType: 1 });
 
 // Pre-save hook to ensure only one default per entity type
 exportTemplateSchema.pre('save', async function(next) {

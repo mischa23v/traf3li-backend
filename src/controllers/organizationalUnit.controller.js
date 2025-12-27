@@ -1433,6 +1433,9 @@ const exportOrganizationalUnits = asyncHandler(async (req, res) => {
         .lean();
 
     if (format === 'csv') {
+        // SECURITY: Import sanitization function to prevent CSV injection
+        const { sanitizeForCSV } = require('../utils/securityUtils');
+
         const csvHeader = [
             'Unit ID',
             'Unit Code',
@@ -1452,21 +1455,21 @@ const exportOrganizationalUnits = asyncHandler(async (req, res) => {
         ].join(',');
 
         const csvRows = units.map(unit => [
-            unit.unitId,
-            unit.unitCode,
-            `"${unit.unitName || ''}"`,
-            `"${unit.unitNameAr || ''}"`,
-            unit.unitType,
-            unit.status,
-            unit.level,
-            unit.parentUnitId?.unitName || '',
-            `"${unit.managerName || ''}"`,
-            unit.headcount?.approvedHeadcount || 0,
-            unit.headcount?.currentHeadcount || 0,
-            unit.headcount?.vacancies || 0,
-            unit.headcount?.saudizationRate || 0,
-            unit.budget?.annualBudget || 0,
-            unit.costCenter?.costCenterCode || ''
+            sanitizeForCSV(unit.unitId),
+            sanitizeForCSV(unit.unitCode),
+            `"${sanitizeForCSV(unit.unitName || '')}"`,
+            `"${sanitizeForCSV(unit.unitNameAr || '')}"`,
+            sanitizeForCSV(unit.unitType),
+            sanitizeForCSV(unit.status),
+            sanitizeForCSV(unit.level),
+            sanitizeForCSV(unit.parentUnitId?.unitName || ''),
+            `"${sanitizeForCSV(unit.managerName || '')}"`,
+            sanitizeForCSV(unit.headcount?.approvedHeadcount || 0),
+            sanitizeForCSV(unit.headcount?.currentHeadcount || 0),
+            sanitizeForCSV(unit.headcount?.vacancies || 0),
+            sanitizeForCSV(unit.headcount?.saudizationRate || 0),
+            sanitizeForCSV(unit.budget?.annualBudget || 0),
+            sanitizeForCSV(unit.costCenter?.costCenterCode || '')
         ].join(','));
 
         const csv = [csvHeader, ...csvRows].join('\n');

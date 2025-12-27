@@ -5,6 +5,9 @@
  * payment processing, ZATCA e-invoicing, approval workflows, and reporting.
  *
  * Base route: /api/invoices
+ *
+ * SECURITY NOTE: The /confirm-payment webhook endpoint uses express.raw()
+ * middleware to preserve raw body for Stripe signature verification.
  */
 
 const express = require('express');
@@ -102,9 +105,11 @@ router.get('/open/:clientId',
     getOpenInvoices
 );
 
-// Confirm payment (Stripe webhook - no validation needed for webhook)
-router.patch('/confirm-payment',
-    userMiddleware,
+// Confirm payment (Stripe webhook - signature validation in controller)
+// SECURITY: Uses express.raw() to preserve raw body for Stripe signature verification
+// MUST be BEFORE general body-parser middleware in server.js or defined here
+router.post('/confirm-payment',
+    express.raw({ type: 'application/json' }),
     confirmPayment
 );
 

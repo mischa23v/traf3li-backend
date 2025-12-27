@@ -1534,6 +1534,9 @@ const getCalendarItemDetails = asyncHandler(async (req, res) => {
         throw CustomException('Invalid item ID format', 400);
     }
 
+    // Get firmId for multi-tenant isolation
+    const firmId = req.firmId || req.user?.firmId;
+
     // Generate cache key
     const cacheKey = cacheKeys.itemDetails(type, id);
 
@@ -1554,7 +1557,13 @@ const getCalendarItemDetails = asyncHandler(async (req, res) => {
 
     switch (type) {
         case 'event':
-            item = await Event.findById(sanitizedId)
+            // SECURITY: Include firmId in query to prevent cross-firm IDOR
+            const eventQuery = { _id: sanitizedId };
+            if (firmId) {
+                eventQuery.firmId = firmId;
+            }
+
+            item = await Event.findOne(eventQuery)
                 .populate('createdBy', 'username firstName lastName image email')
                 .populate('organizer', 'username firstName lastName image email')
                 .populate('attendees.userId', 'username firstName lastName image email')
@@ -1565,6 +1574,7 @@ const getCalendarItemDetails = asyncHandler(async (req, res) => {
                 .populate('actionItems.assignedTo', 'firstName lastName')
                 .lean();
 
+            // SECURITY: Return 404 (not 403) to prevent information leakage
             if (!item) {
                 throw CustomException('Event not found', 404);
             }
@@ -1579,13 +1589,20 @@ const getCalendarItemDetails = asyncHandler(async (req, res) => {
                 item.organizer?._id?.toString() === userId ||
                 isAttendee;
 
+            // SECURITY: Return 404 (not 403) to prevent information leakage
             if (!hasEventAccess) {
-                throw CustomException('Access denied: You do not have permission to view this event', 403);
+                throw CustomException('Event not found', 404);
             }
             break;
 
         case 'task':
-            item = await Task.findById(sanitizedId)
+            // SECURITY: Include firmId in query to prevent cross-firm IDOR
+            const taskQuery = { _id: sanitizedId };
+            if (firmId) {
+                taskQuery.firmId = firmId;
+            }
+
+            item = await Task.findOne(taskQuery)
                 .populate('assignedTo', 'username firstName lastName image email')
                 .populate('createdBy', 'username firstName lastName image email')
                 .populate('caseId', 'title caseNumber category')
@@ -1593,6 +1610,7 @@ const getCalendarItemDetails = asyncHandler(async (req, res) => {
                 .populate('linkedEventId', 'title startDateTime')
                 .lean();
 
+            // SECURITY: Return 404 (not 403) to prevent information leakage
             if (!item) {
                 throw CustomException('Task not found', 404);
             }
@@ -1601,40 +1619,51 @@ const getCalendarItemDetails = asyncHandler(async (req, res) => {
             const hasTaskAccess = item.assignedTo?._id?.toString() === userId ||
                 item.createdBy?._id?.toString() === userId;
 
+            // SECURITY: Return 404 (not 403) to prevent information leakage
             if (!hasTaskAccess) {
-                throw CustomException('Access denied: You do not have permission to view this task', 403);
+                throw CustomException('Task not found', 404);
             }
             break;
 
         case 'reminder':
-            item = await Reminder.findById(sanitizedId)
+            // SECURITY: Include firmId in query to prevent cross-firm IDOR
+            const reminderQuery = { _id: sanitizedId, userId };
+            if (firmId) {
+                reminderQuery.firmId = firmId;
+            }
+
+            item = await Reminder.findOne(reminderQuery)
                 .populate('relatedCase', 'title caseNumber category')
                 .populate('relatedTask', 'title status dueDate')
                 .populate('relatedEvent', 'title startDateTime')
                 .lean();
 
+            // SECURITY: Return 404 (not 403) to prevent information leakage
+            // Note: Reminder already includes userId in query, so if not found it's a 404
             if (!item) {
                 throw CustomException('Reminder not found', 404);
-            }
-
-            // Enhanced IDOR protection - verify ownership
-            if (item.userId.toString() !== userId) {
-                throw CustomException('Access denied: You do not have permission to view this reminder', 403);
             }
             break;
 
         case 'case-document':
             // Enhanced IDOR protection - only return documents from user's cases
-            const caseDoc = await Case.findOne({
+            const caseDocQuery = {
                 lawyerId: userId,
                 'richDocuments._id': sanitizedId
-            })
+            };
+            // Add firmId for multi-tenant isolation
+            if (firmId) {
+                caseDocQuery.firmId = firmId;
+            }
+
+            const caseDoc = await Case.findOne(caseDocQuery)
                 .populate('richDocuments.createdBy', 'firstName lastName')
                 .select('_id title caseNumber category richDocuments.$')
                 .lean();
 
+            // SECURITY: Return 404 (not 403) to prevent information leakage
             if (!caseDoc || !caseDoc.richDocuments || caseDoc.richDocuments.length === 0) {
-                throw CustomException('Document not found or access denied', 404);
+                throw CustomException('Document not found', 404);
             }
 
             item = {

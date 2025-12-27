@@ -29,6 +29,7 @@
  */
 
 const logger = require('../utils/logger');
+const { verifySocketResourceAccess } = require('../middlewares/socketAuth.middleware');
 
 class TicketCollisionHandler {
   constructor(io) {
@@ -43,10 +44,17 @@ class TicketCollisionHandler {
 
   /**
    * Initialize socket event listeners
+   * NOTE: Authentication is handled by socketAuthMiddleware at io.use() level
+   * All connected sockets are already authenticated with userId and firmId
    */
   initialize() {
     this.io.on('connection', (socket) => {
-      logger.debug('Socket connected for ticket collision tracking:', socket.id);
+      // SECURITY: Socket is already authenticated by socketAuthMiddleware
+      logger.debug('Authenticated socket connected for ticket collision tracking', {
+        socketId: socket.id,
+        userId: socket.userId,
+        firmId: socket.firmId
+      });
 
       // Agent starts viewing a ticket
       socket.on('ticket:view', (data) => this.onAgentViewTicket(socket, data));
@@ -72,16 +80,46 @@ class TicketCollisionHandler {
 
   /**
    * When agent starts viewing a ticket
+   * SECURITY: Verifies user has access to ticket before allowing viewing
    * @param {Object} socket - Socket.io socket instance
    * @param {Object} data - { ticketId, agentId, agentName }
    */
-  onAgentViewTicket(socket, { ticketId, agentId, agentName }) {
-    if (!ticketId || !agentId) {
-      logger.warn('Invalid ticket:view data received', { ticketId, agentId });
+  async onAgentViewTicket(socket, { ticketId, agentId, agentName }) {
+    if (!ticketId) {
+      logger.warn('Invalid ticket:view data received - missing ticketId', { ticketId });
+      socket.emit('ticket:error', { message: 'Invalid ticket data' });
       return;
     }
 
     try {
+      // SECURITY: Verify socket is authenticated
+      if (!socket.userId || !socket.authenticated) {
+        logger.warn('Unauthenticated ticket view attempt', {
+          socketId: socket.id,
+          ticketId
+        });
+        socket.emit('ticket:error', { message: 'Authentication required' });
+        return;
+      }
+
+      // SECURITY: Use authenticated socket's userId instead of client-provided agentId
+      const authenticatedAgentId = socket.userId;
+      const authenticatedAgentName = agentName || socket.userEmail || 'Unknown Agent';
+
+      // SECURITY: Verify user has access to this ticket
+      // Tickets are stored in the 'Ticket' model in the support module
+      const ticket = await verifySocketResourceAccess(socket, 'Ticket', ticketId);
+      if (!ticket) {
+        logger.warn('Ticket view denied - no access to ticket', {
+          socketId: socket.id,
+          userId: socket.userId,
+          firmId: socket.firmId,
+          ticketId
+        });
+        socket.emit('ticket:error', { message: 'Ticket not found or access denied' });
+        return;
+      }
+
       const roomId = `ticket:${ticketId}`;
 
       // Create viewer set for ticket if not exists
@@ -93,12 +131,13 @@ class TicketCollisionHandler {
       const existingViewers = Array.from(ticketViewers.values());
 
       // Check if agent is already viewing (reconnection case)
-      const isReconnection = ticketViewers.has(agentId);
+      const isReconnection = ticketViewers.has(authenticatedAgentId);
 
       // Add/update viewer info
-      ticketViewers.set(agentId, {
-        agentId,
-        agentName: agentName || 'Unknown Agent',
+      ticketViewers.set(authenticatedAgentId, {
+        agentId: authenticatedAgentId,
+        agentName: authenticatedAgentName,
+        firmId: socket.firmId, // Track firmId for additional security
         status: 'viewing',
         since: new Date(),
         socketId: socket.id
@@ -115,36 +154,43 @@ class TicketCollisionHandler {
 
       // Emit collision warning if others are viewing (and not a reconnection)
       if (!isReconnection && existingViewers.length > 0) {
-        // Warn the new viewer
-        socket.emit('collision:warning', {
-          ticketId,
-          viewers: existingViewers,
-          message: `${existingViewers.length} agent(s) already viewing this ticket`
-        });
+        // Filter viewers to only show those from the same firm
+        const sameFirmViewers = existingViewers.filter(v => v.firmId === socket.firmId);
 
-        // Notify others about new viewer
+        if (sameFirmViewers.length > 0) {
+          // Warn the new viewer
+          socket.emit('collision:warning', {
+            ticketId,
+            viewers: sameFirmViewers,
+            message: `${sameFirmViewers.length} agent(s) already viewing this ticket`
+          });
+        }
+
+        // Notify others about new viewer (only within same firm)
         socket.to(roomId).emit('agent:joined', {
           ticketId,
-          agentId,
-          agentName: agentName || 'Unknown Agent',
+          agentId: authenticatedAgentId,
+          agentName: authenticatedAgentName,
           timestamp: new Date()
         });
       }
 
-      // Emit updated viewers list to all in room
-      const currentViewers = this.getViewers(ticketId);
+      // Emit updated viewers list to all in room (filtered by firmId)
+      const currentViewers = this.getViewers(ticketId).filter(v => v.firmId === socket.firmId);
       this.io.to(roomId).emit('viewers:updated', {
         ticketId,
         viewers: currentViewers,
         count: currentViewers.length
       });
 
-      logger.info(`👁️ Agent ${agentId} (${agentName}) viewing ticket ${ticketId}`, {
+      logger.info(`👁️ Agent ${authenticatedAgentId} viewing ticket ${ticketId}`, {
+        firmId: socket.firmId,
         totalViewers: currentViewers.length,
         isReconnection
       });
     } catch (error) {
       logger.error('Error in onAgentViewTicket:', error.message);
+      socket.emit('ticket:error', { message: 'Failed to view ticket' });
     }
   }
 
@@ -358,6 +404,7 @@ class TicketCollisionHandler {
     return Array.from(ticketViewers.values()).map(viewer => ({
       agentId: viewer.agentId,
       agentName: viewer.agentName,
+      firmId: viewer.firmId, // Include firmId for filtering
       status: viewer.status,
       since: viewer.since,
       typingStartedAt: viewer.typingStartedAt || null

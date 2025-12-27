@@ -7,6 +7,12 @@ const rateGroupSchema = new mongoose.Schema({
         required: true,
         index: true
     },
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false
+    },
     name: {
         type: String,
         required: true,
@@ -54,6 +60,7 @@ const rateGroupSchema = new mongoose.Schema({
 // Indexes
 rateGroupSchema.index({ lawyerId: 1, isDefault: 1 });
 rateGroupSchema.index({ lawyerId: 1, isActive: 1 });
+rateGroupSchema.index({ firmId: 1, lawyerId: 1 });
 
 // Pre-save hook to ensure only one default
 rateGroupSchema.pre('save', async function(next) {

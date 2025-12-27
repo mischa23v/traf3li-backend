@@ -194,11 +194,22 @@ const getContract = asyncHandler(async (req, res) => {
     // Sanitize contract ID
     const sanitizedContractId = sanitizeObjectId(contractId);
 
-    const contract = await LegalContractService.getContractById(sanitizedContractId, userId, firmId);
+    const result = await LegalContractService.getContractById(sanitizedContractId, userId, firmId);
+
+    if (!result.success) {
+        throw CustomException(
+            result.error || 'Contract not found',
+            404,
+            {
+                messageAr: 'العقد غير موجود',
+                code: 'NOT_FOUND'
+            }
+        );
+    }
 
     res.status(200).json({
         success: true,
-        data: contract
+        data: result.data
     });
 });
 

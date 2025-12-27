@@ -6,6 +6,12 @@ const bankTransferSchema = new mongoose.Schema({
         unique: true,
         index: true
     },
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false
+    },
     fromAccountId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'BankAccount',
@@ -93,6 +99,7 @@ const bankTransferSchema = new mongoose.Schema({
 });
 
 // Indexes
+bankTransferSchema.index({ firmId: 1, lawyerId: 1 });
 bankTransferSchema.index({ lawyerId: 1, date: -1 });
 bankTransferSchema.index({ lawyerId: 1, status: 1 });
 bankTransferSchema.index({ fromAccountId: 1, date: -1 });

@@ -6,6 +6,12 @@ const mongoose = require('mongoose');
 // ═══════════════════════════════════════════════════════════════
 
 const syncedBlockSchema = new mongoose.Schema({
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false
+    },
     originalBlockId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'CaseNotionBlock',
@@ -31,6 +37,7 @@ const syncedBlockSchema = new mongoose.Schema({
 // INDEXES
 // ═══════════════════════════════════════════════════════════════
 
+syncedBlockSchema.index({ firmId: 1, createdAt: -1 });
 syncedBlockSchema.index({ 'syncedToPages.pageId': 1 });
 syncedBlockSchema.index({ 'syncedToPages.blockId': 1 });
 

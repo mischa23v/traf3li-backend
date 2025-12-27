@@ -118,6 +118,12 @@ const crmActivitySchema = new mongoose.Schema({
         required: true,
         index: true
     },
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false
+    },
 
     // ═══════════════════════════════════════════════════════════════
     // ACTIVITY TYPE
@@ -286,6 +292,7 @@ crmActivitySchema.index({ lawyerId: 1, performedBy: 1, createdAt: -1 });
 crmActivitySchema.index({ lawyerId: 1, 'taskData.dueDate': 1, 'taskData.status': 1 });
 crmActivitySchema.index({ lawyerId: 1, scheduledAt: 1 });
 crmActivitySchema.index({ title: 'text', description: 'text' });
+crmActivitySchema.index({ firmId: 1, lawyerId: 1, createdAt: -1 });
 
 // ═══════════════════════════════════════════════════════════════
 // PRE-SAVE HOOKS

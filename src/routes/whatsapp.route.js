@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const whatsappController = require('../controllers/whatsapp.controller');
 const { userMiddleware } = require('../middlewares');
+const { createWebhookAuth } = require('../middlewares/webhookAuth.middleware');
 
 // ═══════════════════════════════════════════════════════════════
 // WHATSAPP ROUTES
@@ -12,7 +13,10 @@ const { userMiddleware } = require('../middlewares');
 // ───────────────────────────────────────────────────────────────
 router.route('/webhooks/whatsapp')
     .get(whatsappController.verifyWebhook)  // Webhook verification
-    .post(whatsappController.receiveWebhook); // Receive messages/status updates
+    .post(
+        createWebhookAuth('whatsapp'),      // ✅ SECURITY: Validate x-hub-signature-256 with HMAC-SHA256
+        whatsappController.receiveWebhook   // Receive messages/status updates
+    );
 
 // All other routes require authentication
 router.use(userMiddleware);

@@ -13,6 +13,12 @@ const transactionSchema = new mongoose.Schema({
         required: true,
         index: true
     },
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false
+    },
     type: {
         type: String,
         enum: ['income', 'expense', 'transfer'],
@@ -79,6 +85,7 @@ const transactionSchema = new mongoose.Schema({
 transactionSchema.index({ userId: 1, date: -1 });
 transactionSchema.index({ type: 1, userId: 1 });
 transactionSchema.index({ status: 1 });
+transactionSchema.index({ firmId: 1, createdAt: -1 });
 
 // Generate transaction ID before saving
 transactionSchema.pre('save', async function(next) {

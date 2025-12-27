@@ -11,6 +11,12 @@ const reviewSchema = new mongoose.Schema({
         ref: 'User',
         required: true
     },
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false
+    },
     star: {
         type: Number,
         required: true,
@@ -23,5 +29,7 @@ const reviewSchema = new mongoose.Schema({
 }, {
     versionKey: false
 });
+
+reviewSchema.index({ firmId: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Review', reviewSchema);

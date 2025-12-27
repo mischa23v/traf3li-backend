@@ -380,7 +380,28 @@ const createTransaction = asyncHandler(async (req, res) => {
             }
         }
 
-        // Get or create client trust balance with race condition protection (locked by session)
+        // Calculate balance change
+        const isDebit = ['withdrawal', 'disbursement', 'transfer_out'].includes(type);
+        const balanceChange = isDebit ? -amount : amount;
+
+        // Update account balance atomically
+        const accountBalanceBefore = account.balance;
+        const updatedAccount = await TrustAccount.findOneAndUpdate(
+            {
+                _id: sanitizedAccountId,
+                lawyerId
+            },
+            { $inc: { balance: balanceChange } },
+            { new: true, session }
+        );
+
+        if (!updatedAccount) {
+            throw CustomException('حساب الأمانات غير موجود أو ليس لديك صلاحية', 404);
+        }
+
+        const accountBalanceAfter = updatedAccount.balance;
+
+        // Get or create client trust balance
         let clientBalance = await ClientTrustBalance.findOne({
             trustAccountId: sanitizedAccountId,
             clientId: sanitizedClientId,
@@ -397,19 +418,40 @@ const createTransaction = asyncHandler(async (req, res) => {
             clientBalance = clientBalance[0];
         }
 
-        // Validate withdrawal - check balance before debit
-        if (type === 'withdrawal' || type === 'disbursement') {
-            if (clientBalance.balance < amount) {
-                throw CustomException('رصيد العميل غير كافٍ للسحب', 400);
-            }
+        const clientBalanceBefore = clientBalance.balance;
+
+        // Update client balance atomically with minimum balance check for debits
+        const clientBalanceFilter = {
+            trustAccountId: sanitizedAccountId,
+            clientId: sanitizedClientId,
+            lawyerId
+        };
+
+        // For debits, ensure sufficient balance in the atomic operation
+        if (isDebit) {
+            clientBalanceFilter.balance = { $gte: amount };
         }
 
-        // Calculate new balances
-        const isDebit = ['withdrawal', 'disbursement', 'transfer_out'].includes(type);
-        const balanceChange = isDebit ? -amount : amount;
+        const updatedClientBalance = await ClientTrustBalance.findOneAndUpdate(
+            clientBalanceFilter,
+            {
+                $inc: { balance: balanceChange },
+                $set: { lastTransactionDate: new Date() }
+            },
+            { new: true, session }
+        );
 
-        const newAccountBalance = account.balance + balanceChange;
-        const newClientBalance = clientBalance.balance + balanceChange;
+        if (!updatedClientBalance) {
+            // Rollback account balance since client balance update failed
+            await TrustAccount.findOneAndUpdate(
+                { _id: sanitizedAccountId, lawyerId },
+                { $inc: { balance: -balanceChange } },
+                { session }
+            );
+            throw CustomException('رصيد العميل غير كافٍ للسحب', 400);
+        }
+
+        const clientBalanceAfter = updatedClientBalance.balance;
 
         // Generate transaction number
         const transactionCount = await TrustTransaction.countDocuments({ lawyerId });
@@ -428,22 +470,13 @@ const createTransaction = asyncHandler(async (req, res) => {
             reference: sanitizeString(reference || ''),
             paymentMethod: sanitizeString(paymentMethod || ''),
             checkNumber: sanitizeString(checkNumber || ''),
-            balanceBefore: account.balance,
-            balanceAfter: newAccountBalance,
-            clientBalanceBefore: clientBalance.balance,
-            clientBalanceAfter: newClientBalance,
+            balanceBefore: accountBalanceBefore,
+            balanceAfter: accountBalanceAfter,
+            clientBalanceBefore: clientBalanceBefore,
+            clientBalanceAfter: clientBalanceAfter,
             status: 'completed',
             createdBy: lawyerId
         }], { session });
-
-        // Update account balance (race condition protected by transaction)
-        account.balance = newAccountBalance;
-        await account.save({ session });
-
-        // Update client balance
-        clientBalance.balance = newClientBalance;
-        clientBalance.lastTransactionDate = new Date();
-        await clientBalance.save({ session });
 
         await session.commitTransaction();
 
@@ -634,24 +667,62 @@ const voidTransaction = asyncHandler(async (req, res) => {
             throw CustomException('حساب الأمانات غير موجود أو ليس لديك صلاحية', 404);
         }
 
-        // Get client balance with race condition protection
+        // Reverse the balance changes atomically
+        const isDebit = ['withdrawal', 'disbursement', 'transfer_out'].includes(transaction.type);
+        const reverseChange = isDebit ? transaction.amount : -transaction.amount;
+
+        // Update account balance atomically
+        const updatedAccount = await TrustAccount.findOneAndUpdate(
+            {
+                _id: sanitizedAccountId,
+                lawyerId
+            },
+            { $inc: { balance: reverseChange } },
+            { new: true, session }
+        );
+
+        if (!updatedAccount) {
+            throw CustomException('حساب الأمانات غير موجود أو ليس لديك صلاحية', 404);
+        }
+
+        // Update client balance atomically if exists
         const clientBalance = await ClientTrustBalance.findOne({
             trustAccountId: sanitizedAccountId,
             clientId: transaction.clientId,
             lawyerId
         }).session(session);
 
-        // Reverse the balance changes
-        const isDebit = ['withdrawal', 'disbursement', 'transfer_out'].includes(transaction.type);
-        const reverseChange = isDebit ? transaction.amount : -transaction.amount;
-
-        account.balance += reverseChange;
-        await account.save({ session });
-
         if (clientBalance) {
-            clientBalance.balance += reverseChange;
-            clientBalance.lastTransactionDate = new Date();
-            await clientBalance.save({ session });
+            // For void reversals that would result in withdrawal (reverseChange < 0),
+            // ensure sufficient balance in the atomic operation
+            const clientBalanceFilter = {
+                trustAccountId: sanitizedAccountId,
+                clientId: transaction.clientId,
+                lawyerId
+            };
+
+            if (reverseChange < 0) {
+                clientBalanceFilter.balance = { $gte: Math.abs(reverseChange) };
+            }
+
+            const updatedClientBalance = await ClientTrustBalance.findOneAndUpdate(
+                clientBalanceFilter,
+                {
+                    $inc: { balance: reverseChange },
+                    $set: { lastTransactionDate: new Date() }
+                },
+                { new: true, session }
+            );
+
+            if (!updatedClientBalance) {
+                // Rollback account balance
+                await TrustAccount.findOneAndUpdate(
+                    { _id: sanitizedAccountId, lawyerId },
+                    { $inc: { balance: -reverseChange } },
+                    { session }
+                );
+                throw CustomException('رصيد العميل غير كافٍ لإلغاء المعاملة', 400);
+            }
         }
 
         // Update transaction status
@@ -867,9 +938,11 @@ const transferBetweenClients = asyncHandler(async (req, res) => {
             lawyerId
         }).session(session);
 
-        if (!fromBalance || fromBalance.balance < amount) {
-            throw CustomException('رصيد العميل المصدر غير كافٍ للتحويل', 400);
+        if (!fromBalance) {
+            throw CustomException('العميل المصدر ليس لديه رصيد', 404);
         }
+
+        const fromBalanceBefore = fromBalance.balance;
 
         // Get or create destination client balance with race condition protection
         let toBalance = await ClientTrustBalance.findOne({
@@ -888,6 +961,62 @@ const transferBetweenClients = asyncHandler(async (req, res) => {
             toBalance = toBalance[0];
         }
 
+        const toBalanceBefore = toBalance.balance;
+
+        // Update source balance atomically with minimum balance check
+        const updatedFromBalance = await ClientTrustBalance.findOneAndUpdate(
+            {
+                trustAccountId: sanitizedAccountId,
+                clientId: sanitizedFromClientId,
+                lawyerId,
+                balance: { $gte: amount } // Ensure sufficient balance
+            },
+            {
+                $inc: { balance: -amount },
+                $set: { lastTransactionDate: new Date() }
+            },
+            { new: true, session }
+        );
+
+        if (!updatedFromBalance) {
+            throw CustomException('رصيد العميل المصدر غير كافٍ للتحويل', 400);
+        }
+
+        const fromBalanceAfter = updatedFromBalance.balance;
+
+        // Update destination balance atomically
+        const updatedToBalance = await ClientTrustBalance.findOneAndUpdate(
+            {
+                trustAccountId: sanitizedAccountId,
+                clientId: sanitizedToClientId,
+                lawyerId
+            },
+            {
+                $inc: { balance: amount },
+                $set: { lastTransactionDate: new Date() }
+            },
+            { new: true, session }
+        );
+
+        if (!updatedToBalance) {
+            // Rollback source balance
+            await ClientTrustBalance.findOneAndUpdate(
+                {
+                    trustAccountId: sanitizedAccountId,
+                    clientId: sanitizedFromClientId,
+                    lawyerId
+                },
+                {
+                    $inc: { balance: amount },
+                    $set: { lastTransactionDate: new Date() }
+                },
+                { session }
+            );
+            throw CustomException('فشل تحديث رصيد العميل المستقبل', 500);
+        }
+
+        const toBalanceAfter = updatedToBalance.balance;
+
         // Generate transaction numbers
         const transactionCount = await TrustTransaction.countDocuments({ lawyerId });
         const outNumber = `TT-${new Date().getFullYear()}-${String(transactionCount + 1).padStart(6, '0')}`;
@@ -903,8 +1032,8 @@ const transferBetweenClients = asyncHandler(async (req, res) => {
             amount,
             description: sanitizeString(safeBody.description || `تحويل إلى عميل آخر`),
             reference: inNumber,
-            clientBalanceBefore: fromBalance.balance,
-            clientBalanceAfter: fromBalance.balance - amount,
+            clientBalanceBefore: fromBalanceBefore,
+            clientBalanceAfter: fromBalanceAfter,
             status: 'completed',
             createdBy: lawyerId
         }], { session });
@@ -919,21 +1048,11 @@ const transferBetweenClients = asyncHandler(async (req, res) => {
             amount,
             description: sanitizeString(safeBody.description || `تحويل من عميل آخر`),
             reference: outNumber,
-            clientBalanceBefore: toBalance.balance,
-            clientBalanceAfter: toBalance.balance + amount,
+            clientBalanceBefore: toBalanceBefore,
+            clientBalanceAfter: toBalanceAfter,
             status: 'completed',
             createdBy: lawyerId
         }], { session });
-
-        // Update source balance (race condition protected by transaction)
-        fromBalance.balance -= amount;
-        fromBalance.lastTransactionDate = new Date();
-        await fromBalance.save({ session });
-
-        // Update destination balance
-        toBalance.balance += amount;
-        toBalance.lastTransactionDate = new Date();
-        await toBalance.save({ session });
 
         await session.commitTransaction();
 

@@ -13,6 +13,13 @@ const pageHistorySchema = new mongoose.Schema({
         index: true
     },
 
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false
+    },
+
     // User who made the change
     userId: {
         type: mongoose.Schema.Types.ObjectId,
@@ -90,6 +97,7 @@ const pageHistorySchema = new mongoose.Schema({
 // Compound index for efficient history queries
 pageHistorySchema.index({ pageId: 1, userId: 1, timestamp: -1 });
 pageHistorySchema.index({ pageId: 1, sequence: -1 });
+pageHistorySchema.index({ firmId: 1, createdAt: -1 });
 
 // Clean up old history (keep last 100 actions per page per user)
 pageHistorySchema.statics.cleanupOldHistory = async function(pageId, userId, keepCount = 100) {

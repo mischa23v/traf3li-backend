@@ -1,352 +1,151 @@
-const crypto = require('crypto');
-const logger = require('../utils/logger');
-const { getCookieConfig } = require('../controllers/auth.controller');
+/**
+ * Unified Security Middleware Stack
+ *
+ * Combines all security layers into a single, easy-to-apply middleware.
+ * Use this to ensure consistent security across all routes.
+ */
+
+const authenticate = require('./authenticate');
+const { firmFilter, checkFirmPermission, firmOwnerOnly, firmAdminOnly } = require('./firmFilter.middleware');
+const { resourceAccessMiddleware, checkResourceAccess } = require('./resourceAccess.middleware');
+const { autoDetectWebhookAuth, preserveRawBody } = require('./webhookAuth.middleware');
+const { enforceMiddleware } = require('../config/permissions.config');
+const { ROUTE_SECURITY, getRouteSecurityConfig } = require('../config/routeSecurity.config');
 
 /**
- * Origin Check Middleware
- * Verifies that the Origin or Referer header matches allowed origins
- * Provides defense-in-depth against CSRF attacks
+ * Apply full security stack based on configuration
  */
-const allowedOrigins = [
-    // Production URLs
-    'https://traf3li.com',
-    'https://dashboard.traf3li.com',
-    'https://www.traf3li.com',
-    'https://www.dashboard.traf3li.com',
+const applySecurityStack = (config) => {
+    const stack = [];
 
-    // Cloudflare Pages
-    'https://traf3li-dashboard.pages.dev',
-
-    // Development URLs
-    'http://localhost:5173',
-    'http://localhost:5174',
-    'http://localhost:3000',
-    'http://localhost:8080',
-
-    // Environment variables
-    process.env.CLIENT_URL,
-    process.env.DASHBOARD_URL
-].filter(Boolean);
-
-const originCheck = (req, res, next) => {
-    // Skip for GET, HEAD, OPTIONS (safe methods)
-    if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
-        return next();
+    // Webhook routes - signature validation only, no user auth
+    if (config.webhookAuth) {
+        stack.push(preserveRawBody);
+        stack.push(autoDetectWebhookAuth(config.webhookAuth));
+        return stack;
     }
 
-    const origin = req.headers.origin || req.headers.referer;
-
-    // Allow requests with no origin (mobile apps, server-to-server)
-    // This is acceptable for API-only backends with other protections
-    if (!origin) {
-        logger.warn('Request without origin/referer header', {
-            method: req.method,
-            path: req.path,
-            ip: req.ip,
-            userAgent: req.headers['user-agent']
-        });
-        return next();
+    // Public routes - no security
+    if (config.auth === false) {
+        return stack;
     }
 
-    // Extract hostname from origin/referer
-    let originHostname;
-    try {
-        const url = new URL(origin);
-        originHostname = url.origin;
-    } catch (error) {
-        logger.warn('Invalid origin/referer URL', { origin });
-        return res.status(403).json({
-            error: true,
-            message: 'Invalid origin'
-        });
+    // 1. Authentication
+    stack.push(authenticate);
+
+    // 2. Firm context and isolation
+    if (config.firmFilter !== false) {
+        stack.push(firmFilter);
     }
 
-    // Check if origin matches allowed list
-    const isAllowed = allowedOrigins.some(allowed =>
-        originHostname === allowed || originHostname.startsWith(allowed)
-    );
-
-    // Special handling for Cloudflare Pages preview deployments
-    const isCloudflarePreview = originHostname.includes('.pages.dev');
-
-    // Special handling for Vercel preview deployments (backward compatibility)
-    const isVercelPreview = originHostname.includes('.vercel.app');
-
-    if (isAllowed || isCloudflarePreview || isVercelPreview) {
-        return next();
+    // 3. Owner-only check
+    if (config.ownerOnly) {
+        stack.push(firmOwnerOnly);
+    }
+    // 4. Admin-only check
+    else if (config.adminOnly) {
+        stack.push(firmAdminOnly);
     }
 
-    logger.warn('Origin check failed', {
-        origin: originHostname,
-        method: req.method,
-        path: req.path,
-        ip: req.ip
-    });
+    // 5. Permission check
+    if (config.permission) {
+        stack.push(enforceMiddleware(config.permission.module, config.permission.level));
+    }
 
-    return res.status(403).json({
-        error: true,
-        message: 'Origin not allowed'
-    });
+    // 6. Resource access / IDOR protection
+    if (config.resourceAccess) {
+        stack.push(resourceAccessMiddleware(config.resourceAccess));
+    }
+
+    return stack;
 };
 
 /**
- * No Cache Middleware
- * Prevents caching of sensitive endpoints (auth, payments, user data)
- * Ensures fresh data and prevents sensitive data from being cached
+ * Secure route middleware factory
+ *
+ * Usage:
+ *   router.get('/:id', secure({ model: 'Case', permission: 'cases:view' }), controller.get);
+ *   router.post('/', secure({ permission: 'cases:edit' }), controller.create);
+ *   router.delete('/:id', secure({ model: 'Case', permission: 'cases:full', adminOnly: true }), controller.delete);
  */
-const noCache = (req, res, next) => {
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
-    res.setHeader('Surrogate-Control', 'no-store');
-    next();
-};
-
-/**
- * Validate Content-Type Middleware
- * Ensures POST/PUT/PATCH requests have proper Content-Type header
- * Prevents content-type confusion attacks
- */
-const validateContentType = (req, res, next) => {
-    // Only validate for methods that typically send data
-    if (!['POST', 'PUT', 'PATCH'].includes(req.method)) {
-        return next();
-    }
-
-    const contentType = req.headers['content-type'];
-
-    // If no body is expected (Content-Length: 0), skip validation
-    if (req.headers['content-length'] === '0') {
-        return next();
-    }
-
-    // Allow multipart/form-data for file uploads
-    if (contentType && contentType.includes('multipart/form-data')) {
-        return next();
-    }
-
-    // Require application/json for JSON APIs
-    if (!contentType || !contentType.includes('application/json')) {
-        logger.warn('Invalid or missing Content-Type', {
-            method: req.method,
-            path: req.path,
-            contentType: contentType || 'none',
-            ip: req.ip
-        });
-
-        return res.status(415).json({
-            error: true,
-            message: 'Content-Type must be application/json or multipart/form-data'
-        });
-    }
-
-    next();
-};
-
-/**
- * Double-Submit Cookie Pattern for CSRF Protection
- * Generates a random token and stores it in both a cookie and requires it in request header
- * For state-changing operations, client must send the token from cookie in a custom header
- */
-
-// Middleware to generate and set CSRF token cookie
-const setCsrfToken = (req, res, next) => {
-    // Check if token already exists in cookies
-    let csrfToken = req.cookies['csrf-token'];
-
-    // Generate new token if it doesn't exist
-    if (!csrfToken) {
-        csrfToken = crypto.randomBytes(32).toString('hex');
-
-        // Get base cookie config (same logic as accessToken for consistency)
-        const baseCookieConfig = getCookieConfig(req);
-
-        // CSRF token config: same as accessToken but httpOnly=false so JS can read it
-        res.cookie('csrf-token', csrfToken, {
-            ...baseCookieConfig,
-            httpOnly: false // Must be false so client can read it for double-submit pattern
-        });
-    }
-
-    // Make token available to response for initial setup
-    res.locals.csrfToken = csrfToken;
-
-    next();
-};
-
-// Public auth routes that should be exempt from CSRF validation
-// These are pre-authentication endpoints where users don't have a session yet
-// Note: These paths are relative to the /api mount point (req.path excludes /api prefix)
-const csrfExemptPaths = [
-    '/auth/login',
-    '/auth/register',
-    '/auth/send-otp',
-    '/auth/verify-otp',
-    '/auth/resend-otp',
-    '/auth/check-availability',
-    '/auth/logout',
-    // Versioned auth routes
-    '/v1/auth/login',
-    '/v1/auth/register',
-    '/v1/auth/send-otp',
-    '/v1/auth/verify-otp',
-    '/v1/auth/resend-otp',
-    '/v1/auth/check-availability',
-    '/v1/auth/logout',
-    '/v2/auth/login',
-    '/v2/auth/register',
-    '/v2/auth/send-otp',
-    '/v2/auth/verify-otp',
-    '/v2/auth/resend-otp',
-    '/v2/auth/check-availability',
-    '/v2/auth/logout',
-    // Webhook endpoints (have their own signature verification)
-    '/webhooks'
-];
-
-// Middleware to validate CSRF token on state-changing requests
-const validateCsrfToken = (req, res, next) => {
-    // Skip for safe methods
-    if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
-        return next();
-    }
-
-    // Skip CSRF validation for exempt paths (public auth endpoints)
-    const isExempt = csrfExemptPaths.some(path =>
-        req.path === path || req.path.startsWith(path + '/')
-    );
-
-    if (isExempt) {
-        logger.debug('CSRF validation skipped for exempt path', { path: req.path });
-        return next();
-    }
-
-    const cookieToken = req.cookies['csrf-token'];
-    const headerToken = req.headers['x-csrf-token'] || req.headers['x-xsrf-token'];
-
-    // Check if tokens exist
-    if (!cookieToken) {
-        logger.warn('CSRF token missing from cookie', {
-            method: req.method,
-            path: req.path,
-            ip: req.ip
-        });
-
-        return res.status(403).json({
-            error: true,
-            message: 'CSRF token missing. Please refresh the page.'
-        });
-    }
-
-    if (!headerToken) {
-        logger.warn('CSRF token missing from header', {
-            method: req.method,
-            path: req.path,
-            ip: req.ip,
-            headers: Object.keys(req.headers)
-        });
-
-        return res.status(403).json({
-            error: true,
-            message: 'CSRF token required in X-CSRF-Token header'
-        });
-    }
-
-    // Validate tokens match (constant-time comparison to prevent timing attacks)
-    const cookieBuffer = Buffer.from(cookieToken);
-    const headerBuffer = Buffer.from(headerToken);
-
-    if (cookieBuffer.length !== headerBuffer.length) {
-        logger.warn('CSRF token length mismatch', {
-            method: req.method,
-            path: req.path,
-            ip: req.ip
-        });
-
-        return res.status(403).json({
-            error: true,
-            message: 'Invalid CSRF token'
-        });
-    }
-
-    // Use crypto.timingSafeEqual for constant-time comparison
-    if (!crypto.timingSafeEqual(cookieBuffer, headerBuffer)) {
-        logger.warn('CSRF token validation failed', {
-            method: req.method,
-            path: req.path,
-            ip: req.ip
-        });
-
-        return res.status(403).json({
-            error: true,
-            message: 'Invalid CSRF token'
-        });
-    }
-
-    // Token is valid
-    next();
-};
-
-/**
- * Security Headers Middleware
- * Additional security headers not covered by helmet
- */
-const securityHeaders = (req, res, next) => {
-    // Prevent MIME type sniffing
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-
-    // Prevent clickjacking
-    res.setHeader('X-Frame-Options', 'DENY');
-
-    // Enable XSS protection (legacy, but defense-in-depth)
-    res.setHeader('X-XSS-Protection', '1; mode=block');
-
-    // Remove X-Powered-By header
-    res.removeHeader('X-Powered-By');
-
-    next();
-};
-
-/**
- * Request sanitization middleware
- * Prevents common injection attacks by sanitizing input
- */
-const sanitizeRequest = (req, res, next) => {
-    // Recursively sanitize object
-    const sanitize = (obj) => {
-        if (!obj || typeof obj !== 'object') return obj;
-
-        for (let key in obj) {
-            if (typeof obj[key] === 'string') {
-                // Remove null bytes
-                obj[key] = obj[key].replace(/\0/g, '');
-
-                // Limit string length to prevent DoS
-                if (obj[key].length > 1000000) { // 1MB limit
-                    obj[key] = obj[key].substring(0, 1000000);
-                }
-            } else if (typeof obj[key] === 'object') {
-                sanitize(obj[key]);
-            }
-        }
-
-        return obj;
+const secure = (options = {}) => {
+    const config = {
+        auth: true,
+        firmFilter: true,
+        ...options
     };
 
-    // Sanitize body, query, and params
-    if (req.body) sanitize(req.body);
-    if (req.query) sanitize(req.query);
-    if (req.params) sanitize(req.params);
+    // Parse permission shorthand 'module:level' format
+    if (typeof config.permission === 'string') {
+        const [module, level] = config.permission.split(':');
+        config.permission = { module, level };
+    }
 
-    next();
+    // Convert model to resourceAccess config
+    if (config.model && !config.resourceAccess) {
+        config.resourceAccess = { model: config.model, param: 'id' };
+    }
+
+    return applySecurityStack(config);
 };
 
+/**
+ * Apply security from route registry
+ *
+ * Usage in route files:
+ *   router.get('/cases', ...secureFromRegistry('GET', '/api/cases'), controller.list);
+ */
+const secureFromRegistry = (method, path) => {
+    const config = getRouteSecurityConfig(method, path);
+    if (!config) {
+        console.warn(`[Security] No security config found for ${method} ${path}`);
+        return [authenticate, firmFilter]; // Default to authenticated + firm filter
+    }
+    return applySecurityStack(config);
+};
+
+/**
+ * Quick helpers for common patterns
+ */
+const secureView = (module, model = null) => secure({
+    permission: `${module}:view`,
+    model
+});
+
+const secureEdit = (module, model = null) => secure({
+    permission: `${module}:edit`,
+    model
+});
+
+const secureFull = (module, model = null) => secure({
+    permission: `${module}:full`,
+    model
+});
+
+const secureAdmin = (module = null) => secure({
+    adminOnly: true,
+    permission: module ? `${module}:full` : null
+});
+
+const secureOwner = () => secure({
+    ownerOnly: true
+});
+
+/**
+ * Webhook security helper
+ */
+const secureWebhook = (provider) => applySecurityStack({
+    webhookAuth: provider
+});
+
 module.exports = {
-    originCheck,
-    noCache,
-    validateContentType,
-    setCsrfToken,
-    validateCsrfToken,
-    securityHeaders,
-    sanitizeRequest
+    applySecurityStack,
+    secure,
+    secureFromRegistry,
+    secureView,
+    secureEdit,
+    secureFull,
+    secureAdmin,
+    secureOwner,
+    secureWebhook
 };

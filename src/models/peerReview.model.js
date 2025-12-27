@@ -11,6 +11,12 @@ const peerReviewSchema = new mongoose.Schema({
         ref: 'User',
         required: true
     },
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false
+    },
     competence: {
         type: Number,
         min: 1,
@@ -49,5 +55,6 @@ const peerReviewSchema = new mongoose.Schema({
 });
 
 peerReviewSchema.index({ toLawyer: 1, verified: 1 });
+peerReviewSchema.index({ firmId: 1, createdAt: -1 });
 
 module.exports = mongoose.model('PeerReview', peerReviewSchema);

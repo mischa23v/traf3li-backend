@@ -985,18 +985,21 @@ class ChurnReportsService {
      * @private
      */
     static _convertToCSV(reportData) {
+        // SECURITY: Import sanitization function to prevent CSV injection
+        const { sanitizeForCSV } = require('../utils/securityUtils');
+
         // Simple CSV conversion - can be enhanced based on report type
         if (reportData.reportType === 'weekly_churn_summary') {
             let csv = 'Metric,Value\n';
-            csv += `Total Churned,${reportData.summary.totalChurned}\n`;
-            csv += `MRR Lost,${reportData.summary.mrrLost}\n`;
-            csv += `New Subscriptions,${reportData.summary.newSubscriptions}\n`;
-            csv += `Net Change,${reportData.summary.netChange}\n`;
-            csv += `At Risk,${reportData.summary.currentAtRisk}\n\n`;
+            csv += `${sanitizeForCSV('Total Churned')},${sanitizeForCSV(reportData.summary.totalChurned)}\n`;
+            csv += `${sanitizeForCSV('MRR Lost')},${sanitizeForCSV(reportData.summary.mrrLost)}\n`;
+            csv += `${sanitizeForCSV('New Subscriptions')},${sanitizeForCSV(reportData.summary.newSubscriptions)}\n`;
+            csv += `${sanitizeForCSV('Net Change')},${sanitizeForCSV(reportData.summary.netChange)}\n`;
+            csv += `${sanitizeForCSV('At Risk')},${sanitizeForCSV(reportData.summary.currentAtRisk)}\n\n`;
             csv += 'Churn Reasons\n';
             csv += 'Reason,Count\n';
             reportData.churnReasons.forEach(r => {
-                csv += `${r.reason},${r.count}\n`;
+                csv += `${sanitizeForCSV(r.reason)},${sanitizeForCSV(r.count)}\n`;
             });
             return csv;
         }

@@ -19,6 +19,13 @@ const blockConnectionSchema = new mongoose.Schema({
         index: true
     },
 
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false
+    },
+
     /**
      * Source block (where the arrow starts)
      */
@@ -201,6 +208,9 @@ blockConnectionSchema.index({ sourceBlockId: 1, targetBlockId: 1 });
 
 // Index for sorting connections by z-index within a page
 blockConnectionSchema.index({ pageId: 1, zIndex: 1 });
+
+// Compound index for firmId and createdAt
+blockConnectionSchema.index({ firmId: 1, createdAt: -1 });
 
 // ═══════════════════════════════════════════════════════════════
 // MIDDLEWARE

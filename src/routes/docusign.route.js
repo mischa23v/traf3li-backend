@@ -1,5 +1,6 @@
 const express = require('express');
 const { userMiddleware } = require('../middlewares');
+const { createWebhookAuth, preserveRawBody } = require('../middlewares/webhookAuth.middleware');
 const {
     getAuthUrl,
     handleCallback,
@@ -91,6 +92,9 @@ router.put('/settings', userMiddleware, updateSettings);
 // ═══════════════════════════════════════════════════════════════
 
 // Handle webhook notifications from DocuSign
-router.post('/webhook', handleWebhook);
+// SECURITY: Validates HMAC signature using DOCUSIGN_WEBHOOK_SECRET
+// preserveRawBody middleware captures raw request body for signature validation
+// createWebhookAuth('docusign') validates the x-docusign-signature-1 header
+router.post('/webhook', preserveRawBody, createWebhookAuth('docusign'), handleWebhook);
 
 module.exports = router;

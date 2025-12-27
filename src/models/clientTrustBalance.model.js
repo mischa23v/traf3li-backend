@@ -95,8 +95,15 @@ clientTrustBalanceSchema.statics.updateBalance = async function(firmId, accountI
             lastTransactionAmount: -amount
         };
 
+    // Build filter with minimum balance check for withdrawals
+    const filter = { firmId, accountId, clientId };
+    if (type !== 'add') {
+        filter.balance = { $gte: amount };
+        filter.availableBalance = { $gte: amount };
+    }
+
     return await this.findOneAndUpdate(
-        { firmId, accountId, clientId },
+        filter,
         update,
         { new: true }
     );

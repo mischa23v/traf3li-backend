@@ -85,17 +85,15 @@ async function verifyEmployeeOwnership(employeeId, firmId, lawyerId) {
 
 // Verify loan ownership (IDOR protection)
 async function verifyLoanOwnership(loanId, firmId, lawyerId) {
-    const loan = await EmployeeLoan.findById(sanitizeObjectId(loanId));
+    // IDOR PROTECTION - Query includes firmId/lawyerId to ensure loan belongs to user
+    const accessQuery = firmId
+        ? { _id: sanitizeObjectId(loanId), firmId }
+        : { _id: sanitizeObjectId(loanId), lawyerId };
+
+    const loan = await EmployeeLoan.findOne(accessQuery);
+
     if (!loan) {
         throw CustomException('Loan not found', 404);
-    }
-
-    const hasAccess = firmId
-        ? loan.firmId?.toString() === firmId.toString()
-        : loan.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
     }
 
     return loan;

@@ -538,9 +538,19 @@ const getInvoice = asyncHandler(async (req, res) => {
 
     const { id, _id } = req.params;
     const invoiceId = id || _id;
+    const lawyerId = req.userID;
     const firmId = req.firmId; // From firmFilter middleware
 
-    const invoice = await Invoice.findById(invoiceId)
+    // SECURITY: Build query with firm/lawyer isolation to prevent IDOR
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: invoiceId };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
+
+    const invoice = await Invoice.findOne(query)
         .populate('lawyerId', 'firstName lastName username image email country phone')
         .populate('clientId', 'firstName lastName username image email country phone')
         .populate('caseId', 'title caseNumber')
@@ -554,20 +564,16 @@ const getInvoice = asyncHandler(async (req, res) => {
         throw CustomException('Invoice not found!', 404);
     }
 
-    // Check access - firmId takes precedence for multi-tenancy
+    // Check client access (clients can view their own invoices)
     const lawyerIdStr = invoice.lawyerId._id ? invoice.lawyerId._id.toString() : invoice.lawyerId.toString();
     const clientIdStr = invoice.clientId._id ? invoice.clientId._id.toString() : invoice.clientId.toString();
 
-    let hasAccess = false;
-    if (firmId) {
-        hasAccess = invoice.firmId && invoice.firmId.toString() === firmId.toString();
-    }
-    if (!hasAccess) {
-        hasAccess = lawyerIdStr === req.userID || clientIdStr === req.userID;
-    }
+    const isClient = clientIdStr === req.userID;
+    const isLawyer = lawyerIdStr === req.userID;
 
-    if (!hasAccess) {
-        throw CustomException('You do not have access to this invoice!', 403);
+    // Allow access if user is the client, even if not the lawyer/firm
+    if (!isLawyer && !isClient) {
+        throw CustomException('Invoice not found!', 404);
     }
 
     // Mark as viewed if client is viewing
@@ -602,6 +608,7 @@ const updateInvoice = asyncHandler(async (req, res) => {
 
     const { id, _id } = req.params;
     const invoiceId = sanitizeObjectId(id || _id);
+    const lawyerId = req.userID;
     const firmId = req.firmId;
 
     // Validate input with Joi
@@ -610,19 +617,19 @@ const updateInvoice = asyncHandler(async (req, res) => {
         throw CustomException(`Validation error: ${error.details[0].message}`, 400);
     }
 
-    const invoice = await Invoice.findById(invoiceId);
+    // SECURITY: Build query with firm/lawyer isolation to prevent IDOR
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: invoiceId };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
+
+    const invoice = await Invoice.findOne(query);
 
     if (!invoice) {
         throw CustomException('Invoice not found!', 404);
-    }
-
-    // IDOR Protection - verify ownership
-    const hasAccess = firmId
-        ? invoice.firmId && invoice.firmId.toString() === firmId.toString()
-        : invoice.lawyerId.toString() === req.userID;
-
-    if (!hasAccess) {
-        throw CustomException('You do not have permission to update this invoice!', 403);
     }
 
     if (!['draft', 'pending_approval'].includes(invoice.status)) {
@@ -757,20 +764,9 @@ const deleteInvoice = asyncHandler(async (req, res) => {
     const invoice = await Invoice.findOne(deleteQuery);
 
     if (!invoice) {
-        // Determine specific error
-        const existingInvoice = await Invoice.findById(invoiceId);
-        if (!existingInvoice) {
-            throw CustomException('Invoice not found!', 404);
-        }
-        // Check ownership
-        const hasAccess = firmId
-            ? existingInvoice.firmId && existingInvoice.firmId.toString() === firmId.toString()
-            : existingInvoice.lawyerId.toString() === req.userID;
-        if (!hasAccess) {
-            throw CustomException('You do not have permission to delete this invoice!', 403);
-        }
-        // Must be status issue
-        throw CustomException('Cannot delete paid invoices! Use void instead.', 400);
+        // SECURITY: Return 404 without leaking existence - don't reveal whether
+        // invoice doesn't exist, belongs to another firm, or has wrong status
+        throw CustomException('Invoice not found!', 404);
     }
 
     // Reverse retainer application if any
@@ -821,22 +817,23 @@ const sendInvoice = asyncHandler(async (req, res) => {
 
     const { id, _id } = req.params;
     const invoiceId = sanitizeObjectId(id || _id);
+    const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const invoice = await Invoice.findById(invoiceId)
+    // SECURITY: Build query with firm/lawyer isolation to prevent IDOR
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: invoiceId };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
+
+    const invoice = await Invoice.findOne(query)
         .populate('clientId', 'firstName lastName email');
 
     if (!invoice) {
         throw CustomException('Invoice not found!', 404);
-    }
-
-    // IDOR Protection - verify ownership
-    const hasAccess = firmId
-        ? invoice.firmId && invoice.firmId.toString() === firmId.toString()
-        : invoice.lawyerId.toString() === req.userID;
-
-    if (!hasAccess) {
-        throw CustomException('You do not have permission to send this invoice!', 403);
     }
 
     // Check if approval is required but not approved
@@ -906,6 +903,7 @@ const recordPayment = asyncHandler(async (req, res) => {
 
     const { id, _id } = req.params;
     const invoiceId = sanitizeObjectId(id || _id);
+    const lawyerId = req.userID;
     const firmId = req.firmId;
 
     // Validate input with Joi
@@ -916,19 +914,19 @@ const recordPayment = asyncHandler(async (req, res) => {
 
     const { amount, paymentMethod, reference, paymentDate, notes, bankAccountId } = value;
 
-    const invoice = await Invoice.findById(invoiceId);
+    // SECURITY: Build query with firm/lawyer isolation to prevent IDOR
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: invoiceId };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
+
+    const invoice = await Invoice.findOne(query);
 
     if (!invoice) {
         throw CustomException('الفاتورة غير موجودة - Invoice not found!', 404);
-    }
-
-    // IDOR Protection - verify ownership
-    const hasAccess = firmId
-        ? invoice.firmId && invoice.firmId.toString() === firmId.toString()
-        : invoice.lawyerId.toString() === req.userID;
-
-    if (!hasAccess) {
-        throw CustomException('You do not have permission to record payment for this invoice!', 403);
     }
 
     if (invoice.status === 'void' || invoice.status === 'paid') {
@@ -1031,6 +1029,7 @@ const voidInvoice = asyncHandler(async (req, res) => {
 
     const { id, _id } = req.params;
     const invoiceId = sanitizeObjectId(id || _id);
+    const lawyerId = req.userID;
     const firmId = req.firmId;
 
     // Validate input with Joi
@@ -1041,19 +1040,19 @@ const voidInvoice = asyncHandler(async (req, res) => {
 
     const { reason } = value;
 
-    const invoice = await Invoice.findById(invoiceId);
+    // SECURITY: Build query with firm/lawyer isolation to prevent IDOR
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: invoiceId };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
+
+    const invoice = await Invoice.findOne(query);
 
     if (!invoice) {
         throw CustomException('الفاتورة غير موجودة', 404);
-    }
-
-    // IDOR Protection - verify ownership
-    const hasAccess = firmId
-        ? invoice.firmId && invoice.firmId.toString() === firmId.toString()
-        : invoice.lawyerId.toString() === req.userID;
-
-    if (!hasAccess) {
-        throw CustomException('You do not have permission to void this invoice!', 403);
     }
 
     if (invoice.status === 'void') {
@@ -1117,21 +1116,22 @@ const duplicateInvoice = asyncHandler(async (req, res) => {
 
     const { id, _id } = req.params;
     const invoiceId = sanitizeObjectId(id || _id);
+    const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const originalInvoice = await Invoice.findById(invoiceId);
+    // SECURITY: Build query with firm/lawyer isolation to prevent IDOR
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: invoiceId };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
+
+    const originalInvoice = await Invoice.findOne(query);
 
     if (!originalInvoice) {
         throw CustomException('الفاتورة غير موجودة', 404);
-    }
-
-    // IDOR Protection - verify ownership
-    const hasAccess = firmId
-        ? originalInvoice.firmId && originalInvoice.firmId.toString() === firmId.toString()
-        : originalInvoice.lawyerId.toString() === req.userID;
-
-    if (!hasAccess) {
-        throw CustomException('You do not have permission to duplicate this invoice!', 403);
     }
 
     // Create duplicate
@@ -1197,6 +1197,7 @@ const sendReminder = asyncHandler(async (req, res) => {
 
     const { id, _id } = req.params;
     const invoiceId = sanitizeObjectId(id || _id);
+    const lawyerId = req.userID;
     const firmId = req.firmId;
 
     // Validate input with Joi
@@ -1207,20 +1208,20 @@ const sendReminder = asyncHandler(async (req, res) => {
 
     const { template, customMessage, ccRecipients } = value;
 
-    const invoice = await Invoice.findById(invoiceId)
+    // SECURITY: Build query with firm/lawyer isolation to prevent IDOR
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: invoiceId };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
+
+    const invoice = await Invoice.findOne(query)
         .populate('clientId', 'firstName lastName email');
 
     if (!invoice) {
         throw CustomException('الفاتورة غير موجودة', 404);
-    }
-
-    // IDOR Protection - verify ownership
-    const hasAccess = firmId
-        ? invoice.firmId && invoice.firmId.toString() === firmId.toString()
-        : invoice.lawyerId.toString() === req.userID;
-
-    if (!hasAccess) {
-        throw CustomException('You do not have permission to send reminders for this invoice!', 403);
     }
 
     if (!['sent', 'viewed', 'partial', 'overdue'].includes(invoice.status)) {
@@ -1279,6 +1280,7 @@ const convertToCreditNote = asyncHandler(async (req, res) => {
 
     const { id, _id } = req.params;
     const invoiceId = sanitizeObjectId(id || _id);
+    const lawyerId = req.userID;
     const firmId = req.firmId;
 
     // Validate input with Joi
@@ -1289,19 +1291,19 @@ const convertToCreditNote = asyncHandler(async (req, res) => {
 
     const { reason, amount } = value;
 
-    const originalInvoice = await Invoice.findById(invoiceId);
+    // SECURITY: Build query with firm/lawyer isolation to prevent IDOR
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: invoiceId };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
+
+    const originalInvoice = await Invoice.findOne(query);
 
     if (!originalInvoice) {
         throw CustomException('الفاتورة غير موجودة', 404);
-    }
-
-    // IDOR Protection - verify ownership
-    const hasAccess = firmId
-        ? originalInvoice.firmId && originalInvoice.firmId.toString() === firmId.toString()
-        : originalInvoice.lawyerId.toString() === req.userID;
-
-    if (!hasAccess) {
-        throw CustomException('You do not have permission to create credit notes for this invoice!', 403);
     }
 
     // Generate credit note number
@@ -1392,21 +1394,22 @@ const submitForApproval = asyncHandler(async (req, res) => {
 
     const { id, _id } = req.params;
     const invoiceId = sanitizeObjectId(id || _id);
+    const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const invoice = await Invoice.findById(invoiceId);
+    // SECURITY: Build query with firm/lawyer isolation to prevent IDOR
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: invoiceId };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
+
+    const invoice = await Invoice.findOne(query);
 
     if (!invoice) {
         throw CustomException('الفاتورة غير موجودة', 404);
-    }
-
-    // IDOR Protection - verify ownership
-    const hasAccess = firmId
-        ? invoice.firmId && invoice.firmId.toString() === firmId.toString()
-        : invoice.lawyerId.toString() === req.userID;
-
-    if (!hasAccess) {
-        throw CustomException('You do not have permission to submit this invoice for approval!', 403);
     }
 
     if (invoice.status !== 'draft') {
@@ -1443,6 +1446,7 @@ const approveInvoice = asyncHandler(async (req, res) => {
 
     const { id, _id } = req.params;
     const invoiceId = sanitizeObjectId(id || _id);
+    const lawyerId = req.userID;
     const firmId = req.firmId;
 
     // Validate input with Joi
@@ -1453,26 +1457,19 @@ const approveInvoice = asyncHandler(async (req, res) => {
 
     const { notes } = value;
 
-    const invoice = await Invoice.findById(invoiceId);
+    // SECURITY: Build query with firm/lawyer isolation to prevent IDOR
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: invoiceId };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
+
+    const invoice = await Invoice.findOne(query);
 
     if (!invoice) {
         throw CustomException('الفاتورة غير موجودة', 404);
-    }
-
-    // IDOR Protection - verify access
-    const user = await User.findById(req.userID);
-    let hasAccess = false;
-
-    if (firmId) {
-        // For firm users, check if invoice belongs to firm
-        hasAccess = invoice.firmId && invoice.firmId.toString() === firmId.toString();
-    } else {
-        // For non-firm users, check if user is admin or lawyer who created it
-        hasAccess = user.role === 'admin' || invoice.lawyerId.toString() === req.userID;
-    }
-
-    if (!hasAccess) {
-        throw CustomException('You do not have permission to approve this invoice', 403);
     }
 
     if (invoice.status !== 'pending_approval') {
@@ -1527,6 +1524,7 @@ const rejectInvoice = asyncHandler(async (req, res) => {
 
     const { id, _id } = req.params;
     const invoiceId = sanitizeObjectId(id || _id);
+    const lawyerId = req.userID;
     const firmId = req.firmId;
 
     // Validate input with Joi
@@ -1537,26 +1535,19 @@ const rejectInvoice = asyncHandler(async (req, res) => {
 
     const { reason } = value;
 
-    const invoice = await Invoice.findById(invoiceId);
+    // SECURITY: Build query with firm/lawyer isolation to prevent IDOR
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: invoiceId };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
+
+    const invoice = await Invoice.findOne(query);
 
     if (!invoice) {
         throw CustomException('الفاتورة غير موجودة', 404);
-    }
-
-    // IDOR Protection - verify access
-    const user = await User.findById(req.userID);
-    let hasAccess = false;
-
-    if (firmId) {
-        // For firm users, check if invoice belongs to firm
-        hasAccess = invoice.firmId && invoice.firmId.toString() === firmId.toString();
-    } else {
-        // For non-firm users, check if user is admin or lawyer who created it
-        hasAccess = user.role === 'admin' || invoice.lawyerId.toString() === req.userID;
-    }
-
-    if (!hasAccess) {
-        throw CustomException('You do not have permission to reject this invoice', 403);
     }
 
     if (invoice.status !== 'pending_approval') {
@@ -1604,22 +1595,23 @@ const submitToZATCAHandler = asyncHandler(async (req, res) => {
 
     const { id, _id } = req.params;
     const invoiceId = sanitizeObjectId(id || _id);
+    const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const invoice = await Invoice.findById(invoiceId)
+    // SECURITY: Build query with firm/lawyer isolation to prevent IDOR
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: invoiceId };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
+
+    const invoice = await Invoice.findOne(query)
         .populate('clientId');
 
     if (!invoice) {
         throw CustomException('الفاتورة غير موجودة', 404);
-    }
-
-    // IDOR Protection - verify ownership
-    const hasAccess = firmId
-        ? invoice.firmId && invoice.firmId.toString() === firmId.toString()
-        : invoice.lawyerId.toString() === req.userID;
-
-    if (!hasAccess) {
-        throw CustomException('You do not have permission to submit this invoice to ZATCA!', 403);
     }
 
     // Validate ZATCA requirements
@@ -1854,14 +1846,14 @@ const createPaymentIntent = asyncHandler(async (req, res) => {
     const { id, _id } = req.params;
     const invoiceId = id || _id;
 
-    const invoice = await Invoice.findById(invoiceId);
+    // SECURITY: Only allow client to create payment intent for their own invoice
+    const invoice = await Invoice.findOne({
+        _id: invoiceId,
+        clientId: req.userID
+    });
 
     if (!invoice) {
         throw CustomException('Invoice not found!', 404);
-    }
-
-    if (invoice.clientId.toString() !== req.userID) {
-        throw CustomException('Only the client can pay this invoice!', 403);
     }
 
     if (!invoice.enableOnlinePayment) {
@@ -1909,16 +1901,16 @@ const confirmPayment = asyncHandler(async (req, res) => {
     let event;
     try {
         // Construct the event from the raw body and signature
-        // Note: req.rawBody must be set by express.raw() middleware for this route
-        const rawBody = req.rawBody || req.body;
-
+        // Note: express.raw() middleware sets req.body as a Buffer
         if (!sig) {
             logger.error('❌ SECURITY: Missing Stripe signature header');
             throw CustomException('Missing webhook signature', 401);
         }
 
+        // express.raw() middleware provides req.body as Buffer
+        // stripe.webhooks.constructEvent() expects Buffer or string
         event = stripe.webhooks.constructEvent(
-            typeof rawBody === 'string' ? rawBody : JSON.stringify(rawBody),
+            req.body,
             sig,
             webhookSecret
         );
@@ -2004,6 +1996,7 @@ const confirmPayment = asyncHandler(async (req, res) => {
 const applyRetainer = asyncHandler(async (req, res) => {
     const { id, _id } = req.params;
     const invoiceId = sanitizeObjectId(id || _id);
+    const lawyerId = req.userID;
     const firmId = req.firmId;
 
     // Validate input with Joi
@@ -2014,19 +2007,19 @@ const applyRetainer = asyncHandler(async (req, res) => {
 
     const { amount, retainerId } = value;
 
-    const invoice = await Invoice.findById(invoiceId);
+    // SECURITY: Build query with firm/lawyer isolation to prevent IDOR
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: invoiceId };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
+
+    const invoice = await Invoice.findOne(query);
 
     if (!invoice) {
         throw CustomException('الفاتورة غير موجودة', 404);
-    }
-
-    // IDOR Protection - verify ownership
-    const hasAccess = firmId
-        ? invoice.firmId && invoice.firmId.toString() === firmId.toString()
-        : invoice.lawyerId.toString() === req.userID;
-
-    if (!hasAccess) {
-        throw CustomException('You do not have permission to apply retainer to this invoice!', 403);
     }
 
     // Validate amount

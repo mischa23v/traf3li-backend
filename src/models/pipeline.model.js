@@ -75,6 +75,12 @@ const pipelineSchema = new mongoose.Schema({
         required: true,
         index: true
     },
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false
+    },
 
     // ═══════════════════════════════════════════════════════════════
     // BASIC INFO
@@ -183,6 +189,7 @@ const pipelineSchema = new mongoose.Schema({
 // ═══════════════════════════════════════════════════════════════
 // INDEXES
 // ═══════════════════════════════════════════════════════════════
+pipelineSchema.index({ lawyerId: 1, firmId: 1 });
 pipelineSchema.index({ lawyerId: 1, type: 1 });
 pipelineSchema.index({ lawyerId: 1, isDefault: 1 });
 pipelineSchema.index({ lawyerId: 1, isActive: 1 });

@@ -31,6 +31,12 @@ const caseStageProgressSchema = new mongoose.Schema({
         required: true,
         index: true
     },
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false
+    },
     workflowId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'WorkflowTemplate',
@@ -63,6 +69,7 @@ const caseStageProgressSchema = new mongoose.Schema({
 caseStageProgressSchema.index({ caseId: 1 }, { unique: true });
 caseStageProgressSchema.index({ workflowId: 1 });
 caseStageProgressSchema.index({ status: 1 });
+caseStageProgressSchema.index({ firmId: 1, createdAt: -1 });
 
 // Static method: Initialize workflow for case
 caseStageProgressSchema.statics.initializeForCase = async function(caseId, workflowId, initialStageId, initialStageName) {

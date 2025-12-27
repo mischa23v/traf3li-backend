@@ -334,12 +334,19 @@ const testConnection = asyncHandler(async (req, res) => {
 /**
  * Handle webhook from Zoom
  * POST /api/zoom/webhook
+ *
+ * SECURITY: Webhook signature validation is handled by middleware (zoom.route.js)
+ * - HMAC-SHA256 signature validation using x-zm-signature header
+ * - Timestamp validation using x-zm-request-timestamp header
+ * - Validation events (endpoint.url_validation) skip signature check
+ * - All other events require valid signature with ZOOM_WEBHOOK_SECRET
  */
 const handleWebhook = asyncHandler(async (req, res) => {
     const payload = req.body;
     const headers = req.headers;
 
-    // Zoom webhook validation
+    // Zoom webhook validation event (initial setup)
+    // Note: Signature validation is skipped for this event in the route middleware
     if (payload.event === 'endpoint.url_validation') {
         // Return the plainToken in the response for validation
         return res.status(200).json({
@@ -348,6 +355,8 @@ const handleWebhook = asyncHandler(async (req, res) => {
         });
     }
 
+    // At this point, the webhook signature has been validated by middleware
+    // Process the webhook event
     await zoomService.handleWebhook(payload, headers);
 
     // Zoom expects 200 OK response

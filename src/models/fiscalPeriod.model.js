@@ -89,6 +89,12 @@ const fiscalPeriodSchema = new mongoose.Schema({
     lockReason: String,
 
     // Ownership
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false
+    },
     lawyerId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
@@ -109,6 +115,7 @@ const fiscalPeriodSchema = new mongoose.Schema({
 fiscalPeriodSchema.index({ lawyerId: 1, fiscalYear: 1, periodNumber: 1 }, { unique: true });
 fiscalPeriodSchema.index({ lawyerId: 1, status: 1 });
 fiscalPeriodSchema.index({ startDate: 1, endDate: 1 });
+fiscalPeriodSchema.index({ firmId: 1, lawyerId: 1 });
 
 /**
  * Check if a date falls within this period

@@ -18,6 +18,12 @@ const blockCommentSchema = new mongoose.Schema({
         required: true,
         index: true
     },
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false
+    },
 
     content: { type: String, required: true, maxlength: 5000 },
     parentCommentId: { type: mongoose.Schema.Types.ObjectId, ref: 'BlockComment' },
@@ -37,5 +43,6 @@ const blockCommentSchema = new mongoose.Schema({
 blockCommentSchema.index({ blockId: 1, createdAt: -1 });
 blockCommentSchema.index({ pageId: 1, isResolved: 1 });
 blockCommentSchema.index({ parentCommentId: 1 });
+blockCommentSchema.index({ firmId: 1, createdAt: -1 });
 
 module.exports = mongoose.model('BlockComment', blockCommentSchema);

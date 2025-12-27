@@ -68,6 +68,12 @@ const matterBudgetSchema = new mongoose.Schema({
         required: true,
         index: true
     },
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false
+    },
     matterId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Case',
@@ -150,6 +156,7 @@ const matterBudgetSchema = new mongoose.Schema({
 
 // Indexes
 matterBudgetSchema.index({ lawyerId: 1, status: 1 });
+matterBudgetSchema.index({ firmId: 1, lawyerId: 1 });
 matterBudgetSchema.index({ matterId: 1 }, { unique: true });
 matterBudgetSchema.index({ clientId: 1 });
 

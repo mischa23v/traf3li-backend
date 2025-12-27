@@ -1,6 +1,12 @@
 const mongoose = require('mongoose');
 
 const reportSchema = new mongoose.Schema({
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false
+    },
     reportName: {
         type: String
     },
@@ -52,6 +58,7 @@ const reportSchema = new mongoose.Schema({
 });
 
 // Indexes
+reportSchema.index({ firmId: 1, createdAt: -1 });
 reportSchema.index({ createdBy: 1, createdAt: -1 });
 reportSchema.index({ reportType: 1 });
 reportSchema.index({ isScheduled: 1, nextRun: 1 });

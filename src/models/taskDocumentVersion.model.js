@@ -11,6 +11,12 @@ const taskDocumentVersionSchema = new mongoose.Schema({
         required: true,
         index: true
     },
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false
+    },
     documentId: {
         type: mongoose.Schema.Types.ObjectId,
         required: true,
@@ -56,6 +62,7 @@ const taskDocumentVersionSchema = new mongoose.Schema({
 // Compound indexes for efficient querying
 taskDocumentVersionSchema.index({ taskId: 1, documentId: 1, version: -1 });
 taskDocumentVersionSchema.index({ documentId: 1, createdAt: -1 });
+taskDocumentVersionSchema.index({ firmId: 1, createdAt: -1 });
 
 /**
  * Get version history for a task document

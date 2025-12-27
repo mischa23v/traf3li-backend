@@ -41,6 +41,12 @@ const reminderSchema = new mongoose.Schema({
         required: false,
         index: true
     },
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false
+    },
     reminderDateTime: {
         type: Date,
         required: false,
@@ -242,6 +248,9 @@ reminderSchema.index({ delegatedTo: 1, status: 1 });
 
 // Location-based reminders
 reminderSchema.index({ 'locationTrigger.enabled': 1, 'locationTrigger.triggered': 1 });
+
+// Firm-based queries
+reminderSchema.index({ firmId: 1, createdAt: -1 });
 
 // Generate reminder ID before saving
 reminderSchema.pre('save', async function(next) {
