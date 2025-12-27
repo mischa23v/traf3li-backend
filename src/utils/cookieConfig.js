@@ -92,20 +92,16 @@ const isSameOriginProxy = (request) => {
 const getCookieDomain = (request) => {
     if (!isProductionEnv) return undefined;
 
-    // Same-origin proxy requests: don't set domain
-    if (isSameOriginProxy(request)) {
-        return undefined;
-    }
-
-    // Check if the backend itself is on traf3li.com domain
-    // This handles OAuth callbacks where Origin/Referer come from external providers (Google, Microsoft)
+    // GOLD STANDARD: Check Host header FIRST
+    // For multi-subdomain apps on traf3li.com, ALWAYS return .traf3li.com
+    // This ensures cookies work across ALL subdomains (api, dashboard, etc.)
+    // regardless of whether request came through proxy or directly
     const host = request.headers.host || '';
     if (host === 'traf3li.com' || host.endsWith('.traf3li.com')) {
-        // Backend is on traf3li.com, set domain for cross-subdomain cookie sharing
         return '.traf3li.com';
     }
 
-    // Fallback: Check Origin/Referer headers
+    // For non-traf3li.com hosts, check Origin/Referer headers
     const origin = request.headers.origin || request.headers.referer || '';
 
     // SECURITY FIX: Use proper URL parsing to prevent domain spoofing
