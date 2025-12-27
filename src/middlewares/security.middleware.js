@@ -98,6 +98,7 @@ const secure = (options = {}) => {
 const secureFromRegistry = (method, path) => {
     const config = getRouteSecurityConfig(method, path);
     if (!config) {
+        // eslint-disable-next-line no-console
         console.warn(`[Security] No security config found for ${method} ${path}`);
         return [authenticate, firmFilter]; // Default to authenticated + firm filter
     }
@@ -138,6 +139,19 @@ const secureWebhook = (provider) => applySecurityStack({
     webhookAuth: provider
 });
 
+/**
+ * No-cache middleware
+ * Prevents browser caching for sensitive routes (auth, financial data, etc.)
+ */
+const noCache = (req, res, next) => {
+    res.set({
+        'Cache-Control': 'no-store, no-cache, must-revalidate, private',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+    });
+    next();
+};
+
 module.exports = {
     applySecurityStack,
     secure,
@@ -147,5 +161,6 @@ module.exports = {
     secureFull,
     secureAdmin,
     secureOwner,
-    secureWebhook
+    secureWebhook,
+    noCache
 };
