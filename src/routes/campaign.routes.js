@@ -2,7 +2,7 @@
  * Campaign Routes
  *
  * Routes for managing marketing campaigns in legal CRM
- * All routes require authentication via userMiddleware
+ * Auth handled globally by authenticatedApi middleware
  *
  * Base route: /api/campaigns
  */
@@ -10,12 +10,6 @@
 const express = require('express');
 const router = express.Router();
 const campaignController = require('../controllers/campaign.controller');
-const { userMiddleware } = require('../middlewares');
-
-// ============================================
-// APPLY AUTHENTICATION TO ALL ROUTES
-// ============================================
-router.use(userMiddleware);
 
 // ============================================
 // CAMPAIGN CRUD OPERATIONS

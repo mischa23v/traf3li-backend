@@ -103,6 +103,10 @@ const interestAreaRoutes = require('./interestArea.routes');
 
 // Sales Forecasting Routes
 const salesForecastRoutes = require('./salesForecast.routes');
+
+// Sales Quota & CRM Transaction Routes
+const salesQuotaRoute = require('./salesQuota.route');
+const crmTransactionRoute = require('./crmTransaction.route');
 const whatsappRoute = require('./whatsapp.route');
 const telegramRoute = require('./telegram.route');
 const slackRoute = require('./slack.route');
@@ -463,6 +467,10 @@ module.exports = {
 
     // Sales Forecasting
     salesForecastRoutes,
+
+    // Sales Quota & CRM Transactions
+    salesQuotaRoute,
+    crmTransactionRoute,
 
     whatsappRoute,
     telegramRoute,

@@ -1,5 +1,4 @@
 const express = require('express');
-const { userMiddleware } = require('../middlewares');
 const {
     createOrganization,
     getOrganizations,
@@ -15,9 +14,6 @@ const {
 } = require('../controllers/organization.controller');
 
 const router = express.Router();
-
-// Apply authentication to all routes
-router.use(userMiddleware);
 
 // ============================================
 // SPECIAL ROUTES (before :id routes)

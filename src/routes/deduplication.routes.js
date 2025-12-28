@@ -2,7 +2,7 @@
  * Deduplication Routes
  *
  * Routes for contact deduplication and merge operations.
- * Allows detecting duplicate contacts, reviewing suggestions, and merging records.
+ * Auth handled globally by authenticatedApi middleware
  *
  * Base route: /api/deduplication
  */
@@ -10,14 +10,7 @@
 const express = require('express');
 const router = express.Router();
 const deduplicationController = require('../controllers/deduplication.controller');
-const { userMiddleware } = require('../middlewares');
 const { authorize } = require('../middlewares/authorize.middleware');
-
-// ============================================
-// APPLY MIDDLEWARE
-// ============================================
-// All deduplication routes require authentication
-router.use(userMiddleware);
 
 // ============================================
 // DUPLICATE DETECTION

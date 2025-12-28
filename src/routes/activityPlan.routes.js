@@ -2,7 +2,7 @@
  * Activity Plan Routes
  *
  * Routes for managing activity plans (cadences/sequences) in legal CRM
- * All routes require authentication via userMiddleware
+ * Auth handled globally by authenticatedApi middleware
  *
  * Base route: /api/activity-plans
  */
@@ -10,12 +10,6 @@
 const express = require('express');
 const router = express.Router();
 const activityPlanController = require('../controllers/activityPlan.controller');
-const { userMiddleware } = require('../middlewares');
-
-// ============================================
-// APPLY AUTHENTICATION TO ALL ROUTES
-// ============================================
-router.use(userMiddleware);
 
 // ============================================
 // ACTIVITY PLAN CRUD OPERATIONS

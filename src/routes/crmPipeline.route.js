@@ -1,10 +1,6 @@
 const express = require('express');
 const router = express.Router();
 const pipelineController = require('../controllers/pipeline.controller');
-const { userMiddleware } = require('../middlewares');
-
-// Apply authentication to all routes
-router.use(userMiddleware);
 
 // ============================================
 // PIPELINE ROUTES
