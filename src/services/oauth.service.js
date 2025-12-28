@@ -311,7 +311,7 @@ class OAuthService {
             scopes: PROVIDER_CONFIGS[providerType]?.scopes || ['openid', 'email', 'profile'],
             autoCreateUsers: false,
             allowedDomains: [],
-            defaultRole: 'client',
+            defaultRole: 'lawyer', // Default to lawyer for legal practice management app
             // Mock the isEmailDomainAllowed method
             isEmailDomainAllowed: function(email) {
                 // Allow all domains for env-based providers
