@@ -1,5 +1,5 @@
 const express = require('express');
-const { userMiddleware } = require('../middlewares');
+const { userMiddleware, firmFilter } = require('../middlewares');
 const { cacheResponse } = require('../middlewares/cache.middleware');
 const { sanitizeString } = require('../utils/securityUtils');
 const {
@@ -37,6 +37,7 @@ const dashboardKeyGen = (endpoint) => (req) => {
 // ═══════════════════════════════════════════════════════════════════════════════
 app.get('/summary',
     userMiddleware,
+    firmFilter,
     cacheResponse(60, dashboardKeyGen('summary')), // 60 second cache for summary
     getDashboardSummary
 );
@@ -47,6 +48,7 @@ app.get('/summary',
 // ═══════════════════════════════════════════════════════════════════════════════
 app.get('/analytics',
     userMiddleware,
+    firmFilter,
     cacheResponse(DASHBOARD_CACHE_TTL, dashboardKeyGen('analytics')),
     getAnalytics
 );
@@ -58,6 +60,7 @@ app.get('/analytics',
 // ═══════════════════════════════════════════════════════════════════════════════
 app.get('/reports',
     userMiddleware,
+    firmFilter,
     cacheResponse(DASHBOARD_CACHE_TTL, (req) => {
         const firmId = req.firmId || 'none';
         const userId = req.userID || 'guest';
@@ -70,6 +73,7 @@ app.get('/reports',
 // Get hero stats (top-level metrics for dashboard header)
 app.get('/hero-stats',
     userMiddleware,
+    firmFilter,
     cacheResponse(DASHBOARD_CACHE_TTL, dashboardKeyGen('hero-stats')),
     getHeroStats
 );
@@ -77,6 +81,7 @@ app.get('/hero-stats',
 // Get detailed dashboard stats
 app.get('/stats',
     userMiddleware,
+    firmFilter,
     cacheResponse(DASHBOARD_CACHE_TTL, dashboardKeyGen('stats')),
     getDashboardStats
 );
@@ -84,6 +89,7 @@ app.get('/stats',
 // Get financial summary
 app.get('/financial-summary',
     userMiddleware,
+    firmFilter,
     cacheResponse(DASHBOARD_CACHE_TTL, dashboardKeyGen('financial-summary')),
     getFinancialSummary
 );
@@ -91,6 +97,7 @@ app.get('/financial-summary',
 // Get today's events
 app.get('/today-events',
     userMiddleware,
+    firmFilter,
     cacheResponse(DASHBOARD_CACHE_TTL, dashboardKeyGen('today-events')),
     getTodayEvents
 );
@@ -98,6 +105,7 @@ app.get('/today-events',
 // Get recent messages
 app.get('/recent-messages',
     userMiddleware,
+    firmFilter,
     cacheResponse(DASHBOARD_CACHE_TTL, dashboardKeyGen('recent-messages')),
     getRecentMessages
 );
@@ -105,6 +113,7 @@ app.get('/recent-messages',
 // Get activity overview
 app.get('/activity',
     userMiddleware,
+    firmFilter,
     cacheResponse(DASHBOARD_CACHE_TTL, dashboardKeyGen('activity')),
     getActivityOverview
 );
@@ -112,6 +121,7 @@ app.get('/activity',
 // Get CRM stats (for Analytics tab)
 app.get('/crm-stats',
     userMiddleware,
+    firmFilter,
     cacheResponse(DASHBOARD_CACHE_TTL, dashboardKeyGen('crm-stats')),
     getCRMStats
 );
@@ -119,6 +129,7 @@ app.get('/crm-stats',
 // Get HR stats (for Analytics tab)
 app.get('/hr-stats',
     userMiddleware,
+    firmFilter,
     cacheResponse(DASHBOARD_CACHE_TTL, dashboardKeyGen('hr-stats')),
     getHRStats
 );
@@ -126,6 +137,7 @@ app.get('/hr-stats',
 // Get Finance stats (for Analytics tab)
 app.get('/finance-stats',
     userMiddleware,
+    firmFilter,
     cacheResponse(DASHBOARD_CACHE_TTL, dashboardKeyGen('finance-stats')),
     getFinanceStats
 );
