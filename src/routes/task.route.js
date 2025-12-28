@@ -1,5 +1,4 @@
 const express = require('express');
-const { userMiddleware, firmFilter } = require('../middlewares');
 const taskUpload = require('../configs/taskUpload');
 const {
     createTask,
@@ -76,137 +75,109 @@ const {
 
 const app = express.Router();
 
-// ==============================================
-// TEMPLATE ROUTES (MUST BE BEFORE /:id ROUTES!)
-// ==============================================
-app.get('/templates', userMiddleware, firmFilter, getTemplates);
-app.post('/templates', userMiddleware, firmFilter, createTemplate);
-app.get('/templates/:templateId', userMiddleware, firmFilter, getTemplate);
-app.put('/templates/:templateId', userMiddleware, firmFilter, updateTemplate);
-app.patch('/templates/:templateId', userMiddleware, firmFilter, updateTemplate);
-app.delete('/templates/:templateId', userMiddleware, firmFilter, deleteTemplate);
-app.post('/templates/:templateId/create', userMiddleware, firmFilter, createFromTemplate);
+// Template routes (must be before /:id routes)
+app.get('/templates', getTemplates);
+app.post('/templates', createTemplate);
+app.get('/templates/:templateId', getTemplate);
+app.put('/templates/:templateId', updateTemplate);
+app.patch('/templates/:templateId', updateTemplate);
+app.delete('/templates/:templateId', deleteTemplate);
+app.post('/templates/:templateId/create', createFromTemplate);
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// BATCH ENDPOINT: Tasks Overview - Replaces 4 separate API calls
-// Returns: tasks list, summary stats, priorities, upcoming tasks
-// ═══════════════════════════════════════════════════════════════════════════════
-app.get('/overview', userMiddleware, firmFilter, getTasksOverview);
+// Batch endpoint: Tasks Overview
+app.get('/overview', getTasksOverview);
 
 // Static routes (must be before parameterized routes)
-app.get('/stats', userMiddleware, firmFilter, getTaskStats);
-app.get('/upcoming', userMiddleware, firmFilter, getUpcomingTasks);
-app.get('/overdue', userMiddleware, firmFilter, getOverdueTasks);
-app.get('/due-today', userMiddleware, firmFilter, getTasksDueToday);
-app.get('/case/:caseId', userMiddleware, firmFilter, getTasksByCase);
+app.get('/stats', getTaskStats);
+app.get('/upcoming', getUpcomingTasks);
+app.get('/overdue', getOverdueTasks);
+app.get('/due-today', getTasksDueToday);
+app.get('/case/:caseId', getTasksByCase);
 
 // Bulk operations
-app.put('/bulk', userMiddleware, firmFilter, bulkUpdateTasks);
-app.delete('/bulk', userMiddleware, firmFilter, bulkDeleteTasks);
+app.put('/bulk', bulkUpdateTasks);
+app.delete('/bulk', bulkDeleteTasks);
 
-// ==============================================
-// NLP & AI-POWERED TASK ROUTES
-// ==============================================
-app.post('/parse', userMiddleware, firmFilter, createTaskFromNaturalLanguage);
-app.post('/voice', userMiddleware, firmFilter, createTaskFromVoice);
-app.get('/smart-schedule', userMiddleware, firmFilter, getSmartScheduleSuggestions);
-app.post('/auto-schedule', userMiddleware, firmFilter, autoScheduleTasks);
+// NLP & AI-powered task routes
+app.post('/parse', createTaskFromNaturalLanguage);
+app.post('/voice', createTaskFromVoice);
+app.get('/smart-schedule', getSmartScheduleSuggestions);
+app.post('/auto-schedule', autoScheduleTasks);
 
-// ==============================================
-// VOICE-TO-TASK CONVERSION ROUTES
-// ==============================================
-app.post('/voice-to-item', userMiddleware, firmFilter, processVoiceToItem);
-app.post('/voice-to-item/batch', userMiddleware, firmFilter, batchProcessVoiceMemos);
+// Voice-to-task conversion routes
+app.post('/voice-to-item', processVoiceToItem);
+app.post('/voice-to-item/batch', batchProcessVoiceMemos);
 
 // Task CRUD
-app.post('/', userMiddleware, firmFilter, createTask);
-app.get('/', userMiddleware, firmFilter, getTasks);
+app.post('/', createTask);
+app.get('/', getTasks);
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// AGGREGATED ENDPOINT (GOLD STANDARD)
-// Get task with all related data (time tracking + documents) in 1 call
-// ═══════════════════════════════════════════════════════════════════════════════
-app.get('/:id/full', userMiddleware, firmFilter, getTaskFull);
+// Aggregated endpoint - get task with all related data
+app.get('/:id/full', getTaskFull);
 
-app.get('/:id', userMiddleware, firmFilter, getTask);
-app.put('/:id', userMiddleware, firmFilter, updateTask);
-app.patch('/:id', userMiddleware, firmFilter, updateTask);
-app.delete('/:id', userMiddleware, firmFilter, deleteTask);
+app.get('/:id', getTask);
+app.put('/:id', updateTask);
+app.patch('/:id', updateTask);
+app.delete('/:id', deleteTask);
 
 // Task actions
-app.post('/:id/complete', userMiddleware, firmFilter, completeTask);
+app.post('/:id/complete', completeTask);
 
 // Subtask management
-app.post('/:id/subtasks', userMiddleware, firmFilter, addSubtask);
-app.patch('/:id/subtasks/:subtaskId/toggle', userMiddleware, firmFilter, toggleSubtask);
-app.delete('/:id/subtasks/:subtaskId', userMiddleware, firmFilter, deleteSubtask);
+app.post('/:id/subtasks', addSubtask);
+app.patch('/:id/subtasks/:subtaskId/toggle', toggleSubtask);
+app.delete('/:id/subtasks/:subtaskId', deleteSubtask);
 
 // Time tracking
-app.post('/:id/timer/start', userMiddleware, firmFilter, startTimer);
-app.post('/:id/timer/stop', userMiddleware, firmFilter, stopTimer);
-app.post('/:id/time', userMiddleware, firmFilter, addManualTime);
+app.post('/:id/timer/start', startTimer);
+app.post('/:id/timer/stop', stopTimer);
+app.post('/:id/time', addManualTime);
 
 // Comments
-app.post('/:id/comments', userMiddleware, firmFilter, addComment);
-app.put('/:id/comments/:commentId', userMiddleware, firmFilter, updateComment);
-app.delete('/:id/comments/:commentId', userMiddleware, firmFilter, deleteComment);
+app.post('/:id/comments', addComment);
+app.put('/:id/comments/:commentId', updateComment);
+app.delete('/:id/comments/:commentId', deleteComment);
 
 // Save task as template
-app.post('/:id/save-as-template', userMiddleware, firmFilter, saveAsTemplate);
+app.post('/:id/save-as-template', saveAsTemplate);
 
-// ==============================================
-// ATTACHMENT ROUTES
-// ==============================================
-app.post('/:id/attachments', userMiddleware, firmFilter, taskUpload.single('file'), taskUpload.malwareScan, addAttachment);
-app.get('/:id/attachments/:attachmentId/download-url', userMiddleware, firmFilter, getAttachmentDownloadUrl);
-app.get('/:id/attachments/:attachmentId/versions', userMiddleware, firmFilter, getAttachmentVersions);
-app.delete('/:id/attachments/:attachmentId', userMiddleware, firmFilter, deleteAttachment);
+// Attachment routes
+app.post('/:id/attachments', taskUpload.single('file'), taskUpload.malwareScan, addAttachment);
+app.get('/:id/attachments/:attachmentId/download-url', getAttachmentDownloadUrl);
+app.get('/:id/attachments/:attachmentId/versions', getAttachmentVersions);
+app.delete('/:id/attachments/:attachmentId', deleteAttachment);
 
-// ==============================================
-// DOCUMENT ROUTES (in-app text editor)
-// ==============================================
-app.post('/:id/documents', userMiddleware, firmFilter, createDocument);
-app.get('/:id/documents', userMiddleware, firmFilter, getDocuments);
-app.get('/:id/documents/:documentId', userMiddleware, firmFilter, getDocument);
-app.patch('/:id/documents/:documentId', userMiddleware, firmFilter, updateDocument);
+// Document routes (in-app text editor)
+app.post('/:id/documents', createDocument);
+app.get('/:id/documents', getDocuments);
+app.get('/:id/documents/:documentId', getDocument);
+app.patch('/:id/documents/:documentId', updateDocument);
 // Document versioning
-app.get('/:id/documents/:documentId/versions', userMiddleware, firmFilter, getDocumentVersions);
-app.get('/:id/documents/:documentId/versions/:versionId', userMiddleware, firmFilter, getDocumentVersion);
-app.post('/:id/documents/:documentId/versions/:versionId/restore', userMiddleware, firmFilter, restoreDocumentVersion);
+app.get('/:id/documents/:documentId/versions', getDocumentVersions);
+app.get('/:id/documents/:documentId/versions/:versionId', getDocumentVersion);
+app.post('/:id/documents/:documentId/versions/:versionId/restore', restoreDocumentVersion);
 
-// ==============================================
-// VOICE MEMO ROUTES
-// ==============================================
-app.post('/:id/voice-memos', userMiddleware, firmFilter, taskUpload.single('file'), taskUpload.malwareScan, addVoiceMemo);
-app.patch('/:id/voice-memos/:memoId/transcription', userMiddleware, firmFilter, updateVoiceMemoTranscription);
+// Voice memo routes
+app.post('/:id/voice-memos', taskUpload.single('file'), taskUpload.malwareScan, addVoiceMemo);
+app.patch('/:id/voice-memos/:memoId/transcription', updateVoiceMemoTranscription);
 
-// ==============================================
-// DEPENDENCY ROUTES
-// ==============================================
-app.post('/:id/dependencies', userMiddleware, firmFilter, addDependency);
-app.delete('/:id/dependencies/:dependencyTaskId', userMiddleware, firmFilter, removeDependency);
-app.patch('/:id/status', userMiddleware, firmFilter, updateTaskStatus);
+// Dependency routes
+app.post('/:id/dependencies', addDependency);
+app.delete('/:id/dependencies/:dependencyTaskId', removeDependency);
+app.patch('/:id/status', updateTaskStatus);
 
-// ==============================================
-// PROGRESS ROUTES
-// ==============================================
-app.patch('/:id/progress', userMiddleware, firmFilter, updateProgress);
+// Progress routes
+app.patch('/:id/progress', updateProgress);
 
-// ==============================================
-// WORKFLOW ROUTES
-// ==============================================
-app.post('/:id/workflow-rules', userMiddleware, firmFilter, addWorkflowRule);
-app.patch('/:id/outcome', userMiddleware, firmFilter, updateOutcome);
+// Workflow routes
+app.post('/:id/workflow-rules', addWorkflowRule);
+app.patch('/:id/outcome', updateOutcome);
 
-// ==============================================
-// BUDGET/ESTIMATE ROUTES
-// ==============================================
-app.patch('/:id/estimate', userMiddleware, firmFilter, updateEstimate);
-app.get('/:id/time-tracking/summary', userMiddleware, firmFilter, getTimeTrackingSummary);
+// Budget/estimate routes
+app.patch('/:id/estimate', updateEstimate);
+app.get('/:id/time-tracking/summary', getTimeTrackingSummary);
 
-// ==============================================
-// ENHANCED SUBTASK ROUTES
-// ==============================================
-app.patch('/:id/subtasks/:subtaskId', userMiddleware, firmFilter, updateSubtask);
+// Enhanced subtask routes
+app.patch('/:id/subtasks/:subtaskId', updateSubtask);
 
 module.exports = app;

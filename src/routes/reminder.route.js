@@ -1,5 +1,4 @@
 const express = require('express');
-const { userMiddleware, firmFilter } = require('../middlewares');
 const {
     createReminder,
     getReminders,
@@ -37,44 +36,44 @@ const {
 const app = express.Router();
 
 // Location-based reminder routes (must be before parameterized routes)
-app.get('/location/summary', userMiddleware, firmFilter, getLocationRemindersSummary);
-app.get('/location/locations', userMiddleware, firmFilter, getUserLocations);
-app.post('/location', userMiddleware, firmFilter, createLocationReminder);
-app.post('/location/check', userMiddleware, firmFilter, checkLocationTriggers);
-app.post('/location/nearby', userMiddleware, firmFilter, getNearbyReminders);
-app.post('/location/save', userMiddleware, firmFilter, saveUserLocation);
-app.post('/location/distance', userMiddleware, firmFilter, calculateDistance);
-app.put('/location/locations/:locationId', userMiddleware, firmFilter, updateUserLocation);
-app.delete('/location/locations/:locationId', userMiddleware, firmFilter, deleteUserLocation);
-app.post('/location/:reminderId/reset', userMiddleware, firmFilter, resetLocationTrigger);
+app.get('/location/summary', getLocationRemindersSummary);
+app.get('/location/locations', getUserLocations);
+app.post('/location', createLocationReminder);
+app.post('/location/check', checkLocationTriggers);
+app.post('/location/nearby', getNearbyReminders);
+app.post('/location/save', saveUserLocation);
+app.post('/location/distance', calculateDistance);
+app.put('/location/locations/:locationId', updateUserLocation);
+app.delete('/location/locations/:locationId', deleteUserLocation);
+app.post('/location/:reminderId/reset', resetLocationTrigger);
 
 // Static routes (must be before parameterized routes)
-app.get('/stats', userMiddleware, firmFilter, getReminderStats);
-app.get('/upcoming', userMiddleware, firmFilter, getUpcomingReminders);
-app.get('/overdue', userMiddleware, firmFilter, getOverdueReminders);
-app.get('/snoozed-due', userMiddleware, firmFilter, getSnoozedDueReminders);
-app.get('/delegated', userMiddleware, firmFilter, getDelegatedReminders);
+app.get('/stats', getReminderStats);
+app.get('/upcoming', getUpcomingReminders);
+app.get('/overdue', getOverdueReminders);
+app.get('/snoozed-due', getSnoozedDueReminders);
+app.get('/delegated', getDelegatedReminders);
 
 // NLP endpoints (must be before parameterized routes)
-app.post('/parse', userMiddleware, firmFilter, createReminderFromNaturalLanguage);
-app.post('/voice', userMiddleware, firmFilter, createReminderFromVoice);
+app.post('/parse', createReminderFromNaturalLanguage);
+app.post('/voice', createReminderFromVoice);
 
 // Bulk operations
-app.put('/bulk', userMiddleware, firmFilter, bulkUpdateReminders);
-app.delete('/bulk', userMiddleware, firmFilter, bulkDeleteReminders);
+app.put('/bulk', bulkUpdateReminders);
+app.delete('/bulk', bulkDeleteReminders);
 
 // Reminder CRUD
-app.post('/', userMiddleware, firmFilter, createReminder);
-app.get('/', userMiddleware, firmFilter, getReminders);
-app.get('/:id', userMiddleware, firmFilter, getReminder);
-app.put('/:id', userMiddleware, firmFilter, updateReminder);
-app.patch('/:id', userMiddleware, firmFilter, updateReminder);
-app.delete('/:id', userMiddleware, firmFilter, deleteReminder);
+app.post('/', createReminder);
+app.get('/', getReminders);
+app.get('/:id', getReminder);
+app.put('/:id', updateReminder);
+app.patch('/:id', updateReminder);
+app.delete('/:id', deleteReminder);
 
 // Reminder actions
-app.post('/:id/complete', userMiddleware, firmFilter, completeReminder);
-app.post('/:id/dismiss', userMiddleware, firmFilter, dismissReminder);
-app.post('/:id/snooze', userMiddleware, firmFilter, snoozeReminder);
-app.post('/:id/delegate', userMiddleware, firmFilter, delegateReminder);
+app.post('/:id/complete', completeReminder);
+app.post('/:id/dismiss', dismissReminder);
+app.post('/:id/snooze', snoozeReminder);
+app.post('/:id/delegate', delegateReminder);
 
 module.exports = app;
