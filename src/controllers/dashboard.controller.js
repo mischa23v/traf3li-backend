@@ -784,10 +784,17 @@ const getDashboardSummary = async (request, response) => {
         // IDOR Protection: Verify firm access
         await verifyFirmAccess(userId, firmId);
 
-        // Build match filter
-        const matchFilter = firmId
-            ? { firmId: new mongoose.Types.ObjectId(firmId) }
-            : { lawyerId: new mongoose.Types.ObjectId(userId) };
+        // Use req.firmQuery for proper firm/lawyer isolation (set by firmFilter middleware)
+        // Convert string IDs to ObjectIds for aggregation pipelines
+        const matchFilter = {};
+        if (request.firmQuery?.firmId) {
+            matchFilter.firmId = new mongoose.Types.ObjectId(request.firmQuery.firmId);
+        } else if (request.firmQuery?.lawyerId) {
+            matchFilter.lawyerId = new mongoose.Types.ObjectId(request.firmQuery.lawyerId);
+        } else {
+            // Fallback for safety
+            matchFilter.lawyerId = new mongoose.Types.ObjectId(userId);
+        }
 
         // User-specific filter for reminders and messages
         const userFilter = { userId: new mongoose.Types.ObjectId(userId) };
@@ -864,9 +871,9 @@ const getDashboardSummary = async (request, response) => {
                 }
             ]),
 
-            // 4. Today's events
+            // 4. Today's events - use matchFilter for consistent firm/lawyer isolation
             Event.find({
-                ...(firmId ? { firmId: new mongoose.Types.ObjectId(firmId) } : { lawyerId: new mongoose.Types.ObjectId(userId) }),
+                ...matchFilter,
                 startTime: { $gte: today, $lt: tomorrow }
             })
             .sort({ startTime: 1 })

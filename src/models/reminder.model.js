@@ -283,13 +283,19 @@ reminderSchema.pre('save', async function(next) {
 });
 
 // Static method: Get upcoming reminders
-reminderSchema.statics.getUpcoming = async function(userId, days = 7) {
+// Accepts firmQuery object (from req.firmQuery) for proper multi-tenant isolation
+reminderSchema.statics.getUpcoming = async function(userId, days = 7, firmQuery = null) {
     const now = new Date();
     const future = new Date();
     future.setDate(future.getDate() + days);
 
+    // Build base filter with proper isolation + userId for user's reminders
+    const baseFilter = firmQuery
+        ? { ...firmQuery, userId: new mongoose.Types.ObjectId(userId) }
+        : { lawyerId: new mongoose.Types.ObjectId(userId), userId: new mongoose.Types.ObjectId(userId) };
+
     return await this.find({
-        userId: new mongoose.Types.ObjectId(userId),
+        ...baseFilter,
         status: { $in: ['pending', 'snoozed'] },
         $or: [
             { reminderDateTime: { $gte: now, $lte: future } },
@@ -304,11 +310,17 @@ reminderSchema.statics.getUpcoming = async function(userId, days = 7) {
 };
 
 // Static method: Get overdue reminders
-reminderSchema.statics.getOverdue = async function(userId) {
+// Accepts firmQuery object (from req.firmQuery) for proper multi-tenant isolation
+reminderSchema.statics.getOverdue = async function(userId, firmQuery = null) {
     const now = new Date();
 
+    // Build base filter with proper isolation + userId for user's reminders
+    const baseFilter = firmQuery
+        ? { ...firmQuery, userId: new mongoose.Types.ObjectId(userId) }
+        : { lawyerId: new mongoose.Types.ObjectId(userId), userId: new mongoose.Types.ObjectId(userId) };
+
     return await this.find({
-        userId: new mongoose.Types.ObjectId(userId),
+        ...baseFilter,
         status: 'pending',
         reminderDateTime: { $lt: now }
     })
@@ -319,11 +331,17 @@ reminderSchema.statics.getOverdue = async function(userId) {
 };
 
 // Static method: Get snoozed reminders due
-reminderSchema.statics.getSnoozedDue = async function(userId) {
+// Accepts firmQuery object (from req.firmQuery) for proper multi-tenant isolation
+reminderSchema.statics.getSnoozedDue = async function(userId, firmQuery = null) {
     const now = new Date();
 
+    // Build base filter with proper isolation + userId for user's reminders
+    const baseFilter = firmQuery
+        ? { ...firmQuery, userId: new mongoose.Types.ObjectId(userId) }
+        : { lawyerId: new mongoose.Types.ObjectId(userId), userId: new mongoose.Types.ObjectId(userId) };
+
     return await this.find({
-        userId: new mongoose.Types.ObjectId(userId),
+        ...baseFilter,
         status: 'snoozed',
         'snooze.snoozeUntil': { $lte: now }
     })
@@ -333,9 +351,15 @@ reminderSchema.statics.getSnoozedDue = async function(userId) {
 };
 
 // Static method: Get delegated reminders
-reminderSchema.statics.getDelegated = async function(userId) {
+// Accepts firmQuery object (from req.firmQuery) for proper multi-tenant isolation
+reminderSchema.statics.getDelegated = async function(userId, firmQuery = null) {
+    // Build base filter with proper isolation + delegatedTo for delegated reminders
+    const baseFilter = firmQuery
+        ? { ...firmQuery, delegatedTo: new mongoose.Types.ObjectId(userId) }
+        : { lawyerId: new mongoose.Types.ObjectId(userId), delegatedTo: new mongoose.Types.ObjectId(userId) };
+
     return await this.find({
-        delegatedTo: new mongoose.Types.ObjectId(userId),
+        ...baseFilter,
         status: 'delegated'
     })
     .populate('userId', 'firstName lastName')

@@ -1,5 +1,5 @@
 const express = require('express');
-const { userMiddleware, requireAdmin } = require('../middlewares');
+const { requireAdmin } = require('../middlewares');
 const {
     getNotifications,
     getNotification,
@@ -16,59 +16,41 @@ const {
 
 const app = express.Router();
 
-// ═══════════════════════════════════════════════════════════════
-// STATIC ROUTES (must come before parameterized routes)
-// ═══════════════════════════════════════════════════════════════
+// Static routes (must come before parameterized routes)
 
 // Get all notifications
-// GET /api/notifications?read=true|false&type=&page=1&limit=50
-app.get('/', userMiddleware, getNotifications);
+app.get('/', getNotifications);
 
 // Get unread count
-// GET /api/notifications/unread-count
-app.get('/unread-count', userMiddleware, getUnreadCount);
+app.get('/unread-count', getUnreadCount);
 
 // Mark all as read
-// PATCH /api/notifications/mark-all-read
-app.patch('/mark-all-read', userMiddleware, markAllAsRead);
+app.patch('/mark-all-read', markAllAsRead);
 
 // Mark multiple notifications as read
-// PATCH /api/notifications/mark-multiple-read
-// Body: { ids: ['id1', 'id2', ...] }
-app.patch('/mark-multiple-read', userMiddleware, markMultipleAsRead);
+app.patch('/mark-multiple-read', markMultipleAsRead);
 
 // Bulk delete notifications
-// DELETE /api/notifications/bulk-delete
-// Body: { ids: ['id1', 'id2', ...] }
-app.delete('/bulk-delete', userMiddleware, bulkDeleteNotifications);
+app.delete('/bulk-delete', bulkDeleteNotifications);
 
 // Clear all read notifications
-// DELETE /api/notifications/clear-read
-app.delete('/clear-read', userMiddleware, clearReadNotifications);
+app.delete('/clear-read', clearReadNotifications);
 
 // Get notifications by type
-// GET /api/notifications/by-type/:type
-app.get('/by-type/:type', userMiddleware, getNotificationsByType);
+app.get('/by-type/:type', getNotificationsByType);
 
-// ═══════════════════════════════════════════════════════════════
-// CRUD ROUTES
-// ═══════════════════════════════════════════════════════════════
+// CRUD routes
 
 // Create notification (admin only)
-// POST /api/notifications
-// Body: { userId, type, title, message, ... }
-app.post('/', userMiddleware, requireAdmin, createNotificationEndpoint);
+app.post('/', requireAdmin, createNotificationEndpoint);
 
 // Get single notification
-// GET /api/notifications/:id
-app.get('/:id', userMiddleware, getNotification);
+app.get('/:id', getNotification);
 
 // Mark single notification as read
-// PATCH /api/notifications/:id/read
-app.patch('/:id/read', userMiddleware, markAsRead);
+app.patch('/:id/read', markAsRead);
 
 // Delete notification
-// DELETE /api/notifications/:id
-app.delete('/:id', userMiddleware, deleteNotification);
+app.delete('/:id', deleteNotification);
 
 module.exports = app;

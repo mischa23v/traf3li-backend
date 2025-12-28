@@ -817,12 +817,18 @@ app.use('/api', checkSessionTimeout);
 app.use('/api', apiVersionMiddleware);
 
 // ============================================
-// GLOBAL FIRM CONTEXT (Row-Level Security)
+// GLOBAL AUTHENTICATED API (Enterprise Gold Standard)
 // ============================================
-// Automatically sets firm context on all /api routes
-// No need to add firmFilter to individual routes anymore!
-const { globalFirmContext } = require('./middlewares/globalFirmContext.middleware');
-app.use('/api', globalFirmContext);
+// Combines JWT authentication + firm context in ONE middleware.
+// Pattern used by: AWS, Google Cloud, Microsoft Azure, Salesforce
+//
+// Benefits:
+// 1. No need to add userMiddleware + firmFilter to individual routes
+// 2. Fail-secure: all /api routes require auth by default
+// 3. Public routes are explicitly whitelisted
+// 4. Firm context (req.firmQuery) is always available after auth
+const { authenticatedApi } = require('./middlewares/authenticatedApi.middleware');
+app.use('/api', authenticatedApi);
 
 // ✅ PERFORMANCE: Static files with caching (optimized for frontend service worker)
 app.use('/uploads', express.static('uploads', {

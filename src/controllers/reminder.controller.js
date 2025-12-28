@@ -815,7 +815,8 @@ const getUpcomingReminders = asyncHandler(async (req, res) => {
     const { days = 7 } = req.query;
     const userId = req.userID;
 
-    const reminders = await Reminder.getUpcoming(userId, parseInt(days));
+    // Pass req.firmQuery for proper firm/lawyer isolation
+    const reminders = await Reminder.getUpcoming(userId, parseInt(days), req.firmQuery);
 
     res.status(200).json({
         success: true,
@@ -831,7 +832,8 @@ const getUpcomingReminders = asyncHandler(async (req, res) => {
 const getOverdueReminders = asyncHandler(async (req, res) => {
     const userId = req.userID;
 
-    const reminders = await Reminder.getOverdue(userId);
+    // Pass req.firmQuery for proper firm/lawyer isolation
+    const reminders = await Reminder.getOverdue(userId, req.firmQuery);
 
     res.status(200).json({
         success: true,
@@ -847,7 +849,8 @@ const getOverdueReminders = asyncHandler(async (req, res) => {
 const getSnoozedDueReminders = asyncHandler(async (req, res) => {
     const userId = req.userID;
 
-    const reminders = await Reminder.getSnoozedDue(userId);
+    // Pass req.firmQuery for proper firm/lawyer isolation
+    const reminders = await Reminder.getSnoozedDue(userId, req.firmQuery);
 
     res.status(200).json({
         success: true,
@@ -863,7 +866,8 @@ const getSnoozedDueReminders = asyncHandler(async (req, res) => {
 const getDelegatedReminders = asyncHandler(async (req, res) => {
     const userId = req.userID;
 
-    const reminders = await Reminder.getDelegated(userId);
+    // Pass req.firmQuery for proper firm/lawyer isolation
+    const reminders = await Reminder.getDelegated(userId, req.firmQuery);
 
     res.status(200).json({
         success: true,
