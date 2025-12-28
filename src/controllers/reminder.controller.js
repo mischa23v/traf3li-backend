@@ -879,7 +879,8 @@ const getDelegatedReminders = asyncHandler(async (req, res) => {
 const getReminderStats = asyncHandler(async (req, res) => {
     const userId = req.userID;
 
-    const stats = await Reminder.getStats(userId);
+    // Pass req.firmQuery for proper firm/lawyer isolation
+    const stats = await Reminder.getStats(userId, req.firmQuery);
 
     res.status(200).json({
         success: true,

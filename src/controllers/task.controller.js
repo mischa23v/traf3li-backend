@@ -1352,10 +1352,10 @@ const bulkDeleteTasks = asyncHandler(async (req, res) => {
 // Get task stats
 const getTaskStats = asyncHandler(async (req, res) => {
     const userId = req.userID;
-    const firmId = req.firmId; // From firmFilter middleware
+    const firmId = req.firmId;
 
-    // Get stats with firmId filtering if available
-    const stats = await Task.getStats(userId, firmId);
+    // Get stats with proper firm/lawyer isolation
+    const stats = await Task.getStats(userId, firmId, req.firmQuery);
 
     res.status(200).json({
         success: true,
@@ -1366,20 +1366,14 @@ const getTaskStats = asyncHandler(async (req, res) => {
 // Get upcoming tasks
 const getUpcomingTasks = asyncHandler(async (req, res) => {
     const { days = 7 } = req.query;
-    const userId = req.userID;
-    const firmId = req.firmId; // From firmFilter middleware
 
     const today = new Date();
     const future = new Date();
     future.setDate(today.getDate() + parseInt(days));
 
-    // Build query - firmId first, then user-based
-    const baseQuery = firmId
-        ? { firmId: new mongoose.Types.ObjectId(firmId) }
-        : { $or: [{ assignedTo: userId }, { createdBy: userId }] };
-
+    // Use req.firmQuery for proper firm/lawyer isolation (set by firmFilter middleware)
     const tasks = await Task.find({
-        ...baseQuery,
+        ...req.firmQuery,
         dueDate: { $gte: today, $lte: future },
         status: { $nin: ['done', 'canceled'] }
     })
@@ -1397,16 +1391,9 @@ const getUpcomingTasks = asyncHandler(async (req, res) => {
 
 // Get overdue tasks
 const getOverdueTasks = asyncHandler(async (req, res) => {
-    const userId = req.userID;
-    const firmId = req.firmId; // From firmFilter middleware
-
-    // Build query - firmId first, then user-based
-    const baseQuery = firmId
-        ? { firmId: new mongoose.Types.ObjectId(firmId) }
-        : { $or: [{ assignedTo: userId }, { createdBy: userId }] };
-
+    // Use req.firmQuery for proper firm/lawyer isolation (set by firmFilter middleware)
     const tasks = await Task.find({
-        ...baseQuery,
+        ...req.firmQuery,
         dueDate: { $lt: new Date() },
         status: { $nin: ['done', 'canceled'] }
     })

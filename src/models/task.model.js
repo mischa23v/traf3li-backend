@@ -144,6 +144,13 @@ const taskSchema = new mongoose.Schema({
         required: false  // Optional for backwards compatibility
     },
 
+    // For solo lawyers (no firm) - enables row-level security
+    lawyerId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        index: true
+    },
+
     title: {
         type: String,
         required: false,
@@ -408,11 +415,14 @@ taskSchema.pre('save', function (next) {
 });
 
 // Static method: Get task stats
-taskSchema.statics.getStats = async function (userId, firmId = null) {
-    // Build base match filter - firmId takes precedence for firm isolation
-    const baseMatch = firmId
-        ? { firmId: new mongoose.Types.ObjectId(firmId) }
-        : { $or: [{ assignedTo: new mongoose.Types.ObjectId(userId) }, { createdBy: new mongoose.Types.ObjectId(userId) }] };
+// Accepts firmQuery object (from req.firmQuery) for proper isolation
+taskSchema.statics.getStats = async function (userId, firmId = null, firmQuery = null) {
+    // Use firmQuery if provided (preferred), otherwise fall back to building filter
+    const baseMatch = firmQuery
+        ? firmQuery
+        : (firmId
+            ? { firmId: new mongoose.Types.ObjectId(firmId) }
+            : { lawyerId: new mongoose.Types.ObjectId(userId) });
 
     const stats = await this.aggregate([
         { $match: baseMatch },
