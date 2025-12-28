@@ -496,6 +496,40 @@ const organizationSchema = new mongoose.Schema({
     },
 
     // ═══════════════════════════════════════════════════════════════
+    // CUSTOM FIELDS (Structured)
+    // ═══════════════════════════════════════════════════════════════
+    customFields: {
+        field1: { type: String, trim: true },
+        field2: { type: String, trim: true },
+        field3: { type: String, trim: true },
+        field4: { type: String, trim: true },
+        field5: { type: String, trim: true },
+        number1: { type: Number },
+        number2: { type: Number },
+        date1: Date,
+        date2: Date,
+        checkbox1: { type: Boolean, default: false },
+        checkbox2: { type: Boolean, default: false },
+        dropdown1: { type: String, trim: true },
+        textarea1: { type: String, maxlength: 5000 }
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // FOLLOW-UP TRACKING
+    // ═══════════════════════════════════════════════════════════════
+    followUp: {
+        nextDate: Date,
+        notes: { type: String, maxlength: 2000 },
+        count: { type: Number, default: 0 },
+        lastContactDate: Date,
+        lastContactMethod: {
+            type: String,
+            enum: ['phone', 'email', 'whatsapp', 'meeting', 'sms', 'other']
+        },
+        lastContactBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+    },
+
+    // ═══════════════════════════════════════════════════════════════
     // AUDIT
     // ═══════════════════════════════════════════════════════════════
     createdBy: {

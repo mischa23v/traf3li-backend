@@ -322,6 +322,37 @@ const productSchema = new mongoose.Schema({
     },
 
     // ═══════════════════════════════════════════════════════════════
+    // CUSTOM FIELDS (Structured)
+    // ═══════════════════════════════════════════════════════════════
+    customFields: {
+        field1: { type: String, trim: true },
+        field2: { type: String, trim: true },
+        field3: { type: String, trim: true },
+        field4: { type: String, trim: true },
+        field5: { type: String, trim: true },
+        number1: { type: Number },
+        number2: { type: Number },
+        date1: Date,
+        checkbox1: { type: Boolean, default: false },
+        dropdown1: { type: String, trim: true },
+        textarea1: { type: String, maxlength: 2000 }
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // TERRITORY & ASSIGNMENT
+    // ═══════════════════════════════════════════════════════════════
+    territoryId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Territory',
+        index: true
+    },
+    salesTeamId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'SalesTeam',
+        index: true
+    },
+
+    // ═══════════════════════════════════════════════════════════════
     // AUDIT FIELDS
     // ═══════════════════════════════════════════════════════════════
     createdBy: {
