@@ -282,6 +282,9 @@ const hrExtendedRoute = require('./hrExtended.route');
 // Unified Data Flow Routes
 const unifiedDataRoute = require('./unifiedData.route');
 
+// User Settings Routes (View Mode Preferences)
+const userSettingsRoute = require('./userSettings.route');
+
 // Plan & Subscription Routes
 const planRoute = require('./plan.route');
 const apiKeyRoute = require('./apiKey.route');
@@ -652,6 +655,9 @@ module.exports = {
 
     // Unified Data Flow
     unifiedDataRoute,
+
+    // User Settings (View Mode Preferences)
+    userSettingsRoute,
 
     // Plan & Subscription
     planRoute,

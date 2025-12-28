@@ -31,6 +31,7 @@ const leadSourceSchema = new mongoose.Schema({
 
 // Intake information schema
 const intakeInfoSchema = new mongoose.Schema({
+    practiceArea: { type: String, trim: true },
     caseType: {
         type: String,
         enum: [
@@ -41,12 +42,14 @@ const intakeInfoSchema = new mongoose.Schema({
     caseDescription: String,
     urgency: {
         type: String,
-        enum: ['low', 'normal', 'high', 'urgent'],
+        enum: ['low', 'normal', 'high', 'urgent', 'critical'],
         default: 'normal'
     },
     estimatedValue: Number,
     opposingParty: String,
     courtName: String,
+    courtDeadline: Date,
+    statuteOfLimitations: Date,
     currentStatus: String, // Brief description of current legal situation
     desiredOutcome: String,
     deadline: Date,
@@ -142,6 +145,10 @@ const leadSchema = new mongoose.Schema({
         default: 'individual'
     },
     // Individual fields
+    salutation: {
+        type: String,
+        enum: ['Mr', 'Mrs', 'Ms', 'Dr', 'Prof', 'Eng', 'Sheikh', 'Prince', 'Princess']
+    },
     firstName: {
         type: String,
         trim: true
@@ -150,6 +157,8 @@ const leadSchema = new mongoose.Schema({
         type: String,
         trim: true
     },
+    displayName: { type: String, trim: true },
+    preferredName: { type: String, trim: true },
     // Company fields
     companyName: {
         type: String,
@@ -159,10 +168,16 @@ const leadSchema = new mongoose.Schema({
         type: String,
         trim: true
     },
+    companyType: {
+        type: String,
+        enum: ['sme', 'enterprise', 'government', 'startup', 'ngo', 'law_firm', 'other']
+    },
     contactPerson: {
         type: String,
         trim: true
     },
+    jobTitle: { type: String, trim: true },
+    department: { type: String, trim: true },
     industry: {
         type: String,
         trim: true
@@ -175,11 +190,18 @@ const leadSchema = new mongoose.Schema({
         type: String,
         enum: ['1-10', '11-50', '51-200', '201-500', '501-1000', '1000+']
     },
+    employeeCount: { type: Number },
     annualRevenue: {
         type: Number
     },
+    companyLinkedinUrl: { type: String, trim: true },
     // Common fields
     email: {
+        type: String,
+        trim: true,
+        lowercase: true
+    },
+    alternateEmail: {
         type: String,
         trim: true,
         lowercase: true
@@ -209,6 +231,16 @@ const leadSchema = new mongoose.Schema({
         type: String,
         trim: true
     },
+    linkedinUrl: { type: String, trim: true },
+    twitterHandle: { type: String, trim: true },
+    preferredContactMethod: {
+        type: String,
+        enum: ['phone', 'email', 'whatsapp', 'in_person', 'sms']
+    },
+    bestTimeToCall: {
+        type: String,
+        enum: ['morning', 'afternoon', 'evening', 'anytime']
+    },
     address: {
         street: String,
         city: String,
@@ -219,6 +251,53 @@ const leadSchema = new mongoose.Schema({
     },
     nationalId: String,
     commercialRegistration: String,
+
+    // ═══════════════════════════════════════════════════════════════
+    // COMPANY INTELLIGENCE (iDempiere, Dolibarr patterns)
+    // ═══════════════════════════════════════════════════════════════
+    companyIntelligence: {
+        dunsNumber: { type: String, trim: true },           // D&B business identifier
+        naicsCode: { type: String, trim: true },            // North American Industry Classification
+        sicCode: { type: String, trim: true },              // Standard Industrial Classification
+        yearEstablished: { type: String, trim: true },
+        stockSymbol: { type: String, trim: true },          // Stock ticker (iDempiere)
+        parentCompany: { type: String, trim: true },
+        subsidiaries: [{ type: String, trim: true }]
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // BUSINESS INTELLIGENCE (iDempiere patterns)
+    // ═══════════════════════════════════════════════════════════════
+    businessIntelligence: {
+        potentialLTV: { type: Number, default: 0 },         // Potential lifetime value
+        actualLTV: { type: Number, default: 0 },            // Actual lifetime value
+        acquisitionCost: { type: Number, default: 0 },      // Cost to acquire
+        shareOfWallet: { type: Number, min: 0, max: 100 },  // % of customer's spend
+        creditLimit: { type: Number, default: 0 },
+        creditUsed: { type: Number, default: 0 },
+        creditRating: {
+            type: String,
+            enum: ['aaa', 'aa', 'a', 'bbb', 'bb', 'b', 'c', 'unknown']
+        },
+        paymentRating: {
+            type: String,
+            enum: ['excellent', 'good', 'average', 'poor', 'bad', 'unknown']
+        },
+        priceLevel: {
+            type: String,
+            enum: ['discount', 'standard', 'premium', 'vip'],
+            default: 'standard'
+        },
+        firstSaleDate: Date
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // RECURRING REVENUE (Odoo patterns)
+    // ═══════════════════════════════════════════════════════════════
+    recurring: {
+        revenue: { type: Number, default: 0 },              // Monthly recurring revenue
+        plan: { type: String, trim: true }                  // Subscription plan type
+    },
 
     // ═══════════════════════════════════════════════════════════════
     // NAJIZ IDENTITY FIELDS
@@ -363,7 +442,34 @@ const leadSchema = new mongoose.Schema({
     lostDate: Date,
     lostToCompetitor: String,
     lostNotes: String,
+    lostAtStage: { type: String },
     stageChangedAt: Date,
+
+    // ═══════════════════════════════════════════════════════════════
+    // STAGE TRACKING (Odoo patterns)
+    // ═══════════════════════════════════════════════════════════════
+    stageTracking: {
+        dateOpened: Date,
+        dateLastStageUpdate: Date,
+        stageHistory: [{
+            stage: { type: String },
+            date: { type: Date, default: Date.now },
+            changedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+            notes: { type: String }
+        }]
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // CONVERSION TRACKING (Salesforce patterns)
+    // ═══════════════════════════════════════════════════════════════
+    conversion: {
+        isConverted: { type: Boolean, default: false },
+        convertedClientId: { type: mongoose.Schema.Types.ObjectId, ref: 'Client' },
+        convertedContactId: { type: mongoose.Schema.Types.ObjectId, ref: 'Contact' },
+        convertedOpportunityId: { type: mongoose.Schema.Types.ObjectId, ref: 'Opportunity' },
+        convertedDate: Date,
+        convertedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+    },
 
     // ═══════════════════════════════════════════════════════════════
     // FORECAST MANAGEMENT
@@ -388,6 +494,50 @@ const leadSchema = new mongoose.Schema({
         campaign: { type: String, trim: true },
         term: { type: String, trim: true },
         content: { type: String, trim: true }
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // MARKETING (ERPNext, Salesforce patterns)
+    // ═══════════════════════════════════════════════════════════════
+    marketing: {
+        leadMagnet: { type: String, trim: true },
+        landingPageUrl: { type: String, trim: true },
+        marketingScore: { type: Number, default: 0 },
+        engagementScore: { type: Number, default: 0 },
+        lastMarketingTouch: Date,
+        campaignResponses: [{
+            campaignId: { type: mongoose.Schema.Types.ObjectId, ref: 'Campaign' },
+            respondedAt: Date,
+            response: String
+        }]
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // CONFLICT CHECK (Law Firm patterns)
+    // ═══════════════════════════════════════════════════════════════
+    conflictCheck: {
+        status: {
+            type: String,
+            enum: ['not_checked', 'pending', 'clear', 'potential', 'confirmed', 'waived'],
+            default: 'not_checked'
+        },
+        checkedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        checkedDate: Date,
+        notes: String,
+        waiverRequested: { type: Boolean, default: false },
+        waiverRequestedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        waiverRequestedAt: Date,
+        waiverApproved: { type: Boolean },
+        waiverApprovedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        waiverApprovedAt: Date,
+        waiverNotes: String,
+        conflicts: [{
+            entityType: { type: String, enum: ['client', 'lead', 'case', 'contact'] },
+            entityId: { type: mongoose.Schema.Types.ObjectId },
+            entityName: String,
+            matchType: { type: String, enum: ['nationalId', 'crNumber', 'phone', 'email', 'companyName', 'name'] },
+            severity: { type: String, enum: ['block', 'warn', 'info'] }
+        }]
     },
 
     // ═══════════════════════════════════════════════════════════════
@@ -435,10 +585,15 @@ const leadSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User'
     },
+    backupAssignee: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    },
     teamMembers: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User'
     }],
+    assignedTeam: { type: String, trim: true },
     campaignId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Campaign'
@@ -447,10 +602,13 @@ const leadSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Territory'
     },
+    territory: { type: String, trim: true },
+    region: { type: String, trim: true },
     salesTeamId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'SalesTeam'
     },
+    escalationPath: { type: String, trim: true },
 
     // ═══════════════════════════════════════════════════════════════
     // STAKEHOLDER MAPPING
@@ -544,13 +702,89 @@ const leadSchema = new mongoose.Schema({
     leadScore: { type: Number, default: 0, min: 0, max: 150 },
 
     // ═══════════════════════════════════════════════════════════════
-    // COMPETITION TRACKING
+    // COMPETITION TRACKING (Enhanced)
     // ═══════════════════════════════════════════════════════════════
     competition: {
+        status: {
+            type: String,
+            enum: ['none', 'identified', 'evaluating', 'head_to_head', 'won', 'lost_to_competitor'],
+            default: 'none'
+        },
+        competitors: [{
+            name: { type: String, trim: true },
+            strengths: { type: String, maxlength: 1000 },
+            weaknesses: { type: String, maxlength: 1000 },
+            priceComparison: { type: String, enum: ['lower', 'similar', 'higher', 'unknown'] },
+            threatLevel: { type: String, enum: ['low', 'medium', 'high', 'critical'] },
+            notes: { type: String, maxlength: 1000 }
+        }],
         competitorNames: [{ type: String, trim: true }],
         competitorNotes: { type: String, maxlength: 1000 },
         ourAdvantages: { type: String, maxlength: 1000 },
-        theirAdvantages: { type: String, maxlength: 1000 }
+        theirAdvantages: { type: String, maxlength: 1000 },
+        competitiveAdvantage: { type: String, maxlength: 2000 },
+        winStrategy: { type: String, maxlength: 2000 }
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // PROPOSAL TRACKING (Salesforce pattern)
+    // ═══════════════════════════════════════════════════════════════
+    proposal: {
+        status: {
+            type: String,
+            enum: ['not_sent', 'draft', 'sent', 'viewed', 'accepted', 'rejected', 'expired', 'revised'],
+            default: 'not_sent'
+        },
+        sentDate: Date,
+        viewedDate: Date,
+        expiryDate: Date,
+        respondedDate: Date,
+        amount: { type: Number, default: 0 },
+        currency: { type: String, default: 'SAR' },
+        revisionNumber: { type: Number, default: 1 },
+        quoteId: { type: mongoose.Schema.Types.ObjectId, ref: 'Quote' },
+        notes: { type: String, maxlength: 2000 },
+        rejectionReason: { type: String, maxlength: 1000 }
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // FOLLOW-UP TRACKING (Enhanced)
+    // ═══════════════════════════════════════════════════════════════
+    followUp: {
+        nextDate: Date,
+        nextTime: { type: String, trim: true },
+        notes: { type: String, maxlength: 2000 },
+        count: { type: Number, default: 0 },
+        lastContactDate: Date,
+        lastContactMethod: {
+            type: String,
+            enum: ['phone', 'email', 'whatsapp', 'meeting', 'sms', 'other']
+        },
+        lastContactBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        lastContactNotes: { type: String, maxlength: 1000 },
+        scheduledActivities: { type: Number, default: 0 },
+        overdueActivities: { type: Number, default: 0 }
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // LOST TRACKING (Consolidated)
+    // ═══════════════════════════════════════════════════════════════
+    lost: {
+        reason: {
+            type: String,
+            enum: ['price', 'competitor', 'no_response', 'not_qualified', 'timing', 'no_budget', 'went_cold', 'duplicate', 'other']
+        },
+        reasonId: { type: mongoose.Schema.Types.ObjectId, ref: 'LostReason' },
+        details: { type: String, maxlength: 2000 },
+        date: Date,
+        toCompetitor: { type: String, trim: true },
+        competitorName: { type: String, trim: true },
+        stage: { type: String, trim: true },
+        amount: { type: Number },
+        lostBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        canReopen: { type: Boolean, default: true },
+        reopenDate: Date,
+        winBackAttempts: { type: Number, default: 0 }
     },
 
     // ═══════════════════════════════════════════════════════════════
@@ -563,7 +797,61 @@ const leadSchema = new mongoose.Schema({
     }],
     practiceArea: { type: String, trim: true },
     notes: { type: String, maxlength: 5000 },
-    customFields: mongoose.Schema.Types.Mixed,
+    internalNotes: { type: String, maxlength: 5000 },
+    priority: {
+        type: String,
+        enum: ['low', 'normal', 'high', 'urgent'],
+        default: 'normal'
+    },
+    isVIP: { type: Boolean, default: false },
+
+    // ═══════════════════════════════════════════════════════════════
+    // CUSTOM FIELDS (Structured)
+    // ═══════════════════════════════════════════════════════════════
+    customFields: {
+        field1: { type: String, trim: true },
+        field2: { type: String, trim: true },
+        field3: { type: String, trim: true },
+        field4: { type: String, trim: true },
+        field5: { type: String, trim: true },
+        field6: { type: String, trim: true },
+        field7: { type: String, trim: true },
+        field8: { type: String, trim: true },
+        field9: { type: String, trim: true },
+        field10: { type: String, trim: true },
+        // Numeric custom fields
+        number1: { type: Number },
+        number2: { type: Number },
+        number3: { type: Number },
+        // Date custom fields
+        date1: Date,
+        date2: Date,
+        date3: Date,
+        // Boolean custom fields
+        checkbox1: { type: Boolean, default: false },
+        checkbox2: { type: Boolean, default: false },
+        checkbox3: { type: Boolean, default: false },
+        // Dropdown/select custom fields
+        dropdown1: { type: String, trim: true },
+        dropdown2: { type: String, trim: true },
+        // Large text custom fields
+        textarea1: { type: String, maxlength: 5000 },
+        textarea2: { type: String, maxlength: 5000 }
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // INTEGRATION (External systems)
+    // ═══════════════════════════════════════════════════════════════
+    integration: {
+        externalId: { type: String, trim: true },
+        sourceSystem: { type: String, trim: true },
+        lastSyncDate: Date,
+        syncStatus: {
+            type: String,
+            enum: ['synced', 'pending', 'failed', 'never']
+        },
+        syncErrors: [{ type: String }]
+    },
 
     // ═══════════════════════════════════════════════════════════════
     // DATA QUALITY

@@ -19,9 +19,7 @@ const productSchema = new mongoose.Schema({
         ref: 'Firm',
         required: true,
         index: true
-    },,
-
-
+    },
     // For solo lawyers (no firm) - enables row-level security
     lawyerId: {
         type: mongoose.Schema.Types.ObjectId,
@@ -222,6 +220,137 @@ const productSchema = new mongoose.Schema({
         type: String,
         maxlength: 50
     }],
+
+    // ═══════════════════════════════════════════════════════════════
+    // INVENTORY (for physical products)
+    // ═══════════════════════════════════════════════════════════════
+    inventory: {
+        sku: { type: String, trim: true, maxlength: 100 },
+        barcode: { type: String, trim: true, maxlength: 100 },
+        stockQuantity: { type: Number, default: 0, min: 0 },
+        reorderLevel: { type: Number, default: 0, min: 0 },
+        stockStatus: {
+            type: String,
+            enum: ['in_stock', 'low_stock', 'out_of_stock', 'discontinued', 'not_applicable'],
+            default: 'not_applicable'
+        },
+        trackInventory: { type: Boolean, default: false },
+        warehouseLocation: { type: String, trim: true }
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // COSTING & MARGIN (iDempiere pattern)
+    // ═══════════════════════════════════════════════════════════════
+    costing: {
+        costPrice: { type: Number, default: 0, min: 0 },
+        averageCost: { type: Number, default: 0, min: 0 },
+        standardCost: { type: Number, default: 0, min: 0 },
+        marginPercent: { type: Number, default: 0 },
+        marginAmount: { type: Number, default: 0 },
+        markupPercent: { type: Number, default: 0 }
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // RELATED PRODUCTS (Salesforce/Odoo pattern)
+    // ═══════════════════════════════════════════════════════════════
+    relatedProducts: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Product'
+    }],
+    upsellProducts: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Product'
+    }],
+    crossSellProducts: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Product'
+    }],
+
+    // ═══════════════════════════════════════════════════════════════
+    // BUNDLING
+    // ═══════════════════════════════════════════════════════════════
+    isBundle: {
+        type: Boolean,
+        default: false
+    },
+    bundleItems: [{
+        productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
+        quantity: { type: Number, default: 1, min: 1 },
+        discount: { type: Number, default: 0, min: 0, max: 100 }
+    }],
+
+    // ═══════════════════════════════════════════════════════════════
+    // DIGITAL PRODUCTS
+    // ═══════════════════════════════════════════════════════════════
+    digital: {
+        isDigital: { type: Boolean, default: false },
+        downloadUrl: { type: String, trim: true },
+        accessDuration: { type: Number }, // in days
+        maxDownloads: { type: Number }
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // PRICE LEVELS (iDempiere pattern)
+    // ═══════════════════════════════════════════════════════════════
+    priceLevels: [{
+        level: { type: String, enum: ['discount', 'standard', 'premium', 'vip'] },
+        price: { type: Number, min: 0 },
+        discountPercent: { type: Number, min: 0, max: 100 }
+    }],
+
+    // ═══════════════════════════════════════════════════════════════
+    // VENDOR INFO
+    // ═══════════════════════════════════════════════════════════════
+    vendor: {
+        vendorId: { type: mongoose.Schema.Types.ObjectId, ref: 'Vendor' },
+        vendorProductCode: { type: String, trim: true },
+        vendorPrice: { type: Number, min: 0 },
+        leadTimeDays: { type: Number, min: 0 }
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // INTEGRATION
+    // ═══════════════════════════════════════════════════════════════
+    integration: {
+        externalId: { type: String, trim: true },
+        sourceSystem: { type: String, trim: true },
+        lastSyncDate: Date,
+        syncStatus: {
+            type: String,
+            enum: ['synced', 'pending', 'failed', 'never']
+        }
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // CUSTOM FIELDS (Structured)
+    // ═══════════════════════════════════════════════════════════════
+    customFields: {
+        field1: { type: String, trim: true },
+        field2: { type: String, trim: true },
+        field3: { type: String, trim: true },
+        field4: { type: String, trim: true },
+        field5: { type: String, trim: true },
+        number1: { type: Number },
+        number2: { type: Number },
+        date1: Date,
+        checkbox1: { type: Boolean, default: false },
+        dropdown1: { type: String, trim: true },
+        textarea1: { type: String, maxlength: 2000 }
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // TERRITORY & ASSIGNMENT
+    // ═══════════════════════════════════════════════════════════════
+    territoryId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Territory',
+        index: true
+    },
+    salesTeamId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'SalesTeam',
+        index: true
+    },
 
     // ═══════════════════════════════════════════════════════════════
     // AUDIT FIELDS
