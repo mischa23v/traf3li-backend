@@ -240,6 +240,22 @@ class GoogleOneTapService {
             });
         }
 
+        // Only lawyers are allowed to login to the dashboard
+        // Clients and other non-lawyer roles are not permitted
+        if (user.role !== 'lawyer') {
+            logger.warn('Non-lawyer Google One Tap login attempt blocked', {
+                userId: user._id,
+                email: user.email,
+                role: user.role
+            });
+
+            throw CustomException(
+                'هذه اللوحة مخصصة للمحامين فقط - This dashboard is for lawyers only',
+                403,
+                'LAWYERS_ONLY'
+            );
+        }
+
         // Log successful authentication
         await auditLogService.log(
             isNewUser ? 'google_one_tap_register' : 'google_one_tap_login',
@@ -367,8 +383,10 @@ class GoogleOneTapService {
         const randomPassword = crypto.randomBytes(32).toString('hex');
         const hashedPassword = await bcrypt.hash(randomPassword, 12);
 
-        // Determine default role
-        const role = 'client'; // Default to client for Google One Tap
+        // For this legal practice management app, Google One Tap users should be lawyers
+        // They can opt-in to marketplace (isSeller) later
+        const role = 'lawyer';
+        const isSoloLawyer = !firmId; // Solo lawyer if not joining a firm
 
         const userData = {
             username,
@@ -378,7 +396,9 @@ class GoogleOneTapService {
             lastName: userInfo.familyName || 'User',
             phone: '', // Can be filled later
             role,
-            isSeller: false,
+            isSeller: false, // Can opt-in to marketplace later
+            isSoloLawyer: isSoloLawyer,
+            lawyerWorkMode: isSoloLawyer ? 'solo' : null,
             country: 'Saudi Arabia',
             image: userInfo.picture,
 
@@ -394,8 +414,8 @@ class GoogleOneTapService {
 
             // Firm association
             firmId: firmId || null,
-            firmRole: null,
-            firmStatus: null
+            firmRole: firmId ? 'lawyer' : null,
+            firmStatus: firmId ? 'active' : null
         };
 
         const user = new User(userData);
