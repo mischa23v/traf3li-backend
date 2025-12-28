@@ -98,6 +98,7 @@ const {
 } = require('./middlewares/security.middleware');
 const { generateNonce } = require('./middlewares/nonce.middleware');
 const { enhancedSecurityHeaders, apiSecurityHeaders } = require('./middlewares/securityHeaders.middleware');
+const { initAggressiveDebug, aggressiveErrorHandler } = require('./middlewares/aggressiveDebug');
 const { checkSessionTimeout } = require('./middlewares/sessionTimeout.middleware');
 const {
     apiVersionMiddleware,
@@ -477,6 +478,21 @@ app.use(getRequestHandler());
 
 // Add Sentry tracing handler - performance monitoring
 app.use(getTracingHandler());
+
+// ============================================
+// AGGRESSIVE DEBUG MODE - Enable with DEBUG_MODE=aggressive
+// ============================================
+// Provides comprehensive error logging with:
+// - Full stack traces with exact file/line numbers
+// - Source code context for errors
+// - Request/response logging with timing
+// - MongoDB query logging
+// Enable by setting DEBUG_MODE=aggressive in environment
+let debugMiddleware = null;
+if (process.env.DEBUG_MODE === 'aggressive' || process.env.NODE_ENV === 'development') {
+    debugMiddleware = initAggressiveDebug(app, mongoose);
+    logger.info('🔍 Aggressive debug mode enabled - all errors will show detailed traces');
+}
 
 // Initialize Socket.io
 initSocket(server);
@@ -1340,6 +1356,14 @@ app.use((req, res, next) => {
 // ============================================
 // Sentry error handler - captures errors and sends to Sentry
 app.use(getErrorHandler());
+
+// ============================================
+// AGGRESSIVE DEBUG ERROR HANDLER - Logs detailed error info
+// ============================================
+// Logs full stack traces, source context, and request details
+if (process.env.DEBUG_MODE === 'aggressive' || process.env.NODE_ENV === 'development') {
+    app.use(aggressiveErrorHandler);
+}
 
 // ============================================
 // CUSTOM ERROR HANDLER - Must be last
