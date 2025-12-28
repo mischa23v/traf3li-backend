@@ -785,6 +785,20 @@ class OAuthService {
             }
         }
 
+        // Only lawyers are allowed to login to the dashboard
+        // Clients and other non-lawyer roles are not permitted
+        if (user.role !== 'lawyer') {
+            logger.warn('Non-lawyer SSO login attempt blocked', {
+                userId: user._id,
+                email: user.email,
+                role: user.role,
+                provider: config.provider.name,
+                ipAddress
+            });
+
+            throw CustomException('هذه اللوحة مخصصة للمحامين فقط - This dashboard is for lawyers only', 403);
+        }
+
         // Generate JWT token
         const token = jwt.sign({
             _id: user._id,

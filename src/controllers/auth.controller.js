@@ -645,6 +645,24 @@ const authLogin = async (request, response) => {
             });
         }
 
+        // Only lawyers are allowed to login to the dashboard
+        // Clients and other non-lawyer roles are not permitted
+        if (user.role !== 'lawyer') {
+            logger.warn('Non-lawyer login attempt blocked', {
+                userId: user._id,
+                email: user.email,
+                role: user.role,
+                ipAddress
+            });
+
+            return response.status(403).json({
+                error: true,
+                message: 'هذه اللوحة مخصصة للمحامين فقط',
+                messageEn: 'This dashboard is for lawyers only',
+                code: 'LAWYERS_ONLY'
+            });
+        }
+
         // PERF: Use async bcrypt.compare instead of blocking compareSync
         // This prevents blocking the event loop during password verification
         const match = await bcrypt.compare(password, user.password);
