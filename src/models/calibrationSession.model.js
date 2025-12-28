@@ -184,8 +184,15 @@ const CalibrationSessionSchema = new Schema({
         ref: 'Firm',
         required: true,
         index: true
-    },
+    },,
 
+
+    // For solo lawyers (no firm) - enables row-level security
+    lawyerId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        index: true
+    },
     // Audit
     createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
     createdAt: { type: Date, default: Date.now },

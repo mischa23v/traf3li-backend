@@ -309,8 +309,15 @@ const ticketCommunicationSchema = new mongoose.Schema({
         required: true,
         index: true,
         comment: 'Firm this communication belongs to'
-    },
+    },,
 
+
+    // For solo lawyers (no firm) - enables row-level security
+    lawyerId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        index: true
+    },
     // ═══════════════════════════════════════════════════════════════
     // AUDIT FIELDS
     // ═══════════════════════════════════════════════════════════════

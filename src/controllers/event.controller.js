@@ -255,31 +255,21 @@ const getEvents = asyncHandler(async (req, res) => {
     const firmId = req.firmId; // From firmFilter middleware
     const isDeparted = req.isDeparted; // From firmFilter middleware
 
-    // Build base query - firmId first, then user-based
+    // Build base query - use req.firmQuery for proper tenant isolation
     let baseQuery;
-    if (firmId) {
-        if (isDeparted) {
-            // Departed users can only see events they organized or attended
-            baseQuery = {
-                firmId,
-                $or: [
-                    { createdBy: userId },
-                    { organizer: userId },
-                    { 'attendees.userId': userId }
-                ]
-            };
-        } else {
-            // Active firm members see all firm events
-            baseQuery = { firmId };
-        }
-    } else {
+    if (isDeparted) {
+        // Departed users can only see events they organized or attended
         baseQuery = {
+            ...req.firmQuery,
             $or: [
                 { createdBy: userId },
                 { organizer: userId },
                 { 'attendees.userId': userId }
             ]
         };
+    } else {
+        // Use req.firmQuery for proper tenant isolation
+        baseQuery = { ...req.firmQuery };
     }
 
     // Copy base query for filtering
@@ -353,14 +343,11 @@ const getEvents = asyncHandler(async (req, res) => {
     const results = await Promise.all(promises);
     const [events, total] = results;
 
-    // Also get tasks due in this date range
+    // Also get tasks due in this date range - use req.firmQuery for proper tenant isolation
     let tasks = [];
     if (startDate && endDate) {
         tasks = await Task.find({
-            $or: [
-                { assignedTo: userId },
-                { createdBy: userId }
-            ],
+            ...req.firmQuery,
             dueDate: {
                 $gte: new Date(startDate),
                 $lte: new Date(endDate)
@@ -1163,38 +1150,18 @@ const getEventsByDate = asyncHandler(async (req, res) => {
     const endOfDay = new Date(date);
     endOfDay.setHours(23, 59, 59, 999);
 
-    // Build query - firmId first, then user-based
-    const eventQuery = firmId
-        ? { firmId }
-        : {
-            $or: [
-                { createdBy: userId },
-                { organizer: userId },
-                { 'attendees.userId': userId }
-            ]
-        };
-
+    // Build query - use req.firmQuery for proper tenant isolation
     const events = await Event.find({
-        ...eventQuery,
+        ...req.firmQuery,
         startDateTime: { $gte: startOfDay, $lte: endOfDay }
     })
         .populate('organizer', 'firstName lastName image')
         .populate('caseId', 'title caseNumber')
         .sort({ startDateTime: 1 });
 
-    // Build task query - firmId first, then user-based
-    const taskQuery = firmId
-        ? { firmId }
-        : {
-            $or: [
-                { assignedTo: userId },
-                { createdBy: userId }
-            ]
-        };
-
-    // Get tasks due on this date
+    // Get tasks due on this date - use req.firmQuery for proper tenant isolation
     const tasks = await Task.find({
-        ...taskQuery,
+        ...req.firmQuery,
         dueDate: { $gte: startOfDay, $lte: endOfDay },
         status: { $nin: ['done', 'canceled'] }
     })
@@ -1219,19 +1186,9 @@ const getEventsByMonth = asyncHandler(async (req, res) => {
     const startDate = new Date(year, month - 1, 1);
     const endDate = new Date(year, month, 0, 23, 59, 59);
 
-    // Build query - firmId first, then user-based
-    const baseQuery = firmId
-        ? { firmId }
-        : {
-            $or: [
-                { createdBy: userId },
-                { organizer: userId },
-                { 'attendees.userId': userId }
-            ]
-        };
-
+    // Build query with tenant isolation using req.firmQuery
     const events = await Event.find({
-        ...baseQuery,
+        ...req.firmQuery,
         startDateTime: { $gte: startDate, $lte: endDate }
     })
         .populate('organizer', 'firstName lastName image')

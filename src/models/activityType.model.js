@@ -30,8 +30,15 @@ const activityTypeSchema = new mongoose.Schema({
         default: null,
         index: true
         // null = system default type available to all firms
-    },
+    },,
 
+
+    // For solo lawyers (no firm) - enables row-level security
+    lawyerId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        index: true
+    },
     // ═══════════════════════════════════════════════════════════════
     // BASIC INFO
     // ═══════════════════════════════════════════════════════════════

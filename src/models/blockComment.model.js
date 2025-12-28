@@ -23,8 +23,15 @@ const blockCommentSchema = new mongoose.Schema({
         ref: 'Firm',
         index: true,
         required: false
-    },
+    },,
 
+
+    // For solo lawyers (no firm) - enables row-level security
+    lawyerId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        index: true
+    },
     content: { type: String, required: true, maxlength: 5000 },
     parentCommentId: { type: mongoose.Schema.Types.ObjectId, ref: 'BlockComment' },
     mentions: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],

@@ -17,8 +17,15 @@ const binSchema = new Schema({
         ref: 'Firm',
         index: true,
         required: false  // Optional for backwards compatibility
-    },
+    },,
 
+
+    // For solo lawyers (no firm) - enables row-level security
+    lawyerId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        index: true
+    },
     // ============ ITEM & WAREHOUSE ============
     itemId: {
         type: Schema.Types.ObjectId,

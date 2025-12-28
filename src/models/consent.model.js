@@ -55,8 +55,15 @@ const consentSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Firm',
     index: true,
-  },
+  },,
 
+
+    // For solo lawyers (no firm) - enables row-level security
+    lawyerId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        index: true
+    },
   // Current consent state by category
   consents: {
     // Essential - always required, cannot be withdrawn

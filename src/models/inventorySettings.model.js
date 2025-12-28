@@ -17,8 +17,15 @@ const inventorySettingsSchema = new Schema({
         unique: true,
         required: true,
         index: true
-    },
+    },,
 
+
+    // For solo lawyers (no firm) - enables row-level security
+    lawyerId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        index: true
+    },
     // ============ DEFAULT WAREHOUSE ============
     defaultWarehouse: {
         type: Schema.Types.ObjectId,

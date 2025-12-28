@@ -175,8 +175,15 @@ const complianceAuditSchema = new mongoose.Schema(
       ref: 'Firm',
       index: true,
       description: 'Firm/organization this log belongs to'
-    },
+    },,
 
+
+    // For solo lawyers (no firm) - enables row-level security
+    lawyerId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        index: true
+    },
     // ═══════════════════════════════════════════════════════════════
     // TIMESTAMP
     // ═══════════════════════════════════════════════════════════════

@@ -611,11 +611,10 @@ const createSimpleEntry = asyncHandler(async (req, res) => {
         });
     }
 
-    // Verify accounts exist and belong to user's firm
-    const accountQuery = req.user?.firmId ? { firmId: req.user.firmId } : {};
+    // Verify accounts exist and belong to user's firm/lawyer (using req.firmQuery for tenant isolation)
     const [debitAccount, creditAccount] = await Promise.all([
-        Account.findOne({ _id: debitAccountId, ...accountQuery }),
-        Account.findOne({ _id: creditAccountId, ...accountQuery })
+        Account.findOne({ _id: debitAccountId, ...req.firmQuery }),
+        Account.findOne({ _id: creditAccountId, ...req.firmQuery })
     ]);
 
     if (!debitAccount) {

@@ -18,8 +18,15 @@ const pageHistorySchema = new mongoose.Schema({
         ref: 'Firm',
         index: true,
         required: false
-    },
+    },,
 
+
+    // For solo lawyers (no firm) - enables row-level security
+    lawyerId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        index: true
+    },
     // User who made the change
     userId: {
         type: mongoose.Schema.Types.ObjectId,

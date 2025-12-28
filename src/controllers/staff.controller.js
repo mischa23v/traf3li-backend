@@ -143,13 +143,9 @@ const getStaffById = asyncHandler(async (req, res) => {
     }
 
     const { id } = req.params;
-    const lawyerId = req.userID;
-    const firmId = req.firmId;
 
-    // IDOR Protection: Query includes firmId/lawyerId to ensure staff belongs to user
-    const accessQuery = firmId
-        ? { $or: [{ _id: id }, { staffId: id }], firmId }
-        : { $or: [{ _id: id }, { staffId: id }], lawyerId };
+    // IDOR Protection: Use req.firmQuery for proper tenant isolation
+    const accessQuery = { $or: [{ _id: id }, { staffId: id }], ...req.firmQuery };
 
     const staff = await Staff.findOne(accessQuery)
         .populate('reportsTo', 'firstName lastName email')
@@ -181,13 +177,9 @@ const updateStaff = asyncHandler(async (req, res) => {
     }
 
     const { id } = req.params;
-    const lawyerId = req.userID;
-    const firmId = req.firmId;
 
-    // IDOR Protection: Ensure staff belongs to user's firm/lawyer
-    const accessQuery = firmId
-        ? { $or: [{ _id: id }, { staffId: id }], firmId }
-        : { $or: [{ _id: id }, { staffId: id }], lawyerId };
+    // IDOR Protection: Use req.firmQuery for proper tenant isolation
+    const accessQuery = { $or: [{ _id: id }, { staffId: id }], ...req.firmQuery };
 
     const staff = await Staff.findOne(accessQuery);
 
@@ -274,13 +266,9 @@ const deleteStaff = asyncHandler(async (req, res) => {
     }
 
     const { id } = req.params;
-    const lawyerId = req.userID;
-    const firmId = req.firmId;
 
-    // IDOR Protection: Query includes firmId/lawyerId to ensure staff belongs to user
-    const accessQuery = firmId
-        ? { $or: [{ _id: id }, { staffId: id }], firmId }
-        : { $or: [{ _id: id }, { staffId: id }], lawyerId };
+    // IDOR Protection: Use req.firmQuery for proper tenant isolation
+    const accessQuery = { $or: [{ _id: id }, { staffId: id }], ...req.firmQuery };
 
     const staff = await Staff.findOneAndDelete(accessQuery);
 

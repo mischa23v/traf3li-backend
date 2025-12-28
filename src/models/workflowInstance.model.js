@@ -57,8 +57,15 @@ const workflowInstanceSchema = new mongoose.Schema({
         ref: 'Firm',
         required: true,
         index: true
-    },
+    },,
 
+
+    // For solo lawyers (no firm) - enables row-level security
+    lawyerId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        index: true
+    },
     // Template Reference
     templateId: {
         type: mongoose.Schema.Types.ObjectId,

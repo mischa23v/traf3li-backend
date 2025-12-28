@@ -16,8 +16,15 @@ const jobCardSchema = new Schema({
         ref: 'Firm',
         index: true,
         required: false
-    },
+    },,
 
+
+    // For solo lawyers (no firm) - enables row-level security
+    lawyerId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        index: true
+    },
     // Auto-generated Job Card ID (Format: JC-YYYYMMDD-XXXX)
     jobCardId: {
         type: String,

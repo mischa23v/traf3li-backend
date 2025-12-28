@@ -29,8 +29,15 @@ const zoomIntegrationSchema = new mongoose.Schema({
         ref: 'Firm',
         index: true
         // null for personal integrations, set for firm-wide
-    },
+    },,
 
+
+    // For solo lawyers (no firm) - enables row-level security
+    lawyerId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        index: true
+    },
     // ═══════════════════════════════════════════════════════════════
     // OAUTH TOKENS (encrypted)
     // ═══════════════════════════════════════════════════════════════

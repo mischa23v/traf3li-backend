@@ -185,11 +185,30 @@ const verifyToken = async (req, res, next) => {
         }
 
         // 4. Token is valid and not revoked - allow request
-        req.userID = decoded._id;
-        req.userId = decoded._id; // Alias for consistency
+        req.userID = decoded._id || decoded.id; // Handle both formats
+        req.userId = decoded._id || decoded.id; // Alias for consistency
         req.isSeller = decoded.isSeller;
         req.token = token; // Store token for potential revocation on logout
         req.deviceFingerprint = currentDevice; // Store current device info
+
+        // ENTERPRISE: Extract custom claims from JWT for stateless tenant verification
+        // These claims are set by customClaims.service.js during token generation
+        // This enables stateless verification without database lookup
+        req.jwtClaims = {
+            firmId: decoded.firm_id || null,
+            firmRole: decoded.firm_role || null,
+            firmStatus: decoded.firm_status || 'active',
+            isSoloLawyer: decoded.is_solo_lawyer || false,
+            mfaEnabled: decoded.mfa_enabled || false,
+            subscriptionTier: decoded.subscription_tier || 'free',
+            subscriptionStatus: decoded.subscription_status || 'trial',
+            isDeparted: decoded.is_departed || false,
+            emailVerified: decoded.email_verified || false,
+            role: decoded.role || 'client'
+        };
+
+        // Quick access to firm ID from JWT
+        req.jwtFirmId = decoded.firm_id || null;
 
         return next();
     } catch (error) {

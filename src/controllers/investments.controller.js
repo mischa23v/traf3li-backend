@@ -138,6 +138,7 @@ const createInvestment = asyncHandler(async (req, res) => {
         const [createdInvestment] = await Investment.create([{
             userId,
             firmId,
+            lawyerId: !firmId ? userId : undefined, // Solo lawyers get lawyerId for isolation
             symbol: symbol.toUpperCase(),
             name,
             nameEn: nameEn || symbolInfo?.nameEn,
@@ -167,6 +168,7 @@ const createInvestment = asyncHandler(async (req, res) => {
         await InvestmentTransaction.create([{
             userId,
             firmId,
+            lawyerId: !firmId ? userId : undefined, // Solo lawyers get lawyerId for isolation
             investmentId: investment._id,
             type: 'purchase',
             date: new Date(purchaseDate),
@@ -240,9 +242,9 @@ const getInvestments = asyncHandler(async (req, res) => {
     } = req.query;
 
     // ─────────────────────────────────────────────────────────────
-    // BUILD FILTERS
+    // BUILD FILTERS - Use req.firmQuery for proper tenant isolation
     // ─────────────────────────────────────────────────────────────
-    const filters = firmId ? { firmId } : { userId };
+    const filters = { ...req.firmQuery };
 
     if (status && status !== 'all') {
         filters.status = status;
@@ -309,23 +311,15 @@ const getInvestment = asyncHandler(async (req, res) => {
         throw CustomException('Invalid investment ID', 400);
     }
 
-    // IDOR Protection: Verify ownership
-    const query = firmId
-        ? { _id: sanitizedId, firmId }
-        : { _id: sanitizedId, userId };
-
-    const investment = await Investment.findOne(query);
+    // IDOR Protection: Verify ownership using req.firmQuery
+    const investment = await Investment.findOne({ _id: sanitizedId, ...req.firmQuery });
 
     if (!investment) {
         throw CustomException('Investment not found', 404);
     }
 
-    // Get transactions (also verify ownership)
-    const transactionQuery = firmId
-        ? { investmentId: sanitizedId, firmId }
-        : { investmentId: sanitizedId, userId };
-
-    const transactions = await InvestmentTransaction.find(transactionQuery)
+    // Get transactions (with tenant isolation)
+    const transactions = await InvestmentTransaction.find({ investmentId: sanitizedId, ...req.firmQuery })
         .sort({ date: -1 });
 
     return res.json({
@@ -355,12 +349,8 @@ const updateInvestment = asyncHandler(async (req, res) => {
         throw CustomException('Invalid investment ID', 400);
     }
 
-    // IDOR Protection: Verify ownership
-    const query = firmId
-        ? { _id: sanitizedId, firmId }
-        : { _id: sanitizedId, userId };
-
-    const investment = await Investment.findOne(query);
+    // IDOR Protection: Verify ownership using req.firmQuery
+    const investment = await Investment.findOne({ _id: sanitizedId, ...req.firmQuery });
     if (!investment) {
         throw CustomException('Investment not found', 404);
     }
@@ -422,7 +412,7 @@ const updateInvestment = asyncHandler(async (req, res) => {
     updateData.updatedBy = userId;
 
     const updated = await Investment.findOneAndUpdate(
-        query,
+        { _id: sanitizedId, ...req.firmQuery },
         updateData,
         { new: true, runValidators: true }
     );
@@ -452,12 +442,8 @@ const deleteInvestment = asyncHandler(async (req, res) => {
         throw CustomException('Invalid investment ID', 400);
     }
 
-    // IDOR Protection: Verify ownership
-    const query = firmId
-        ? { _id: sanitizedId, firmId }
-        : { _id: sanitizedId, userId };
-
-    const investment = await Investment.findOne(query);
+    // IDOR Protection: Verify ownership using req.firmQuery
+    const investment = await Investment.findOne({ _id: sanitizedId, ...req.firmQuery });
     if (!investment) {
         throw CustomException('Investment not found', 404);
     }
@@ -468,15 +454,11 @@ const deleteInvestment = asyncHandler(async (req, res) => {
     try {
         await session.startTransaction();
 
-        // Delete related transactions
-        const transactionQuery = firmId
-            ? { investmentId: sanitizedId, firmId }
-            : { investmentId: sanitizedId, userId };
-
-        await InvestmentTransaction.deleteMany(transactionQuery, { session });
+        // Delete related transactions (with tenant isolation)
+        await InvestmentTransaction.deleteMany({ investmentId: sanitizedId, ...req.firmQuery }, { session });
 
         // Delete investment
-        await Investment.findOneAndDelete(query, { session });
+        await Investment.findOneAndDelete({ _id: sanitizedId, ...req.firmQuery }, { session });
 
         await session.commitTransaction();
     } catch (error) {
@@ -510,12 +492,8 @@ const refreshPrice = asyncHandler(async (req, res) => {
         throw CustomException('Invalid investment ID', 400);
     }
 
-    // IDOR Protection: Verify ownership
-    const query = firmId
-        ? { _id: sanitizedId, firmId }
-        : { _id: sanitizedId, userId };
-
-    const investment = await Investment.findOne(query);
+    // IDOR Protection: Verify ownership using req.firmQuery
+    const investment = await Investment.findOne({ _id: sanitizedId, ...req.firmQuery });
     if (!investment) {
         throw CustomException('Investment not found', 404);
     }
@@ -577,9 +555,8 @@ const refreshAllPrices = asyncHandler(async (req, res) => {
 
     const { market } = req.query;
 
-    const query = firmId
-        ? { firmId, status: 'active' }
-        : { userId, status: 'active' };
+    // Use req.firmQuery for tenant isolation
+    const query = { ...req.firmQuery, status: 'active' };
 
     if (market) {
         query.market = market;
@@ -643,14 +620,18 @@ const getPortfolioSummary = asyncHandler(async (req, res) => {
 
     const summary = await Investment.getPortfolioSummary(userId);
 
-    // Get breakdown by type (with firmId isolation)
-    const typeMatchQuery = firmId
-        ? { firmId, status: 'active' }
-        : { userId, status: 'active' };
+    // Build aggregation match query with proper ObjectId conversion for tenant isolation
+    const aggMatchQuery = { status: 'active' };
+    if (req.firmQuery.firmId) {
+        aggMatchQuery.firmId = new mongoose.Types.ObjectId(req.firmQuery.firmId);
+    } else if (req.firmQuery.lawyerId) {
+        aggMatchQuery.lawyerId = new mongoose.Types.ObjectId(req.firmQuery.lawyerId);
+    }
 
+    // Get breakdown by type
     const byType = await Investment.aggregate([
         {
-            $match: typeMatchQuery
+            $match: aggMatchQuery
         },
         {
             $group: {
@@ -663,14 +644,10 @@ const getPortfolioSummary = asyncHandler(async (req, res) => {
         }
     ]);
 
-    // Get breakdown by market (with firmId isolation)
-    const marketMatchQuery = firmId
-        ? { firmId, status: 'active' }
-        : { userId, status: 'active' };
-
+    // Get breakdown by market
     const byMarket = await Investment.aggregate([
         {
-            $match: marketMatchQuery
+            $match: aggMatchQuery
         },
         {
             $group: {
@@ -710,12 +687,8 @@ const addTransaction = asyncHandler(async (req, res) => {
         throw CustomException('Invalid investment ID', 400);
     }
 
-    // IDOR Protection: Verify ownership
-    const query = firmId
-        ? { _id: sanitizedId, firmId }
-        : { _id: sanitizedId, userId };
-
-    const investment = await Investment.findOne(query);
+    // IDOR Protection: Verify ownership using req.firmQuery
+    const investment = await Investment.findOne({ _id: sanitizedId, ...req.firmQuery });
     if (!investment) {
         throw CustomException('Investment not found', 404);
     }
@@ -820,6 +793,7 @@ const addTransaction = asyncHandler(async (req, res) => {
         const [createdTransaction] = await InvestmentTransaction.create([{
             userId,
             firmId,
+            lawyerId: !firmId ? userId : undefined, // Solo lawyers get lawyerId for isolation
             investmentId: sanitizedId,
             type,
             date: new Date(date),
@@ -834,8 +808,8 @@ const addTransaction = asyncHandler(async (req, res) => {
 
         transaction = createdTransaction;
 
-        // Reload investment after transaction creation (with IDOR protection)
-        updatedInvestment = await Investment.findOne(query).session(session);
+        // Reload investment after transaction creation (with tenant isolation)
+        updatedInvestment = await Investment.findOne({ _id: sanitizedId, ...req.firmQuery }).session(session);
 
         await session.commitTransaction();
     } catch (error) {
@@ -845,8 +819,8 @@ const addTransaction = asyncHandler(async (req, res) => {
         session.endSession();
     }
 
-    // Reload investment one more time to get post-save hook updates (with IDOR protection)
-    updatedInvestment = await Investment.findOne(query);
+    // Reload investment one more time to get post-save hook updates (with tenant isolation)
+    updatedInvestment = await Investment.findOne({ _id: sanitizedId, ...req.firmQuery });
 
     return res.status(201).json({
         success: true,
@@ -876,12 +850,8 @@ const getTransactions = asyncHandler(async (req, res) => {
         throw CustomException('Invalid investment ID', 400);
     }
 
-    // IDOR Protection: Verify ownership
-    const query = firmId
-        ? { _id: sanitizedId, firmId }
-        : { _id: sanitizedId, userId };
-
-    const investment = await Investment.findOne(query);
+    // IDOR Protection: Verify ownership using req.firmQuery
+    const investment = await Investment.findOne({ _id: sanitizedId, ...req.firmQuery });
     if (!investment) {
         throw CustomException('Investment not found', 404);
     }
@@ -892,10 +862,8 @@ const getTransactions = asyncHandler(async (req, res) => {
         type
     } = req.query;
 
-    // Verify ownership on transactions query
-    const filters = firmId
-        ? { investmentId: sanitizedId, firmId }
-        : { investmentId: sanitizedId, userId };
+    // Verify ownership on transactions query (with tenant isolation)
+    const filters = { investmentId: sanitizedId, ...req.firmQuery };
 
     if (type) filters.type = type;
 
@@ -948,21 +916,14 @@ const deleteTransaction = asyncHandler(async (req, res) => {
         throw CustomException('Invalid transaction ID', 400);
     }
 
-    // IDOR Protection: Verify investment ownership
-    const query = firmId
-        ? { _id: sanitizedId, firmId }
-        : { _id: sanitizedId, userId };
-
-    const investment = await Investment.findOne(query);
+    // IDOR Protection: Verify investment ownership using req.firmQuery
+    const investment = await Investment.findOne({ _id: sanitizedId, ...req.firmQuery });
     if (!investment) {
         throw CustomException('Investment not found', 404);
     }
 
-    // IDOR Protection: Verify transaction ownership
-    const transactionQuery = firmId
-        ? { _id: sanitizedTransactionId, investmentId: sanitizedId, firmId }
-        : { _id: sanitizedTransactionId, investmentId: sanitizedId, userId };
-
+    // IDOR Protection: Verify transaction ownership using req.firmQuery
+    const transactionQuery = { _id: sanitizedTransactionId, investmentId: sanitizedId, ...req.firmQuery };
     const transaction = await InvestmentTransaction.findOne(transactionQuery);
 
     if (!transaction) {
@@ -970,16 +931,12 @@ const deleteTransaction = asyncHandler(async (req, res) => {
     }
 
     // Don't allow deleting the initial purchase
-    const countQuery = firmId
-        ? { investmentId: sanitizedId, firmId }
-        : { investmentId: sanitizedId, userId };
-
-    const transactionCount = await InvestmentTransaction.countDocuments(countQuery);
+    const transactionCount = await InvestmentTransaction.countDocuments({ investmentId: sanitizedId, ...req.firmQuery });
     if (transactionCount === 1 && transaction.type === 'purchase') {
         throw CustomException('Cannot delete the initial purchase transaction', 400);
     }
 
-    // IDOR Protection: Delete with ownership verification
+    // IDOR Protection: Delete with tenant isolation
     await InvestmentTransaction.findOneAndDelete(transactionQuery);
 
     return res.json({

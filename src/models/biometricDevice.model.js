@@ -1,7 +1,14 @@
 const mongoose = require('mongoose');
 
 const biometricDeviceSchema = new mongoose.Schema({
-  firmId: { type: mongoose.Schema.Types.ObjectId, ref: 'Firm', index: true },
+  firmId: { type: mongoose.Schema.Types.ObjectId, ref: 'Firm', index: true },,
+
+    // For solo lawyers (no firm) - enables row-level security
+    lawyerId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        index: true
+    },
   deviceId: { type: String, unique: true },
   deviceName: { type: String },
   deviceType: {

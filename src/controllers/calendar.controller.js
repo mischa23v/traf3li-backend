@@ -205,9 +205,10 @@ const getCalendarView = asyncHandler(async (req, res) => {
     // Build base query for case filtering with sanitized ID
     const caseFilter = sanitizedCaseId ? { caseId: sanitizedCaseId } : {};
 
-    // Fetch events
+    // Fetch events (with firm/lawyer isolation)
     if (!type || type === 'event') {
         const eventQuery = {
+            ...req.firmQuery, // Tenant isolation
             $or: [
                 { createdBy: userId },
                 { 'attendees.userId': userId }
@@ -247,9 +248,10 @@ const getCalendarView = asyncHandler(async (req, res) => {
         result.summary.eventCount = events.length;
     }
 
-    // Fetch tasks
+    // Fetch tasks (with firm/lawyer isolation)
     if (!type || type === 'task') {
         const taskQuery = {
+            ...req.firmQuery, // Tenant isolation
             $or: [
                 { assignedTo: userId },
                 { createdBy: userId }
@@ -287,10 +289,10 @@ const getCalendarView = asyncHandler(async (req, res) => {
         result.summary.taskCount = tasks.length;
     }
 
-    // Fetch reminders
+    // Fetch reminders - use req.firmQuery for proper tenant isolation
     if (!type || type === 'reminder') {
         const reminderQuery = {
-            userId,
+            ...req.firmQuery,
             reminderDateTime: { $gte: start, $lte: end }
         };
 
@@ -421,12 +423,9 @@ const getCalendarByDate = asyncHandler(async (req, res) => {
     const endOfDay = new Date(validatedDate);
     endOfDay.setHours(23, 59, 59, 999);
 
-    // Fetch events
+    // Fetch events - use req.firmQuery for proper tenant isolation
     const events = await Event.find({
-        $or: [
-            { createdBy: userId },
-            { 'attendees.userId': userId }
-        ],
+        ...req.firmQuery,
         startDateTime: { $gte: startOfDay, $lte: endOfDay }
     })
         .populate('createdBy', 'username image')
@@ -434,12 +433,9 @@ const getCalendarByDate = asyncHandler(async (req, res) => {
         .sort({ startDateTime: 1 })
         .lean();
 
-    // Fetch tasks
+    // Fetch tasks - use req.firmQuery for proper tenant isolation
     const tasks = await Task.find({
-        $or: [
-            { assignedTo: userId },
-            { createdBy: userId }
-        ],
+        ...req.firmQuery,
         dueDate: { $gte: startOfDay, $lte: endOfDay }
     })
         .populate('assignedTo', 'username image')
@@ -447,9 +443,9 @@ const getCalendarByDate = asyncHandler(async (req, res) => {
         .sort({ dueDate: 1 })
         .lean();
 
-    // Fetch reminders
+    // Fetch reminders - use req.firmQuery for proper tenant isolation
     const reminders = await Reminder.find({
-        userId,
+        ...req.firmQuery,
         reminderDateTime: { $gte: startOfDay, $lte: endOfDay }
     })
         .populate('relatedCase', 'title caseNumber')
@@ -533,12 +529,9 @@ const getCalendarByMonth = asyncHandler(async (req, res) => {
     const startDate = new Date(yearNum, monthNum - 1, 1);
     const endDate = new Date(yearNum, monthNum, 0, 23, 59, 59);
 
-    // Fetch events
+    // Fetch events - use req.firmQuery for proper tenant isolation
     const events = await Event.find({
-        $or: [
-            { createdBy: userId },
-            { 'attendees.userId': userId }
-        ],
+        ...req.firmQuery,
         startDateTime: { $gte: startDate, $lte: endDate }
     })
         .populate('createdBy', 'username image')
@@ -546,12 +539,9 @@ const getCalendarByMonth = asyncHandler(async (req, res) => {
         .sort({ startDateTime: 1 })
         .lean();
 
-    // Fetch tasks
+    // Fetch tasks - use req.firmQuery for proper tenant isolation
     const tasks = await Task.find({
-        $or: [
-            { assignedTo: userId },
-            { createdBy: userId }
-        ],
+        ...req.firmQuery,
         dueDate: { $gte: startDate, $lte: endDate }
     })
         .populate('assignedTo', 'username image')
@@ -559,9 +549,9 @@ const getCalendarByMonth = asyncHandler(async (req, res) => {
         .sort({ dueDate: 1 })
         .lean();
 
-    // Fetch reminders
+    // Fetch reminders - use req.firmQuery for proper tenant isolation
     const reminders = await Reminder.find({
-        userId,
+        ...req.firmQuery,
         reminderDateTime: { $gte: startDate, $lte: endDate }
     })
         .populate('relatedCase', 'title caseNumber')
@@ -677,11 +667,9 @@ const getUpcomingItems = asyncHandler(async (req, res) => {
     futureDate.setHours(23, 59, 59, 999);
 
     // Fetch upcoming events
+    // Fetch upcoming events - use req.firmQuery for proper tenant isolation
     const events = await Event.find({
-        $or: [
-            { createdBy: userId },
-            { 'attendees.userId': userId }
-        ],
+        ...req.firmQuery,
         startDateTime: { $gte: today, $lte: futureDate },
         status: { $ne: 'cancelled' }
     })
@@ -691,12 +679,9 @@ const getUpcomingItems = asyncHandler(async (req, res) => {
         .limit(20)
         .lean();
 
-    // Fetch upcoming tasks
+    // Fetch upcoming tasks - use req.firmQuery for proper tenant isolation
     const tasks = await Task.find({
-        $or: [
-            { assignedTo: userId },
-            { createdBy: userId }
-        ],
+        ...req.firmQuery,
         dueDate: { $gte: today, $lte: futureDate },
         status: { $ne: 'done' }
     })
@@ -706,9 +691,9 @@ const getUpcomingItems = asyncHandler(async (req, res) => {
         .limit(20)
         .lean();
 
-    // Fetch upcoming reminders
+    // Fetch upcoming reminders - use req.firmQuery for proper tenant isolation
     const reminders = await Reminder.find({
-        userId,
+        ...req.firmQuery,
         reminderDateTime: { $gte: today, $lte: futureDate },
         status: 'pending'
     })
@@ -787,12 +772,9 @@ const getOverdueItems = asyncHandler(async (req, res) => {
     const userId = req.userID;
     const now = new Date();
 
-    // Overdue tasks
+    // Overdue tasks - use req.firmQuery for proper tenant isolation
     const tasks = await Task.find({
-        $or: [
-            { assignedTo: userId },
-            { createdBy: userId }
-        ],
+        ...req.firmQuery,
         dueDate: { $lt: now },
         status: { $ne: 'done' }
     })
@@ -801,9 +783,9 @@ const getOverdueItems = asyncHandler(async (req, res) => {
         .sort({ dueDate: 1 })
         .lean();
 
-    // Overdue reminders
+    // Overdue reminders - use req.firmQuery for proper tenant isolation
     const reminders = await Reminder.find({
-        userId,
+        ...req.firmQuery,
         reminderDateTime: { $lt: now },
         status: 'pending'
     })
@@ -813,12 +795,9 @@ const getOverdueItems = asyncHandler(async (req, res) => {
         .sort({ reminderDateTime: -1 })
         .lean();
 
-    // Past events (for reference)
+    // Past events (for reference) - use req.firmQuery for proper tenant isolation
     const pastEvents = await Event.find({
-        $or: [
-            { createdBy: userId },
-            { 'attendees.userId': userId }
-        ],
+        ...req.firmQuery,
         startDateTime: { $lt: now },
         status: { $in: ['scheduled', 'confirmed'] }
     })
@@ -865,99 +844,70 @@ const getCalendarStats = asyncHandler(async (req, res) => {
     }
     const now = new Date();
 
-    // Get total counts
+    // Get total counts - use req.firmQuery for proper tenant isolation
     const totalEvents = await Event.countDocuments({
-        $or: [
-            { createdBy: userId },
-            { organizer: userId },
-            { 'attendees.userId': userId }
-        ],
+        ...req.firmQuery,
         startDateTime: { $gte: start, $lte: end }
     });
 
     const totalTasks = await Task.countDocuments({
-        $or: [
-            { assignedTo: userId },
-            { createdBy: userId }
-        ],
+        ...req.firmQuery,
         dueDate: { $gte: start, $lte: end }
     });
 
     const totalReminders = await Reminder.countDocuments({
-        userId,
+        ...req.firmQuery,
         reminderDateTime: { $gte: start, $lte: end }
     });
 
-    // Upcoming hearings (next 30 days)
+    // Upcoming hearings (next 30 days) - use req.firmQuery for proper tenant isolation
     const upcomingHearings = await Event.countDocuments({
-        $or: [
-            { createdBy: userId },
-            { organizer: userId },
-            { 'attendees.userId': userId }
-        ],
+        ...req.firmQuery,
         type: 'hearing',
         startDateTime: { $gte: now, $lte: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000) },
         status: { $nin: ['cancelled', 'completed'] }
     });
 
-    // Overdue items (tasks + reminders)
+    // Overdue items (tasks + reminders) - use req.firmQuery for proper tenant isolation
     const overdueTasks = await Task.countDocuments({
-        $or: [
-            { assignedTo: userId },
-            { createdBy: userId }
-        ],
+        ...req.firmQuery,
         dueDate: { $lt: now },
         status: { $nin: ['done', 'canceled'] }
     });
 
     const overdueReminders = await Reminder.countDocuments({
-        userId,
+        ...req.firmQuery,
         reminderDateTime: { $lt: now },
         status: 'pending'
     });
 
     const overdueItems = overdueTasks + overdueReminders;
 
-    // Completed this month
+    // Completed this month - use req.firmQuery for proper tenant isolation
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
 
     const completedTasksThisMonth = await Task.countDocuments({
-        $or: [
-            { assignedTo: userId },
-            { createdBy: userId }
-        ],
+        ...req.firmQuery,
         completedAt: { $gte: monthStart, $lte: monthEnd },
         status: 'done'
     });
 
     const completedEventsThisMonth = await Event.countDocuments({
-        $or: [
-            { createdBy: userId },
-            { organizer: userId }
-        ],
+        ...req.firmQuery,
         completedAt: { $gte: monthStart, $lte: monthEnd },
         status: 'completed'
     });
 
     const completedThisMonth = completedTasksThisMonth + completedEventsThisMonth;
 
-    // Get firm context for aggregate queries
-    const firmId = req.firmId || req.user?.firmId;
-    const firmObjectId = firmId ? new mongoose.Types.ObjectId(firmId) : null;
-
-    // Events by type
-    // SECURITY: Add firmId to $match to prevent cross-firm data exposure
-    const eventMatch = {
-        $or: [
-            { createdBy: userId },
-            { organizer: userId },
-            { 'attendees.userId': userId }
-        ],
-        startDateTime: { $gte: start, $lte: end }
-    };
-    if (firmObjectId) {
-        eventMatch.firmId = firmObjectId;
+    // Convert firmQuery to ObjectIds for aggregate queries
+    const eventMatch = { ...req.firmQuery, startDateTime: { $gte: start, $lte: end } };
+    if (eventMatch.firmId) {
+        eventMatch.firmId = new mongoose.Types.ObjectId(eventMatch.firmId);
+    }
+    if (eventMatch.lawyerId) {
+        eventMatch.lawyerId = new mongoose.Types.ObjectId(eventMatch.lawyerId);
     }
 
     const eventsByType = await Event.aggregate([
@@ -975,18 +925,13 @@ const getCalendarStats = asyncHandler(async (req, res) => {
         byType[item._id || 'other'] = item.count;
     });
 
-    // Tasks by priority
-    // SECURITY: Add firmId to $match to prevent cross-firm data exposure
-    const taskMatch = {
-        $or: [
-            { assignedTo: userId },
-            { createdBy: userId }
-        ],
-        dueDate: { $gte: start, $lte: end },
-        status: { $nin: ['done', 'canceled'] }
-    };
-    if (firmObjectId) {
-        taskMatch.firmId = firmObjectId;
+    // Tasks by priority - use req.firmQuery for proper tenant isolation
+    const taskMatch = { ...req.firmQuery, dueDate: { $gte: start, $lte: end }, status: { $nin: ['done', 'canceled'] } };
+    if (taskMatch.firmId) {
+        taskMatch.firmId = new mongoose.Types.ObjectId(taskMatch.firmId);
+    }
+    if (taskMatch.lawyerId) {
+        taskMatch.lawyerId = new mongoose.Types.ObjectId(taskMatch.lawyerId);
     }
 
     const tasksByPriority = await Task.aggregate([
@@ -1354,14 +1299,11 @@ const getCalendarGridItems = asyncHandler(async (req, res) => {
 
     const promises = [];
 
-    // Fetch minimal event data
+    // Fetch minimal event data - use req.firmQuery for proper tenant isolation
     if (requestedTypes.has('event')) {
         promises.push(
             Event.find({
-                $or: [
-                    { createdBy: userId },
-                    { 'attendees.userId': userId }
-                ],
+                ...req.firmQuery,
                 startDateTime: { $gte: start, $lte: end },
                 ...caseFilter
             })
@@ -1386,14 +1328,11 @@ const getCalendarGridItems = asyncHandler(async (req, res) => {
         );
     }
 
-    // Fetch minimal task data
+    // Fetch minimal task data - use req.firmQuery for proper tenant isolation
     if (requestedTypes.has('task')) {
         promises.push(
             Task.find({
-                $or: [
-                    { assignedTo: userId },
-                    { createdBy: userId }
-                ],
+                ...req.firmQuery,
                 dueDate: { $gte: start, $lte: end },
                 ...caseFilter
             })
@@ -1419,10 +1358,10 @@ const getCalendarGridItems = asyncHandler(async (req, res) => {
         );
     }
 
-    // Fetch minimal reminder data
+    // Fetch minimal reminder data - use req.firmQuery for proper tenant isolation
     if (requestedTypes.has('reminder')) {
         const reminderQuery = {
-            userId,
+            ...req.firmQuery,
             reminderDateTime: { $gte: start, $lte: end }
         };
         if (caseId) reminderQuery.relatedCase = caseId;
@@ -1785,13 +1724,10 @@ const getCalendarListView = asyncHandler(async (req, res) => {
 
     const promises = [];
 
-    // Fetch events
+    // Fetch events - use req.firmQuery for proper tenant isolation
     if (requestedTypes.has('event')) {
         const eventQuery = {
-            $or: [
-                { createdBy: userId },
-                { 'attendees.userId': userId }
-            ],
+            ...req.firmQuery,
             startDateTime: { $gte: start, $lte: end },
             ...caseFilter,
             ...(priorityFilter && { priority: priorityFilter }),
@@ -1829,13 +1765,10 @@ const getCalendarListView = asyncHandler(async (req, res) => {
         );
     }
 
-    // Fetch tasks
+    // Fetch tasks - use req.firmQuery for proper tenant isolation
     if (requestedTypes.has('task')) {
         const taskQuery = {
-            $or: [
-                { assignedTo: userId },
-                { createdBy: userId }
-            ],
+            ...req.firmQuery,
             dueDate: { $gte: start, $lte: end },
             ...caseFilter,
             ...(priorityFilter && { priority: priorityFilter }),
@@ -1874,10 +1807,10 @@ const getCalendarListView = asyncHandler(async (req, res) => {
         );
     }
 
-    // Fetch reminders
+    // Fetch reminders - use req.firmQuery for proper tenant isolation
     if (requestedTypes.has('reminder')) {
         const reminderQuery = {
-            userId,
+            ...req.firmQuery,
             reminderDateTime: { $gte: start, $lte: end },
             ...(sanitizedCaseId && { relatedCase: sanitizedCaseId }),
             ...(priorityFilter && { priority: priorityFilter }),

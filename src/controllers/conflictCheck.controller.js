@@ -128,8 +128,8 @@ const runConflictCheck = asyncHandler(async (req, res) => {
         const matches = [];
         const searchThreshold = threshold;
 
-        // SECURITY: Build base query with multi-tenant isolation
-        const baseQuery = firmId ? { firmId } : { lawyerId };
+        // SECURITY: Build base query with multi-tenant isolation using req.firmQuery
+        const baseQuery = { ...req.firmQuery };
         if (!safeData.includeArchived) {
             baseQuery.isArchived = { $ne: true };
         }

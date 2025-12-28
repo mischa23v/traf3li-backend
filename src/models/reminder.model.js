@@ -47,6 +47,12 @@ const reminderSchema = new mongoose.Schema({
         index: true,
         required: false
     },
+    // For solo lawyers (no firm) - enables row-level security
+    lawyerId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        index: true
+    },
     reminderDateTime: {
         type: Date,
         required: false,
@@ -338,7 +344,8 @@ reminderSchema.statics.getDelegated = async function(userId) {
 };
 
 // Static method: Get reminder stats
-reminderSchema.statics.getStats = async function(userId) {
+// Accepts firmQuery object (from req.firmQuery) for proper isolation
+reminderSchema.statics.getStats = async function(userId, firmQuery = null) {
     const now = new Date();
     const today = new Date(now.setHours(0, 0, 0, 0));
     const tomorrow = new Date(today);
@@ -346,8 +353,13 @@ reminderSchema.statics.getStats = async function(userId) {
     const weekEnd = new Date(today);
     weekEnd.setDate(weekEnd.getDate() + 7);
 
+    // Build base filter with proper isolation + userId for user's reminders
+    const baseFilter = firmQuery
+        ? { ...firmQuery, userId: new mongoose.Types.ObjectId(userId) }
+        : { lawyerId: new mongoose.Types.ObjectId(userId), userId: new mongoose.Types.ObjectId(userId) };
+
     const stats = await this.aggregate([
-        { $match: { userId: new mongoose.Types.ObjectId(userId) } },
+        { $match: baseFilter },
         {
             $group: {
                 _id: null,
@@ -362,19 +374,19 @@ reminderSchema.statics.getStats = async function(userId) {
     ]);
 
     const overdue = await this.countDocuments({
-        userId: new mongoose.Types.ObjectId(userId),
+        ...baseFilter,
         status: 'pending',
         reminderDateTime: { $lt: new Date() }
     });
 
     const dueToday = await this.countDocuments({
-        userId: new mongoose.Types.ObjectId(userId),
+        ...baseFilter,
         status: { $in: ['pending', 'snoozed'] },
         reminderDateTime: { $gte: today, $lt: tomorrow }
     });
 
     const dueThisWeek = await this.countDocuments({
-        userId: new mongoose.Types.ObjectId(userId),
+        ...baseFilter,
         status: { $in: ['pending', 'snoozed'] },
         reminderDateTime: { $gte: today, $lt: weekEnd }
     });

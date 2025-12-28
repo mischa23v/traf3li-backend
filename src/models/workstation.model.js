@@ -54,8 +54,15 @@ const workstationSchema = new Schema({
         ref: 'Firm',
         index: true,
         required: false
-    },
+    },,
 
+
+    // For solo lawyers (no firm) - enables row-level security
+    lawyerId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        index: true
+    },
     // Auto-generated Workstation ID (Format: WS-YYYYMMDD-XXXX)
     workstationId: {
         type: String,

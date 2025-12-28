@@ -24,16 +24,12 @@ const getNotifications = async (request, response) => {
         const pageNum = Math.max(1, parseInt(page) || 1);
         const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 50)); // Max 100, min 1
 
-        // IDOR Protection: Fetch notifications using both userId and firmId
-        const firmId = request.firmId || await getUserFirmId(request.userID);
+        // Use req.firmQuery for proper firm/lawyer isolation
+        // This is set by firmFilter middleware - contains firmId for firm members, lawyerId for solo lawyers
         const query = {
+            ...request.firmQuery,
             userId: sanitizeObjectId(request.userID)
         };
-
-        // Add firmId to query if user belongs to a firm
-        if (firmId) {
-            query.firmId = sanitizeObjectId(firmId);
-        }
 
         // Optional filters with validation
         if (read !== undefined) {
@@ -65,14 +61,12 @@ const getNotifications = async (request, response) => {
             .skip((pageNum - 1) * limitNum)
             .lean();
 
-        // Get unread count with firmId filter
+        // Get unread count with proper isolation filter
         const unreadQuery = {
+            ...request.firmQuery,
             userId: request.userID,
             read: false
         };
-        if (firmId) {
-            unreadQuery.firmId = sanitizeObjectId(firmId);
-        }
         const unreadCount = await Notification.countDocuments(unreadQuery);
 
         return response.status(200).send({

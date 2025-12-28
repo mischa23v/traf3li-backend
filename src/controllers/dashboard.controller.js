@@ -850,9 +850,9 @@ const getDashboardSummary = async (request, response) => {
                 }
             ]),
 
-            // 3. Reminder stats
+            // 3. Reminder stats - use matchFilter for firm/lawyer isolation + userId for user's reminders
             Reminder.aggregate([
-                { $match: userFilter },
+                { $match: { ...matchFilter, userId: new mongoose.Types.ObjectId(userId) } },
                 {
                     $group: {
                         _id: null,
