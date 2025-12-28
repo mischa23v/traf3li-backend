@@ -799,6 +799,20 @@ class OAuthService {
             throw CustomException('هذه اللوحة مخصصة للمحامين فقط - This dashboard is for lawyers only', 403);
         }
 
+        // Fix any data inconsistencies for lawyers (e.g., isSeller should always be true)
+        // This handles cases where users were created with incorrect data before bug fixes
+        if (user.role === 'lawyer' && !user.isSeller) {
+            logger.info('Fixing isSeller flag for lawyer during SSO login', {
+                userId: user._id,
+                email: user.email
+            });
+            await User.updateOne(
+                { _id: user._id },
+                { $set: { isSeller: true } }
+            ).setOptions({ bypassFirmFilter: true });
+            user.isSeller = true; // Update in-memory for token generation
+        }
+
         // Generate JWT token
         const token = jwt.sign({
             _id: user._id,
