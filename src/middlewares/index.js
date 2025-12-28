@@ -111,6 +111,11 @@ const {
     PUBLIC_ROUTES,
     USER_ONLY_ROUTES
 } = require('./globalFirmContext.middleware');
+const {
+    authenticatedApi,
+    PUBLIC_ROUTES: AUTH_PUBLIC_ROUTES,
+    AUTH_ONLY_ROUTES
+} = require('./authenticatedApi.middleware');
 
 module.exports = {
     userMiddleware,
@@ -214,5 +219,10 @@ module.exports = {
     globalFirmAdminOnly,
     checkIsSoloLawyer,
     PUBLIC_ROUTES,
-    USER_ONLY_ROUTES
+    USER_ONLY_ROUTES,
+    // Enterprise Gold Standard: Combined auth + firm context middleware
+    // Applied globally in server.js - userMiddleware + firmFilter are now optional per route
+    authenticatedApi,
+    AUTH_PUBLIC_ROUTES,
+    AUTH_ONLY_ROUTES
 }
