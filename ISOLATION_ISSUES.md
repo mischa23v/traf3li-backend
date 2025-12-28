@@ -1,6 +1,6 @@
 # Firm Isolation Issues Report
 
-Generated: 2025-12-28T07:24:06.438Z
+Generated: 2025-12-28T07:38:10.135Z
 
 ## Models Missing lawyerId Field
 
