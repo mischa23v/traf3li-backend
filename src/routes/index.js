@@ -375,6 +375,10 @@ const pluginRoutes = require('./plugin.routes');
 // Rate Limit Routes
 const rateLimitRoute = require('./rateLimit.route');
 
+// GOSI and ZATCA Plugin Routes
+const gosiRoute = require('./gosi.route');
+const zatcaRoute = require('./zatca.route');
+
 module.exports = {
     // Marketplace
     gigRoute,
@@ -747,5 +751,9 @@ module.exports = {
     pluginRoutes,
 
     // Rate Limiting
-    rateLimitRoute
+    rateLimitRoute,
+
+    // GOSI and ZATCA Plugins
+    gosiRoute,
+    zatcaRoute
 };

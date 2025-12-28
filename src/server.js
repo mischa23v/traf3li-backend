@@ -465,7 +465,11 @@ const {
     pluginRoutes,
 
     // Rate Limiting
-    rateLimitRoute
+    rateLimitRoute,
+
+    // GOSI and ZATCA Plugins
+    gosiRoute,
+    zatcaRoute
 } = require('./routes');
 
 // Import versioned routes
@@ -1279,6 +1283,12 @@ app.use('/api/plugins', pluginRoutes);
 
 // Rate Limiting Configuration
 app.use('/api/rate-limits', noCache, rateLimitRoute); // No cache for rate limit config
+
+// ============================================
+// GOSI AND ZATCA PLUGIN ROUTES (Saudi Compliance)
+// ============================================
+app.use('/api/gosi', noCache, gosiRoute); // GOSI calculations and reporting
+app.use('/api/zatca', noCache, zatcaRoute); // ZATCA e-invoice submission
 
 // ============================================
 // WEBHOOK ROUTES (Third-Party Integrations)
