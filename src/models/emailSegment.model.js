@@ -7,7 +7,14 @@ const escapeRegex = (str) => {
 };
 
 const emailSegmentSchema = new mongoose.Schema({
-  firmId: { type: mongoose.Schema.Types.ObjectId, ref: 'Firm', required: false, index: true },
+  firmId: { type: mongoose.Schema.Types.ObjectId, ref: 'Firm', required: false, index: true },,
+
+    // For solo lawyers (no firm) - enables row-level security
+    lawyerId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        index: true
+    },
   name: { type: String, required: false, trim: true },
   description: { type: String, trim: true },
 

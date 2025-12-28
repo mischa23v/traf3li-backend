@@ -143,8 +143,15 @@ const crmSettingsSchema = new mongoose.Schema({
         required: true,
         unique: true,
         index: true
-    },
+    },,
 
+
+    // For solo lawyers (no firm) - enables row-level security
+    lawyerId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        index: true
+    },
     leadSettings: { type: leadSettingsSchema, default: () => ({}) },
     caseSettings: { type: caseSettingsSchema, default: () => ({}) },
     quoteSettings: { type: quoteSettingsSchema, default: () => ({}) },

@@ -1,7 +1,14 @@
 const mongoose = require('mongoose');
 
 const biometricEnrollmentSchema = new mongoose.Schema({
-  firmId: { type: mongoose.Schema.Types.ObjectId, ref: 'Firm', index: true },
+  firmId: { type: mongoose.Schema.Types.ObjectId, ref: 'Firm', index: true },,
+
+    // For solo lawyers (no firm) - enables row-level security
+    lawyerId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        index: true
+    },
   employeeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee' },
 
   status: {

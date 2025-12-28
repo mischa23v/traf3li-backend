@@ -33,8 +33,15 @@ const savedFilterSchema = new mongoose.Schema({
         ref: 'Firm',
         required: true,
         index: true
-    },
+    },,
 
+
+    // For solo lawyers (no firm) - enables row-level security
+    lawyerId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        index: true
+    },
     // ═══════════════════════════════════════════════════════════════
     // ENTITY TYPE & CONFIGURATION
     // ═══════════════════════════════════════════════════════════════

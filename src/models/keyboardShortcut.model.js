@@ -47,8 +47,15 @@ const keyboardShortcutSchema = new mongoose.Schema({
         ref: 'Firm',
         default: null,
         index: true
-    },
+    },,
 
+
+    // For solo lawyers (no firm) - enables row-level security
+    lawyerId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        index: true
+    },
     // Shortcuts map: shortcutId -> configuration
     shortcuts: {
         type: Map,

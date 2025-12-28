@@ -185,8 +185,15 @@ const slaSchema = new mongoose.Schema({
         required: true,
         index: true,
         comment: 'Firm this SLA belongs to'
-    },
+    },,
 
+
+    // For solo lawyers (no firm) - enables row-level security
+    lawyerId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        index: true
+    },
     // ═══════════════════════════════════════════════════════════════
     // AUDIT FIELDS
     // ═══════════════════════════════════════════════════════════════

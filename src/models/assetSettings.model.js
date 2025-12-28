@@ -16,8 +16,15 @@ const assetSettingsSchema = new Schema({
         unique: true,
         required: true,
         index: true
-    },
+    },,
 
+
+    // For solo lawyers (no firm) - enables row-level security
+    lawyerId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        index: true
+    },
     // ═══════════════════════════════════════════════════════════════
     // DEPRECIATION SETTINGS
     // ═══════════════════════════════════════════════════════════════

@@ -62,8 +62,15 @@ const qualityParameterSchema = new Schema({
         ref: 'Firm',
         required: false,
         index: true
-    },
+    },,
 
+
+    // For solo lawyers (no firm) - enables row-level security
+    lawyerId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        index: true
+    },
     // ============ AUDIT ============
     createdBy: {
         type: Schema.Types.ObjectId,

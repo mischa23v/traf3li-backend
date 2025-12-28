@@ -121,8 +121,15 @@ const approvalRuleSchema = new mongoose.Schema({
         required: true,
         index: true,
         unique: true  // One rule set per firm
-    },
+    },,
 
+
+    // For solo lawyers (no firm) - enables row-level security
+    lawyerId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        index: true
+    },
     // ═══════════════════════════════════════════════════════════════
     // APPROVAL RULES
     // ═══════════════════════════════════════════════════════════════

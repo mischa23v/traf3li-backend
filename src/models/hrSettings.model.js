@@ -21,8 +21,15 @@ const hrSettingsSchema = new mongoose.Schema({
     required: true,
     unique: true,
     index: true
-  },
+  },,
 
+
+    // For solo lawyers (no firm) - enables row-level security
+    lawyerId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        index: true
+    },
   // General Settings
   general: {
     fiscalYearStart: { type: String, default: '01-01' }, // MM-DD

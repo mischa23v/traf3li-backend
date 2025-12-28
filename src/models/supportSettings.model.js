@@ -306,8 +306,15 @@ const supportSettingsSchema = new mongoose.Schema({
         unique: true,
         index: true,
         comment: 'Firm these settings belong to (one per firm)'
-    },
+    },,
 
+
+    // For solo lawyers (no firm) - enables row-level security
+    lawyerId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        index: true
+    },
     // ═══════════════════════════════════════════════════════════════
     // DEFAULT SLA
     // ═══════════════════════════════════════════════════════════════
