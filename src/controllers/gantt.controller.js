@@ -55,8 +55,8 @@ const getGanttDataForCase = asyncHandler(async (req, res) => {
     throw CustomException('Invalid case ID format', 400);
   }
 
-  // IDOR Protection: Verify case belongs to user's firm
-  const caseExists = await Case.findOne({ _id: sanitizedCaseId, firmId });
+  // IDOR Protection: Verify case belongs to user's firm/lawyer
+  const caseExists = await Case.findOne({ _id: sanitizedCaseId, ...req.firmQuery });
   if (!caseExists) {
     throw CustomException('Case not found or access denied', 404);
   }

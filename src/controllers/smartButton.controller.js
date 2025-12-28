@@ -41,14 +41,8 @@ const getCounts = asyncHandler(async (req, res) => {
 
     let counts = {};
 
-    // Build base query: use firmId if available, otherwise fall back to lawyerId
-    const isSoloLawyer = req.isSoloLawyer;
-    const baseQuery = {};
-    if (isSoloLawyer || !firmId) {
-        baseQuery.lawyerId = lawyerId;
-    } else {
-        baseQuery.firmId = firmId;
-    }
+    // Build base query using req.firmQuery for tenant isolation
+    const baseQuery = { ...req.firmQuery };
 
     // Verify ownership of the record before returning counts
     const modelMap = {
@@ -112,7 +106,7 @@ const getCounts = asyncHandler(async (req, res) => {
                     ]
                 }),
                 activities: await Activity.countDocuments({
-                    ...(firmId ? { firmId } : {}),
+                    ...baseQuery,
                     res_model: 'Client',
                     res_id: recordObjectId
                 }),
@@ -150,7 +144,7 @@ const getCounts = asyncHandler(async (req, res) => {
                     caseId: recordObjectId
                 }),
                 activities: await Activity.countDocuments({
-                    ...(firmId ? { firmId } : {}),
+                    ...baseQuery,
                     res_model: 'Case',
                     res_id: recordObjectId
                 }),
@@ -172,7 +166,7 @@ const getCounts = asyncHandler(async (req, res) => {
                     contactId: recordObjectId
                 }),
                 activities: await Activity.countDocuments({
-                    ...(firmId ? { firmId } : {}),
+                    ...baseQuery,
                     res_model: 'Contact',
                     res_id: recordObjectId
                 }),
@@ -224,7 +218,7 @@ const getCounts = asyncHandler(async (req, res) => {
         case 'lead':
             counts = {
                 activities: await Activity.countDocuments({
-                    ...(firmId ? { firmId } : {}),
+                    ...baseQuery,
                     res_model: 'Lead',
                     res_id: recordObjectId
                 }),

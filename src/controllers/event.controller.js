@@ -1219,19 +1219,9 @@ const getEventsByMonth = asyncHandler(async (req, res) => {
     const startDate = new Date(year, month - 1, 1);
     const endDate = new Date(year, month, 0, 23, 59, 59);
 
-    // Build query - firmId first, then user-based
-    const baseQuery = firmId
-        ? { firmId }
-        : {
-            $or: [
-                { createdBy: userId },
-                { organizer: userId },
-                { 'attendees.userId': userId }
-            ]
-        };
-
+    // Build query with tenant isolation using req.firmQuery
     const events = await Event.find({
-        ...baseQuery,
+        ...req.firmQuery,
         startDateTime: { $gte: startDate, $lte: endDate }
     })
         .populate('organizer', 'firstName lastName image')
