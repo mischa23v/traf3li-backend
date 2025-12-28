@@ -114,9 +114,6 @@ const crmReportsRoute = require('./crmReports.route');
 // Sales Module Routes
 const salesRoute = require('./sales.routes');
 
-// Sales & CRM Dashboard Routes (Tiered Views)
-const salesDashboardRoute = require('./salesDashboard.route');
-const crmDashboardRoute = require('./crmDashboard.route');
 const whatsappRoute = require('./whatsapp.route');
 const telegramRoute = require('./telegram.route');
 const slackRoute = require('./slack.route');
@@ -487,10 +484,6 @@ module.exports = {
 
     // Sales Module
     salesRoute,
-
-    // Sales & CRM Dashboard (Tiered Views)
-    salesDashboardRoute,
-    crmDashboardRoute,
 
     whatsappRoute,
     telegramRoute,
