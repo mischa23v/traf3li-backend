@@ -663,20 +663,6 @@ const authLogin = async (request, response) => {
             });
         }
 
-        // Fix any data inconsistencies for lawyers (e.g., isSeller should always be true)
-        // This handles cases where users were created with incorrect data before bug fixes
-        if (user.role === 'lawyer' && !user.isSeller) {
-            logger.info('Fixing isSeller flag for lawyer during login', {
-                userId: user._id,
-                email: user.email
-            });
-            await User.updateOne(
-                { _id: user._id },
-                { $set: { isSeller: true } }
-            ).setOptions({ bypassFirmFilter: true });
-            user.isSeller = true; // Update in-memory for response
-        }
-
         // PERF: Use async bcrypt.compare instead of blocking compareSync
         // This prevents blocking the event loop during password verification
         const match = await bcrypt.compare(password, user.password);
