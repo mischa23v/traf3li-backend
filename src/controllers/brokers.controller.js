@@ -128,9 +128,9 @@ const createBroker = asyncHandler(async (req, res) => {
         }
     }
 
-    // Check for duplicate broker name for this user
+    // Check for duplicate broker name for this user/firm
     const existingBroker = await Broker.findOne({
-        userId,
+        ...req.firmQuery,
         name: { $regex: new RegExp(`^${escapeRegex(brokerData.name.trim())}$`, 'i') }
     });
 
@@ -144,6 +144,7 @@ const createBroker = asyncHandler(async (req, res) => {
     const broker = await Broker.create({
         userId,
         firmId,
+        lawyerId: !firmId ? userId : undefined, // Solo lawyers get lawyerId for isolation
         name: brokerData.name.trim(),
         displayName: brokerData.displayName?.trim(),
         type: brokerData.type,
@@ -188,9 +189,9 @@ const getBrokers = asyncHandler(async (req, res) => {
     } = req.query;
 
     // ─────────────────────────────────────────────────────────────
-    // BUILD FILTERS
+    // BUILD FILTERS - Use req.firmQuery for proper tenant isolation
     // ─────────────────────────────────────────────────────────────
-    const filters = firmId ? { firmId } : { userId };
+    const filters = { ...req.firmQuery };
 
     if (status) filters.status = status;
     if (type) filters.type = type;
@@ -258,34 +259,33 @@ const getBroker = asyncHandler(async (req, res) => {
     }
 
     // ─────────────────────────────────────────────────────────────
-    // IDOR PROTECTION - Sanitize and verify ownership
+    // IDOR PROTECTION - Sanitize and verify ownership using req.firmQuery
     // ─────────────────────────────────────────────────────────────
     const brokerId = sanitizeObjectId(id);
 
-    const query = firmId
-        ? { _id: brokerId, firmId }
-        : { _id: brokerId, userId };
-
-    const broker = await Broker.findOne(query);
+    const broker = await Broker.findOne({ _id: brokerId, ...req.firmQuery });
 
     if (!broker) {
         throw CustomException('Broker not found', 404);
     }
 
-    // Get related accounts with firm context
-    const accountsQuery = { brokerId: broker._id };
-    if (firmId) {
-        accountsQuery.firmId = firmId;
-    }
-    const accounts = await TradingAccount.find(accountsQuery)
+    // Get related accounts with proper tenant isolation
+    const accounts = await TradingAccount.find({ brokerId: broker._id, ...req.firmQuery })
         .select('name type status currency currentBalance');
 
-    // Get trade stats for this broker
-    // SECURITY: Add firmId to $match for defense in depth
-    const tradeMatch = { brokerId: broker._id, status: 'closed' };
-    if (firmId) {
-        const mongoose = require('mongoose');
-        tradeMatch.firmId = new mongoose.Types.ObjectId(firmId);
+    // Get trade stats for this broker with proper tenant isolation
+    const mongoose = require('mongoose');
+    const tradeMatch = {
+        brokerId: broker._id,
+        status: 'closed',
+        ...req.firmQuery
+    };
+    // Convert firmId/lawyerId to ObjectId for aggregation
+    if (tradeMatch.firmId) {
+        tradeMatch.firmId = new mongoose.Types.ObjectId(tradeMatch.firmId);
+    }
+    if (tradeMatch.lawyerId) {
+        tradeMatch.lawyerId = new mongoose.Types.ObjectId(tradeMatch.lawyerId);
     }
 
     const tradeStats = await Trade.aggregate([
@@ -329,15 +329,11 @@ const updateBroker = asyncHandler(async (req, res) => {
     }
 
     // ─────────────────────────────────────────────────────────────
-    // IDOR PROTECTION - Sanitize and verify ownership
+    // IDOR PROTECTION - Sanitize and verify ownership using req.firmQuery
     // ─────────────────────────────────────────────────────────────
     const brokerId = sanitizeObjectId(id);
 
-    const query = firmId
-        ? { _id: brokerId, firmId }
-        : { _id: brokerId, userId };
-
-    const existingBroker = await Broker.findOne(query);
+    const existingBroker = await Broker.findOne({ _id: brokerId, ...req.firmQuery });
     if (!existingBroker) {
         throw CustomException('Broker not found', 404);
     }
@@ -454,7 +450,7 @@ const updateBroker = asyncHandler(async (req, res) => {
     // Check for duplicate name if name is being changed
     if (updateData.name && updateData.name !== existingBroker.name) {
         const duplicateBroker = await Broker.findOne({
-            userId,
+            ...req.firmQuery,
             _id: { $ne: brokerId },
             name: { $regex: new RegExp(`^${escapeRegex(updateData.name.trim())}$`, 'i') }
         });
@@ -468,7 +464,7 @@ const updateBroker = asyncHandler(async (req, res) => {
     updateData.updatedBy = userId;
 
     const broker = await Broker.findOneAndUpdate(
-        query,
+        { _id: brokerId, ...req.firmQuery },
         updateData,
         { new: true, runValidators: true }
     );
@@ -486,28 +482,23 @@ const updateBroker = asyncHandler(async (req, res) => {
 const deleteBroker = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
-    const firmId = req.firmId;
 
     if (req.isDeparted) {
         throw CustomException('You do not have permission to delete brokers', 403);
     }
 
     // ─────────────────────────────────────────────────────────────
-    // IDOR PROTECTION - Sanitize and verify ownership
+    // IDOR PROTECTION - Sanitize and verify ownership using req.firmQuery
     // ─────────────────────────────────────────────────────────────
     const brokerId = sanitizeObjectId(id);
 
-    const query = firmId
-        ? { _id: brokerId, firmId }
-        : { _id: brokerId, userId };
-
-    const broker = await Broker.findOne(query);
+    const broker = await Broker.findOne({ _id: brokerId, ...req.firmQuery });
     if (!broker) {
         throw CustomException('Broker not found', 404);
     }
 
-    // Check if broker has accounts
-    const accountCount = await TradingAccount.countDocuments({ brokerId: brokerId });
+    // Check if broker has accounts (with tenant isolation)
+    const accountCount = await TradingAccount.countDocuments({ brokerId: brokerId, ...req.firmQuery });
     if (accountCount > 0) {
         throw CustomException(
             `Cannot delete broker with ${accountCount} linked account(s). Delete or reassign accounts first.`,
@@ -515,8 +506,8 @@ const deleteBroker = asyncHandler(async (req, res) => {
         );
     }
 
-    // Check if broker has trades
-    const tradeCount = await Trade.countDocuments({ brokerId: brokerId });
+    // Check if broker has trades (with tenant isolation)
+    const tradeCount = await Trade.countDocuments({ brokerId: brokerId, ...req.firmQuery });
     if (tradeCount > 0) {
         throw CustomException(
             `Cannot delete broker with ${tradeCount} linked trade(s). Delete or reassign trades first.`,
@@ -524,7 +515,7 @@ const deleteBroker = asyncHandler(async (req, res) => {
         );
     }
 
-    await Broker.findOneAndDelete(query);
+    await Broker.findOneAndDelete({ _id: brokerId, ...req.firmQuery });
 
     return res.json({
         success: true,
@@ -538,29 +529,24 @@ const deleteBroker = asyncHandler(async (req, res) => {
 const setDefaultBroker = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
-    const firmId = req.firmId;
 
     if (req.isDeparted) {
         throw CustomException('You do not have permission to update brokers', 403);
     }
 
     // ─────────────────────────────────────────────────────────────
-    // IDOR PROTECTION - Sanitize and verify ownership
+    // IDOR PROTECTION - Sanitize and verify ownership using req.firmQuery
     // ─────────────────────────────────────────────────────────────
     const brokerId = sanitizeObjectId(id);
 
-    const query = firmId
-        ? { _id: brokerId, firmId }
-        : { _id: brokerId, userId };
-
-    const broker = await Broker.findOne(query);
+    const broker = await Broker.findOne({ _id: brokerId, ...req.firmQuery });
     if (!broker) {
         throw CustomException('Broker not found', 404);
     }
 
-    // Unset all other defaults
+    // Unset all other defaults (with tenant isolation)
     await Broker.updateMany(
-        { userId, _id: { $ne: brokerId } },
+        { ...req.firmQuery, _id: { $ne: brokerId } },
         { isDefault: false }
     );
 

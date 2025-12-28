@@ -228,6 +228,7 @@ const createTrade = asyncHandler(async (req, res) => {
     const trade = await Trade.create({
         userId,
         firmId,
+        lawyerId: !firmId ? userId : undefined, // Solo lawyers get lawyerId for isolation
         symbol: symbol.toUpperCase(),
         symbolName,
         assetType,
@@ -330,9 +331,9 @@ const getTrades = asyncHandler(async (req, res) => {
     } = req.query;
 
     // ─────────────────────────────────────────────────────────────
-    // BUILD FILTERS
+    // BUILD FILTERS - Use req.firmQuery for proper tenant isolation
     // ─────────────────────────────────────────────────────────────
-    const filters = firmId ? { firmId } : { userId };
+    const filters = { ...req.firmQuery };
 
     if (status) filters.status = status;
     if (assetType) filters.assetType = assetType;
@@ -459,11 +460,7 @@ const getTrade = asyncHandler(async (req, res) => {
     // Sanitize the trade ID (IDOR protection)
     const sanitizedId = sanitizeObjectId(id);
 
-    const query = firmId
-        ? { _id: sanitizedId, firmId }
-        : { _id: sanitizedId, userId };
-
-    const trade = await Trade.findOne(query)
+    const trade = await Trade.findOne({ _id: sanitizedId, ...req.firmQuery })
         .populate('brokerId', 'name type displayName commissionStructure')
         .populate('accountId', 'name type currency initialBalance currentBalance')
         .populate('linkedTrades', 'symbol direction entryDate status netPnl')
@@ -515,11 +512,7 @@ const updateTrade = asyncHandler(async (req, res) => {
 
     const updateData = pickAllowedFields(req.body, allowedFields);
 
-    const query = firmId
-        ? { _id: sanitizedId, firmId }
-        : { _id: sanitizedId, userId };
-
-    const existingTrade = await Trade.findOne(query);
+    const existingTrade = await Trade.findOne({ _id: sanitizedId, ...req.firmQuery });
     if (!existingTrade) {
         throw CustomException('Trade not found or access denied', 404);
     }
@@ -610,7 +603,7 @@ const updateTrade = asyncHandler(async (req, res) => {
     updateData.updatedBy = userId;
 
     const trade = await Trade.findOneAndUpdate(
-        query,
+        { _id: sanitizedId, ...req.firmQuery },
         updateData,
         { new: true, runValidators: true }
     )
@@ -663,10 +656,6 @@ const closeTrade = asyncHandler(async (req, res) => {
         exitScreenshot
     } = filteredData;
 
-    const query = firmId
-        ? { _id: sanitizedId, firmId }
-        : { _id: sanitizedId, userId };
-
     // Input validation for trade amounts
     if (!exitPrice || typeof exitPrice !== 'number' || !isFinite(exitPrice) || exitPrice <= 0) {
         throw CustomException('Exit price must be a valid positive number', 400);
@@ -689,7 +678,7 @@ const closeTrade = asyncHandler(async (req, res) => {
     session.startTransaction();
 
     try {
-        const trade = await Trade.findOne(query).session(session);
+        const trade = await Trade.findOne({ _id: sanitizedId, ...req.firmQuery }).session(session);
         if (!trade) {
             await session.abortTransaction();
             throw CustomException('Trade not found or access denied', 404);
@@ -785,11 +774,7 @@ const deleteTrade = asyncHandler(async (req, res) => {
     // Sanitize the trade ID (IDOR protection)
     const sanitizedId = sanitizeObjectId(id);
 
-    const query = firmId
-        ? { _id: sanitizedId, firmId }
-        : { _id: sanitizedId, userId };
-
-    const trade = await Trade.findOneAndDelete(query);
+    const trade = await Trade.findOneAndDelete({ _id: sanitizedId, ...req.firmQuery });
 
     if (!trade) {
         throw CustomException('Trade not found or access denied', 404);
@@ -806,7 +791,6 @@ const deleteTrade = asyncHandler(async (req, res) => {
 // ═══════════════════════════════════════════════════════════════
 const bulkDeleteTrades = asyncHandler(async (req, res) => {
     const userId = req.userID;
-    const firmId = req.firmId;
 
     if (req.isDeparted) {
         throw CustomException('You do not have permission to delete trades', 403);
@@ -821,11 +805,7 @@ const bulkDeleteTrades = asyncHandler(async (req, res) => {
     // Sanitize all IDs (IDOR protection)
     const sanitizedIds = ids.map(id => sanitizeObjectId(id));
 
-    const query = firmId
-        ? { _id: { $in: sanitizedIds }, firmId }
-        : { _id: { $in: sanitizedIds }, userId };
-
-    const result = await Trade.deleteMany(query);
+    const result = await Trade.deleteMany({ _id: { $in: sanitizedIds }, ...req.firmQuery });
 
     return res.json({
         success: true,
@@ -886,9 +866,9 @@ const getTradeStats = asyncHandler(async (req, res) => {
     }
 
     // ─────────────────────────────────────────────────────────────
-    // BUILD FILTERS
+    // BUILD FILTERS - Use req.firmQuery for proper tenant isolation
     // ─────────────────────────────────────────────────────────────
-    const filters = firmId ? { firmId } : { userId };
+    const filters = { ...req.firmQuery };
 
     if (dateStart || dateEnd) {
         filters.entryDate = {};
@@ -1041,11 +1021,16 @@ const getChartData = asyncHandler(async (req, res) => {
     }
 
     // ─────────────────────────────────────────────────────────────
-    // BUILD AGGREGATION
+    // BUILD AGGREGATION - Use req.firmQuery for proper tenant isolation
     // ─────────────────────────────────────────────────────────────
-    const matchStage = firmId ? { firmId } : { userId };
-    matchStage.status = 'closed';
-    matchStage.exitDate = { $gte: dateStart, $lte: now };
+    const matchStage = { ...req.firmQuery, status: 'closed', exitDate: { $gte: dateStart, $lte: now } };
+    // Convert to ObjectId for aggregation if needed
+    if (matchStage.firmId) {
+        matchStage.firmId = new mongoose.Types.ObjectId(matchStage.firmId);
+    }
+    if (matchStage.lawyerId) {
+        matchStage.lawyerId = new mongoose.Types.ObjectId(matchStage.lawyerId);
+    }
 
     let dateFormat;
     switch (groupBy) {

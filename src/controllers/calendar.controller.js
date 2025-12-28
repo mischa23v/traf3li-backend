@@ -205,9 +205,10 @@ const getCalendarView = asyncHandler(async (req, res) => {
     // Build base query for case filtering with sanitized ID
     const caseFilter = sanitizedCaseId ? { caseId: sanitizedCaseId } : {};
 
-    // Fetch events
+    // Fetch events (with firm/lawyer isolation)
     if (!type || type === 'event') {
         const eventQuery = {
+            ...req.firmQuery, // Tenant isolation
             $or: [
                 { createdBy: userId },
                 { 'attendees.userId': userId }
@@ -247,9 +248,10 @@ const getCalendarView = asyncHandler(async (req, res) => {
         result.summary.eventCount = events.length;
     }
 
-    // Fetch tasks
+    // Fetch tasks (with firm/lawyer isolation)
     if (!type || type === 'task') {
         const taskQuery = {
+            ...req.firmQuery, // Tenant isolation
             $or: [
                 { assignedTo: userId },
                 { createdBy: userId }

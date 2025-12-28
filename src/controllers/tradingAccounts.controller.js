@@ -145,6 +145,7 @@ const createTradingAccount = asyncHandler(async (req, res) => {
     const account = await TradingAccount.create({
         userId,
         firmId,
+        lawyerId: !firmId ? userId : undefined, // Solo lawyers get lawyerId for isolation
         name: name.trim(),
         accountNumber,
         brokerId: sanitizedBrokerId,
@@ -165,8 +166,7 @@ const createTradingAccount = asyncHandler(async (req, res) => {
         createdBy: userId
     });
 
-    const query = firmId ? { _id: account._id, firmId } : { _id: account._id, userId };
-    const populatedAccount = await TradingAccount.findOne(query)
+    const populatedAccount = await TradingAccount.findOne({ _id: account._id, ...req.firmQuery })
         .populate('brokerId', 'name type displayName');
 
     return res.status(201).json({
@@ -200,9 +200,9 @@ const getTradingAccounts = asyncHandler(async (req, res) => {
     } = req.query;
 
     // ─────────────────────────────────────────────────────────────
-    // BUILD FILTERS
+    // BUILD FILTERS - Use req.firmQuery for proper tenant isolation
     // ─────────────────────────────────────────────────────────────
-    const filters = firmId ? { firmId } : { userId };
+    const filters = { ...req.firmQuery };
 
     if (status) filters.status = status;
     if (type) filters.type = type;
@@ -289,11 +289,7 @@ const getTradingAccount = asyncHandler(async (req, res) => {
     // ─────────────────────────────────────────────────────────────
     const sanitizedId = sanitizeObjectId(id, 'Trading account ID');
 
-    const query = firmId
-        ? { _id: sanitizedId, firmId }
-        : { _id: sanitizedId, userId };
-
-    const account = await TradingAccount.findOne(query)
+    const account = await TradingAccount.findOne({ _id: sanitizedId, ...req.firmQuery })
         .populate('brokerId', 'name type displayName commissionStructure');
 
     if (!account) {
@@ -347,11 +343,7 @@ const getAccountBalance = asyncHandler(async (req, res) => {
     // ─────────────────────────────────────────────────────────────
     const sanitizedId = sanitizeObjectId(id, 'Trading account ID');
 
-    const query = firmId
-        ? { _id: sanitizedId, firmId }
-        : { _id: sanitizedId, userId };
-
-    const account = await TradingAccount.findOne(query);
+    const account = await TradingAccount.findOne({ _id: sanitizedId, ...req.firmQuery });
 
     if (!account) {
         throw CustomException('Trading account not found', 404);
@@ -454,21 +446,19 @@ const updateTradingAccount = asyncHandler(async (req, res) => {
         throw CustomException('Default risk percent must be between 0 and 100', 400);
     }
 
-    const query = firmId
-        ? { _id: sanitizedId, firmId }
-        : { _id: sanitizedId, userId };
-
-    const existingAccount = await TradingAccount.findOne(query);
+    const existingAccount = await TradingAccount.findOne({ _id: sanitizedId, ...req.firmQuery });
     if (!existingAccount) {
         throw CustomException('Trading account not found', 404);
     }
 
     // Check for duplicate name if name is being changed
     if (updateData.name && updateData.name !== existingAccount.name) {
-        const duplicateCheckQuery = firmId
-            ? { firmId, brokerId: existingAccount.brokerId, _id: { $ne: sanitizedId }, name: { $regex: new RegExp(`^${escapeRegex(updateData.name.trim())}$`, 'i') } }
-            : { userId, brokerId: existingAccount.brokerId, _id: { $ne: sanitizedId }, name: { $regex: new RegExp(`^${escapeRegex(updateData.name.trim())}$`, 'i') } };
-        const duplicateAccount = await TradingAccount.findOne(duplicateCheckQuery);
+        const duplicateAccount = await TradingAccount.findOne({
+            ...req.firmQuery,
+            brokerId: existingAccount.brokerId,
+            _id: { $ne: sanitizedId },
+            name: { $regex: new RegExp(`^${escapeRegex(updateData.name.trim())}$`, 'i') }
+        });
 
         if (duplicateAccount) {
             throw CustomException('An account with this name already exists for this broker', 400);
@@ -479,16 +469,13 @@ const updateTradingAccount = asyncHandler(async (req, res) => {
     if (updateData.brokerId && updateData.brokerId !== existingAccount.brokerId?.toString()) {
         const sanitizedBrokerId = sanitizeObjectId(updateData.brokerId, 'Broker ID');
 
-        const tradeCount = await Trade.countDocuments({ accountId: sanitizedId });
+        const tradeCount = await Trade.countDocuments({ accountId: sanitizedId, ...req.firmQuery });
         if (tradeCount > 0) {
             throw CustomException('Cannot change broker for account with existing trades', 400);
         }
 
-        // Verify new broker exists
-        const broker = await Broker.findOne({
-            _id: sanitizedBrokerId,
-            $or: [{ userId }, { firmId }]
-        });
+        // Verify new broker exists (with tenant isolation)
+        const broker = await Broker.findOne({ _id: sanitizedBrokerId, ...req.firmQuery });
         if (!broker) {
             throw CustomException('Broker not found', 404);
         }
@@ -500,7 +487,7 @@ const updateTradingAccount = asyncHandler(async (req, res) => {
     updateData.updatedBy = userId;
 
     const account = await TradingAccount.findOneAndUpdate(
-        query,
+        { _id: sanitizedId, ...req.firmQuery },
         updateData,
         { new: true, runValidators: true }
     ).populate('brokerId', 'name type displayName');
@@ -525,21 +512,17 @@ const deleteTradingAccount = asyncHandler(async (req, res) => {
     }
 
     // ─────────────────────────────────────────────────────────────
-    // IDOR PROTECTION
+    // IDOR PROTECTION - Using req.firmQuery for tenant isolation
     // ─────────────────────────────────────────────────────────────
     const sanitizedId = sanitizeObjectId(id, 'Trading account ID');
 
-    const query = firmId
-        ? { _id: sanitizedId, firmId }
-        : { _id: sanitizedId, userId };
-
-    const account = await TradingAccount.findOne(query);
+    const account = await TradingAccount.findOne({ _id: sanitizedId, ...req.firmQuery });
     if (!account) {
         throw CustomException('Trading account not found', 404);
     }
 
-    // Check if account has trades
-    const tradeCount = await Trade.countDocuments({ accountId: sanitizedId });
+    // Check if account has trades (with tenant isolation)
+    const tradeCount = await Trade.countDocuments({ accountId: sanitizedId, ...req.firmQuery });
     if (tradeCount > 0) {
         throw CustomException(
             `Cannot delete account with ${tradeCount} linked trade(s). Delete or reassign trades first.`,
@@ -547,7 +530,7 @@ const deleteTradingAccount = asyncHandler(async (req, res) => {
         );
     }
 
-    await TradingAccount.findOneAndDelete(query);
+    await TradingAccount.findOneAndDelete({ _id: sanitizedId, ...req.firmQuery });
 
     return res.json({
         success: true,
@@ -561,22 +544,17 @@ const deleteTradingAccount = asyncHandler(async (req, res) => {
 const setDefaultAccount = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
-    const firmId = req.firmId;
 
     if (req.isDeparted) {
         throw CustomException('Resource not found', 404);
     }
 
     // ─────────────────────────────────────────────────────────────
-    // IDOR PROTECTION
+    // IDOR PROTECTION - Using req.firmQuery for tenant isolation
     // ─────────────────────────────────────────────────────────────
     const sanitizedId = sanitizeObjectId(id, 'Trading account ID');
 
-    const query = firmId
-        ? { _id: sanitizedId, firmId }
-        : { _id: sanitizedId, userId };
-
-    const account = await TradingAccount.findOne(query);
+    const account = await TradingAccount.findOne({ _id: sanitizedId, ...req.firmQuery });
     if (!account) {
         throw CustomException('Trading account not found', 404);
     }
@@ -588,12 +566,9 @@ const setDefaultAccount = asyncHandler(async (req, res) => {
 
     try {
         await session.withTransaction(async () => {
-            // Unset all other defaults
-            const updateManyQuery = firmId
-                ? { firmId, _id: { $ne: sanitizedId } }
-                : { userId, _id: { $ne: sanitizedId } };
+            // Unset all other defaults (with tenant isolation)
             await TradingAccount.updateMany(
-                updateManyQuery,
+                { ...req.firmQuery, _id: { $ne: sanitizedId } },
                 { isDefault: false },
                 { session }
             );
@@ -607,8 +582,7 @@ const setDefaultAccount = asyncHandler(async (req, res) => {
         await session.endSession();
     }
 
-    const repopulateQuery = firmId ? { _id: account._id, firmId } : { _id: account._id, userId };
-    const populatedAccount = await TradingAccount.findOne(repopulateQuery)
+    const populatedAccount = await TradingAccount.findOne({ _id: account._id, ...req.firmQuery })
         .populate('brokerId', 'name type displayName');
 
     return res.json({
@@ -663,11 +637,7 @@ const addTransaction = asyncHandler(async (req, res) => {
         throw CustomException('Transaction amount exceeds maximum allowed limit', 400);
     }
 
-    const query = firmId
-        ? { _id: sanitizedId, firmId }
-        : { _id: sanitizedId, userId };
-
-    const account = await TradingAccount.findOne(query);
+    const account = await TradingAccount.findOne({ _id: sanitizedId, ...req.firmQuery });
     if (!account) {
         throw CustomException('Trading account not found', 404);
     }
