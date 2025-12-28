@@ -52,14 +52,13 @@ const hasFirmField = (schema) => {
 /**
  * Check if query has required isolation filter
  * SECURITY: _id alone is NOT sufficient for firm isolation!
- * Queries MUST include firmId, lawyerId, or userId to ensure proper multi-tenant isolation.
+ * Queries MUST include firmId or lawyerId to ensure proper multi-tenant isolation.
  * Using _id alone would allow cross-firm data access by guessing or enumerating IDs.
  */
 const hasIsolationFilter = (query) => {
     const filter = query.getQuery ? query.getQuery() : query;
-    // SECURITY FIX: Removed _id as acceptable filter - only firmId, lawyerId, or userId provides true isolation
-    // userId is needed for user-specific data like notifications, reminders
-    return !!(filter.firmId || filter.lawyerId || filter.userId);
+    // SECURITY FIX: Removed _id as acceptable filter - only firmId or lawyerId provides true isolation
+    return !!(filter.firmId || filter.lawyerId);
 };
 
 /**
@@ -71,8 +70,8 @@ const hasAggregationFilter = (pipeline) => {
     const firstStage = pipeline[0];
     if (!firstStage || !firstStage.$match) return false;
     const match = firstStage.$match;
-    // SECURITY FIX: Removed _id as acceptable filter - only firmId, lawyerId, or userId provides true isolation
-    return !!(match.firmId || match.lawyerId || match.userId);
+    // SECURITY FIX: Removed _id as acceptable filter - only firmId or lawyerId provides true isolation
+    return !!(match.firmId || match.lawyerId);
 };
 
 /**
@@ -140,7 +139,7 @@ const createGlobalFirmIsolationPlugin = () => {
             // Check if query has required filter
             if (!hasIsolationFilter(this)) {
                 const error = new Error(
-                    `[FirmIsolation] Query on ${modelName} must include firmId, lawyerId, or userId filter. ` +
+                    `[FirmIsolation] Query on ${modelName} must include firmId, lawyerId, or _id filter. ` +
                     `Use .setOptions({ bypassFirmFilter: true }) or static methods like findWithoutFirmFilter() to bypass.`
                 );
                 error.code = 'FIRM_ISOLATION_VIOLATION';
@@ -189,7 +188,7 @@ const createGlobalFirmIsolationPlugin = () => {
 
             if (!hasAggregationFilter(pipeline)) {
                 const error = new Error(
-                    `[FirmIsolation] Aggregation on ${modelName} must have firmId, lawyerId, or userId in first $match stage. ` +
+                    `[FirmIsolation] Aggregation on ${modelName} must have firmId, lawyerId, or _id in first $match stage. ` +
                     `Use .option({ bypassFirmFilter: true }) or aggregateWithoutFirmFilter() to bypass.`
                 );
                 error.code = 'FIRM_ISOLATION_VIOLATION';
