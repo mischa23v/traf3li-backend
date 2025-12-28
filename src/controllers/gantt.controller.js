@@ -196,20 +196,13 @@ const getProductivityData = asyncHandler(async (req, res) => {
     dateFilters.$lte = new Date(endDate);
   }
 
-  // Fetch all data sources in parallel
+  // Fetch all data sources in parallel - use req.firmQuery for proper tenant isolation
   const [tasks, reminders, events] = await Promise.all([
     // Tasks query
     Task.find({
       $and: [
-        // Firm filter (if available)
-        firmId ? { firmId } : {},
-        // User access check
-        {
-          $or: [
-            { assignedTo: userId },
-            { createdBy: userId }
-          ]
-        },
+        // Firm/lawyer filter using req.firmQuery for proper tenant isolation
+        req.firmQuery,
         // Exclude canceled tasks
         { status: { $ne: 'canceled' } },
         // Exclude templates
@@ -244,19 +237,11 @@ const getProductivityData = asyncHandler(async (req, res) => {
     .populate('relatedTask', 'title')
     .sort({ reminderDateTime: 1 }),
 
-    // Events query
+    // Events query - use req.firmQuery for proper tenant isolation
     Event.find({
       $and: [
-        // Firm filter (if available)
-        firmId ? { firmId } : {},
-        // User access check
-        {
-          $or: [
-            { organizer: userId },
-            { createdBy: userId },
-            { 'attendees.userId': userId }
-          ]
-        },
+        // Firm/lawyer filter using req.firmQuery for proper tenant isolation
+        req.firmQuery,
         // Exclude canceled events
         { status: { $nin: ['canceled', 'cancelled'] } },
         // Date filter on startDateTime

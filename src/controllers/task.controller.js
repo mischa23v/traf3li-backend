@@ -1267,10 +1267,8 @@ const bulkUpdateTasks = asyncHandler(async (req, res) => {
     // Convert firmId to ObjectId for proper MongoDB matching
     const firmObjectId = firmId ? new mongoose.Types.ObjectId(firmId) : null;
 
-    // Verify access to all tasks - firmId first, then user-based
-    const accessQuery = firmObjectId
-        ? { _id: { $in: sanitizedTaskIds }, firmId: firmObjectId }
-        : { _id: { $in: sanitizedTaskIds }, $or: [{ assignedTo: userId }, { createdBy: userId }] };
+    // Verify access to all tasks - use req.firmQuery for proper tenant isolation
+    const accessQuery = { _id: { $in: sanitizedTaskIds }, ...req.firmQuery };
 
     const tasks = await Task.find(accessQuery);
 
@@ -1451,10 +1449,8 @@ const getTasksDueToday = asyncHandler(async (req, res) => {
     const endOfDay = new Date();
     endOfDay.setHours(23, 59, 59, 999);
 
-    // Build query - firmId first, then user-based
-    const baseQuery = firmId
-        ? { firmId: new mongoose.Types.ObjectId(firmId) }
-        : { $or: [{ assignedTo: userId }, { createdBy: userId }] };
+    // Build query - use req.firmQuery for proper tenant isolation
+    const baseQuery = { ...req.firmQuery };
 
     const tasks = await Task.find({
         ...baseQuery,
@@ -4242,21 +4238,21 @@ const getTasksOverview = asyncHandler(async (req, res) => {
     const isSoloLawyer = req.isSoloLawyer;
     const { page = 1, limit = 20, status, priority, caseId } = req.query;
 
-    // Build filter
-    const filter = {};
-    if (firmId) {
-        filter.firmId = firmId;
-    } else if (isSoloLawyer) {
-        filter.$or = [{ createdBy: userId }, { assignedTo: userId }];
-    }
+    // Build filter - use req.firmQuery for proper tenant isolation
+    const filter = { ...req.firmQuery };
     if (status) filter.status = status;
     if (priority) filter.priority = priority;
     if (caseId) filter.caseId = caseId;
 
     const mongoose = require('mongoose');
-    const matchFilter = firmId
-        ? { firmId: new mongoose.Types.ObjectId(firmId) }
-        : { $or: [{ createdBy: new mongoose.Types.ObjectId(userId) }, { assignedTo: new mongoose.Types.ObjectId(userId) }] };
+    // Convert firmQuery to ObjectIds for aggregation
+    const matchFilter = {};
+    if (req.firmQuery.firmId) {
+        matchFilter.firmId = new mongoose.Types.ObjectId(req.firmQuery.firmId);
+    }
+    if (req.firmQuery.lawyerId) {
+        matchFilter.lawyerId = new mongoose.Types.ObjectId(req.firmQuery.lawyerId);
+    }
 
     // Get date for upcoming tasks
     const now = new Date();

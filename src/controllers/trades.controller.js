@@ -185,7 +185,7 @@ const createTrade = asyncHandler(async (req, res) => {
         sanitizedBrokerId = sanitizeObjectId(brokerId);
         const broker = await Broker.findOne({
             _id: sanitizedBrokerId,
-            ...(firmId ? { firmId } : { userId })
+            ...req.firmQuery
         });
         if (!broker) {
             throw CustomException('Broker not found or access denied', 404);
@@ -201,7 +201,7 @@ const createTrade = asyncHandler(async (req, res) => {
         sanitizedAccountId = sanitizeObjectId(accountId);
         const account = await TradingAccount.findOne({
             _id: sanitizedAccountId,
-            ...(firmId ? { firmId } : { userId })
+            ...req.firmQuery
         });
         if (!account) {
             throw CustomException('Trading account not found or access denied', 404);
@@ -575,7 +575,7 @@ const updateTrade = asyncHandler(async (req, res) => {
         const sanitizedBrokerId = sanitizeObjectId(updateData.brokerId);
         const broker = await Broker.findOne({
             _id: sanitizedBrokerId,
-            ...(firmId ? { firmId } : { userId })
+            ...req.firmQuery
         });
         if (!broker) {
             throw CustomException('Broker not found or access denied', 404);
@@ -589,7 +589,7 @@ const updateTrade = asyncHandler(async (req, res) => {
         const sanitizedAccountId = sanitizeObjectId(updateData.accountId);
         const account = await TradingAccount.findOne({
             _id: sanitizedAccountId,
-            ...(firmId ? { firmId } : { userId })
+            ...req.firmQuery
         });
         if (!account) {
             throw CustomException('Trading account not found or access denied', 404);
@@ -719,7 +719,7 @@ const closeTrade = asyncHandler(async (req, res) => {
         if (trade.accountId) {
             const account = await TradingAccount.findOne({
                 _id: trade.accountId,
-                ...(firmId ? { firmId } : { userId })
+                ...req.firmQuery
             }).session(session);
 
             if (account) {
