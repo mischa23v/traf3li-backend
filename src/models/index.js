@@ -140,6 +140,11 @@ const InterestArea = require('./interestArea.model');
 // Sales Forecasting Models
 const SalesForecast = require('./salesForecast.model');
 
+// Sales Quota & CRM Transaction Models
+const SalesQuota = require('./salesQuota.model');
+const DuplicateDetectionSettings = require('./duplicateDetectionSettings.model');
+const CRMTransaction = require('./crmTransaction.model');
+
 // HR Models
 const Employee = require('./employee.model');
 const SalarySlip = require('./salarySlip.model');
@@ -567,6 +572,11 @@ module.exports = {
 
     // Sales Forecasting
     SalesForecast,
+
+    // Sales Quota & CRM Transactions
+    SalesQuota,
+    DuplicateDetectionSettings,
+    CRMTransaction,
 
     // HR
     Employee,

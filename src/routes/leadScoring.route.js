@@ -1,14 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const leadScoringController = require('../controllers/leadScoring.controller');
-const { userMiddleware, firmAdminOnly } = require('../middlewares');
+const { firmAdminOnly } = require('../middlewares');
 
 // ═══════════════════════════════════════════════════════════════
 // LEAD SCORING ROUTES
 // ═══════════════════════════════════════════════════════════════
-
-// All routes require authentication
-router.use(userMiddleware);
 
 // ───────────────────────────────────────────────────────────────
 // CONFIGURATION

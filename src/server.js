@@ -214,6 +214,10 @@ const {
     // Sales Forecasting
     salesForecastRoutes,
 
+    // Sales Quota & CRM Transactions
+    salesQuotaRoute,
+    crmTransactionRoute,
+
     whatsappRoute,
     telegramRoute,
     slackRoute,
@@ -1020,6 +1024,8 @@ app.use('/api/activity-plans', activityPlanRoutes);  // Activity sequences/caden
 app.use('/api/competitors', competitorRoutes);  // Competitor tracking
 app.use('/api/interest-areas', interestAreaRoutes);  // Interest areas/topics
 app.use('/api/sales-forecasts', salesForecastRoutes);  // Sales forecasting & quota management
+app.use('/api/sales-quotas', salesQuotaRoute);  // Sales quota management
+app.use('/api/crm-transactions', noCache, crmTransactionRoute);  // CRM transaction logging & analytics
 app.use('/api/whatsapp', whatsappRoute);
 app.use('/api/telegram', noCache, telegramRoute);
 app.use('/api/slack', noCache, slackRoute);

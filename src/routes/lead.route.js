@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
 const leadController = require('../controllers/lead.controller');
-const { userMiddleware } = require('../middlewares');
 const {
     validateCreateLead,
     validateUpdateLead,
@@ -14,9 +13,6 @@ const {
     validateGetActivitiesQuery,
     validateLeadIdParam
 } = require('../validators/lead.validator');
-
-// Apply authentication to all routes
-router.use(userMiddleware);
 
 // ============================================
 // BATCH ENDPOINT: CRM OVERVIEW

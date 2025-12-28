@@ -1,10 +1,6 @@
 const express = require('express');
 const router = express.Router();
 const crmActivityController = require('../controllers/crmActivity.controller');
-const { userMiddleware } = require('../middlewares');
-
-// Apply authentication to all routes
-router.use(userMiddleware);
 
 // ============================================
 // CRM ACTIVITY ROUTES
