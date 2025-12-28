@@ -14,6 +14,7 @@ const Competitor = require('../models/competitor.model');
 const SalesStage = require('../models/salesStage.model');
 const { pickAllowedFields, sanitizeObjectId, sanitizePagination } = require('../utils/securityUtils');
 const logger = require('../utils/logger');
+const crmReportsService = require('../services/crmReports.service');
 
 // ═══════════════════════════════════════════════════════════════
 // CAMPAIGN EFFICIENCY REPORT
@@ -1290,6 +1291,564 @@ exports.getLeadConversionTime = async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'خطأ في جلب تقرير وقت التحويل / Error fetching conversion time report',
+            error: error.message
+        });
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════
+// QUICK STATS DASHBOARD (NEW)
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Get quick stats for CRM dashboard
+ */
+exports.getQuickStats = async (req, res) => {
+    try {
+        const allowedParams = pickAllowedFields(req.query, ['period']);
+        const { period = 'month' } = allowedParams;
+
+        const data = await crmReportsService.getQuickStats(req.firmQuery, { period });
+
+        res.json({
+            success: true,
+            data
+        });
+    } catch (error) {
+        logger.error('Error getting quick stats:', error);
+        res.status(500).json({
+            success: false,
+            message: 'خطأ في جلب الإحصائيات السريعة / Error fetching quick stats',
+            error: error.message
+        });
+    }
+};
+
+/**
+ * Get recent activity for dashboard
+ */
+exports.getRecentActivity = async (req, res) => {
+    try {
+        const allowedParams = pickAllowedFields(req.query, ['limit']);
+        const limit = Math.min(parseInt(allowedParams.limit) || 5, 20);
+
+        const data = await crmReportsService.getRecentActivity(req.firmQuery, limit);
+
+        res.json({
+            success: true,
+            data
+        });
+    } catch (error) {
+        logger.error('Error getting recent activity:', error);
+        res.status(500).json({
+            success: false,
+            message: 'خطأ في جلب النشاط الأخير / Error fetching recent activity',
+            error: error.message
+        });
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════
+// SALES FUNNEL REPORT (NEW)
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Get sales funnel overview
+ */
+exports.getFunnelOverview = async (req, res) => {
+    try {
+        const allowedParams = pickAllowedFields(req.query, ['startDate', 'endDate', 'pipelineId']);
+        const { startDate, endDate, pipelineId } = allowedParams;
+
+        const filters = { startDate, endDate };
+        if (pipelineId) {
+            const sanitizedPipelineId = sanitizeObjectId(pipelineId);
+            if (!sanitizedPipelineId) {
+                return res.status(400).json({ success: false, message: 'Invalid pipelineId format' });
+            }
+            filters.pipelineId = sanitizedPipelineId;
+        }
+
+        const data = await crmReportsService.getFunnelOverview(req.firmQuery, filters);
+
+        res.json({
+            success: true,
+            data
+        });
+    } catch (error) {
+        logger.error('Error getting funnel overview:', error);
+        res.status(500).json({
+            success: false,
+            message: 'خطأ في جلب تقرير القمع / Error fetching funnel report',
+            error: error.message
+        });
+    }
+};
+
+/**
+ * Get funnel velocity
+ */
+exports.getFunnelVelocity = async (req, res) => {
+    try {
+        const allowedParams = pickAllowedFields(req.query, ['startDate', 'endDate']);
+        const data = await crmReportsService.getFunnelVelocity(req.firmQuery, allowedParams);
+
+        res.json({
+            success: true,
+            data
+        });
+    } catch (error) {
+        logger.error('Error getting funnel velocity:', error);
+        res.status(500).json({
+            success: false,
+            message: 'خطأ في جلب سرعة القمع / Error fetching funnel velocity',
+            error: error.message
+        });
+    }
+};
+
+/**
+ * Get funnel bottlenecks
+ */
+exports.getFunnelBottlenecks = async (req, res) => {
+    try {
+        const data = await crmReportsService.getFunnelBottlenecks(req.firmQuery);
+
+        res.json({
+            success: true,
+            data
+        });
+    } catch (error) {
+        logger.error('Error getting funnel bottlenecks:', error);
+        res.status(500).json({
+            success: false,
+            message: 'خطأ في جلب اختناقات القمع / Error fetching funnel bottlenecks',
+            error: error.message
+        });
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════
+// DEAL AGING REPORT (NEW)
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Get deal aging overview
+ */
+exports.getAgingOverview = async (req, res) => {
+    try {
+        const allowedParams = pickAllowedFields(req.query, ['startDate', 'endDate', 'stageId', 'ownerId', 'threshold']);
+        const filters = { ...allowedParams };
+
+        if (filters.stageId) {
+            const sanitizedStageId = sanitizeObjectId(filters.stageId);
+            if (!sanitizedStageId) {
+                return res.status(400).json({ success: false, message: 'Invalid stageId format' });
+            }
+            filters.stageId = sanitizedStageId;
+        }
+
+        if (filters.ownerId) {
+            const sanitizedOwnerId = sanitizeObjectId(filters.ownerId);
+            if (!sanitizedOwnerId) {
+                return res.status(400).json({ success: false, message: 'Invalid ownerId format' });
+            }
+            filters.ownerId = sanitizedOwnerId;
+        }
+
+        const data = await crmReportsService.getDealAgingOverview(req.firmQuery, filters);
+
+        res.json({
+            success: true,
+            data
+        });
+    } catch (error) {
+        logger.error('Error getting aging overview:', error);
+        res.status(500).json({
+            success: false,
+            message: 'خطأ في جلب تقرير تقادم الصفقات / Error fetching deal aging report',
+            error: error.message
+        });
+    }
+};
+
+/**
+ * Get aging by stage
+ */
+exports.getAgingByStage = async (req, res) => {
+    try {
+        const allowedParams = pickAllowedFields(req.query, ['threshold']);
+        const data = await crmReportsService.getAgingByStage(req.firmQuery, allowedParams);
+
+        res.json({
+            success: true,
+            data
+        });
+    } catch (error) {
+        logger.error('Error getting aging by stage:', error);
+        res.status(500).json({
+            success: false,
+            message: 'خطأ في جلب التقادم حسب المرحلة / Error fetching aging by stage',
+            error: error.message
+        });
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════
+// LEADS BY SOURCE REPORT (NEW)
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Get leads by source overview
+ */
+exports.getLeadsSourceOverview = async (req, res) => {
+    try {
+        const allowedParams = pickAllowedFields(req.query, ['startDate', 'endDate']);
+        const data = await crmReportsService.getLeadsBySourceOverview(req.firmQuery, allowedParams);
+
+        res.json({
+            success: true,
+            data
+        });
+    } catch (error) {
+        logger.error('Error getting leads source overview:', error);
+        res.status(500).json({
+            success: false,
+            message: 'خطأ في جلب تقرير مصادر العملاء / Error fetching leads source report',
+            error: error.message
+        });
+    }
+};
+
+/**
+ * Get leads by source trend
+ */
+exports.getLeadsSourceTrend = async (req, res) => {
+    try {
+        const allowedParams = pickAllowedFields(req.query, ['startDate', 'endDate', 'source']);
+        const data = await crmReportsService.getLeadsBySourceTrend(req.firmQuery, allowedParams);
+
+        res.json({
+            success: true,
+            data
+        });
+    } catch (error) {
+        logger.error('Error getting leads source trend:', error);
+        res.status(500).json({
+            success: false,
+            message: 'خطأ في جلب اتجاه المصادر / Error fetching leads source trend',
+            error: error.message
+        });
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════
+// WIN/LOSS ANALYSIS REPORT (NEW)
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Get win/loss overview
+ */
+exports.getWinLossOverview = async (req, res) => {
+    try {
+        const allowedParams = pickAllowedFields(req.query, ['startDate', 'endDate', 'ownerId']);
+        const filters = { ...allowedParams };
+
+        if (filters.ownerId) {
+            const sanitizedOwnerId = sanitizeObjectId(filters.ownerId);
+            if (!sanitizedOwnerId) {
+                return res.status(400).json({ success: false, message: 'Invalid ownerId format' });
+            }
+            filters.ownerId = sanitizedOwnerId;
+        }
+
+        const data = await crmReportsService.getWinLossOverview(req.firmQuery, filters);
+
+        res.json({
+            success: true,
+            data
+        });
+    } catch (error) {
+        logger.error('Error getting win/loss overview:', error);
+        res.status(500).json({
+            success: false,
+            message: 'خطأ في جلب تقرير الفوز/الخسارة / Error fetching win/loss report',
+            error: error.message
+        });
+    }
+};
+
+/**
+ * Get lost reasons analysis
+ */
+exports.getLostReasons = async (req, res) => {
+    try {
+        const allowedParams = pickAllowedFields(req.query, ['startDate', 'endDate']);
+        const data = await crmReportsService.getLostReasons(req.firmQuery, allowedParams);
+
+        res.json({
+            success: true,
+            data
+        });
+    } catch (error) {
+        logger.error('Error getting lost reasons:', error);
+        res.status(500).json({
+            success: false,
+            message: 'خطأ في جلب أسباب الخسارة / Error fetching lost reasons',
+            error: error.message
+        });
+    }
+};
+
+/**
+ * Get win/loss trend
+ */
+exports.getWinLossTrend = async (req, res) => {
+    try {
+        const allowedParams = pickAllowedFields(req.query, ['startDate', 'endDate']);
+        const data = await crmReportsService.getWinLossTrend(req.firmQuery, allowedParams);
+
+        res.json({
+            success: true,
+            data
+        });
+    } catch (error) {
+        logger.error('Error getting win/loss trend:', error);
+        res.status(500).json({
+            success: false,
+            message: 'خطأ في جلب اتجاه الفوز/الخسارة / Error fetching win/loss trend',
+            error: error.message
+        });
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════
+// ACTIVITY ANALYTICS REPORT (NEW)
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Get activity overview
+ */
+exports.getActivityOverview = async (req, res) => {
+    try {
+        const allowedParams = pickAllowedFields(req.query, ['startDate', 'endDate', 'ownerId', 'type']);
+        const filters = { ...allowedParams };
+
+        if (filters.ownerId) {
+            const sanitizedOwnerId = sanitizeObjectId(filters.ownerId);
+            if (!sanitizedOwnerId) {
+                return res.status(400).json({ success: false, message: 'Invalid ownerId format' });
+            }
+            filters.ownerId = sanitizedOwnerId;
+        }
+
+        const data = await crmReportsService.getActivityOverview(req.firmQuery, filters);
+
+        res.json({
+            success: true,
+            data
+        });
+    } catch (error) {
+        logger.error('Error getting activity overview:', error);
+        res.status(500).json({
+            success: false,
+            message: 'خطأ في جلب تقرير النشاط / Error fetching activity report',
+            error: error.message
+        });
+    }
+};
+
+/**
+ * Get activity by day of week
+ */
+exports.getActivityByDayOfWeek = async (req, res) => {
+    try {
+        const allowedParams = pickAllowedFields(req.query, ['startDate', 'endDate']);
+        const data = await crmReportsService.getActivityByDayOfWeek(req.firmQuery, allowedParams);
+
+        res.json({
+            success: true,
+            data
+        });
+    } catch (error) {
+        logger.error('Error getting activity by day:', error);
+        res.status(500).json({
+            success: false,
+            message: 'خطأ في جلب النشاط حسب اليوم / Error fetching activity by day',
+            error: error.message
+        });
+    }
+};
+
+/**
+ * Get activity by hour
+ */
+exports.getActivityByHour = async (req, res) => {
+    try {
+        const allowedParams = pickAllowedFields(req.query, ['startDate', 'endDate']);
+        const data = await crmReportsService.getActivityByHour(req.firmQuery, allowedParams);
+
+        res.json({
+            success: true,
+            data
+        });
+    } catch (error) {
+        logger.error('Error getting activity by hour:', error);
+        res.status(500).json({
+            success: false,
+            message: 'خطأ في جلب النشاط حسب الساعة / Error fetching activity by hour',
+            error: error.message
+        });
+    }
+};
+
+/**
+ * Get activity leaderboard
+ */
+exports.getActivityLeaderboard = async (req, res) => {
+    try {
+        const allowedParams = pickAllowedFields(req.query, ['startDate', 'endDate']);
+        const data = await crmReportsService.getActivityLeaderboard(req.firmQuery, allowedParams);
+
+        res.json({
+            success: true,
+            data
+        });
+    } catch (error) {
+        logger.error('Error getting activity leaderboard:', error);
+        res.status(500).json({
+            success: false,
+            message: 'خطأ في جلب لوحة الصدارة / Error fetching leaderboard',
+            error: error.message
+        });
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════
+// REVENUE FORECAST REPORT (NEW)
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Get revenue forecast overview
+ */
+exports.getForecastOverview = async (req, res) => {
+    try {
+        const allowedParams = pickAllowedFields(req.query, ['period', 'ownerId', 'territoryId']);
+        const filters = { ...allowedParams };
+
+        if (filters.ownerId) {
+            const sanitizedOwnerId = sanitizeObjectId(filters.ownerId);
+            if (!sanitizedOwnerId) {
+                return res.status(400).json({ success: false, message: 'Invalid ownerId format' });
+            }
+            filters.ownerId = sanitizedOwnerId;
+        }
+
+        if (filters.territoryId) {
+            const sanitizedTerritoryId = sanitizeObjectId(filters.territoryId);
+            if (!sanitizedTerritoryId) {
+                return res.status(400).json({ success: false, message: 'Invalid territoryId format' });
+            }
+            filters.territoryId = sanitizedTerritoryId;
+        }
+
+        const data = await crmReportsService.getRevenueForecastOverview(req.firmQuery, filters);
+
+        res.json({
+            success: true,
+            data
+        });
+    } catch (error) {
+        logger.error('Error getting forecast overview:', error);
+        res.status(500).json({
+            success: false,
+            message: 'خطأ في جلب تقرير التوقعات / Error fetching forecast report',
+            error: error.message
+        });
+    }
+};
+
+/**
+ * Get forecast by month
+ */
+exports.getForecastByMonth = async (req, res) => {
+    try {
+        const allowedParams = pickAllowedFields(req.query, ['year']);
+        const data = await crmReportsService.getForecastByMonth(req.firmQuery, allowedParams);
+
+        res.json({
+            success: true,
+            data
+        });
+    } catch (error) {
+        logger.error('Error getting forecast by month:', error);
+        res.status(500).json({
+            success: false,
+            message: 'خطأ في جلب التوقعات الشهرية / Error fetching monthly forecast',
+            error: error.message
+        });
+    }
+};
+
+/**
+ * Get forecast by rep
+ */
+exports.getForecastByRep = async (req, res) => {
+    try {
+        const allowedParams = pickAllowedFields(req.query, ['period']);
+        const data = await crmReportsService.getForecastByRep(req.firmQuery, allowedParams);
+
+        res.json({
+            success: true,
+            data
+        });
+    } catch (error) {
+        logger.error('Error getting forecast by rep:', error);
+        res.status(500).json({
+            success: false,
+            message: 'خطأ في جلب التوقعات حسب الممثل / Error fetching forecast by rep',
+            error: error.message
+        });
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════
+// EXPORT REPORT (NEW)
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Export report to CSV
+ */
+exports.exportReport = async (req, res) => {
+    try {
+        const allowedParams = pickAllowedFields(req.body, ['reportType', 'format', 'filters']);
+        const { reportType, format = 'csv', filters = {} } = allowedParams;
+
+        if (!reportType) {
+            return res.status(400).json({
+                success: false,
+                message: 'Report type is required'
+            });
+        }
+
+        const validReportTypes = ['funnel', 'aging', 'leads-source', 'win-loss', 'activities', 'forecast'];
+        if (!validReportTypes.includes(reportType)) {
+            return res.status(400).json({
+                success: false,
+                message: `Invalid report type. Must be one of: ${validReportTypes.join(', ')}`
+            });
+        }
+
+        const csv = await crmReportsService.exportReport(req.firmQuery, reportType, filters);
+
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', `attachment; filename=crm-report-${reportType}-${Date.now()}.csv`);
+        res.send(csv);
+    } catch (error) {
+        logger.error('Error exporting report:', error);
+        res.status(500).json({
+            success: false,
+            message: 'خطأ في تصدير التقرير / Error exporting report',
             error: error.message
         });
     }
