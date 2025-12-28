@@ -382,6 +382,9 @@ const {
     // Unified Data Flow
     unifiedDataRoute,
 
+    // User Settings (View Mode Preferences)
+    userSettingsRoute,
+
     // Plan & Subscription
     planRoute,
     apiKeyRoute,
@@ -1225,6 +1228,9 @@ app.use('/api/hr/extended', noCache, hrExtendedRoute);
 // ============================================
 // Consolidated data endpoints for dashboard integration
 app.use('/api/unified', noCache, unifiedDataRoute);
+
+// User Settings Routes (View Mode Preferences)
+app.use('/api/user-settings', noCache, userSettingsRoute);
 
 // Plan & Subscription Routes
 app.use('/api/plans', planRoute);
