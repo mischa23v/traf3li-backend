@@ -9,9 +9,7 @@ const activitySchema = new mongoose.Schema({
         ref: 'Firm',
         index: true,
         required: false  // Optional for backwards compatibility
-    },,
-
-
+    },
     // For solo lawyers (no firm) - enables row-level security
     lawyerId: {
         type: mongoose.Schema.Types.ObjectId,
@@ -65,6 +63,57 @@ const activitySchema = new mongoose.Schema({
         type: Date,
         required: true,
         index: true
+    },
+    startDateTime: {
+        type: Date
+    },
+    endDateTime: {
+        type: Date
+    },
+    duration: {
+        type: Number,  // Duration in minutes
+        min: 0
+    },
+    isAllDay: {
+        type: Boolean,
+        default: false
+    },
+    reminder: {
+        enabled: { type: Boolean, default: true },
+        minutesBefore: { type: Number, default: 15 },
+        reminderSent: { type: Boolean, default: false },
+        reminderSentAt: Date
+    },
+    recurrence: {
+        isRecurring: { type: Boolean, default: false },
+        pattern: {
+            type: String,
+            enum: ['daily', 'weekly', 'biweekly', 'monthly', 'yearly']
+        },
+        interval: { type: Number, default: 1 },
+        daysOfWeek: [{ type: Number, min: 0, max: 6 }],
+        endDate: Date,
+        occurrences: { type: Number },
+        parentActivityId: { type: mongoose.Schema.Types.ObjectId, ref: 'Activity' }
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // PRIORITY & TYPE
+    // ═══════════════════════════════════════════════════════════════
+    priority: {
+        type: String,
+        enum: ['low', 'normal', 'high', 'urgent'],
+        default: 'normal'
+    },
+    category: {
+        type: String,
+        enum: ['call', 'meeting', 'email', 'task', 'deadline', 'follow_up', 'reminder', 'event', 'other'],
+        default: 'task'
+    },
+    direction: {
+        type: String,
+        enum: ['inbound', 'outbound', 'internal'],
+        default: 'outbound'
     },
 
     // ═══════════════════════════════════════════════════════════════
@@ -138,7 +187,151 @@ const activitySchema = new mongoose.Schema({
     automated: {
         type: Boolean,
         default: false
-    }
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // PARTICIPANTS (CRM pattern)
+    // ═══════════════════════════════════════════════════════════════
+    additionalAttendees: [{
+        userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        contactId: { type: mongoose.Schema.Types.ObjectId, ref: 'Contact' },
+        email: { type: String, trim: true },
+        name: { type: String, trim: true },
+        status: { type: String, enum: ['pending', 'accepted', 'declined', 'tentative'], default: 'pending' }
+    }],
+    organizer: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // RELATED ENTITIES (Direct references)
+    // ═══════════════════════════════════════════════════════════════
+    relatedLeadId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Lead',
+        index: true
+    },
+    relatedClientId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Client',
+        index: true
+    },
+    relatedContactId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Contact',
+        index: true
+    },
+    relatedCaseId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Case',
+        index: true
+    },
+    relatedQuoteId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Quote',
+        index: true
+    },
+    relatedOrderId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Order',
+        index: true
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // LOCATION (Meeting/Call specific)
+    // ═══════════════════════════════════════════════════════════════
+    location: {
+        type: String,
+        trim: true,
+        maxlength: 500
+    },
+    isOnline: {
+        type: Boolean,
+        default: false
+    },
+    meetingLink: {
+        type: String,
+        trim: true
+    },
+    meetingProvider: {
+        type: String,
+        enum: ['zoom', 'teams', 'google_meet', 'webex', 'other']
+    },
+    dialInNumber: {
+        type: String,
+        trim: true
+    },
+    callRecordingUrl: {
+        type: String,
+        trim: true
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // OUTCOME (Salesforce pattern)
+    // ═══════════════════════════════════════════════════════════════
+    outcome: {
+        result: {
+            type: String,
+            enum: ['completed', 'no_answer', 'left_voicemail', 'busy', 'wrong_number', 'rescheduled', 'cancelled', 'positive', 'negative', 'neutral']
+        },
+        notes: { type: String, maxlength: 2000 },
+        sentiment: { type: String, enum: ['positive', 'neutral', 'negative'] }
+    },
+    nextSteps: {
+        type: String,
+        maxlength: 2000
+    },
+    followUpDate: {
+        type: Date
+    },
+    conversionResult: {
+        converted: { type: Boolean, default: false },
+        convertedToType: { type: String, enum: ['opportunity', 'client', 'case', 'order'] },
+        convertedToId: { type: mongoose.Schema.Types.ObjectId }
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // CALL SPECIFIC
+    // ═══════════════════════════════════════════════════════════════
+    callDetails: {
+        phoneNumber: { type: String, trim: true },
+        callDuration: { type: Number },  // in seconds
+        callType: { type: String, enum: ['inbound', 'outbound', 'missed', 'scheduled'] },
+        disposition: { type: String, trim: true }
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // EMAIL SPECIFIC
+    // ═══════════════════════════════════════════════════════════════
+    emailDetails: {
+        emailId: { type: String, trim: true },
+        subject: { type: String, trim: true },
+        direction: { type: String, enum: ['sent', 'received'] },
+        opened: { type: Boolean, default: false },
+        openedAt: Date,
+        clicked: { type: Boolean, default: false },
+        clickedAt: Date
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // INTEGRATION
+    // ═══════════════════════════════════════════════════════════════
+    integration: {
+        externalId: { type: String, trim: true },
+        sourceSystem: { type: String, trim: true },
+        lastSyncDate: Date,
+        googleEventId: { type: String, trim: true },
+        outlookEventId: { type: String, trim: true }
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // TAGS
+    // ═══════════════════════════════════════════════════════════════
+    tags: [{
+        type: String,
+        trim: true
+    }]
 }, {
     timestamps: true,
     versionKey: false

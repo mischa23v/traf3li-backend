@@ -214,12 +214,43 @@ const organizationSchema = new mongoose.Schema({
         type: String,
         trim: true
     },
+    parentOrganizationId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Organization',
+        index: true
+    },
     subsidiaries: [{
         type: String,
         trim: true
     }],
+    subsidiaryOrganizations: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Organization'
+    }],
+    hierarchyLevel: {
+        type: String,
+        enum: ['parent', 'subsidiary', 'standalone'],
+        default: 'standalone'
+    },
     foundedDate: {
         type: Date
+    },
+    // D&B / Company Intelligence
+    dunsNumber: {
+        type: String,
+        trim: true
+    },
+    naicsCode: {
+        type: String,
+        trim: true
+    },
+    sicCode: {
+        type: String,
+        trim: true
+    },
+    stockSymbol: {
+        type: String,
+        trim: true
     },
 
     // ═══════════════════════════════════════════════════════════════
@@ -352,6 +383,117 @@ const organizationSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Case'
     }],
+
+    // ═══════════════════════════════════════════════════════════════
+    // BUSINESS INTELLIGENCE (iDempiere pattern)
+    // ═══════════════════════════════════════════════════════════════
+    businessIntelligence: {
+        potentialLTV: { type: Number, default: 0 },
+        actualLTV: { type: Number, default: 0 },
+        totalRevenue: { type: Number, default: 0 },
+        shareOfWallet: { type: Number, min: 0, max: 100 },
+        creditRating: {
+            type: String,
+            enum: ['aaa', 'aa', 'a', 'bbb', 'bb', 'b', 'c', 'unknown']
+        },
+        paymentRating: {
+            type: String,
+            enum: ['excellent', 'good', 'average', 'poor', 'bad', 'unknown']
+        },
+        priceLevel: {
+            type: String,
+            enum: ['discount', 'standard', 'premium', 'vip'],
+            default: 'standard'
+        }
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // STAGE TRACKING (Odoo pattern)
+    // ═══════════════════════════════════════════════════════════════
+    stageTracking: {
+        dateOpened: Date,
+        dateLastStageUpdate: Date,
+        stageHistory: [{
+            stage: { type: String },
+            date: { type: Date, default: Date.now },
+            changedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+            notes: { type: String }
+        }]
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // SLA & CONTRACT
+    // ═══════════════════════════════════════════════════════════════
+    sla: {
+        slaLevel: {
+            type: String,
+            enum: ['bronze', 'silver', 'gold', 'platinum', 'enterprise', 'custom']
+        },
+        slaExpiryDate: Date,
+        contractValue: { type: Number, default: 0 },
+        contractStartDate: Date,
+        contractEndDate: Date,
+        contractRenewalDate: Date,
+        autoRenew: { type: Boolean, default: false }
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // MARKETING
+    // ═══════════════════════════════════════════════════════════════
+    campaignId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Campaign'
+    },
+    marketingScore: {
+        type: Number,
+        default: 0,
+        min: 0,
+        max: 100
+    },
+    engagementScore: {
+        type: Number,
+        default: 0,
+        min: 0,
+        max: 100
+    },
+    lastMarketingTouch: Date,
+    leadSource: {
+        type: String,
+        trim: true
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // INTEGRATION (External System Sync)
+    // ═══════════════════════════════════════════════════════════════
+    integration: {
+        externalId: { type: String, trim: true },
+        sourceSystem: { type: String, trim: true },
+        lastSyncDate: Date,
+        syncStatus: {
+            type: String,
+            enum: ['synced', 'pending', 'failed', 'never']
+        },
+        syncErrors: [{ type: String }]
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // TERRITORY & ASSIGNMENT
+    // ═══════════════════════════════════════════════════════════════
+    territoryId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Territory',
+        index: true
+    },
+    salesTeamId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'SalesTeam',
+        index: true
+    },
+    accountManagerId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        index: true
+    },
 
     // ═══════════════════════════════════════════════════════════════
     // AUDIT

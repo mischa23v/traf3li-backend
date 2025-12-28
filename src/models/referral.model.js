@@ -312,6 +312,66 @@ const referralSchema = new mongoose.Schema({
     lastModifiedBy: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User'
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // MARKETING TRACKING
+    // ═══════════════════════════════════════════════════════════════
+    campaignId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Campaign',
+        index: true
+    },
+    marketingScore: {
+        type: Number,
+        default: 0,
+        min: 0,
+        max: 100
+    },
+    utm: {
+        source: { type: String, trim: true },
+        medium: { type: String, trim: true },
+        campaign: { type: String, trim: true },
+        term: { type: String, trim: true },
+        content: { type: String, trim: true }
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // REFERRAL PROGRAM
+    // ═══════════════════════════════════════════════════════════════
+    program: {
+        programId: { type: mongoose.Schema.Types.ObjectId, ref: 'ReferralProgram' },
+        tier: { type: String, enum: ['bronze', 'silver', 'gold', 'platinum', 'vip'] },
+        lifetimeValue: { type: Number, default: 0 },
+        referralCount: { type: Number, default: 0 },
+        successRate: { type: Number, default: 0 }
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // INTEGRATION
+    // ═══════════════════════════════════════════════════════════════
+    integration: {
+        externalId: { type: String, trim: true },
+        sourceSystem: { type: String, trim: true },
+        lastSyncDate: Date,
+        syncStatus: {
+            type: String,
+            enum: ['synced', 'pending', 'failed', 'never']
+        }
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // TERRITORY & ASSIGNMENT
+    // ═══════════════════════════════════════════════════════════════
+    territoryId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Territory',
+        index: true
+    },
+    salesTeamId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'SalesTeam',
+        index: true
     }
 }, {
     timestamps: true,

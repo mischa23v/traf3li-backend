@@ -409,7 +409,128 @@ const quoteSchema = new Schema({
         type: String,
         trim: true,
         maxlength: 50
-    }]
+    }],
+
+    // ═══════════════════════════════════════════════════════════════
+    // PIPELINE & STAGE TRACKING (Odoo/Salesforce pattern)
+    // ═══════════════════════════════════════════════════════════════
+    pipelineStage: {
+        type: String,
+        enum: ['qualification', 'needs_analysis', 'proposal', 'negotiation', 'closed_won', 'closed_lost'],
+        default: 'proposal'
+    },
+    probability: {
+        type: Number,
+        min: 0,
+        max: 100,
+        default: 50
+    },
+    expectedCloseDate: Date,
+    stageTracking: {
+        dateOpened: Date,
+        dateLastStageUpdate: Date,
+        stageHistory: [{
+            stage: { type: String },
+            date: { type: Date, default: Date.now },
+            changedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+            notes: { type: String }
+        }]
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // COMPETITOR ANALYSIS (Salesforce pattern)
+    // ═══════════════════════════════════════════════════════════════
+    competitors: [{
+        competitorName: { type: String, trim: true },
+        competitorQuoteAmount: { type: Number },
+        competitorStrengths: { type: String, maxlength: 1000 },
+        competitorWeaknesses: { type: String, maxlength: 1000 },
+        isPrimaryCompetitor: { type: Boolean, default: false }
+    }],
+
+    // ═══════════════════════════════════════════════════════════════
+    // APPROVAL WORKFLOW
+    // ═══════════════════════════════════════════════════════════════
+    approval: {
+        requiresApproval: { type: Boolean, default: false },
+        approvalStatus: {
+            type: String,
+            enum: ['not_required', 'pending', 'approved', 'rejected'],
+            default: 'not_required'
+        },
+        approvalReason: { type: String, maxlength: 1000 },
+        approvedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+        approvedAt: Date,
+        rejectedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+        rejectedAt: Date,
+        rejectionReason: { type: String, maxlength: 1000 }
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // MARGIN & PROFITABILITY (iDempiere pattern)
+    // ═══════════════════════════════════════════════════════════════
+    financials: {
+        totalCost: { type: Number, default: 0 },
+        grossMargin: { type: Number, default: 0 },
+        grossMarginPercent: { type: Number, default: 0 },
+        netMargin: { type: Number, default: 0 },
+        netMarginPercent: { type: Number, default: 0 },
+        profitability: {
+            type: String,
+            enum: ['low', 'medium', 'high', 'premium']
+        }
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // MARKETING SOURCE
+    // ═══════════════════════════════════════════════════════════════
+    campaignId: {
+        type: Schema.Types.ObjectId,
+        ref: 'Campaign'
+    },
+    leadSource: {
+        type: String,
+        trim: true
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // CONVERSION TRACKING
+    // ═══════════════════════════════════════════════════════════════
+    conversion: {
+        convertedToOrder: { type: Boolean, default: false },
+        orderId: { type: Schema.Types.ObjectId, ref: 'Order' },
+        convertedAt: Date,
+        convertedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+        conversionNotes: { type: String, maxlength: 1000 }
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // INTEGRATION
+    // ═══════════════════════════════════════════════════════════════
+    integration: {
+        externalId: { type: String, trim: true },
+        sourceSystem: { type: String, trim: true },
+        lastSyncDate: Date,
+        syncStatus: {
+            type: String,
+            enum: ['synced', 'pending', 'failed', 'never']
+        },
+        syncErrors: [{ type: String }]
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // TERRITORY & ASSIGNMENT
+    // ═══════════════════════════════════════════════════════════════
+    territoryId: {
+        type: Schema.Types.ObjectId,
+        ref: 'Territory',
+        index: true
+    },
+    salesTeamId: {
+        type: Schema.Types.ObjectId,
+        ref: 'SalesTeam',
+        index: true
+    }
 }, {
     timestamps: true,
     versionKey: false,

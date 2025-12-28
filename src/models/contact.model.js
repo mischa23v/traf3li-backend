@@ -322,6 +322,20 @@ const contactSchema = new mongoose.Schema({
         trim: true,
         maxlength: 50
     },
+    nickname: {
+        type: String,
+        trim: true,
+        maxlength: 100
+    },
+    maidenName: {
+        type: String,
+        trim: true,
+        maxlength: 100
+    },
+    languages: [{
+        type: String,
+        enum: ['ar', 'en', 'fr', 'de', 'es', 'zh', 'hi', 'ur', 'bn', 'pt', 'ru', 'ja', 'ko', 'tr', 'it', 'nl', 'pl', 'other']
+    }],
 
     // ═══════════════════════════════════════════════════════════════
     // ARABIC NAME - 4-PART STRUCTURE (الاسم الرباعي)
@@ -431,6 +445,53 @@ const contactSchema = new mongoose.Schema({
         type: String,
         trim: true
     },
+    // Additional contact methods from spec
+    workEmail: {
+        type: String,
+        trim: true,
+        lowercase: true
+    },
+    personalEmail: {
+        type: String,
+        trim: true,
+        lowercase: true
+    },
+    workPhone: {
+        type: String,
+        trim: true
+    },
+    homePhone: {
+        type: String,
+        trim: true
+    },
+    mobile2: {
+        type: String,
+        trim: true
+    },
+    pager: {
+        type: String,
+        trim: true
+    },
+    skype: {
+        type: String,
+        trim: true
+    },
+    zoomId: {
+        type: String,
+        trim: true
+    },
+    whatsapp: {
+        type: String,
+        trim: true
+    },
+    telegram: {
+        type: String,
+        trim: true
+    },
+    website: {
+        type: String,
+        trim: true
+    },
 
     // ═══════════════════════════════════════════════════════════════
     // EMPLOYMENT/AFFILIATION
@@ -454,6 +515,32 @@ const contactSchema = new mongoose.Schema({
         trim: true,
         maxlength: 100
     },
+    role: {
+        type: String,
+        trim: true,
+        maxlength: 100
+    },
+    yearsInPosition: {
+        type: Number,
+        min: 0
+    },
+    careerLevel: {
+        type: String,
+        enum: ['entry', 'junior', 'mid', 'senior', 'lead', 'manager', 'director', 'vp', 'c_level', 'executive', 'owner'],
+        default: null
+    },
+    professionalLicenses: [{
+        licenseType: { type: String, trim: true },
+        licenseNumber: { type: String, trim: true },
+        issuingBody: { type: String, trim: true },
+        issueDate: Date,
+        expiryDate: Date,
+        status: { type: String, enum: ['active', 'expired', 'suspended', 'revoked'] }
+    }],
+    specializations: [{
+        type: String,
+        trim: true
+    }],
 
     // ═══════════════════════════════════════════════════════════════
     // ORGANIZATIONAL
@@ -486,6 +573,37 @@ const contactSchema = new mongoose.Schema({
     },
 
     // ═══════════════════════════════════════════════════════════════
+    // RELATIONSHIPS (Salesforce/Odoo pattern)
+    // ═══════════════════════════════════════════════════════════════
+    relatedContacts: [{
+        contactId: { type: mongoose.Schema.Types.ObjectId, ref: 'Contact' },
+        relationshipType: {
+            type: String,
+            enum: ['spouse', 'parent', 'child', 'sibling', 'colleague', 'supervisor', 'subordinate', 'business_partner', 'referral', 'other']
+        },
+        notes: { type: String, maxlength: 500 }
+    }],
+    accountRelationships: [{
+        clientId: { type: mongoose.Schema.Types.ObjectId, ref: 'Client' },
+        role: {
+            type: String,
+            enum: ['primary_contact', 'billing_contact', 'technical_contact', 'decision_maker', 'influencer', 'user', 'executive_sponsor', 'other']
+        },
+        isPrimary: { type: Boolean, default: false },
+        startDate: Date,
+        endDate: Date
+    }],
+    influenceLevel: {
+        type: String,
+        enum: ['none', 'low', 'medium', 'high', 'critical'],
+        default: 'medium'
+    },
+    decisionRole: {
+        type: String,
+        enum: ['decision_maker', 'influencer', 'gatekeeper', 'user', 'technical_buyer', 'economic_buyer', 'champion', 'blocker', 'other']
+    },
+
+    // ═══════════════════════════════════════════════════════════════
     // INTEREST AREAS
     // ═══════════════════════════════════════════════════════════════
     interestAreaIds: [{
@@ -510,6 +628,41 @@ const contactSchema = new mongoose.Schema({
     leadSource: {
         type: String,
         trim: true
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // MARKETING (Salesforce/Odoo pattern)
+    // ═══════════════════════════════════════════════════════════════
+    campaignId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Campaign'
+    },
+    marketingScore: {
+        type: Number,
+        default: 0,
+        min: 0,
+        max: 100
+    },
+    engagementScore: {
+        type: Number,
+        default: 0,
+        min: 0,
+        max: 100
+    },
+    lastMarketingTouch: Date,
+    campaignResponses: [{
+        campaignId: { type: mongoose.Schema.Types.ObjectId, ref: 'Campaign' },
+        respondedAt: Date,
+        response: String,
+        channel: { type: String, enum: ['email', 'sms', 'phone', 'social', 'event', 'web', 'other'] }
+    }],
+    referralSource: {
+        type: String,
+        trim: true
+    },
+    referredBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Contact'
     },
 
     // ═══════════════════════════════════════════════════════════════
@@ -876,6 +1029,58 @@ const contactSchema = new mongoose.Schema({
         type: Boolean,
         default: false
     },
+    doNotMail: {
+        type: Boolean,
+        default: false
+    },
+    emailOptIn: {
+        type: Boolean,
+        default: true
+    },
+    smsOptIn: {
+        type: Boolean,
+        default: false
+    },
+    newsletterSubscription: {
+        type: Boolean,
+        default: false
+    },
+    communicationFrequency: {
+        type: String,
+        enum: ['daily', 'weekly', 'biweekly', 'monthly', 'quarterly', 'as_needed'],
+        default: 'as_needed'
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // LEGAL/FINANCIAL (Law Firm Specific)
+    // ═══════════════════════════════════════════════════════════════
+    clientSince: Date,
+    barAssociation: {
+        type: String,
+        trim: true
+    },
+    licenseNumber: {
+        type: String,
+        trim: true
+    },
+    creditStatus: {
+        type: String,
+        enum: ['good', 'fair', 'poor', 'no_credit', 'unknown'],
+        default: 'unknown'
+    },
+    paymentTerms: {
+        type: String,
+        enum: ['net_15', 'net_30', 'net_45', 'net_60', 'net_90', 'due_on_receipt', 'custom'],
+        default: 'net_30'
+    },
+    isBillingContact: {
+        type: Boolean,
+        default: false
+    },
+    isPrimaryContact: {
+        type: Boolean,
+        default: false
+    },
 
     // ═══════════════════════════════════════════════════════════════
     // CONFLICT CHECK (CRITICAL for law firms)
@@ -1004,6 +1209,47 @@ const contactSchema = new mongoose.Schema({
         lastEnrichedAt: Date,
         enrichmentSource: String,
         confidence: Number
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // BUSINESS INTELLIGENCE (iDempiere pattern)
+    // ═══════════════════════════════════════════════════════════════
+    businessIntelligence: {
+        lifetimeValue: { type: Number, default: 0 },
+        totalRevenue: { type: Number, default: 0 },
+        averageOrderValue: { type: Number, default: 0 },
+        purchaseCount: { type: Number, default: 0 },
+        lastPurchaseDate: Date,
+        firstPurchaseDate: Date,
+        creditLimit: { type: Number, default: 0 },
+        creditUsed: { type: Number, default: 0 },
+        creditRating: {
+            type: String,
+            enum: ['aaa', 'aa', 'a', 'bbb', 'bb', 'b', 'c', 'unknown']
+        },
+        paymentRating: {
+            type: String,
+            enum: ['excellent', 'good', 'average', 'poor', 'bad', 'unknown']
+        },
+        priceLevel: {
+            type: String,
+            enum: ['discount', 'standard', 'premium', 'vip'],
+            default: 'standard'
+        }
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // INTEGRATION (External System Sync)
+    // ═══════════════════════════════════════════════════════════════
+    integration: {
+        externalId: { type: String, trim: true },
+        sourceSystem: { type: String, trim: true },
+        lastSyncDate: Date,
+        syncStatus: {
+            type: String,
+            enum: ['synced', 'pending', 'failed', 'never']
+        },
+        syncErrors: [{ type: String }]
     },
 
     // ═══════════════════════════════════════════════════════════════

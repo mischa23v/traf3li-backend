@@ -128,6 +128,18 @@ const clientSchema = new mongoose.Schema({
         type: String,
         enum: ['1-10', '11-50', '51-200', '201-500', '501-1000', '1000+']
     },
+    annualRevenue: {
+        type: Number,
+        default: 0
+    },
+    annualRevenueRange: {
+        type: String,
+        enum: ['under_100k', '100k_500k', '500k_1m', '1m_5m', '5m_10m', '10m_50m', '50m_plus']
+    },
+    tradingCurrency: {
+        type: String,
+        default: 'SAR'
+    },
 
     // Legal Representative (for companies)
     legalRepresentative: {
@@ -433,6 +445,124 @@ const clientSchema = new mongoose.Schema({
     convertedAt: Date,
     referralId: { type: mongoose.Schema.Types.ObjectId, ref: 'Referral' },
     referralName: String,
+
+    // ─────────────────────────────────────────────────────────
+    // HIERARCHY (Salesforce Account Hierarchy)
+    // ─────────────────────────────────────────────────────────
+    parentClientId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Client',
+        index: true
+    },
+    subsidiaries: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Client'
+    }],
+    accountFamily: {
+        type: String,
+        trim: true
+    },
+    hierarchyLevel: {
+        type: String,
+        enum: ['parent', 'child', 'standalone'],
+        default: 'standalone'
+    },
+
+    // ─────────────────────────────────────────────────────────
+    // BUSINESS INTELLIGENCE (iDempiere pattern)
+    // ─────────────────────────────────────────────────────────
+    businessIntelligence: {
+        potentialLTV: { type: Number, default: 0 },
+        actualLTV: { type: Number, default: 0 },
+        shareOfWallet: { type: Number, min: 0, max: 100 },
+        creditRating: {
+            type: String,
+            enum: ['aaa', 'aa', 'a', 'bbb', 'bb', 'b', 'c', 'unknown']
+        },
+        paymentRating: {
+            type: String,
+            enum: ['excellent', 'good', 'average', 'poor', 'bad', 'unknown']
+        },
+        priceLevel: {
+            type: String,
+            enum: ['discount', 'standard', 'premium', 'vip'],
+            default: 'standard'
+        },
+        taxExempt: { type: Boolean, default: false },
+        taxExemptReason: String
+    },
+
+    // ─────────────────────────────────────────────────────────
+    // STAGE TRACKING (Odoo pattern)
+    // ─────────────────────────────────────────────────────────
+    stageTracking: {
+        clientSince: Date,
+        dateOpened: Date,
+        dateLastStageUpdate: Date,
+        stageHistory: [{
+            stage: { type: String },
+            date: { type: Date, default: Date.now },
+            changedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+            notes: { type: String }
+        }]
+    },
+
+    // ─────────────────────────────────────────────────────────
+    // SLA & CONTRACT
+    // ─────────────────────────────────────────────────────────
+    sla: {
+        slaLevel: {
+            type: String,
+            enum: ['bronze', 'silver', 'gold', 'platinum', 'enterprise', 'custom']
+        },
+        slaExpiryDate: Date,
+        contractValue: { type: Number, default: 0 },
+        contractStartDate: Date,
+        contractEndDate: Date,
+        contractRenewalDate: Date,
+        autoRenew: { type: Boolean, default: false }
+    },
+
+    // ─────────────────────────────────────────────────────────
+    // MARKETING (Salesforce/Odoo pattern)
+    // ─────────────────────────────────────────────────────────
+    campaignId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Campaign'
+    },
+    marketingScore: {
+        type: Number,
+        default: 0,
+        min: 0,
+        max: 100
+    },
+    engagementScore: {
+        type: Number,
+        default: 0,
+        min: 0,
+        max: 100
+    },
+    lastMarketingTouch: Date,
+    campaignResponses: [{
+        campaignId: { type: mongoose.Schema.Types.ObjectId, ref: 'Campaign' },
+        respondedAt: Date,
+        response: String,
+        channel: { type: String, enum: ['email', 'sms', 'phone', 'social', 'event', 'web', 'other'] }
+    }],
+
+    // ─────────────────────────────────────────────────────────
+    // INTEGRATION (External System Sync)
+    // ─────────────────────────────────────────────────────────
+    integration: {
+        externalId: { type: String, trim: true },
+        sourceSystem: { type: String, trim: true },
+        lastSyncDate: Date,
+        syncStatus: {
+            type: String,
+            enum: ['synced', 'pending', 'failed', 'never']
+        },
+        syncErrors: [{ type: String }]
+    },
 
     // Organization & Contact Relationships
     organizationId: {
