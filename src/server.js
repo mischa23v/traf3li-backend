@@ -182,6 +182,10 @@ const {
     bankReconciliationRoute,
     currencyRoute,
 
+    // AI Transaction Matching & Regional Banks
+    aiMatchingRoute,
+    regionalBanksRoute,
+
     // Vendors and Bills
     vendorRoute,
     billRoute,
@@ -997,6 +1001,12 @@ app.use('/api/bank-transfers', noCache, bankTransferRoute);
 app.use('/api/bank-transactions', noCache, bankTransactionRoute);
 app.use('/api/bank-reconciliations', noCache, bankReconciliationRoute);
 app.use('/api/currency', currencyRoute);
+
+// ============================================
+// AI TRANSACTION MATCHING & REGIONAL BANKS
+// ============================================
+app.use('/api/ai-matching', noCache, aiMatchingRoute);
+app.use('/api/regional-banks', noCache, regionalBanksRoute);
 
 // ============================================
 // VENDOR AND BILLS ROUTES

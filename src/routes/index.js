@@ -345,6 +345,12 @@ const playbookRoute = require('./playbook.route');
 // AR Aging Routes
 const arAgingRoute = require('./arAging.route');
 
+// AI Transaction Matching Routes
+const aiMatchingRoute = require('./aiMatching.route');
+
+// Regional Bank Providers Routes (Saudi/GCC Open Banking)
+const regionalBanksRoute = require('./regionalBanks.route');
+
 // Integration Routes (QuickBooks, Xero)
 const integrationsRoute = require('./integrations.route');
 
@@ -712,6 +718,12 @@ module.exports = {
 
     // AR Aging
     arAgingRoute,
+
+    // AI Transaction Matching
+    aiMatchingRoute,
+
+    // Regional Bank Providers (Saudi/GCC Open Banking)
+    regionalBanksRoute,
 
     // Integrations (QuickBooks, Xero)
     integrationsRoute,
