@@ -234,7 +234,8 @@ const authRegister = async (request, response) => {
             isSeller: isSeller || false,
             // SECURITY: Only allow 'lawyer' or 'client' roles during registration
             // Admin roles must be assigned through secure admin panel, not registration
-            role: isSeller ? 'lawyer' : 'client',
+            // Role is user's explicit choice, not derived from isSeller
+            role: role === 'lawyer' ? 'lawyer' : 'client',
             lawyerMode: isLawyer ? (lawyerMode || 'dashboard') : null,
 
             // OAuth/SSO fields - set when registering via OAuth
