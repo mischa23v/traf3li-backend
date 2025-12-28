@@ -884,6 +884,11 @@ class OAuthService {
         const randomPassword = crypto.randomBytes(32).toString('hex');
         const hashedPassword = await bcrypt.hash(randomPassword, 12);
 
+        // For this legal practice management app, SSO users should always be lawyers
+        // unless they're joining a specific firm with a different role
+        const role = provider.firmId ? (provider.defaultRole || 'lawyer') : 'lawyer';
+        const isSoloLawyer = !provider.firmId; // Solo lawyer if not joining a firm
+
         const userData = {
             username,
             email: userInfo.email.toLowerCase(),
@@ -891,8 +896,10 @@ class OAuthService {
             firstName: userInfo.firstName || 'User',
             lastName: userInfo.lastName || 'User',
             phone: '', // Will be filled by user later
-            role: provider.defaultRole || 'lawyer',
-            isSeller: provider.defaultRole === 'lawyer',
+            role: role,
+            isSeller: role === 'lawyer',
+            isSoloLawyer: isSoloLawyer,
+            lawyerWorkMode: isSoloLawyer ? 'solo' : null,
             country: 'Saudi Arabia',
             image: userInfo.picture,
 
@@ -902,7 +909,7 @@ class OAuthService {
 
             // Firm association
             firmId: provider.firmId,
-            firmRole: provider.defaultRole,
+            firmRole: provider.firmId ? (provider.defaultRole || 'lawyer') : null,
             firmStatus: provider.firmId ? 'active' : null
         };
 
