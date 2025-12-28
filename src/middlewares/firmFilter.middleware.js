@@ -231,13 +231,15 @@ const firmFilter = async (req, res, next) => {
             };
         } else {
             // For backwards compatibility with users without firmId
-            // Fall back to lawyerId-based filtering (treat as solo lawyer)
+            // Fall back to lawyerId-based filtering to ensure data isolation
+            // IMPORTANT: Always set lawyerId filter regardless of role to prevent FIRM_ISOLATION_VIOLATION
+            // This ensures users can only access their own data when not part of a firm
             req.firmId = null;
             req.firmRole = null;
             req.firmStatus = null;
             req.isDeparted = false;
             req.isSoloLawyer = user.role === 'lawyer' || user.isSoloLawyer;
-            req.firmQuery = user.role === 'lawyer' ? { lawyerId: userId } : {}; // Lawyers filter by their own ID
+            req.firmQuery = { lawyerId: userId }; // Always filter by user's own ID for data isolation
             req.permissions = user.role === 'lawyer' ? getDefaultPermissions('owner') : {};
             req.hasPermission = () => true; // Allow all for non-firm users
             req.hasSpecialPermission = () => true;

@@ -311,7 +311,7 @@ class OAuthService {
             scopes: PROVIDER_CONFIGS[providerType]?.scopes || ['openid', 'email', 'profile'],
             autoCreateUsers: false,
             allowedDomains: [],
-            defaultRole: 'client',
+            defaultRole: 'lawyer', // Default to lawyer for legal practice management app
             // Mock the isEmailDomainAllowed method
             isEmailDomainAllowed: function(email) {
                 // Allow all domains for env-based providers
@@ -785,6 +785,20 @@ class OAuthService {
             }
         }
 
+        // Only lawyers are allowed to login to the dashboard
+        // Clients and other non-lawyer roles are not permitted
+        if (user.role !== 'lawyer') {
+            logger.warn('Non-lawyer SSO login attempt blocked', {
+                userId: user._id,
+                email: user.email,
+                role: user.role,
+                provider: config.provider.name,
+                ipAddress
+            });
+
+            throw CustomException('هذه اللوحة مخصصة للمحامين فقط - This dashboard is for lawyers only', 403);
+        }
+
         // Generate JWT token
         const token = jwt.sign({
             _id: user._id,
@@ -884,6 +898,11 @@ class OAuthService {
         const randomPassword = crypto.randomBytes(32).toString('hex');
         const hashedPassword = await bcrypt.hash(randomPassword, 12);
 
+        // For this legal practice management app, SSO users should always be lawyers
+        // unless they're joining a specific firm with a different role
+        const role = provider.firmId ? (provider.defaultRole || 'lawyer') : 'lawyer';
+        const isSoloLawyer = !provider.firmId; // Solo lawyer if not joining a firm
+
         const userData = {
             username,
             email: userInfo.email.toLowerCase(),
@@ -891,8 +910,10 @@ class OAuthService {
             firstName: userInfo.firstName || 'User',
             lastName: userInfo.lastName || 'User',
             phone: '', // Will be filled by user later
-            role: provider.defaultRole || 'lawyer',
-            isSeller: provider.defaultRole === 'lawyer',
+            role: role,
+            isSeller: false, // Default to false - user can opt-in to marketplace later
+            isSoloLawyer: isSoloLawyer,
+            lawyerWorkMode: isSoloLawyer ? 'solo' : null,
             country: 'Saudi Arabia',
             image: userInfo.picture,
 
@@ -902,7 +923,7 @@ class OAuthService {
 
             // Firm association
             firmId: provider.firmId,
-            firmRole: provider.defaultRole,
+            firmRole: provider.firmId ? (provider.defaultRole || 'lawyer') : null,
             firmStatus: provider.firmId ? 'active' : null
         };
 

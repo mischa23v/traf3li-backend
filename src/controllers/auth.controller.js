@@ -234,7 +234,8 @@ const authRegister = async (request, response) => {
             isSeller: isSeller || false,
             // SECURITY: Only allow 'lawyer' or 'client' roles during registration
             // Admin roles must be assigned through secure admin panel, not registration
-            role: isSeller ? 'lawyer' : 'client',
+            // Role is user's explicit choice, not derived from isSeller
+            role: role === 'lawyer' ? 'lawyer' : 'client',
             lawyerMode: isLawyer ? (lawyerMode || 'dashboard') : null,
 
             // OAuth/SSO fields - set when registering via OAuth
@@ -642,6 +643,24 @@ const authLogin = async (request, response) => {
                 message: 'بيانات الدخول غير صحيحة',
                 messageEn: 'Invalid credentials',
                 code: 'INVALID_CREDENTIALS'
+            });
+        }
+
+        // Only lawyers are allowed to login to the dashboard
+        // Clients and other non-lawyer roles are not permitted
+        if (user.role !== 'lawyer') {
+            logger.warn('Non-lawyer login attempt blocked', {
+                userId: user._id,
+                email: user.email,
+                role: user.role,
+                ipAddress
+            });
+
+            return response.status(403).json({
+                error: true,
+                message: 'هذه اللوحة مخصصة للمحامين فقط',
+                messageEn: 'This dashboard is for lawyers only',
+                code: 'LAWYERS_ONLY'
             });
         }
 
