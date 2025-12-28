@@ -221,6 +221,9 @@ const {
     // CRM Reports
     crmReportsRoute,
 
+    // Sales Module
+    salesRoute,
+
     whatsappRoute,
     telegramRoute,
     slackRoute,
@@ -1030,6 +1033,7 @@ app.use('/api/sales-forecasts', salesForecastRoutes);  // Sales forecasting & qu
 app.use('/api/sales-quotas', salesQuotaRoute);  // Sales quota management
 app.use('/api/crm-transactions', noCache, crmTransactionRoute);  // CRM transaction logging & analytics
 app.use('/api/crm-reports', noCache, crmReportsRoute);  // CRM reports & analytics dashboard
+app.use('/api/sales', noCache, salesRoute);  // Sales module (orders, deliveries, returns, commissions)
 app.use('/api/whatsapp', whatsappRoute);
 app.use('/api/telegram', noCache, telegramRoute);
 app.use('/api/slack', noCache, slackRoute);

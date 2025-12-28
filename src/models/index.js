@@ -438,6 +438,16 @@ const SupportSLA = require('./supportSLA.model');
 const TicketCommunication = require('./ticketCommunication.model');
 const SupportSettings = require('./supportSettings.model');
 
+// Sales Module Models
+const SalesOrder = require('./salesOrder.model');
+const DeliveryNote = require('./deliveryNote.model');
+const PricingRule = require('./pricingRule.model');
+const DownPayment = require('./downPayment.model');
+const ReturnOrder = require('./returnOrder.model');
+const CommissionPlan = require('./commissionPlan.model');
+const CommissionSettlement = require('./commissionSettlement.model');
+const SalesSettings = require('./salesSettings.model');
+
 module.exports = {
     // Marketplace
     User,
@@ -881,5 +891,15 @@ module.exports = {
     Ticket,
     SupportSLA,
     TicketCommunication,
-    SupportSettings
+    SupportSettings,
+
+    // Sales Module
+    SalesOrder,
+    DeliveryNote,
+    PricingRule,
+    DownPayment,
+    ReturnOrder,
+    CommissionPlan,
+    CommissionSettlement,
+    SalesSettings
 };
