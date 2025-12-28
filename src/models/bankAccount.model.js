@@ -3,20 +3,42 @@ const mongoose = require('mongoose');
 const bankConnectionSchema = new mongoose.Schema({
     provider: {
         type: String,
-        enum: ['plaid', 'yodlee', 'saltedge']
+        enum: [
+            // International Providers
+            'plaid', 'yodlee', 'saltedge',
+            // Regional Saudi/GCC Providers
+            'lean',              // Lean Technologies - Saudi Arabia
+            'tarabut',           // Tarabut Gateway - MENA
+            'fintech_galaxy',    // Fintech Galaxy - GCC
+            'sama_open_banking', // SAMA Open Banking
+            // Direct Bank APIs
+            'alrajhi_direct', 'snb_direct', 'riyad_direct',
+            'sabb_direct', 'alinma_direct', 'fab_direct', 'enbd_direct'
+        ]
     },
     institutionId: String,
     institutionName: String,
+    institutionNameAr: String,
+    countryCode: {
+        type: String,
+        maxlength: 2
+    },
+    bicCode: String,
     status: {
         type: String,
-        enum: ['connected', 'disconnected', 'error', 'expired'],
+        enum: ['connected', 'disconnected', 'error', 'expired', 'pending', 'requires_reauth'],
         default: 'disconnected'
     },
     lastSyncedAt: Date,
     expiresAt: Date,
     error: String,
+    errorCode: String,
     accessToken: String,
-    refreshToken: String
+    refreshToken: String,
+    entityId: String,       // Provider-specific entity/link ID
+    consentId: String,      // Open banking consent ID
+    permissions: [String],  // Granted permissions (accounts, transactions, etc.)
+    metadata: mongoose.Schema.Types.Mixed // Provider-specific data
 }, { _id: true });
 
 const bankAccountSchema = new mongoose.Schema({

@@ -345,6 +345,12 @@ const playbookRoute = require('./playbook.route');
 // AR Aging Routes
 const arAgingRoute = require('./arAging.route');
 
+// AI Transaction Matching Routes
+const aiMatchingRoute = require('./aiMatching.route');
+
+// Regional Bank Providers Routes (Saudi/GCC Open Banking)
+const regionalBanksRoute = require('./regionalBanks.route');
+
 // Integration Routes (QuickBooks, Xero)
 const integrationsRoute = require('./integrations.route');
 
@@ -368,6 +374,10 @@ const pluginRoutes = require('./plugin.routes');
 
 // Rate Limit Routes
 const rateLimitRoute = require('./rateLimit.route');
+
+// GOSI and ZATCA Plugin Routes
+const gosiRoute = require('./gosi.route');
+const zatcaRoute = require('./zatca.route');
 
 module.exports = {
     // Marketplace
@@ -713,6 +723,12 @@ module.exports = {
     // AR Aging
     arAgingRoute,
 
+    // AI Transaction Matching
+    aiMatchingRoute,
+
+    // Regional Bank Providers (Saudi/GCC Open Banking)
+    regionalBanksRoute,
+
     // Integrations (QuickBooks, Xero)
     integrationsRoute,
 
@@ -735,5 +751,9 @@ module.exports = {
     pluginRoutes,
 
     // Rate Limiting
-    rateLimitRoute
+    rateLimitRoute,
+
+    // GOSI and ZATCA Plugins
+    gosiRoute,
+    zatcaRoute
 };

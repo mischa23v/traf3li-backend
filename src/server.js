@@ -182,6 +182,10 @@ const {
     bankReconciliationRoute,
     currencyRoute,
 
+    // AI Transaction Matching & Regional Banks
+    aiMatchingRoute,
+    regionalBanksRoute,
+
     // Vendors and Bills
     vendorRoute,
     billRoute,
@@ -461,7 +465,11 @@ const {
     pluginRoutes,
 
     // Rate Limiting
-    rateLimitRoute
+    rateLimitRoute,
+
+    // GOSI and ZATCA Plugins
+    gosiRoute,
+    zatcaRoute
 } = require('./routes');
 
 // Import versioned routes
@@ -999,6 +1007,12 @@ app.use('/api/bank-reconciliations', noCache, bankReconciliationRoute);
 app.use('/api/currency', currencyRoute);
 
 // ============================================
+// AI TRANSACTION MATCHING & REGIONAL BANKS
+// ============================================
+app.use('/api/ai-matching', noCache, aiMatchingRoute);
+app.use('/api/regional-banks', noCache, regionalBanksRoute);
+
+// ============================================
 // VENDOR AND BILLS ROUTES
 // ============================================
 app.use('/api/vendors', vendorRoute);
@@ -1269,6 +1283,12 @@ app.use('/api/plugins', pluginRoutes);
 
 // Rate Limiting Configuration
 app.use('/api/rate-limits', noCache, rateLimitRoute); // No cache for rate limit config
+
+// ============================================
+// GOSI AND ZATCA PLUGIN ROUTES (Saudi Compliance)
+// ============================================
+app.use('/api/gosi', noCache, gosiRoute); // GOSI calculations and reporting
+app.use('/api/zatca', noCache, zatcaRoute); // ZATCA e-invoice submission
 
 // ============================================
 // WEBHOOK ROUTES (Third-Party Integrations)

@@ -82,9 +82,51 @@ const bankFeedSchema = new mongoose.Schema({
     },
     provider: {
         type: String,
-        enum: ['manual', 'csv_import', 'ofx_import', 'plaid', 'open_banking', 'api'],
+        enum: [
+            // Manual/Import
+            'manual', 'csv_import', 'ofx_import', 'mt940_import',
+            // International Providers
+            'plaid', 'yodlee', 'saltedge', 'open_banking', 'api',
+            // Regional Saudi/GCC Providers
+            'lean',           // Lean Technologies - Saudi Arabia's leading open banking
+            'tarabut',        // Tarabut Gateway - MENA region
+            'fintech_galaxy', // Fintech Galaxy - GCC aggregator
+            'sama_open_banking', // SAMA Open Banking - Saudi regulatory API
+            // Direct Bank APIs (for banks with direct integration)
+            'alrajhi_direct',    // Al Rajhi Bank direct API
+            'snb_direct',        // Saudi National Bank direct API
+            'riyad_direct',      // Riyad Bank direct API
+            'sabb_direct',       // SABB direct API
+            'alinma_direct',     // Alinma Bank direct API
+            'fab_direct',        // First Abu Dhabi Bank direct API
+            'enbd_direct'        // Emirates NBD direct API
+        ],
         required: true,
         default: 'manual'
+    },
+    // Regional bank metadata
+    bankIdentifier: {
+        type: String,
+        trim: true,
+        maxlength: 50
+    },
+    countryCode: {
+        type: String,
+        trim: true,
+        maxlength: 2,
+        uppercase: true
+    },
+    institutionId: {
+        type: String,
+        trim: true
+    },
+    institutionName: {
+        type: String,
+        trim: true
+    },
+    institutionNameAr: {
+        type: String,
+        trim: true
     },
     name: {
         type: String,

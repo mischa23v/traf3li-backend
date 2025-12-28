@@ -95,6 +95,10 @@ const BankAccount = require('./bankAccount.model');
 const BankTransfer = require('./bankTransfer.model');
 const BankTransaction = require('./bankTransaction.model');
 const BankReconciliation = require('./bankReconciliation.model');
+const BankTransactionMatch = require('./bankTransactionMatch.model');
+const BankMatchRule = require('./bankMatchRule.model');
+const BankFeed = require('./bankFeed.model');
+const MatchingPattern = require('./matchingPattern.model');
 
 // Vendor and Bills Models
 const Vendor = require('./vendor.model');
@@ -546,6 +550,10 @@ module.exports = {
     BankTransfer,
     BankTransaction,
     BankReconciliation,
+    BankTransactionMatch,
+    BankMatchRule,
+    BankFeed,
+    MatchingPattern,
 
     // Vendors and Bills
     Vendor,
