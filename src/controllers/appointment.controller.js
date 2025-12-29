@@ -1221,7 +1221,18 @@ exports.deleteBlockedTime = async (req, res) => {
  */
 exports.getAvailableSlotsEnhanced = async (req, res) => {
     try {
-        const { lawyerId, startDate, endDate, duration = 30 } = req.query;
+        let { lawyerId, startDate, endDate, duration = 30 } = req.query;
+
+        // Handle "current" as special value for authenticated user's own slots
+        if (lawyerId === 'current') {
+            if (!req.userID) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Authentication required when using lawyerId=current'
+                });
+            }
+            lawyerId = req.userID;
+        }
 
         if (!lawyerId || !startDate || !endDate) {
             return res.status(400).json({
@@ -1234,17 +1245,22 @@ exports.getAvailableSlotsEnhanced = async (req, res) => {
         const end = new Date(endDate);
         const durationNum = parseInt(duration);
 
+        // Build tenant query - use firmQuery if available (authenticated), otherwise empty for public
+        const tenantQuery = req.firmQuery || {};
+
         // Get availability slots for the lawyer
         const availabilitySlots = await AvailabilitySlot.find({
+            ...tenantQuery,
             lawyerId,
             isActive: true
         });
 
         // Get blocked times in the date range
-        const blockedTimes = await BlockedTime.getForDateRange(lawyerId, start, end, {});
+        const blockedTimes = await BlockedTime.getForDateRange(lawyerId, start, end, tenantQuery);
 
         // Get existing appointments in the date range
         const appointments = await Appointment.find({
+            ...tenantQuery,
             assignedTo: lawyerId,
             scheduledTime: { $gte: start, $lte: end },
             status: { $in: ['scheduled', 'confirmed'] }
