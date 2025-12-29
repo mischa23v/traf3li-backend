@@ -8,6 +8,8 @@ const crypto = require('crypto');
 const bcrypt = require('bcrypt');
 const { getDefaultPermissions } = require('../config/permissions.config');
 const logger = require('../utils/logger');
+const { generateAccessToken } = require('../utils/generateToken');
+const refreshTokenService = require('./refreshToken.service');
 
 const { JWT_SECRET } = process.env;
 
@@ -364,11 +366,15 @@ class LdapService {
                 }
             }
 
-            // 8. Generate JWT token
-            const token = jwt.sign({
-                _id: user._id,
-                isSeller: user.isSeller
-            }, JWT_SECRET, { expiresIn: '7 days' });
+            // 8. Generate JWT access token using proper utility (15-min expiry, custom claims)
+            const token = await generateAccessToken(user, { firm });
+
+            // Generate refresh token (caller should handle device info if needed)
+            const refreshToken = await refreshTokenService.createRefreshToken(
+                user._id.toString(),
+                { userAgent: 'LDAP Auth', ip: 'unknown' },
+                user.firmId
+            );
 
             // Return user data (excluding password)
             const { password: pwd, ...userDataResponse } = user.toObject();
@@ -377,7 +383,13 @@ class LdapService {
                 success: true,
                 message: 'Authentication successful',
                 user: userDataResponse,
-                token: token
+                token: token,
+                refreshToken: refreshToken,
+                // OAuth 2.0 standard format
+                access_token: token,
+                refresh_token: refreshToken,
+                token_type: 'Bearer',
+                expires_in: 900 // 15 minutes
             };
 
         } catch (error) {

@@ -3,7 +3,7 @@
  * Handles email OTP send, verify, and resend
  */
 
-const { EmailOTP, User } = require('../models');
+const { EmailOTP, User, Firm } = require('../models');
 const { generateOTP, hashOTP } = require('../utils/otp.utils');
 const NotificationDeliveryService = require('../services/notificationDelivery.service');
 const jwt = require('jsonwebtoken');
@@ -11,6 +11,7 @@ const { getCookieConfig } = require('../utils/cookieConfig');
 const { sanitizeObjectId, timingSafeEqual } = require('../utils/securityUtils');
 const logger = require('../utils/logger');
 const refreshTokenService = require('../services/refreshToken.service');
+const { generateAccessToken } = require('../utils/generateToken');
 
 /**
  * Send OTP to email
@@ -226,22 +227,27 @@ const verifyOTP = async (req, res) => {
       });
     }
 
-    // Generate JWT token (same format as password login for consistency)
-    const accessToken = jwt.sign(
-      {
-        _id: user._id,
-        isSeller: user.isSeller
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: '7 days' }  // Same as password login
-    );
+    // Get firm context for custom claims (if user belongs to a firm)
+    let firm = null;
+    if (user.firmId) {
+      try {
+        firm = await Firm.findById(user.firmId)
+          .select('name nameEnglish licenseNumber status members subscription');
+      } catch (firmErr) {
+        logger.warn('Failed to fetch firm for OTP token generation', { error: firmErr.message });
+      }
+    }
+
+    // Generate JWT access token using proper utility (15-min expiry, custom claims)
+    // This matches OAuth/SSO/password login token format
+    const accessToken = await generateAccessToken(user, { firm });
 
     // Create device info for refresh token
     const userAgent = req.headers['user-agent'] || 'unknown';
-    const ipAddress = req.ip || req.headers['x-forwarded-for'];
+    const deviceIp = req.ip || req.headers['x-forwarded-for'];
     const deviceInfo = {
       userAgent: userAgent,
-      ip: ipAddress,
+      ip: deviceIp,
       deviceId: req.headers['x-device-id'] || null,
       browser: req.headers['sec-ch-ua'] || null,
       os: req.headers['sec-ch-ua-platform'] || null,
@@ -270,7 +276,7 @@ const verifyOTP = async (req, res) => {
         access_token: accessToken,
         refresh_token: refreshToken,
         token_type: 'Bearer',
-        expires_in: 604800, // 7 days in seconds (matching JWT expiresIn)
+        expires_in: 900, // 15 minutes in seconds (access token lifetime)
         // Backwards compatibility (camelCase) - for existing frontend code
         accessToken: accessToken,
         refreshToken: refreshToken,

@@ -8,6 +8,7 @@
 const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
 const { Firm, User, Client, Case, Invoice, Lead, FirmInvitation } = require('../models');
+const { generateAccessToken } = require('../utils/generateToken');
 
 // Helper function to escape regex special characters
 const escapeRegex = (str) => {
@@ -291,23 +292,19 @@ const switchFirm = asyncHandler(async (req, res) => {
         throw CustomException('Access denied to this firm', 403);
     }
 
-    // Update user's default firm
+    // Update user's default firm and get updated user
     // Note: This is a self-update (switching own firm), no firm scoping needed
-    await User.findByIdAndUpdate(userId, {
-        firmId: firmId,
-        firmRole: member.role
-    });
-
-    // Optionally issue new JWT with updated firmId
-    const token = jwt.sign(
+    const user = await User.findByIdAndUpdate(
+        userId,
         {
-            _id: userId,
             firmId: firmId,
             firmRole: member.role
         },
-        process.env.JWT_SECRET,
-        { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
-    );
+        { new: true }
+    ).setOptions({ bypassFirmFilter: true });
+
+    // Issue new JWT with updated firm context using proper utility
+    const token = await generateAccessToken(user, { firm });
 
     res.json({
         success: true,
@@ -319,7 +316,12 @@ const switchFirm = asyncHandler(async (req, res) => {
                 logo: firm.logo,
                 role: member.role
             },
-            token // New token with updated firm context
+            // OAuth 2.0 standard format
+            access_token: token,
+            token_type: 'Bearer',
+            expires_in: 900, // 15 minutes
+            // Backwards compatibility
+            token
         }
     });
 });

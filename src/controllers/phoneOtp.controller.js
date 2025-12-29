@@ -3,12 +3,14 @@
  * Handles SMS OTP send, verify, and resend for phone authentication
  */
 
-const { PhoneOTP, User } = require('../models');
+const { PhoneOTP, User, Firm } = require('../models');
 const { generateOTP } = require('../utils/otp.utils');
 const smsService = require('../services/sms.service');
 const jwt = require('jsonwebtoken');
 const { getCookieConfig } = require('../utils/cookieConfig');
 const logger = require('../utils/logger');
+const { generateAccessToken } = require('../utils/generateToken');
+const refreshTokenService = require('../services/refreshToken.service');
 
 /**
  * Send OTP to phone via SMS
@@ -218,7 +220,8 @@ const verifyPhoneOTP = async (req, res) => {
     }
 
     // For login, generate tokens
-    const user = await User.findOne({ phone: formattedPhone });
+    const user = await User.findOne({ phone: formattedPhone })
+      .setOptions({ bypassFirmFilter: true });
 
     if (!user) {
       return res.status(404).json({
@@ -228,25 +231,58 @@ const verifyPhoneOTP = async (req, res) => {
       });
     }
 
-    // Generate JWT token (same format as email OTP login)
-    const accessToken = jwt.sign(
-      {
-        _id: user._id,
-        isSeller: user.isSeller
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: '7 days' }
+    // Get firm context for custom claims (if user belongs to a firm)
+    let firm = null;
+    if (user.firmId) {
+      try {
+        firm = await Firm.findById(user.firmId)
+          .select('name nameEnglish licenseNumber status members subscription');
+      } catch (firmErr) {
+        logger.warn('Failed to fetch firm for phone OTP token generation', { error: firmErr.message });
+      }
+    }
+
+    // Generate JWT access token using proper utility (15-min expiry, custom claims)
+    const accessToken = await generateAccessToken(user, { firm });
+
+    // Create device info for refresh token
+    const userAgent = req.headers['user-agent'] || 'unknown';
+    const deviceIp = req.ip || req.headers['x-forwarded-for'];
+    const deviceInfo = {
+      userAgent: userAgent,
+      ip: deviceIp,
+      deviceId: req.headers['x-device-id'] || null,
+      browser: req.headers['sec-ch-ua'] || null,
+      os: req.headers['sec-ch-ua-platform'] || null,
+      device: req.headers['sec-ch-ua-mobile'] === '?1' ? 'mobile' : 'desktop'
+    };
+
+    // Generate refresh token (long-lived, 7 days)
+    const refreshToken = await refreshTokenService.createRefreshToken(
+      user._id.toString(),
+      deviceInfo,
+      user.firmId
     );
 
     // Get cookie config based on request context
     const cookieConfig = getCookieConfig(req);
+    const refreshCookieConfig = getCookieConfig(req, 'refresh');
 
-    // Set cookie and return response
+    // Set cookies and return response
     res.cookie('accessToken', accessToken, cookieConfig)
+      .cookie('refreshToken', refreshToken, refreshCookieConfig)
       .status(200).json({
         success: true,
         message: 'Login successful',
         messageAr: 'تم تسجيل الدخول بنجاح',
+        // OAuth 2.0 standard format (snake_case)
+        access_token: accessToken,
+        refresh_token: refreshToken,
+        token_type: 'Bearer',
+        expires_in: 900, // 15 minutes in seconds
+        // Backwards compatibility (camelCase)
+        accessToken: accessToken,
+        refreshToken: refreshToken,
         user: {
           _id: user._id,
           email: user.email,

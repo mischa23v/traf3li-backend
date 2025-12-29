@@ -18,10 +18,13 @@ const webauthnService = require('../services/webauthn.service');
 const auditLogService = require('../services/auditLog.service');
 const { CustomException } = require('../utils');
 const jwt = require('jsonwebtoken');
-const { User } = require('../models');
+const { User, Firm } = require('../models');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const { getCookieConfig } = require('../utils/cookieConfig');
 const crypto = require('crypto');
+const { generateAccessToken } = require('../utils/generateToken');
+const refreshTokenService = require('../services/refreshToken.service');
+const logger = require('../utils/logger');
 
 const { JWT_SECRET, WEBAUTHN_ORIGIN } = process.env;
 
@@ -333,17 +336,29 @@ const finishAuthentication = asyncHandler(async (req, res) => {
         throw new CustomException('Account has been anonymized', 403);
     }
 
-    // Generate JWT token
-    const token = jwt.sign(
-        {
-            userId: user._id,
-            email: user.email,
-            role: user.role,
-            firmId: user.firmId,
-            firmRole: user.firmRole
-        },
-        JWT_SECRET,
-        { expiresIn: '7d' }
+    // Get firm context for custom claims (if user belongs to a firm)
+    let firm = null;
+    if (user.firmId) {
+        try {
+            firm = await Firm.findById(user.firmId)
+                .select('name nameEnglish licenseNumber status members subscription');
+        } catch (firmErr) {
+            logger.warn('Failed to fetch firm for WebAuthn token generation', { error: firmErr.message });
+        }
+    }
+
+    // Generate JWT access token using proper utility (15-min expiry, custom claims)
+    const token = await generateAccessToken(user, { firm });
+
+    // Generate refresh token
+    const deviceInfo = {
+        userAgent: req.headers['user-agent'] || 'WebAuthn',
+        ip: req.ip || 'unknown'
+    };
+    const refreshToken = await refreshTokenService.createRefreshToken(
+        user._id.toString(),
+        deviceInfo,
+        user.firmId
     );
 
     // Log audit event
@@ -360,12 +375,23 @@ const finishAuthentication = asyncHandler(async (req, res) => {
         userAgent: req.headers['user-agent']
     });
 
-    // Set HTTP-only cookie for JWT using secure centralized configuration
-    res.cookie('token', token, getCookieConfig(req, 'refresh'));
+    // Set HTTP-only cookies for JWT using secure centralized configuration
+    const accessCookieConfig = getCookieConfig(req, 'access');
+    const refreshCookieConfig = getCookieConfig(req, 'refresh');
+    res.cookie('accessToken', token, accessCookieConfig);
+    res.cookie('refreshToken', refreshToken, refreshCookieConfig);
 
     res.status(200).json({
         success: true,
         message: 'Authentication successful',
+        // OAuth 2.0 standard format (snake_case)
+        access_token: token,
+        refresh_token: refreshToken,
+        token_type: 'Bearer',
+        expires_in: 900, // 15 minutes in seconds
+        // Backwards compatibility (camelCase)
+        accessToken: token,
+        refreshToken: refreshToken,
         data: {
             token,
             user: {
