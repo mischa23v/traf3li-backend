@@ -1230,21 +1230,34 @@ exports.getAvailableSlotsEnhanced = async (req, res) => {
             });
         }
 
+        // Validate lawyerId is a valid ObjectId
+        if (!/^[0-9a-fA-F]{24}$/.test(lawyerId)) {
+            return res.status(400).json({
+                success: false,
+                message: 'lawyerId must be a valid ObjectId. Frontend should send user._id from auth context, not "current"'
+            });
+        }
+
         const start = new Date(startDate);
         const end = new Date(endDate);
         const durationNum = parseInt(duration);
 
+        // Build tenant query - use firmQuery if available (authenticated), otherwise empty for public
+        const tenantQuery = req.firmQuery || {};
+
         // Get availability slots for the lawyer
         const availabilitySlots = await AvailabilitySlot.find({
+            ...tenantQuery,
             lawyerId,
             isActive: true
         });
 
         // Get blocked times in the date range
-        const blockedTimes = await BlockedTime.getForDateRange(lawyerId, start, end, {});
+        const blockedTimes = await BlockedTime.getForDateRange(lawyerId, start, end, tenantQuery);
 
         // Get existing appointments in the date range
         const appointments = await Appointment.find({
+            ...tenantQuery,
             assignedTo: lawyerId,
             scheduledTime: { $gte: start, $lte: end },
             status: { $in: ['scheduled', 'confirmed'] }
