@@ -111,6 +111,9 @@ const crmTransactionRoute = require('./crmTransaction.route');
 // CRM Reports Routes
 const crmReportsRoute = require('./crmReports.route');
 
+// Appointment Routes
+const appointmentRoute = require('./appointment.route');
+
 // Sales Module Routes
 const salesRoute = require('./sales.routes');
 
@@ -494,6 +497,9 @@ module.exports = {
 
     // CRM Reports
     crmReportsRoute,
+
+    // Appointments
+    appointmentRoute,
 
     // Sales Module
     salesRoute,

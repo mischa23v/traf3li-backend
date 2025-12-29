@@ -6,6 +6,38 @@ const cache = require('../services/cache.service');
 const { pickAllowedFields, sanitizeObjectId, sanitizeString } = require('../utils/securityUtils');
 const logger = require('../utils/logger');
 
+/**
+ * Validate that the request has proper tenant context
+ * SECURITY: Calendar endpoints require firm/lawyer isolation
+ * @param {Object} req - Express request object
+ * @throws {CustomException} - If tenant context is missing
+ */
+const validateTenantContext = (req) => {
+    if (!req.firmQuery || (!req.firmQuery.firmId && !req.firmQuery.lawyerId)) {
+        throw CustomException(
+            'Access denied. You must be part of a firm or registered as a solo lawyer to access calendar data.',
+            403
+        );
+    }
+};
+
+/**
+ * Convert firmQuery to use ObjectIds for aggregation pipelines
+ * Mongoose aggregations require ObjectId type for matching
+ * @param {Object} firmQuery - The req.firmQuery object
+ * @returns {Object} - firmQuery with ObjectId values
+ */
+const convertFirmQueryToObjectIds = (firmQuery) => {
+    const result = { ...firmQuery };
+    if (result.firmId && !(result.firmId instanceof mongoose.Types.ObjectId)) {
+        result.firmId = new mongoose.Types.ObjectId(result.firmId.toString());
+    }
+    if (result.lawyerId && !(result.lawyerId instanceof mongoose.Types.ObjectId)) {
+        result.lawyerId = new mongoose.Types.ObjectId(result.lawyerId.toString());
+    }
+    return result;
+};
+
 // Helper to convert userId to ObjectId for aggregation pipelines
 const toObjectId = (id) => {
     if (id instanceof mongoose.Types.ObjectId) return id;
@@ -162,6 +194,9 @@ const invalidateItemCache = async (type, id) => {
  * Query params: startDate, endDate, type (event|task|reminder), caseId
  */
 const getCalendarView = asyncHandler(async (req, res) => {
+    // SECURITY: Validate tenant context before any queries
+    validateTenantContext(req);
+
     const { startDate, endDate, type, caseId } = req.query;
     const userId = req.userID;
 
@@ -411,6 +446,9 @@ const getCalendarView = asyncHandler(async (req, res) => {
  * GET /api/calendar/date/:date
  */
 const getCalendarByDate = asyncHandler(async (req, res) => {
+    // SECURITY: Validate tenant context before any queries
+    validateTenantContext(req);
+
     const { date } = req.params;
     const userId = req.userID;
 
@@ -511,6 +549,9 @@ const getCalendarByDate = asyncHandler(async (req, res) => {
  * GET /api/calendar/month/:year/:month
  */
 const getCalendarByMonth = asyncHandler(async (req, res) => {
+    // SECURITY: Validate tenant context before any queries
+    validateTenantContext(req);
+
     const { year, month } = req.params;
     const userId = req.userID;
 
@@ -650,6 +691,9 @@ const getCalendarByMonth = asyncHandler(async (req, res) => {
  * GET /api/calendar/upcoming
  */
 const getUpcomingItems = asyncHandler(async (req, res) => {
+    // SECURITY: Validate tenant context before any queries
+    validateTenantContext(req);
+
     const { days = 7 } = req.query;
     const userId = req.userID;
 
@@ -769,6 +813,9 @@ const getUpcomingItems = asyncHandler(async (req, res) => {
  * GET /api/calendar/overdue
  */
 const getOverdueItems = asyncHandler(async (req, res) => {
+    // SECURITY: Validate tenant context before any queries
+    validateTenantContext(req);
+
     const userId = req.userID;
     const now = new Date();
 
@@ -828,6 +875,9 @@ const getOverdueItems = asyncHandler(async (req, res) => {
  * GET /api/calendar/stats
  */
 const getCalendarStats = asyncHandler(async (req, res) => {
+    // SECURITY: Validate tenant context before any queries
+    validateTenantContext(req);
+
     const { startDate, endDate } = req.query;
     const userId = req.userID;
 
@@ -1016,6 +1066,9 @@ function getReminderColor(priority, status) {
  * Query params: startDate, endDate, types (comma-separated)
  */
 const getCalendarGridSummary = asyncHandler(async (req, res) => {
+    // SECURITY: Validate tenant context before any queries
+    validateTenantContext(req);
+
     const { startDate, endDate, types } = req.query;
     const userId = req.userID;
 
@@ -1080,6 +1133,8 @@ const getCalendarGridSummary = asyncHandler(async (req, res) => {
     // Use aggregation pipeline for efficient counting
     const promises = [];
     const userObjectId = toObjectId(userId);
+    // SECURITY: Convert firmQuery to ObjectIds for aggregation pipelines
+    const firmQueryForAggregate = convertFirmQueryToObjectIds(req.firmQuery);
 
     // Count events by day
     if (requestedTypes.has('event')) {
@@ -1087,7 +1142,7 @@ const getCalendarGridSummary = asyncHandler(async (req, res) => {
             Event.aggregate([
                 {
                     $match: {
-                        ...req.firmQuery, // Tenant isolation
+                        ...firmQueryForAggregate, // Tenant isolation (with ObjectIds)
                         $or: [
                             { createdBy: userObjectId },
                             { 'attendees.userId': userObjectId }
@@ -1121,7 +1176,7 @@ const getCalendarGridSummary = asyncHandler(async (req, res) => {
             Task.aggregate([
                 {
                     $match: {
-                        ...req.firmQuery, // Tenant isolation
+                        ...firmQueryForAggregate, // Tenant isolation (with ObjectIds)
                         $or: [
                             { assignedTo: userObjectId },
                             { createdBy: userObjectId }
@@ -1164,7 +1219,7 @@ const getCalendarGridSummary = asyncHandler(async (req, res) => {
             Reminder.aggregate([
                 {
                     $match: {
-                        ...req.firmQuery, // Tenant isolation
+                        ...firmQueryForAggregate, // Tenant isolation (with ObjectIds)
                         userId: userObjectId,
                         reminderDateTime: { $gte: start, $lte: end }
                     }
@@ -1250,6 +1305,9 @@ const getCalendarGridSummary = asyncHandler(async (req, res) => {
  * Full details fetched on demand via /api/calendar/item/:type/:id
  */
 const getCalendarGridItems = asyncHandler(async (req, res) => {
+    // SECURITY: Validate tenant context before any queries
+    validateTenantContext(req);
+
     const { startDate, endDate, types, caseId } = req.query;
     const userId = req.userID;
 
@@ -1462,6 +1520,9 @@ const getCalendarGridItems = asyncHandler(async (req, res) => {
  * Fetches complete details including relations, attendees, etc.
  */
 const getCalendarItemDetails = asyncHandler(async (req, res) => {
+    // SECURITY: Validate tenant context before any queries
+    validateTenantContext(req);
+
     const { type, id } = req.params;
     const userId = req.userID;
 
@@ -1613,6 +1674,9 @@ const getCalendarItemDetails = asyncHandler(async (req, res) => {
  * Query params: cursor, limit, types, startDate, endDate, sortBy, sortOrder
  */
 const getCalendarListView = asyncHandler(async (req, res) => {
+    // SECURITY: Validate tenant context before any queries
+    validateTenantContext(req);
+
     const {
         cursor,
         limit = 20,
@@ -1888,6 +1952,9 @@ const isValidCalendarType = (type) => VALID_CALENDAR_TYPES.has(type);
  * OPTIMIZED: Replaces 2 separate API calls with 1 parallel query
  */
 const getSidebarData = asyncHandler(async (req, res) => {
+    // SECURITY: Validate tenant context before any queries
+    validateTenantContext(req);
+
     const { startDate, endDate, reminderDays = 7 } = req.query;
     const userId = req.userID;
 
