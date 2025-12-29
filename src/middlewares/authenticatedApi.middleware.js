@@ -40,6 +40,7 @@ const PUBLIC_ROUTES = [
     '/auth/reset-password',
     '/auth/verify-email',
     '/auth/verify-otp',
+    '/auth/csrf',
     '/auth/google',
     '/auth/google/callback',
     '/auth/saml',
