@@ -547,12 +547,20 @@ eventSchema.statics.getUpcoming = async function(userId, days = 7) {
 
 // Static method: Get event stats
 eventSchema.statics.getStats = async function(userId, filters = {}) {
-    const matchQuery = {
-        $or: [
+    const matchQuery = {};
+
+    // SECURITY: Add tenant isolation - firmId takes precedence for multi-tenant queries
+    if (filters.firmId) {
+        matchQuery.firmId = new mongoose.Types.ObjectId(filters.firmId);
+    } else if (filters.lawyerId) {
+        matchQuery.lawyerId = new mongoose.Types.ObjectId(filters.lawyerId);
+    } else {
+        // Fallback to user-based filtering if no firm context
+        matchQuery.$or = [
             { createdBy: new mongoose.Types.ObjectId(userId) },
             { organizer: new mongoose.Types.ObjectId(userId) }
-        ]
-    };
+        ];
+    }
 
     if (filters.startDate || filters.endDate) {
         matchQuery.startDateTime = {};
