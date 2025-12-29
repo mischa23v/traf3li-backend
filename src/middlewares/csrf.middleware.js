@@ -35,11 +35,15 @@ const { getCSRFCookieConfig } = require('../utils/cookieConfig');
  * Origin validation is still performed for security
  */
 // NOTE: These are full paths (CSRF middleware is applied per-route, not mounted)
+// Must match PUBLIC_ROUTES in authenticatedApi.middleware.js
 const CSRF_EXEMPT_ROUTES = [
+    // Core auth (with /api prefix)
     '/api/auth/login',
     '/api/auth/register',
     '/api/auth/forgot-password',
     '/api/auth/reset-password',
+    '/api/auth/verify-captcha',
+    // SSO/OAuth
     '/api/auth/sso/initiate',
     '/api/auth/sso/detect',
     '/api/auth/sso/callback',
@@ -47,12 +51,23 @@ const CSRF_EXEMPT_ROUTES = [
     '/api/auth/google/callback',
     '/api/auth/saml',
     '/api/auth/saml/callback',
+    // WebAuthn/Passkeys
+    '/api/auth/webauthn/authenticate/start',
+    '/api/auth/webauthn/authenticate/finish',
+    // LDAP
+    '/api/auth/ldap/login',
+    // MFA
+    '/api/auth/mfa/verify',
+    '/api/auth/mfa/backup-codes/verify',
+    // Webhooks
     '/api/webhooks',
-    // Also match paths without /api prefix (for mounted routes)
+
+    // Same routes without /api prefix (for mounted routes)
     '/auth/login',
     '/auth/register',
     '/auth/forgot-password',
     '/auth/reset-password',
+    '/auth/verify-captcha',
     '/auth/sso/initiate',
     '/auth/sso/detect',
     '/auth/sso/callback',
@@ -60,6 +75,11 @@ const CSRF_EXEMPT_ROUTES = [
     '/auth/google/callback',
     '/auth/saml',
     '/auth/saml/callback',
+    '/auth/webauthn/authenticate/start',
+    '/auth/webauthn/authenticate/finish',
+    '/auth/ldap/login',
+    '/auth/mfa/verify',
+    '/auth/mfa/backup-codes/verify',
     '/webhooks',
 ];
 
