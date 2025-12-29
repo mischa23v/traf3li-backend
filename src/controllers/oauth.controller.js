@@ -727,7 +727,9 @@ const callbackPost = async (request, response) => {
             message: result.isNewUser ? 'New user detected, please complete registration' : 'Authentication successful',
             user: result.user,
             isNewUser: result.isNewUser,
-            token: result.isNewUser ? null : result.token // Only provide token for existing users
+            // Frontend expects accessToken and refreshToken (not just 'token')
+            accessToken: result.isNewUser ? null : result.token,
+            refreshToken: result.isNewUser ? null : result.refreshToken || null
         };
 
         // eslint-disable-next-line no-console
@@ -736,8 +738,9 @@ const callbackPost = async (request, response) => {
             message: responseData.message,
             hasUser: !!responseData.user,
             isNewUser: responseData.isNewUser,
-            hasToken: !!responseData.token,
-            tokenLength: responseData.token?.length
+            hasAccessToken: !!responseData.accessToken,
+            accessTokenLength: responseData.accessToken?.length,
+            hasRefreshToken: !!responseData.refreshToken
         });
         // eslint-disable-next-line no-console
         console.log('[SSO CALLBACK] ========== END ==========');
