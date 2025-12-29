@@ -10,6 +10,7 @@ const cacheService = require('./cache.service');
 const logger = require('../utils/contextLogger');
 const { CustomException } = require('../utils');
 const auditLogService = require('./auditLog.service');
+const refreshTokenService = require('./refreshToken.service');
 const { generateAppleClientSecret, decodeAppleIdToken, mapAppleUserInfo } = require('./appleOAuth.helper');
 
 const { JWT_SECRET, FRONTEND_URL, DASHBOARD_URL } = process.env;
@@ -799,11 +800,22 @@ class OAuthService {
             throw CustomException('هذه اللوحة مخصصة للمحامين فقط - This dashboard is for lawyers only', 403);
         }
 
-        // Generate JWT token
+        // Generate JWT access token
         const token = jwt.sign({
             _id: user._id,
             isSeller: user.isSeller
         }, JWT_SECRET, { expiresIn: '7 days' });
+
+        // Generate refresh token (matching regular login behavior)
+        const deviceInfo = {
+            userAgent: userAgent || 'SSO Login',
+            ip: ipAddress || 'unknown'
+        };
+        const refreshToken = await refreshTokenService.createRefreshToken(
+            user._id.toString(),
+            deviceInfo,
+            user.firmId
+        );
 
         // Log successful SSO login
         await auditLogService.log(
@@ -876,6 +888,7 @@ class OAuthService {
 
         return {
             token,
+            refreshToken,
             user: userData,
             isNewUser,
             returnUrl: stateData.returnUrl || '/'
