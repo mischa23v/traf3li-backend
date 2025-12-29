@@ -827,16 +827,16 @@ export class TrafAuthClient {
   /**
    * Reset password with token
    */
-  async resetPassword(token: string, password: string): Promise<void> {
+  async resetPassword(token: string, newPassword: string): Promise<void> {
     log('Resetting password', undefined, this.config.debug);
 
     try {
       const data: ResetPasswordData = {
         token,
-        password,
+        newPassword,
       };
 
-      await this.http.post('/api/auth/password/reset', data, {
+      await this.http.post('/api/auth/reset-password', data, {
         skipAuth: true,
       });
 
