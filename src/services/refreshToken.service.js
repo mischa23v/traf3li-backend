@@ -19,10 +19,14 @@ const auditLogService = require('./auditLog.service');
  * @param {string} userId - User ID
  * @param {object} deviceInfo - Device information
  * @param {string} firmId - Firm ID (optional)
+ * @param {object} options - Token options
+ * @param {boolean} options.rememberMe - If true, extends token to 30 days
  * @returns {Promise<string>} - Refresh token (JWT)
  */
-const createRefreshToken = async (userId, deviceInfo = {}, firmId = null) => {
+const createRefreshToken = async (userId, deviceInfo = {}, firmId = null, options = {}) => {
     try {
+        const { rememberMe = false } = options;
+
         // Generate token family ID for this token chain
         const family = RefreshToken.generateFamily();
 
@@ -36,14 +40,15 @@ const createRefreshToken = async (userId, deviceInfo = {}, firmId = null) => {
             throw new Error('User not found');
         }
 
-        // Generate JWT refresh token
-        const refreshTokenJWT = generateRefreshToken(user);
+        // Generate JWT refresh token (with rememberMe option)
+        const refreshTokenJWT = generateRefreshToken(user, { rememberMe });
 
         // Hash token for storage
         const tokenHash = RefreshToken.hashToken(refreshTokenJWT);
 
-        // Calculate expiration (7 days from now)
-        const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+        // Calculate expiration (30 days for "Remember Me", 7 days otherwise)
+        const expirationDays = rememberMe ? 30 : 7;
+        const expiresAt = new Date(Date.now() + expirationDays * 24 * 60 * 60 * 1000);
 
         // Store in database
         const refreshToken = await RefreshToken.create({
