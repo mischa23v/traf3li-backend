@@ -17,6 +17,7 @@
  */
 
 const logger = require('../utils/logger');
+const { isSoloLawyer } = require('../config/permissions.config');
 
 /**
  * Claim Types:
@@ -289,7 +290,7 @@ const getConditionalClaims = (user, context = {}) => {
         }
 
         // Solo lawyer claims
-        if (user.isSoloLawyer) {
+        if (isSoloLawyer(user)) {
             claims.is_solo_lawyer = true;
             claims.lawyer_work_mode = user.lawyerWorkMode || 'solo';
         }

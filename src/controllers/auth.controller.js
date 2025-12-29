@@ -490,12 +490,41 @@ const authRegister = async (request, response) => {
             }
         })();
 
-        // For OAuth registration, generate token and set cookie so user is logged in
+        // For OAuth registration, generate tokens and set cookies so user is logged in
         if (isOAuthRegistration) {
-            const token = await generateAccessToken(user);
+            const accessToken = await generateAccessToken(user);
+
+            // Create device info for refresh token
+            const userAgent = request.headers['user-agent'] || 'unknown';
+            const ipAddress = request.ip || request.headers['x-forwarded-for']?.split(',')[0] || 'unknown';
+            const deviceInfo = {
+                userAgent: userAgent,
+                ip: ipAddress,
+                deviceId: request.headers['x-device-id'] || null
+            };
+
+            // Generate refresh token
+            const refreshToken = await refreshTokenService.createRefreshToken(
+                user._id.toString(),
+                deviceInfo,
+                user.firmId
+            );
+
             const cookieConfig = getCookieConfig(request);
-            response.cookie('accessToken', token, cookieConfig);
-            responseData.token = token;
+            const refreshCookieConfig = getCookieConfig(request, 'refresh');
+
+            response.cookie('accessToken', accessToken, cookieConfig);
+            response.cookie('refreshToken', refreshToken, refreshCookieConfig);
+
+            // OAuth 2.0 standard format (snake_case)
+            responseData.access_token = accessToken;
+            responseData.refresh_token = refreshToken;
+            responseData.token_type = 'Bearer';
+            responseData.expires_in = 900; // 15 minutes
+            // Backwards compatibility
+            responseData.token = accessToken;
+            responseData.accessToken = accessToken;
+            responseData.refreshToken = refreshToken;
             responseData.message = 'تم إنشاء الحساب بنجاح عبر ' + oauthProvider;
         }
 
@@ -593,7 +622,7 @@ const authLogin = async (request, response) => {
                 { email: loginIdentifier }
             ]
         })
-        .select('_id username email password firstName lastName role isSeller isSoloLawyer lawyerWorkMode firmId firmRole firmStatus lawyerProfile image phone country region city timezone notificationPreferences')
+        .select('_id username email password firstName lastName role isSeller isSoloLawyer lawyerWorkMode firmId firmRole firmStatus lawyerProfile image phone country region city timezone notificationPreferences mfaEnabled')
         .setOptions({ bypassFirmFilter: true })
         .lean();
 
@@ -875,8 +904,19 @@ const authLogin = async (request, response) => {
             // PERF: With .lean(), user is already a plain object (no _doc needed)
             const { password: pwd, ...data } = user;
 
+            // Fetch firm for token context (if user has firm) - matches OAuth pattern
+            let firmForToken = null;
+            if (user.firmId) {
+                try {
+                    firmForToken = await Firm.findById(user.firmId)
+                        .select('name nameEnglish licenseNumber status members subscription');
+                } catch (firmErr) {
+                    logger.warn('Failed to fetch firm for token generation', { error: firmErr.message });
+                }
+            }
+
             // Generate access token (short-lived, 15 minutes)
-            const accessToken = await generateAccessToken(user);
+            const accessToken = await generateAccessToken(user, { firm: firmForToken });
 
             // Create device info for refresh token
             const deviceInfo = {
@@ -902,15 +942,17 @@ const authLogin = async (request, response) => {
             const userData = {
                 ...data,
                 isSoloLawyer: user.isSoloLawyer || false,
-                lawyerWorkMode: user.lawyerWorkMode || null
+                lawyerWorkMode: user.lawyerWorkMode || null,
+                mfaEnabled: user.mfaEnabled || false,
+                mfaPending: false  // If they completed login, MFA is not pending
             };
 
             // If user is a lawyer, get firm information and permissions
             if (user.role === 'lawyer' || user.isSeller) {
                 if (user.firmId) {
                     try {
-                        const firm = await Firm.findById(user.firmId)
-                            .select('name nameEnglish licenseNumber status members subscription');
+                        // Reuse firm fetched earlier for token generation
+                        const firm = firmForToken;
 
                         if (firm) {
                             const member = firm.members?.find(
@@ -1047,6 +1089,16 @@ const authLogin = async (request, response) => {
                 // Also set CSRF token in cookie for double-submit pattern using secure configuration
                 response.cookie('csrfToken', csrfTokenData.token, getCSRFCookieConfig(request));
             }
+
+            // Add tokens to response body (in addition to cookies)
+            // OAuth 2.0 standard format (snake_case)
+            loginResponse.access_token = accessToken;
+            loginResponse.refresh_token = refreshToken;
+            loginResponse.token_type = 'Bearer';
+            loginResponse.expires_in = 900; // 15 minutes in seconds
+            // Backwards compatibility (camelCase)
+            loginResponse.accessToken = accessToken;
+            loginResponse.refreshToken = refreshToken;
 
             return response
                 .cookie('accessToken', accessToken, getCookieConfig(request, 'access'))
@@ -1715,11 +1767,25 @@ const verifyMagicLink = async (request, response) => {
         // Record session activity
         recordActivity(user._id.toString());
 
-        // Generate JWT token
-        const jwtToken = jwt.sign({
-            _id: user._id,
-            isSeller: user.isSeller
-        }, JWT_SECRET, { expiresIn: '7 days' });
+        // Generate access token (short-lived, 15 minutes)
+        const accessToken = await generateAccessToken(user);
+
+        // Create device info for refresh token
+        const deviceInfo = {
+            userAgent: userAgent,
+            ip: ipAddress,
+            deviceId: request.headers['x-device-id'] || null,
+            browser: request.headers['sec-ch-ua'] || null,
+            os: request.headers['sec-ch-ua-platform'] || null,
+            device: request.headers['sec-ch-ua-mobile'] === '?1' ? 'mobile' : 'desktop'
+        };
+
+        // Generate refresh token (long-lived, 7 days)
+        const refreshToken = await refreshTokenService.createRefreshToken(
+            user._id.toString(),
+            deviceInfo,
+            user.firmId
+        );
 
         // Get cookie config based on request context
         const cookieConfig = getCookieConfig(request);
@@ -1781,7 +1847,7 @@ const verifyMagicLink = async (request, response) => {
         }
 
         // Create session record
-        sessionManager.createSession(user._id, jwtToken, {
+        sessionManager.createSession(user._id, accessToken, {
             userAgent,
             ip: ipAddress,
             firmId: user.firmId,
@@ -1820,11 +1886,24 @@ const verifyMagicLink = async (request, response) => {
             }
         );
 
-        return response.cookie('accessToken', jwtToken, cookieConfig)
+        // Get refresh token cookie config with proper expiry
+        const refreshCookieConfig = getCookieConfig(request, 'refresh');
+
+        return response
+            .cookie('accessToken', accessToken, getCookieConfig(request, 'access'))
+            .cookie('refreshToken', refreshToken, refreshCookieConfig)
             .status(200).json({
                 error: false,
                 message: 'تم تسجيل الدخول بنجاح',
                 messageEn: 'Login successful',
+                // OAuth 2.0 standard format (snake_case)
+                access_token: accessToken,
+                refresh_token: refreshToken,
+                token_type: 'Bearer',
+                expires_in: 900, // 15 minutes in seconds
+                // Backwards compatibility (camelCase)
+                accessToken: accessToken,
+                refreshToken: refreshToken,
                 user: userData,
                 redirectUrl: result.redirectUrl
             });
@@ -2000,7 +2079,7 @@ const refreshAccessToken = async (request, response) => {
             }
         );
 
-        // Return new tokens
+        // Return new tokens (OAuth 2.0 standard format + backwards compatibility)
         return response
             .cookie('accessToken', result.accessToken, accessCookieConfig)
             .cookie('refreshToken', result.refreshToken, refreshCookieConfig)
@@ -2008,6 +2087,14 @@ const refreshAccessToken = async (request, response) => {
                 error: false,
                 message: 'Token refreshed successfully',
                 messageAr: 'تم تحديث الرمز بنجاح',
+                // OAuth 2.0 standard format (snake_case)
+                access_token: result.accessToken,
+                refresh_token: result.refreshToken,
+                token_type: 'Bearer',
+                expires_in: 900, // 15 minutes in seconds
+                // Backwards compatibility (camelCase)
+                accessToken: result.accessToken,
+                refreshToken: result.refreshToken,
                 user: result.user
             });
     } catch (error) {

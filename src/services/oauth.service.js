@@ -13,6 +13,7 @@ const auditLogService = require('./auditLog.service');
 const refreshTokenService = require('./refreshToken.service');
 const { generateAppleClientSecret, decodeAppleIdToken, mapAppleUserInfo } = require('./appleOAuth.helper');
 const { generateAccessToken } = require('../utils/generateToken');
+const { isSoloLawyer } = require('../config/permissions.config');
 
 const { JWT_SECRET, FRONTEND_URL, DASHBOARD_URL } = process.env;
 
@@ -909,7 +910,7 @@ class OAuthService {
         // For this legal practice management app, SSO users should always be lawyers
         // unless they're joining a specific firm with a different role
         const role = provider.firmId ? (provider.defaultRole || 'lawyer') : 'lawyer';
-        const isSoloLawyer = !provider.firmId; // Solo lawyer if not joining a firm
+        const userIsSoloLawyer = !provider.firmId; // Solo lawyer if not joining a firm
 
         const userData = {
             username,
@@ -920,8 +921,8 @@ class OAuthService {
             phone: '', // Will be filled by user later
             role: role,
             isSeller: false, // Default to false - user can opt-in to marketplace later
-            isSoloLawyer: isSoloLawyer,
-            lawyerWorkMode: isSoloLawyer ? 'solo' : null,
+            isSoloLawyer: userIsSoloLawyer,
+            lawyerWorkMode: userIsSoloLawyer ? 'solo' : null,
             country: 'Saudi Arabia',
             image: userInfo.picture,
 

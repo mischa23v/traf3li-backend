@@ -44,8 +44,8 @@ const Client = require('../models/client.model');
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
 const RESEND_CONFIG = {
-  fromEmail: process.env.FROM_EMAIL || 'onboarding@resend.dev',
-  fromName: process.env.FROM_NAME || 'TRAF3LI',
+  fromEmail: process.env.EMAIL_FROM || 'noreply@traf3li.com',
+  fromName: process.env.EMAIL_FROM_NAME || 'Traf3li',
 };
 
 class EmailMarketingService {

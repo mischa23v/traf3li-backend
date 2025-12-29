@@ -6,6 +6,8 @@ const auditLogService = require('../services/auditLog.service');
 const { getCookieConfig } = require('../utils/cookieConfig');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const logger = require('../utils/logger');
+const { generateAccessToken } = require('../utils/generateToken');
+const refreshTokenService = require('../services/refreshToken.service');
 
 const { JWT_SECRET } = process.env;
 
@@ -245,14 +247,23 @@ const assertionConsumerService = async (request, response) => {
                 user.lastLogin = new Date();
                 await user.save();
 
-                // Generate JWT token
-                const token = jwt.sign({
-                    _id: user._id,
-                    isSeller: user.isSeller
-                }, JWT_SECRET, { expiresIn: '7 days' });
+                // Generate JWT access token using proper utility (15-min expiry, custom claims)
+                const token = await generateAccessToken(user, { firm });
+
+                // Generate refresh token
+                const deviceInfo = {
+                    userAgent: request.headers['user-agent'] || 'SAML SSO',
+                    ip: request.ip || 'unknown'
+                };
+                const refreshToken = await refreshTokenService.createRefreshToken(
+                    user._id.toString(),
+                    deviceInfo,
+                    user.firmId
+                );
 
                 // Get cookie config
                 const cookieConfig = getCookieConfig(request);
+                const refreshCookieConfig = getCookieConfig(request, 'refresh');
 
                 // Build user data with firm information
                 const userData = await buildUserData(user);
@@ -277,8 +288,9 @@ const assertionConsumerService = async (request, response) => {
                     }
                 );
 
-                // Set cookie and redirect to frontend
+                // Set cookies and redirect to frontend
                 response.cookie('accessToken', token, cookieConfig);
+                response.cookie('refreshToken', refreshToken, refreshCookieConfig);
 
                 const frontendUrl = process.env.DASHBOARD_URL || 'https://dashboard.traf3li.com';
                 return response.redirect(`${frontendUrl}${relayState}?sso=success`);

@@ -266,7 +266,7 @@ const authenticateWithOneTap = async (request, response) => {
             }
         })();
 
-        // Return success response
+        // Return success response with OAuth 2.0 standard format
         return response
             .cookie('accessToken', accessToken, accessCookieConfig)
             .cookie('refreshToken', refreshToken, refreshCookieConfig)
@@ -284,6 +284,14 @@ const authenticateWithOneTap = async (request, response) => {
                         ? 'Account linked to Google successfully'
                         : 'Login successful'
                     ),
+                // OAuth 2.0 standard format (snake_case) - Industry standard for tokens
+                access_token: accessToken,
+                refresh_token: refreshToken,
+                token_type: 'Bearer',
+                expires_in: 900, // 15 minutes in seconds (access token lifetime)
+                // Backwards compatibility (camelCase) - for existing frontend code
+                accessToken: accessToken,
+                refreshToken: refreshToken,
                 user: userData,
                 isNewUser,
                 accountLinked
