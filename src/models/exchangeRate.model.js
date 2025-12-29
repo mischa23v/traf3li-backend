@@ -6,7 +6,7 @@ const exchangeRateSchema = new mongoose.Schema({
         ref: 'Firm',
         index: true
         // null for system-wide rates
-    },,
+     },
 
     // For solo lawyers (no firm) - enables row-level security
     lawyerId: {

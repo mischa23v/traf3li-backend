@@ -47,7 +47,7 @@ const keyboardShortcutSchema = new mongoose.Schema({
         ref: 'Firm',
         default: null,
         index: true
-    },,
+     },
 
 
     // For solo lawyers (no firm) - enables row-level security

@@ -45,7 +45,7 @@ const notificationSettingsSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Firm',
         index: true
-    },,
+     },
 
 
     // For solo lawyers (no firm) - enables row-level security

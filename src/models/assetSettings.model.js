@@ -16,7 +16,7 @@ const assetSettingsSchema = new Schema({
         unique: true,
         required: true,
         index: true
-    },,
+     },
 
 
     // For solo lawyers (no firm) - enables row-level security

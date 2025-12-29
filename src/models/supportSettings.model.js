@@ -306,7 +306,7 @@ const supportSettingsSchema = new mongoose.Schema({
         unique: true,
         index: true,
         comment: 'Firm these settings belong to (one per firm)'
-    },,
+     },
 
 
     // For solo lawyers (no firm) - enables row-level security

@@ -175,7 +175,7 @@ const complianceAuditSchema = new mongoose.Schema(
       ref: 'Firm',
       index: true,
       description: 'Firm/organization this log belongs to'
-    },,
+     },
 
 
     // For solo lawyers (no firm) - enables row-level security

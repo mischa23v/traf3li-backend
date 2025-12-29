@@ -211,7 +211,7 @@ const workflowTemplateSchema = new mongoose.Schema({
         ref: 'Firm',
         index: true,
         default: null // null for system templates
-    },,
+     },
 
 
     // For solo lawyers (no firm) - enables row-level security

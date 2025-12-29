@@ -408,7 +408,7 @@ const ticketSchema = new mongoose.Schema({
         required: true,
         index: true,
         comment: 'Firm this ticket belongs to'
-    },,
+     },
 
 
     // For solo lawyers (no firm) - enables row-level security

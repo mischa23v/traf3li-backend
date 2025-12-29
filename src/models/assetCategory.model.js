@@ -100,7 +100,7 @@ const assetCategorySchema = new Schema({
         ref: 'Firm',
         index: true,
         required: false
-    },,
+     },
 
 
     // For solo lawyers (no firm) - enables row-level security

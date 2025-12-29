@@ -18,7 +18,7 @@ const sloSchema = new mongoose.Schema(
       ref: 'Firm',
       index: true,
       // null for system-wide SLOs
-    },,
+     },
 
 
     // For solo lawyers (no firm) - enables row-level security

@@ -17,7 +17,7 @@ const serialNumberSchema = new Schema({
         ref: 'Firm',
         index: true,
         required: false  // Optional for backwards compatibility
-    },,
+     },
 
 
     // For solo lawyers (no firm) - enables row-level security

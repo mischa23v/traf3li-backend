@@ -92,7 +92,7 @@ const telegramIntegrationSchema = new mongoose.Schema({
         ref: 'Firm',
         required: true,
         index: true
-    },,
+     },
 
 
     // For solo lawyers (no firm) - enables row-level security

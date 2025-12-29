@@ -29,7 +29,7 @@ const googleCalendarIntegrationSchema = new mongoose.Schema({
         ref: 'Firm',
         index: true
         // null for personal integrations, set for firm-wide
-    },,
+     },
 
 
     // For solo lawyers (no firm) - enables row-level security

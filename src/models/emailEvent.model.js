@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const emailEventSchema = new mongoose.Schema({
-  firmId: { type: mongoose.Schema.Types.ObjectId, ref: 'Firm', required: false, index: true },,
+  firmId: { type: mongoose.Schema.Types.ObjectId, ref: 'Firm', required: false, index: true  },
 
 
     // For solo lawyers (no firm) - enables row-level security
