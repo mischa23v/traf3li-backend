@@ -444,28 +444,16 @@ const getCases = async (request, response) => {
         const firmId = request.firmId; // From firmFilter middleware
         const isDeparted = request.isDeparted; // From firmFilter middleware
 
-        // Build filters based on firmId or user access
-        let filters;
-        if (firmId) {
-            if (isDeparted) {
-                // Departed users can only see cases they were assigned to
-                filters = {
-                    firmId,
-                    $or: [
-                        { lawyerId: request.userID },
-                        { assignedTo: request.userID },
-                        { 'team.userId': request.userID }
-                    ]
-                };
-            } else {
-                // Active firm members see all firm cases
-                filters = { firmId };
-            }
-        } else {
-            // Otherwise, show cases where user is lawyer or client
-            filters = {
-                $or: [{ lawyerId: request.userID }, { clientId: request.userID }]
-            };
+        // Use req.firmQuery for proper tenant isolation (centralized middleware handles validation)
+        let filters = { ...request.firmQuery };
+
+        // Departed users can only see cases they were assigned to
+        if (isDeparted) {
+            filters.$or = [
+                { lawyerId: request.userID },
+                { assignedTo: request.userID },
+                { 'team.userId': request.userID }
+            ];
         }
 
         // Apply optional filters
