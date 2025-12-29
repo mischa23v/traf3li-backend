@@ -7,10 +7,26 @@ const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils'
 const logger = require('../utils/logger');
 
 /**
+ * Validate tenant context exists
+ * Throws 403 if user doesn't have valid firm/solo-lawyer context
+ */
+const validateTenantContext = (req) => {
+    if (!req.firmQuery || (!req.firmQuery.firmId && !req.firmQuery.lawyerId)) {
+        throw CustomException(
+            'Access denied. You must be part of a firm or registered as a solo lawyer to access reminder data.',
+            403
+        );
+    }
+};
+
+/**
  * Create reminder
  * POST /api/reminders
  */
 const createReminder = asyncHandler(async (req, res) => {
+    // Validate tenant context first
+    validateTenantContext(req);
+
     const userId = req.userID;
     const firmId = req.firmId;
 
@@ -201,6 +217,9 @@ const createReminder = asyncHandler(async (req, res) => {
  * Supports ?includeStats=true for aggregated stats (GOLD STANDARD)
  */
 const getReminders = asyncHandler(async (req, res) => {
+    // Validate tenant context first
+    validateTenantContext(req);
+
     const {
         status,
         priority,
@@ -217,7 +236,9 @@ const getReminders = asyncHandler(async (req, res) => {
     } = req.query;
 
     const userId = req.userID;
+    // Use req.firmQuery for proper tenant isolation
     const baseQuery = {
+        ...req.firmQuery,
         $or: [
             { userId },
             { delegatedTo: userId }
@@ -320,6 +341,9 @@ const getReminders = asyncHandler(async (req, res) => {
  * GET /api/reminders/:id
  */
 const getReminder = asyncHandler(async (req, res) => {
+    // Validate tenant context first
+    validateTenantContext(req);
+
     const { id } = req.params;
     const userId = req.userID;
     const firmId = req.firmId;
@@ -330,7 +354,8 @@ const getReminder = asyncHandler(async (req, res) => {
         throw CustomException('Invalid reminder ID format', 400);
     }
 
-    const reminder = await Reminder.findOne({ _id: sanitizedId, firmId })
+    // Use req.firmQuery for proper tenant isolation
+    const reminder = await Reminder.findOne({ _id: sanitizedId, ...req.firmQuery })
         .populate('relatedCase', 'title caseNumber category')
         .populate('relatedTask', 'title dueDate status')
         .populate('relatedEvent', 'title startDateTime location')
@@ -812,6 +837,9 @@ const delegateReminder = asyncHandler(async (req, res) => {
  * GET /api/reminders/upcoming
  */
 const getUpcomingReminders = asyncHandler(async (req, res) => {
+    // Validate tenant context first
+    validateTenantContext(req);
+
     const { days = 7 } = req.query;
     const userId = req.userID;
 
@@ -830,6 +858,9 @@ const getUpcomingReminders = asyncHandler(async (req, res) => {
  * GET /api/reminders/overdue
  */
 const getOverdueReminders = asyncHandler(async (req, res) => {
+    // Validate tenant context first
+    validateTenantContext(req);
+
     const userId = req.userID;
 
     // Pass req.firmQuery for proper firm/lawyer isolation
@@ -847,6 +878,9 @@ const getOverdueReminders = asyncHandler(async (req, res) => {
  * GET /api/reminders/snoozed-due
  */
 const getSnoozedDueReminders = asyncHandler(async (req, res) => {
+    // Validate tenant context first
+    validateTenantContext(req);
+
     const userId = req.userID;
 
     // Pass req.firmQuery for proper firm/lawyer isolation
@@ -864,6 +898,9 @@ const getSnoozedDueReminders = asyncHandler(async (req, res) => {
  * GET /api/reminders/delegated
  */
 const getDelegatedReminders = asyncHandler(async (req, res) => {
+    // Validate tenant context first
+    validateTenantContext(req);
+
     const userId = req.userID;
 
     // Pass req.firmQuery for proper firm/lawyer isolation
@@ -881,6 +918,9 @@ const getDelegatedReminders = asyncHandler(async (req, res) => {
  * GET /api/reminders/stats
  */
 const getReminderStats = asyncHandler(async (req, res) => {
+    // Validate tenant context first
+    validateTenantContext(req);
+
     const userId = req.userID;
 
     // Pass req.firmQuery for proper firm/lawyer isolation
