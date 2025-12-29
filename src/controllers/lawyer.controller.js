@@ -182,33 +182,39 @@ const getTeamMembers = async (request, response) => {
         }
 
         // ====================================
-        // SECURITY: Firm Context Required
+        // SECURITY: Use req.firmQuery from middleware
+        // Gold Standard: Return empty array if no context, don't throw error
         // ====================================
         const firmId = request.firmId || request.user?.firmId;
         const userId = request.userID || request.user?._id;
-
-        if (!firmId && !userId) {
-            throw CustomException('Firm context required for team member access', 403);
-        }
 
         // ====================================
         // SECURITY: Prevent Role Escalation
         // ====================================
         // Only allow specific, whitelisted roles to be queried
-        // Prevents attackers from accessing users with other roles
         const allowedRoles = ['lawyer', 'admin'];
 
-        // Build filter with firm scope
+        // Build filter using req.firmQuery for proper tenant isolation
         const filter = {
-            role: { $in: allowedRoles }
+            role: { $in: allowedRoles },
+            ...request.firmQuery
         };
 
-        // Filter by firmId if available, otherwise by lawyerId for solo users
-        if (firmId) {
-            filter.firmId = firmId;
-        } else {
-            // Solo lawyer - only return themselves
+        // Gold Standard: If no tenant context, return empty array instead of error
+        // This handles solo lawyers gracefully - API should be safe to call
+        if (!firmId && !userId) {
+            return response.send({
+                error: false,
+                lawyers: [],
+                message: 'No team context available'
+            });
+        }
+
+        // For solo lawyers without firmId, query by their userId
+        // req.firmQuery will have { lawyerId: X } for solo lawyers
+        if (!firmId && userId && !request.firmQuery?.firmId) {
             filter._id = userId;
+            delete filter.lawyerId; // Use _id instead for User model
         }
 
         const lawyers = await User.find(filter)
