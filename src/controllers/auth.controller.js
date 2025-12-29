@@ -490,12 +490,41 @@ const authRegister = async (request, response) => {
             }
         })();
 
-        // For OAuth registration, generate token and set cookie so user is logged in
+        // For OAuth registration, generate tokens and set cookies so user is logged in
         if (isOAuthRegistration) {
-            const token = await generateAccessToken(user);
+            const accessToken = await generateAccessToken(user);
+
+            // Create device info for refresh token
+            const userAgent = request.headers['user-agent'] || 'unknown';
+            const ipAddress = request.ip || request.headers['x-forwarded-for']?.split(',')[0] || 'unknown';
+            const deviceInfo = {
+                userAgent: userAgent,
+                ip: ipAddress,
+                deviceId: request.headers['x-device-id'] || null
+            };
+
+            // Generate refresh token
+            const refreshToken = await refreshTokenService.createRefreshToken(
+                user._id.toString(),
+                deviceInfo,
+                user.firmId
+            );
+
             const cookieConfig = getCookieConfig(request);
-            response.cookie('accessToken', token, cookieConfig);
-            responseData.token = token;
+            const refreshCookieConfig = getCookieConfig(request, 'refresh');
+
+            response.cookie('accessToken', accessToken, cookieConfig);
+            response.cookie('refreshToken', refreshToken, refreshCookieConfig);
+
+            // OAuth 2.0 standard format (snake_case)
+            responseData.access_token = accessToken;
+            responseData.refresh_token = refreshToken;
+            responseData.token_type = 'Bearer';
+            responseData.expires_in = 900; // 15 minutes
+            // Backwards compatibility
+            responseData.token = accessToken;
+            responseData.accessToken = accessToken;
+            responseData.refreshToken = refreshToken;
             responseData.message = 'تم إنشاء الحساب بنجاح عبر ' + oauthProvider;
         }
 
