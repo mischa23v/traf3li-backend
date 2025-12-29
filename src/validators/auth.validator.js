@@ -96,9 +96,12 @@ const sendOTPSchema = Joi.object({
             'string.email': 'البريد الإلكتروني غير صالح / Invalid email format',
             'any.required': 'البريد الإلكتروني مطلوب / Email is required'
         }),
-    type: Joi.string()
-        .valid('login', 'register', 'reset-password', 'verify-email')
+    purpose: Joi.string()
+        .valid('login', 'registration', 'password_reset', 'email_verification', 'transaction')
         .default('login')
+        .messages({
+            'any.only': 'غرض غير صالح / Invalid purpose'
+        })
 });
 
 /**
