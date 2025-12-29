@@ -121,6 +121,33 @@ const AUTH_ONLY_ROUTES = [
     '/setup',
 ];
 
+// Routes that work WITHOUT firm context (for users who aren't firm members or solo lawyers)
+// These are typically user-profile, notification, and public-facing routes
+// All other authenticated routes REQUIRE firm context and will return 403 if missing
+// NOTE: Paths are relative to /api mount point (no /api prefix)
+const SKIP_FIRM_CONTEXT_VALIDATION = [
+    // User profile and settings
+    '/users/me',
+    '/users/profile',
+    '/users/settings',
+    '/users/preferences',
+    '/users/notifications',
+    '/users/avatar',
+    // Notifications (personal)
+    '/notifications',
+    // Firm management (before user has firm)
+    '/firms/create',
+    '/firms/available',
+    '/firms/join',
+    // Invitations
+    '/invitations',
+    // Health and status
+    '/health',
+    '/status',
+    // Apps listing
+    '/apps',
+];
+
 /**
  * Check if path matches any route pattern
  */
@@ -397,6 +424,18 @@ const authenticatedApi = async (req, res, next) => {
             }
         }
 
+        // 5. Validate firm context for routes that require tenant isolation
+        // If firmQuery is empty (no firmId or lawyerId), check if route requires it
+        const hasFirmContext = req.firmQuery && (req.firmQuery.firmId || req.firmQuery.lawyerId);
+        if (!hasFirmContext && !matchesRoute(req.path, SKIP_FIRM_CONTEXT_VALIDATION)) {
+            // Route requires firm context but user doesn't have one
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied. You must be part of a firm or registered as a solo lawyer to access this resource.',
+                code: 'FIRM_CONTEXT_REQUIRED'
+            });
+        }
+
         next();
     } catch (error) {
         // If it's an auth error, it was already handled by verifyToken
@@ -421,6 +460,7 @@ module.exports = {
     authenticatedApi,
     PUBLIC_ROUTES,
     AUTH_ONLY_ROUTES,
+    SKIP_FIRM_CONTEXT_VALIDATION,
     matchesRoute,
     checkIsSoloLawyer,
     setFirmContext

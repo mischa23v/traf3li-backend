@@ -10,8 +10,24 @@ const fs = require('fs');
 const path = require('path');
 const logger = require('../utils/logger');
 
+/**
+ * Validate tenant context exists
+ * Throws 403 if user doesn't have valid firm/solo-lawyer context
+ */
+const validateTenantContext = (req) => {
+    if (!req.firmQuery || (!req.firmQuery.firmId && !req.firmQuery.lawyerId)) {
+        throw CustomException(
+            'Access denied. You must be part of a firm or registered as a solo lawyer to access task data.',
+            403
+        );
+    }
+};
+
 // Create task
 const createTask = asyncHandler(async (req, res) => {
+    // Validate tenant context first
+    validateTenantContext(req);
+
     const userId = req.userID;
     const firmId = req.firmId; // From firmFilter middleware
 
@@ -191,6 +207,9 @@ const createTask = asyncHandler(async (req, res) => {
 
 // Get all tasks with filters
 const getTasks = asyncHandler(async (req, res) => {
+    // Validate tenant context first
+    validateTenantContext(req);
+
     const {
         status,
         priority,
@@ -298,6 +317,9 @@ const getTasks = asyncHandler(async (req, res) => {
 
 // Get single task
 const getTask = asyncHandler(async (req, res) => {
+    // Validate tenant context first
+    validateTenantContext(req);
+
     const { id } = req.params;
     const userId = req.userID;
     const firmId = req.firmId; // From firmFilter middleware
@@ -340,6 +362,9 @@ const getTask = asyncHandler(async (req, res) => {
 
 // Update task
 const updateTask = asyncHandler(async (req, res) => {
+    // Validate tenant context first
+    validateTenantContext(req);
+
     const { id } = req.params;
     const userId = req.userID;
     const firmId = req.firmId; // From firmFilter middleware
@@ -544,6 +569,9 @@ const updateTask = asyncHandler(async (req, res) => {
 
 // Delete task
 const deleteTask = asyncHandler(async (req, res) => {
+    // Validate tenant context first
+    validateTenantContext(req);
+
     const { id } = req.params;
     const userId = req.userID;
     const firmId = req.firmId; // From firmFilter middleware
@@ -1349,6 +1377,9 @@ const bulkDeleteTasks = asyncHandler(async (req, res) => {
 
 // Get task stats
 const getTaskStats = asyncHandler(async (req, res) => {
+    // Validate tenant context first
+    validateTenantContext(req);
+
     const userId = req.userID;
     const firmId = req.firmId;
 
@@ -1363,6 +1394,9 @@ const getTaskStats = asyncHandler(async (req, res) => {
 
 // Get upcoming tasks
 const getUpcomingTasks = asyncHandler(async (req, res) => {
+    // Validate tenant context first
+    validateTenantContext(req);
+
     const { days = 7 } = req.query;
 
     const today = new Date();
@@ -1389,6 +1423,9 @@ const getUpcomingTasks = asyncHandler(async (req, res) => {
 
 // Get overdue tasks
 const getOverdueTasks = asyncHandler(async (req, res) => {
+    // Validate tenant context first
+    validateTenantContext(req);
+
     // Use req.firmQuery for proper firm/lawyer isolation (set by firmFilter middleware)
     const tasks = await Task.find({
         ...req.firmQuery,
@@ -1409,6 +1446,9 @@ const getOverdueTasks = asyncHandler(async (req, res) => {
 
 // Get tasks by case
 const getTasksByCase = asyncHandler(async (req, res) => {
+    // Validate tenant context first
+    validateTenantContext(req);
+
     const { caseId } = req.params;
     const userId = req.userID;
     const firmId = req.firmId;
@@ -1440,6 +1480,9 @@ const getTasksByCase = asyncHandler(async (req, res) => {
 
 // Get tasks due today
 const getTasksDueToday = asyncHandler(async (req, res) => {
+    // Validate tenant context first
+    validateTenantContext(req);
+
     const userId = req.userID;
     const firmId = req.firmId; // From firmFilter middleware
 
