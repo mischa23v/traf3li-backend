@@ -132,6 +132,20 @@ const validateAuthCode = (code) => {
  */
 const getEnabledProviders = async (request, response) => {
     try {
+        // Aggressive logging for SSO debugging
+        // eslint-disable-next-line no-console
+        console.log('[SSO] getEnabledProviders called:', {
+            path: request.path,
+            method: request.method,
+            query: request.query,
+            headers: {
+                origin: request.headers.origin,
+                referer: request.headers.referer
+            },
+            user: request.user ? 'authenticated' : 'unauthenticated',
+            userID: request.userID || 'none'
+        });
+
         // Get firmId from authenticated user if available
         let firmId = request.user?.firmId || request.query.firmId || null;
 
@@ -542,6 +556,23 @@ const getLinkedAccounts = async (request, response) => {
  */
 const initiateSSO = async (request, response) => {
     try {
+        // Aggressive logging for SSO debugging
+        // eslint-disable-next-line no-console
+        console.log('[SSO] initiateSSO called:', {
+            body: request.body,
+            path: request.path,
+            method: request.method,
+            headers: {
+                origin: request.headers.origin,
+                referer: request.headers.referer,
+                'content-type': request.headers['content-type'],
+                'x-csrf-token': request.headers['x-csrf-token'] ? 'present' : 'missing'
+            },
+            cookies: Object.keys(request.cookies || {}),
+            user: request.user ? 'authenticated' : 'unauthenticated',
+            userID: request.userID || 'none'
+        });
+
         const { provider, returnUrl, firmId, use_pkce } = request.body;
 
         // Validate provider
