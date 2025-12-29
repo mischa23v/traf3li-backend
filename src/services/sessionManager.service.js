@@ -24,10 +24,13 @@ class SessionManagerService {
      * @param {String} userId - User ID
      * @param {String} token - JWT token
      * @param {Object} deviceInfo - Device information from request
+     * @param {Object} options - Session options
+     * @param {Boolean} options.rememberMe - If true, extends session to 30 days
      * @returns {Promise<Object>} Created session
      */
-    async createSession(userId, token, deviceInfo = {}) {
+    async createSession(userId, token, deviceInfo = {}, options = {}) {
         try {
+            const { rememberMe = false } = options;
             const tokenHash = Session.hashToken(token);
 
             // Parse user agent for device details
@@ -56,8 +59,9 @@ class SessionManagerService {
             // Check if this is a new device
             const isKnownDevice = await Session.isKnownDevice(userId, parsedDeviceInfo);
 
-            // Calculate expiration (7 days default, matching JWT expiration)
-            const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+            // Calculate expiration (30 days for "Remember Me", 7 days otherwise)
+            const expirationDays = rememberMe ? 30 : 7;
+            const expiresAt = new Date(Date.now() + expirationDays * 24 * 60 * 60 * 1000);
 
             // Create session
             const session = new Session({
@@ -71,6 +75,7 @@ class SessionManagerService {
                 expiresAt,
                 isActive: true,
                 isNewDevice: !isKnownDevice,
+                rememberMe, // Track "Remember Me" preference
                 metadata: deviceInfo.metadata || {}
             });
 

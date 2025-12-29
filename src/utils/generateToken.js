@@ -187,25 +187,29 @@ const generateAccessToken = async (user, context = {}) => {
 /**
  * Generate refresh token (long-lived)
  * @param {object} user - User object from database
+ * @param {object} options - Token options
+ * @param {boolean} options.rememberMe - If true, extends token to 30 days
  * @returns {string} - JWT refresh token
  */
-const generateRefreshToken = (user) => {
+const generateRefreshToken = (user, options = {}) => {
   try {
     const { refreshSecret } = getSecrets();
-    
+    const { rememberMe = false } = options;
+
     const payload = {
       id: user._id.toString(),
       // Refresh token contains minimal info for security
     };
-    
-    const options = {
-      expiresIn: '7d', // 7 days
+
+    const tokenOptions = {
+      // 30 days for "Remember Me", 7 days otherwise
+      expiresIn: rememberMe ? '30d' : '7d',
       issuer: 'traf3li',
       audience: 'traf3li-users',
       algorithm: 'HS256',
     };
 
-    return jwt.sign(payload, refreshSecret, options);
+    return jwt.sign(payload, refreshSecret, tokenOptions);
   } catch (error) {
     logger.error('Refresh token generation failed:', error.message);
     throw new Error('Token generation failed');
@@ -311,12 +315,14 @@ const verifyRefreshToken = (token) => {
  * Generate both tokens at once (for login)
  * @param {object} user - User object from database
  * @param {object} context - Additional context for custom claims
+ * @param {object} options - Token options
+ * @param {boolean} options.rememberMe - If true, extends refresh token to 30 days
  * @returns {Promise<object>} - { accessToken, refreshToken }
  */
-const generateTokenPair = async (user, context = {}) => {
+const generateTokenPair = async (user, context = {}, options = {}) => {
   return {
     accessToken: await generateAccessToken(user, context),
-    refreshToken: generateRefreshToken(user),
+    refreshToken: generateRefreshToken(user, options),
   };
 };
 

@@ -131,6 +131,13 @@ const sessionSchema = new mongoose.Schema({
         ref: 'User'
     },
 
+    // Remember Me flag (extended session)
+    rememberMe: {
+        type: Boolean,
+        default: false,
+        index: true
+    },
+
     // Security flags
     isNewDevice: {
         type: Boolean,

@@ -32,6 +32,7 @@ const isProductionEnv = NODE_ENV === 'production' ||
 // ═══════════════════════════════════════════════════════════════
 const ACCESS_TOKEN_COOKIE_MAX_AGE = 15 * 60 * 1000; // 15 minutes (matches JWT)
 const REFRESH_TOKEN_COOKIE_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days (matches JWT)
+const REFRESH_TOKEN_REMEMBERED_MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days for "Remember Me"
 const CSRF_TOKEN_COOKIE_MAX_AGE = parseInt(process.env.CSRF_TOKEN_TTL || '3600', 10) * 1000; // Default: 1 hour
 
 // ═══════════════════════════════════════════════════════════════
@@ -139,14 +140,19 @@ const getCookieDomain = (request) => {
  *
  * @param {Object} request - Express request object
  * @param {string} tokenType - 'access', 'refresh', or 'csrf' to set appropriate maxAge
+ * @param {Object} options - Additional options
+ * @param {boolean} options.rememberMe - If true, extends refresh token cookie to 30 days
  * @returns {Object} - Cookie configuration object
  */
-const getCookieConfig = (request, tokenType = 'access') => {
+const getCookieConfig = (request, tokenType = 'access', options = {}) => {
+    const { rememberMe = false } = options;
+
     // Determine maxAge based on token type
     let maxAge;
     switch (tokenType) {
         case 'refresh':
-            maxAge = REFRESH_TOKEN_COOKIE_MAX_AGE;
+            // Use extended expiry for "Remember Me" sessions
+            maxAge = rememberMe ? REFRESH_TOKEN_REMEMBERED_MAX_AGE : REFRESH_TOKEN_COOKIE_MAX_AGE;
             break;
         case 'csrf':
             maxAge = CSRF_TOKEN_COOKIE_MAX_AGE;
@@ -239,5 +245,6 @@ module.exports = {
     // Export constants for testing
     ACCESS_TOKEN_COOKIE_MAX_AGE,
     REFRESH_TOKEN_COOKIE_MAX_AGE,
+    REFRESH_TOKEN_REMEMBERED_MAX_AGE,
     CSRF_TOKEN_COOKIE_MAX_AGE
 };

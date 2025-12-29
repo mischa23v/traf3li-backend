@@ -27,6 +27,12 @@ const loginSchema = Joi.object({
         .required()
         .messages({
             'any.required': 'كلمة المرور مطلوبة / Password is required'
+        }),
+    rememberMe: Joi.boolean()
+        .optional()
+        .default(false)
+        .messages({
+            'boolean.base': 'قيمة تذكرني غير صالحة / Invalid rememberMe value'
         })
 }).or('email', 'username').messages({
     'object.missing': 'البريد الإلكتروني أو اسم المستخدم مطلوب / Email or username is required'

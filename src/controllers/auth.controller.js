@@ -553,7 +553,7 @@ const authRegister = async (request, response) => {
 };
 
 const authLogin = async (request, response) => {
-    const { username, email, password, mfaCode } = request.body;
+    const { username, email, password, mfaCode, rememberMe = false } = request.body;
 
     // Support both 'username' and 'email' fields from frontend
     const loginIdentifier = username || email;
@@ -928,11 +928,12 @@ const authLogin = async (request, response) => {
                 device: request.headers['sec-ch-ua-mobile'] === '?1' ? 'mobile' : 'desktop'
             };
 
-            // Generate refresh token (long-lived, 7 days)
+            // Generate refresh token (7 days normal, 30 days for "Remember Me")
             const refreshToken = await refreshTokenService.createRefreshToken(
                 user._id.toString(),
                 deviceInfo,
-                user.firmId
+                user.firmId,
+                { rememberMe }
             );
 
             // Get cookie config based on request context (same-origin proxy vs cross-origin)
@@ -1008,7 +1009,7 @@ const authLogin = async (request, response) => {
                 city: request.headers['cf-ipcity'] || null,
                 region: request.headers['cf-ipregion'] || null,
                 timezone: user.timezone || 'Asia/Riyadh'
-            }).catch(err => logger.error('Failed to create session', { error: err.message }));
+            }, { rememberMe }).catch(err => logger.error('Failed to create session', { error: err.message }));
 
             // Enforce session limit (fire-and-forget, non-blocking)
             (async () => {
@@ -1040,12 +1041,13 @@ const authLogin = async (request, response) => {
                     details: {
                         lawyerWorkMode: user.lawyerWorkMode,
                         isSoloLawyer: user.isSoloLawyer,
+                        rememberMe, // Track "Remember Me" usage
                     }
                 }
             );
 
-            // Get refresh token cookie config with proper expiry
-            const refreshCookieConfig = getCookieConfig(request, 'refresh');
+            // Get refresh token cookie config with proper expiry (extended for "Remember Me")
+            const refreshCookieConfig = getCookieConfig(request, 'refresh', { rememberMe });
 
             // Generate CSRF token for the session (if enabled)
             let csrfTokenData = null;
