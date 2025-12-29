@@ -705,18 +705,23 @@ const callbackPost = async (request, response) => {
             userId: result.user?.id
         });
 
-        // For existing users, set the token cookie
+        // For existing users, set both accessToken and refreshToken cookies (matching regular login)
         if (!result.isNewUser && result.token) {
-            const cookieConfig = getCookieConfig(request);
+            const accessCookieConfig = getCookieConfig(request, 'access');
+            const refreshCookieConfig = getCookieConfig(request, 'refresh');
             // eslint-disable-next-line no-console
-            console.log('[SSO CALLBACK] Setting accessToken cookie:', {
-                cookieConfig,
-                tokenLength: result.token.length
+            console.log('[SSO CALLBACK] Setting cookies:', {
+                accessTokenLength: result.token.length,
+                hasRefreshToken: !!result.refreshToken,
+                refreshTokenLength: result.refreshToken?.length
             });
-            response.cookie('accessToken', result.token, cookieConfig);
+            response.cookie('accessToken', result.token, accessCookieConfig);
+            if (result.refreshToken) {
+                response.cookie('refreshToken', result.refreshToken, refreshCookieConfig);
+            }
         } else {
             // eslint-disable-next-line no-console
-            console.log('[SSO CALLBACK] NOT setting cookie:', {
+            console.log('[SSO CALLBACK] NOT setting cookies:', {
                 isNewUser: result.isNewUser,
                 hasToken: !!result.token
             });
