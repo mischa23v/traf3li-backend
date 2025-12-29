@@ -41,18 +41,45 @@ const PUBLIC_ROUTES = [
     '/auth/forgot-password',
     '/auth/reset-password',
     '/auth/verify-email',
+    '/auth/send-otp',
     '/auth/verify-otp',
+    '/auth/resend-otp',
+    '/auth/otp-status',
     '/auth/csrf',
+    '/auth/check-availability',
+    '/auth/refresh',
+    '/auth/anonymous',
+    '/auth/google/one-tap',
+
+    // Phone OTP (passwordless login)
+    '/auth/phone/send-otp',
+    '/auth/phone/verify-otp',
+    '/auth/phone/resend-otp',
+    '/auth/phone/otp-status',
+
+    // Magic link (passwordless login)
+    '/auth/magic-link/send',
+    '/auth/magic-link/verify',
 
     // OAuth/SSO providers
     '/auth/google',
     '/auth/google/callback',
-    '/auth/saml',
-    '/auth/saml/callback',
+    '/auth/saml/*',
+    // SSO public endpoints (specific routes, not wildcard to protect /link, /unlink, /linked)
     '/auth/sso/providers',
     '/auth/sso/initiate',
     '/auth/sso/detect',
     '/auth/sso/callback',
+    // Dynamic SSO provider routes (Google, Microsoft, etc.)
+    '/auth/sso/google',
+    '/auth/sso/microsoft',
+    '/auth/sso/facebook',
+    '/auth/sso/apple',
+    '/auth/sso/github',
+    '/auth/sso/linkedin',
+    '/auth/sso/twitter',
+    '/auth/sso/okta',
+    '/auth/sso/auth0',
 
     // CAPTCHA (needed before login/register)
     '/auth/verify-captcha',
