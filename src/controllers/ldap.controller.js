@@ -735,14 +735,26 @@ const login = async (request, response) => {
             }
         );
 
-        // Set cookie using secure centralized configuration
-        response.cookie('token', result.token, getCookieConfig(request, 'refresh'));
+        // Set cookies using secure centralized configuration
+        const accessCookieConfig = getCookieConfig(request, 'access');
+        const refreshCookieConfig = getCookieConfig(request, 'refresh');
+
+        response.cookie('accessToken', result.token, accessCookieConfig);
+        response.cookie('refreshToken', result.refreshToken, refreshCookieConfig);
 
         return response.status(200).json({
             error: false,
             message: result.message,
-            data: result.user,
-            token: result.token
+            // OAuth 2.0 standard format (snake_case) - Industry standard for tokens
+            access_token: result.access_token,
+            refresh_token: result.refresh_token,
+            token_type: result.token_type || 'Bearer',
+            expires_in: result.expires_in || 900,
+            // Backwards compatibility (camelCase)
+            accessToken: result.token,
+            refreshToken: result.refreshToken,
+            user: result.user,
+            data: result.user // Legacy field for backwards compat
         });
 
     } catch (error) {
