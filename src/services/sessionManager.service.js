@@ -59,8 +59,10 @@ class SessionManagerService {
             // Check if this is a new device
             const isKnownDevice = await Session.isKnownDevice(userId, parsedDeviceInfo);
 
-            // Calculate expiration (30 days for "Remember Me", 7 days otherwise)
-            const expirationDays = rememberMe ? 30 : 7;
+            // Calculate expiration using configurable durations (default: 7 days / 30 days)
+            const normalDays = parseInt(process.env.REFRESH_TOKEN_DAYS || '7', 10);
+            const rememberMeDays = parseInt(process.env.REMEMBER_ME_DAYS || '30', 10);
+            const expirationDays = rememberMe ? rememberMeDays : normalDays;
             const expiresAt = new Date(Date.now() + expirationDays * 24 * 60 * 60 * 1000);
 
             // Create session

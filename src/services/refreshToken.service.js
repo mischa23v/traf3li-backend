@@ -46,17 +46,20 @@ const createRefreshToken = async (userId, deviceInfo = {}, firmId = null, option
         // Hash token for storage
         const tokenHash = RefreshToken.hashToken(refreshTokenJWT);
 
-        // Calculate expiration (30 days for "Remember Me", 7 days otherwise)
-        const expirationDays = rememberMe ? 30 : 7;
+        // Calculate expiration using configurable durations (default: 7 days / 30 days)
+        const normalDays = parseInt(process.env.REFRESH_TOKEN_DAYS || '7', 10);
+        const rememberMeDays = parseInt(process.env.REMEMBER_ME_DAYS || '30', 10);
+        const expirationDays = rememberMe ? rememberMeDays : normalDays;
         const expiresAt = new Date(Date.now() + expirationDays * 24 * 60 * 60 * 1000);
 
-        // Store in database
+        // Store in database (including rememberMe for sliding expiration)
         const refreshToken = await RefreshToken.create({
             token: tokenHash,
             userId,
             firmId,
             expiresAt,
             family,
+            rememberMe, // Preserve for sliding expiration on token rotation
             deviceInfo: {
                 userAgent: deviceInfo.userAgent || 'unknown',
                 ip: deviceInfo.ip || 'unknown',
@@ -165,19 +168,27 @@ const refreshAccessToken = async (refreshTokenJWT) => {
             throw new Error('USER_NOT_FOUND');
         }
 
-        // 6. Generate new token pair (rotation)
+        // 6. Generate new token pair (rotation) - preserve rememberMe for sliding expiration
+        const wasRemembered = refreshToken.rememberMe || false;
         const newAccessToken = await generateAccessToken(user);
-        const newRefreshTokenJWT = generateRefreshToken(user);
+        const newRefreshTokenJWT = generateRefreshToken(user, { rememberMe: wasRemembered });
         const newTokenHash = RefreshToken.hashToken(newRefreshTokenJWT);
 
-        // 7. Store new refresh token with same family
+        // 7. Calculate sliding expiration (reset timer on each refresh)
+        const normalDays = parseInt(process.env.REFRESH_TOKEN_DAYS || '7', 10);
+        const rememberMeDays = parseInt(process.env.REMEMBER_ME_DAYS || '30', 10);
+        const expirationDays = wasRemembered ? rememberMeDays : normalDays;
+        const newExpiresAt = new Date(Date.now() + expirationDays * 24 * 60 * 60 * 1000);
+
+        // 8. Store new refresh token with same family and rememberMe preference
         const newRefreshToken = await RefreshToken.create({
             token: newTokenHash,
             userId: user._id,
             firmId: refreshToken.firmId,
-            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+            expiresAt: newExpiresAt, // Sliding expiration: reset timer
             family: refreshToken.family, // Same family for rotation chain
             rotatedFrom: refreshToken._id,
+            rememberMe: wasRemembered, // Preserve rememberMe preference
             deviceInfo: refreshToken.deviceInfo
         });
 

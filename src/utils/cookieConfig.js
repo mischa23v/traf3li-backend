@@ -29,10 +29,14 @@ const isProductionEnv = NODE_ENV === 'production' ||
 
 // ═══════════════════════════════════════════════════════════════
 // COOKIE EXPIRY CONSTANTS - Must match JWT expiry times
+// Configurable via environment variables for enterprise flexibility
 // ═══════════════════════════════════════════════════════════════
+const REFRESH_TOKEN_DAYS = parseInt(process.env.REFRESH_TOKEN_DAYS || '7', 10);
+const REMEMBER_ME_DAYS = parseInt(process.env.REMEMBER_ME_DAYS || '30', 10);
+
 const ACCESS_TOKEN_COOKIE_MAX_AGE = 15 * 60 * 1000; // 15 minutes (matches JWT)
-const REFRESH_TOKEN_COOKIE_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days (matches JWT)
-const REFRESH_TOKEN_REMEMBERED_MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days for "Remember Me"
+const REFRESH_TOKEN_COOKIE_MAX_AGE = REFRESH_TOKEN_DAYS * 24 * 60 * 60 * 1000; // Default: 7 days
+const REFRESH_TOKEN_REMEMBERED_MAX_AGE = REMEMBER_ME_DAYS * 24 * 60 * 60 * 1000; // Default: 30 days for "Remember Me"
 const CSRF_TOKEN_COOKIE_MAX_AGE = parseInt(process.env.CSRF_TOKEN_TTL || '3600', 10) * 1000; // Default: 1 hour
 
 // ═══════════════════════════════════════════════════════════════
