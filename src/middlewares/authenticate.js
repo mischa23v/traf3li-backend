@@ -3,7 +3,16 @@ const { CustomException } = require("../utils");
 const logger = require('../utils/contextLogger');
 
 const authenticate = (request, response, next) => {
-    const { accessToken } = request.cookies;
+    // Check for token in both cookies and Authorization header (matching jwt.js behavior)
+    let accessToken = request.cookies?.accessToken;
+
+    // If no token in cookies, check Authorization header
+    if (!accessToken && request.headers.authorization) {
+        const authHeader = request.headers.authorization;
+        if (authHeader.startsWith('Bearer ')) {
+            accessToken = authHeader.substring(7); // Remove 'Bearer ' prefix
+        }
+    }
 
     try {
         if (!accessToken) {
@@ -23,7 +32,8 @@ const authenticate = (request, response, next) => {
 
         const verification = jwt.verify(accessToken, process.env.JWT_SECRET);
         if(verification) {
-            request.userID = verification._id;
+            // Handle both 'id' and '_id' in token payload (generateToken uses 'id')
+            request.userID = verification._id || verification.id;
             return next();
         }
 
