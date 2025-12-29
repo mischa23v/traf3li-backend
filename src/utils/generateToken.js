@@ -196,14 +196,18 @@ const generateRefreshToken = (user, options = {}) => {
     const { refreshSecret } = getSecrets();
     const { rememberMe = false } = options;
 
+    // Configurable durations via environment variables (default: 7 days / 30 days)
+    const normalDays = parseInt(process.env.REFRESH_TOKEN_DAYS || '7', 10);
+    const rememberMeDays = parseInt(process.env.REMEMBER_ME_DAYS || '30', 10);
+
     const payload = {
       id: user._id.toString(),
       // Refresh token contains minimal info for security
     };
 
     const tokenOptions = {
-      // 30 days for "Remember Me", 7 days otherwise
-      expiresIn: rememberMe ? '30d' : '7d',
+      // Use configurable durations for enterprise flexibility
+      expiresIn: rememberMe ? `${rememberMeDays}d` : `${normalDays}d`,
       issuer: 'traf3li',
       audience: 'traf3li-users',
       algorithm: 'HS256',

@@ -909,9 +909,20 @@ const authLogin = async (request, response) => {
             if (user.firmId) {
                 try {
                     firmForToken = await Firm.findById(user.firmId)
-                        .select('name nameEnglish licenseNumber status members subscription');
+                        .select('name nameEnglish licenseNumber status members subscription enterpriseSettings');
                 } catch (firmErr) {
                     logger.warn('Failed to fetch firm for token generation', { error: firmErr.message });
+                }
+            }
+
+            // Check if firm allows "Remember Me" feature (enterprise control)
+            // Solo lawyers always have rememberMe allowed
+            let effectiveRememberMe = rememberMe;
+            if (rememberMe && firmForToken) {
+                const allowRememberMe = firmForToken.enterpriseSettings?.allowRememberMe ?? true;
+                if (!allowRememberMe) {
+                    effectiveRememberMe = false;
+                    logger.info('Remember Me disabled by firm policy', { firmId: user.firmId });
                 }
             }
 
@@ -933,7 +944,7 @@ const authLogin = async (request, response) => {
                 user._id.toString(),
                 deviceInfo,
                 user.firmId,
-                { rememberMe }
+                { rememberMe: effectiveRememberMe }
             );
 
             // Get cookie config based on request context (same-origin proxy vs cross-origin)
@@ -1009,7 +1020,7 @@ const authLogin = async (request, response) => {
                 city: request.headers['cf-ipcity'] || null,
                 region: request.headers['cf-ipregion'] || null,
                 timezone: user.timezone || 'Asia/Riyadh'
-            }, { rememberMe }).catch(err => logger.error('Failed to create session', { error: err.message }));
+            }, { rememberMe: effectiveRememberMe }).catch(err => logger.error('Failed to create session', { error: err.message }));
 
             // Enforce session limit (fire-and-forget, non-blocking)
             (async () => {
@@ -1041,13 +1052,14 @@ const authLogin = async (request, response) => {
                     details: {
                         lawyerWorkMode: user.lawyerWorkMode,
                         isSoloLawyer: user.isSoloLawyer,
-                        rememberMe, // Track "Remember Me" usage
+                        rememberMe: effectiveRememberMe, // Track "Remember Me" usage (respects firm policy)
+                        rememberMeRequested: rememberMe, // Original user request
                     }
                 }
             );
 
             // Get refresh token cookie config with proper expiry (extended for "Remember Me")
-            const refreshCookieConfig = getCookieConfig(request, 'refresh', { rememberMe });
+            const refreshCookieConfig = getCookieConfig(request, 'refresh', { rememberMe: effectiveRememberMe });
 
             // Generate CSRF token for the session (if enabled)
             let csrfTokenData = null;

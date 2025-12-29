@@ -94,6 +94,13 @@ const refreshTokenSchema = new mongoose.Schema({
     lastUsedAt: {
         type: Date,
         default: Date.now
+    },
+
+    // Remember Me flag - preserved across token rotation for sliding expiration
+    rememberMe: {
+        type: Boolean,
+        default: false,
+        index: true
     }
 }, {
     timestamps: true,

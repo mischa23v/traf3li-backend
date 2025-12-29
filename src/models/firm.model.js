@@ -385,6 +385,8 @@ const firmSchema = new mongoose.Schema({
         minPasswordStrengthScore: { type: Number, default: 50 }, // Minimum password strength (0-100)
         sessionTimeoutMinutes: { type: Number, default: 30 },
         maxSessionsPerUser: { type: Number, default: 5 }, // Concurrent session limit
+        allowRememberMe: { type: Boolean, default: true }, // Allow "Keep me signed in" feature
+        rememberMeDays: { type: Number, default: 30 }, // Custom duration for "Remember Me" (overrides env var)
         ipWhitelist: [String],
         ipWhitelistEnabled: { type: Boolean, default: false },
 
