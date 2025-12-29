@@ -41,8 +41,25 @@ const PUBLIC_ROUTES = [
     '/auth/forgot-password',
     '/auth/reset-password',
     '/auth/verify-email',
+    '/auth/send-otp',
     '/auth/verify-otp',
+    '/auth/resend-otp',
+    '/auth/otp-status',
     '/auth/csrf',
+    '/auth/check-availability',
+    '/auth/refresh',
+    '/auth/anonymous',
+    '/auth/google/one-tap',
+
+    // Phone OTP (passwordless login)
+    '/auth/phone/send-otp',
+    '/auth/phone/verify-otp',
+    '/auth/phone/resend-otp',
+    '/auth/phone/otp-status',
+
+    // Magic link (passwordless login)
+    '/auth/magic-link/send',
+    '/auth/magic-link/verify',
 
     // OAuth/SSO providers
     '/auth/google',
