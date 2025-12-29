@@ -926,12 +926,7 @@ leadSchema.index({ firmId: 1, territoryId: 1, status: 1 });
 // ═══════════════════════════════════════════════════════════════
 // VIRTUALS
 // ═══════════════════════════════════════════════════════════════
-leadSchema.virtual('displayName').get(function() {
-    if (this.type === 'company') {
-        return this.companyName || this.companyNameAr;
-    }
-    return `${this.firstName || ''} ${this.lastName || ''}`.trim();
-});
+// Note: displayName is a real field, not a virtual (see schema definition)
 
 leadSchema.virtual('daysSinceCreated').get(function() {
     return Math.floor((Date.now() - this.createdAt) / (1000 * 60 * 60 * 24));
