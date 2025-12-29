@@ -640,6 +640,17 @@ const callbackPost = async (request, response) => {
     try {
         const { provider, code, state } = request.body;
 
+        // eslint-disable-next-line no-console
+        console.log('[SSO CALLBACK] ========== START ==========');
+        // eslint-disable-next-line no-console
+        console.log('[SSO CALLBACK] Request body:', {
+            provider,
+            codeLength: code?.length,
+            stateLength: state?.length,
+            hasCode: !!code,
+            hasState: !!state
+        });
+
         // Validate provider type
         const validatedProviderType = validateProviderType(provider);
         if (!validatedProviderType) {
@@ -665,6 +676,9 @@ const callbackPost = async (request, response) => {
         const ipAddress = request.ip || request.headers['x-forwarded-for']?.split(',')[0] || 'unknown';
         const userAgent = request.headers['user-agent'] || 'unknown';
 
+        // eslint-disable-next-line no-console
+        console.log('[SSO CALLBACK] Calling oauthService.handleCallback...');
+
         // Handle the OAuth callback
         const result = await oauthService.handleCallback(
             validatedProviderType,
@@ -673,6 +687,17 @@ const callbackPost = async (request, response) => {
             ipAddress,
             userAgent
         );
+
+        // eslint-disable-next-line no-console
+        console.log('[SSO CALLBACK] handleCallback result:', {
+            hasToken: !!result.token,
+            tokenLength: result.token?.length,
+            tokenPreview: result.token?.substring(0, 20) + '...',
+            isNewUser: result.isNewUser,
+            userId: result.user?.id,
+            userEmail: result.user?.email,
+            hasUser: !!result.user
+        });
 
         logger.info('SSO callback processed successfully', {
             provider: validatedProviderType,
@@ -683,18 +708,49 @@ const callbackPost = async (request, response) => {
         // For existing users, set the token cookie
         if (!result.isNewUser && result.token) {
             const cookieConfig = getCookieConfig(request);
+            // eslint-disable-next-line no-console
+            console.log('[SSO CALLBACK] Setting accessToken cookie:', {
+                cookieConfig,
+                tokenLength: result.token.length
+            });
             response.cookie('accessToken', result.token, cookieConfig);
+        } else {
+            // eslint-disable-next-line no-console
+            console.log('[SSO CALLBACK] NOT setting cookie:', {
+                isNewUser: result.isNewUser,
+                hasToken: !!result.token
+            });
         }
 
-        // Return response matching frontend expectations
-        return response.status(200).json({
+        const responseData = {
             error: false,
             message: result.isNewUser ? 'New user detected, please complete registration' : 'Authentication successful',
             user: result.user,
             isNewUser: result.isNewUser,
             token: result.isNewUser ? null : result.token // Only provide token for existing users
+        };
+
+        // eslint-disable-next-line no-console
+        console.log('[SSO CALLBACK] Sending response:', {
+            error: responseData.error,
+            message: responseData.message,
+            hasUser: !!responseData.user,
+            isNewUser: responseData.isNewUser,
+            hasToken: !!responseData.token,
+            tokenLength: responseData.token?.length
         });
+        // eslint-disable-next-line no-console
+        console.log('[SSO CALLBACK] ========== END ==========');
+
+        // Return response matching frontend expectations
+        return response.status(200).json(responseData);
     } catch (error) {
+        // eslint-disable-next-line no-console
+        console.error('[SSO CALLBACK] ERROR:', {
+            message: error.message,
+            status: error.status,
+            stack: error.stack
+        });
         logger.error('SSO callback failed', { error: error.message });
         return response.status(error.status || 500).json({
             error: true,

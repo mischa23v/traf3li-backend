@@ -80,6 +80,23 @@ const validateDeviceFingerprint = (tokenDevice, currentDevice) => {
  * Validates device fingerprint for enhanced security
  */
 const verifyToken = async (req, res, next) => {
+    // eslint-disable-next-line no-console
+    console.log('[JWT VERIFY] ========== START ==========');
+    // eslint-disable-next-line no-console
+    console.log('[JWT VERIFY] Path:', req.path);
+    // eslint-disable-next-line no-console
+    console.log('[JWT VERIFY] Cookies:', {
+        hasAccessToken: !!req.cookies?.accessToken,
+        accessTokenLength: req.cookies?.accessToken?.length,
+        accessTokenPreview: req.cookies?.accessToken?.substring(0, 30) + '...',
+        allCookieNames: Object.keys(req.cookies || {})
+    });
+    // eslint-disable-next-line no-console
+    console.log('[JWT VERIFY] Authorization header:', {
+        hasHeader: !!req.headers.authorization,
+        headerPreview: req.headers.authorization?.substring(0, 30) + '...'
+    });
+
     // Check for token in both cookies and Authorization header
     let token = req.cookies?.accessToken;
 
@@ -91,8 +108,18 @@ const verifyToken = async (req, res, next) => {
         }
     }
 
+    // eslint-disable-next-line no-console
+    console.log('[JWT VERIFY] Token source:', {
+        hasToken: !!token,
+        tokenLength: token?.length,
+        tokenPreview: token?.substring(0, 30) + '...',
+        source: req.cookies?.accessToken ? 'cookie' : (req.headers.authorization ? 'header' : 'none')
+    });
+
     try {
         if (!token) {
+            // eslint-disable-next-line no-console
+            console.log('[JWT VERIFY] ERROR: No token found');
             throw CustomException('Authentication required', 401);
         }
 
@@ -101,7 +128,20 @@ const verifyToken = async (req, res, next) => {
         let decoded;
         try {
             decoded = verifyAccessToken(token);
+            // eslint-disable-next-line no-console
+            console.log('[JWT VERIFY] Token decoded successfully:', {
+                userId: decoded?._id || decoded?.id,
+                isSeller: decoded?.isSeller,
+                firmId: decoded?.firm_id,
+                exp: decoded?.exp,
+                iat: decoded?.iat
+            });
         } catch (verifyError) {
+            // eslint-disable-next-line no-console
+            console.log('[JWT VERIFY] Token verification FAILED:', {
+                errorName: verifyError.name,
+                errorMessage: verifyError.message
+            });
             // Map verification errors to appropriate error codes
             if (verifyError.message === 'TOKEN_EXPIRED') {
                 return res.status(401).json({
