@@ -490,11 +490,32 @@ const authRegister = async (request, response) => {
             }
         })();
 
-        // For OAuth registration, generate token and set cookie so user is logged in
+        // For OAuth registration, generate tokens and set cookies so user is logged in
+        // This matches the behavior of regular login and SSO login
         if (isOAuthRegistration) {
             const token = await generateAccessToken(user);
-            const cookieConfig = getCookieConfig(request);
-            response.cookie('accessToken', token, cookieConfig);
+
+            // Create device info for refresh token
+            const deviceInfo = {
+                userAgent: request.headers['user-agent'] || 'unknown',
+                ip: request.ip || request.headers['x-forwarded-for']?.split(',')[0] || 'unknown',
+                deviceId: request.headers['x-device-id'] || null,
+                browser: request.headers['sec-ch-ua'] || null,
+                os: request.headers['sec-ch-ua-platform'] || null,
+                device: request.headers['sec-ch-ua-mobile'] === '?1' ? 'mobile' : 'desktop'
+            };
+
+            // Generate refresh token (matches regular login behavior)
+            const refreshToken = await refreshTokenService.createRefreshToken(
+                user._id.toString(),
+                deviceInfo,
+                user.firmId
+            );
+
+            // Set both cookies with proper config
+            response.cookie('accessToken', token, getCookieConfig(request, 'access'));
+            response.cookie('refreshToken', refreshToken, getCookieConfig(request, 'refresh'));
+
             responseData.token = token;
             responseData.message = 'تم إنشاء الحساب بنجاح عبر ' + oauthProvider;
         }
@@ -1715,14 +1736,29 @@ const verifyMagicLink = async (request, response) => {
         // Record session activity
         recordActivity(user._id.toString());
 
-        // Generate JWT token
-        const jwtToken = jwt.sign({
-            _id: user._id,
-            isSeller: user.isSeller
-        }, JWT_SECRET, { expiresIn: '7 days' });
+        // Generate access token using proper utility (matches regular login)
+        const accessToken = await generateAccessToken(user);
 
-        // Get cookie config based on request context
-        const cookieConfig = getCookieConfig(request);
+        // Create device info for refresh token
+        const deviceInfo = {
+            userAgent,
+            ip: ipAddress,
+            deviceId: request.headers['x-device-id'] || null,
+            browser: request.headers['sec-ch-ua'] || null,
+            os: request.headers['sec-ch-ua-platform'] || null,
+            device: request.headers['sec-ch-ua-mobile'] === '?1' ? 'mobile' : 'desktop'
+        };
+
+        // Generate refresh token (matches regular login behavior)
+        const refreshToken = await refreshTokenService.createRefreshToken(
+            user._id.toString(),
+            deviceInfo,
+            user.firmId
+        );
+
+        // Get cookie configs for access and refresh tokens
+        const accessCookieConfig = getCookieConfig(request, 'access');
+        const refreshCookieConfig = getCookieConfig(request, 'refresh');
 
         // Build user data with firm info if applicable
         const userData = {
@@ -1781,7 +1817,7 @@ const verifyMagicLink = async (request, response) => {
         }
 
         // Create session record
-        sessionManager.createSession(user._id, jwtToken, {
+        sessionManager.createSession(user._id, accessToken, {
             userAgent,
             ip: ipAddress,
             firmId: user.firmId,
@@ -1820,7 +1856,9 @@ const verifyMagicLink = async (request, response) => {
             }
         );
 
-        return response.cookie('accessToken', jwtToken, cookieConfig)
+        return response
+            .cookie('accessToken', accessToken, accessCookieConfig)
+            .cookie('refreshToken', refreshToken, refreshCookieConfig)
             .status(200).json({
                 error: false,
                 message: 'تم تسجيل الدخول بنجاح',
