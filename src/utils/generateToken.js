@@ -141,8 +141,20 @@ const generateAccessToken = async (user, context = {}) => {
       // Custom claims take precedence but won't override JWT standard claims (iss, exp, etc.)
       Object.assign(payload, customClaims);
     } catch (claimsError) {
-      // Log error but don't fail token generation
-      logger.warn('Failed to get custom claims, using basic payload:', claimsError.message);
+      // For users with firmId, custom claims are REQUIRED for tenant isolation
+      // Solo lawyers without firmId can proceed with basic claims
+      if (user.firmId) {
+        logger.error('CRITICAL: Custom claims failed for firm user - cannot generate token:', claimsError.message);
+        throw new Error('Token generation failed: custom claims required for firm users');
+      }
+
+      // Solo lawyers can proceed with basic payload + essential claims
+      logger.warn('Custom claims failed for solo user, using basic payload:', claimsError.message);
+
+      // Add essential solo lawyer claims manually
+      payload.is_solo_lawyer = true;
+      payload.firm_id = null;
+      payload.user_id = user._id.toString();
     }
 
     // SECURITY: Anonymous users get 24-hour access tokens (vs 15 min for normal users)

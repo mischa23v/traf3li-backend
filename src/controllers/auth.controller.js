@@ -875,8 +875,19 @@ const authLogin = async (request, response) => {
             // PERF: With .lean(), user is already a plain object (no _doc needed)
             const { password: pwd, ...data } = user;
 
+            // Fetch firm for token context (if user has firm) - matches OAuth pattern
+            let firmForToken = null;
+            if (user.firmId) {
+                try {
+                    firmForToken = await Firm.findById(user.firmId)
+                        .select('name nameEnglish licenseNumber status members subscription');
+                } catch (firmErr) {
+                    logger.warn('Failed to fetch firm for token generation', { error: firmErr.message });
+                }
+            }
+
             // Generate access token (short-lived, 15 minutes)
-            const accessToken = await generateAccessToken(user);
+            const accessToken = await generateAccessToken(user, { firm: firmForToken });
 
             // Create device info for refresh token
             const deviceInfo = {
@@ -909,8 +920,8 @@ const authLogin = async (request, response) => {
             if (user.role === 'lawyer' || user.isSeller) {
                 if (user.firmId) {
                     try {
-                        const firm = await Firm.findById(user.firmId)
-                            .select('name nameEnglish licenseNumber status members subscription');
+                        // Reuse firm fetched earlier for token generation
+                        const firm = firmForToken;
 
                         if (firm) {
                             const member = firm.members?.find(
@@ -1715,11 +1726,25 @@ const verifyMagicLink = async (request, response) => {
         // Record session activity
         recordActivity(user._id.toString());
 
-        // Generate JWT token
-        const jwtToken = jwt.sign({
-            _id: user._id,
-            isSeller: user.isSeller
-        }, JWT_SECRET, { expiresIn: '7 days' });
+        // Generate access token (short-lived, 15 minutes)
+        const accessToken = await generateAccessToken(user);
+
+        // Create device info for refresh token
+        const deviceInfo = {
+            userAgent: userAgent,
+            ip: ipAddress,
+            deviceId: request.headers['x-device-id'] || null,
+            browser: request.headers['sec-ch-ua'] || null,
+            os: request.headers['sec-ch-ua-platform'] || null,
+            device: request.headers['sec-ch-ua-mobile'] === '?1' ? 'mobile' : 'desktop'
+        };
+
+        // Generate refresh token (long-lived, 7 days)
+        const refreshToken = await refreshTokenService.createRefreshToken(
+            user._id.toString(),
+            deviceInfo,
+            user.firmId
+        );
 
         // Get cookie config based on request context
         const cookieConfig = getCookieConfig(request);
@@ -1781,7 +1806,7 @@ const verifyMagicLink = async (request, response) => {
         }
 
         // Create session record
-        sessionManager.createSession(user._id, jwtToken, {
+        sessionManager.createSession(user._id, accessToken, {
             userAgent,
             ip: ipAddress,
             firmId: user.firmId,
@@ -1820,7 +1845,12 @@ const verifyMagicLink = async (request, response) => {
             }
         );
 
-        return response.cookie('accessToken', jwtToken, cookieConfig)
+        // Get refresh token cookie config with proper expiry
+        const refreshCookieConfig = getCookieConfig(request, 'refresh');
+
+        return response
+            .cookie('accessToken', accessToken, getCookieConfig(request, 'access'))
+            .cookie('refreshToken', refreshToken, refreshCookieConfig)
             .status(200).json({
                 error: false,
                 message: 'تم تسجيل الدخول بنجاح',

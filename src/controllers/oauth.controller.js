@@ -732,10 +732,23 @@ const callbackPost = async (request, response) => {
             message: result.isNewUser ? 'New user detected, please complete registration' : 'Authentication successful',
             user: result.user,
             isNewUser: result.isNewUser,
+            registrationRequired: result.isNewUser,  // Explicit flag for frontend clarity
             // Frontend expects accessToken and refreshToken (not just 'token')
             accessToken: result.isNewUser ? null : result.token,
             refreshToken: result.isNewUser ? null : result.refreshToken || null
         };
+
+        // Add clear logging for new user detection
+        if (result.isNewUser) {
+            // eslint-disable-next-line no-console
+            console.log('[SSO CALLBACK] NEW USER - Registration required:', {
+                email: result.user?.email,
+                registrationRequired: true,
+                tokenProvided: false,
+                provider: validatedProviderType,
+                autoCreateUsers: false
+            });
+        }
 
         // eslint-disable-next-line no-console
         console.log('[SSO CALLBACK] Sending response:', {
@@ -743,6 +756,7 @@ const callbackPost = async (request, response) => {
             message: responseData.message,
             hasUser: !!responseData.user,
             isNewUser: responseData.isNewUser,
+            registrationRequired: responseData.registrationRequired,
             hasAccessToken: !!responseData.accessToken,
             accessTokenLength: responseData.accessToken?.length,
             hasRefreshToken: !!responseData.refreshToken
