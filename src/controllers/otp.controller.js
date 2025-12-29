@@ -10,6 +10,7 @@ const jwt = require('jsonwebtoken');
 const { getCookieConfig } = require('../utils/cookieConfig');
 const { sanitizeObjectId, timingSafeEqual } = require('../utils/securityUtils');
 const logger = require('../utils/logger');
+const refreshTokenService = require('../services/refreshToken.service');
 
 /**
  * Send OTP to email
@@ -235,15 +236,38 @@ const verifyOTP = async (req, res) => {
       { expiresIn: '7 days' }  // Same as password login
     );
 
+    // Create device info for refresh token
+    const userAgent = req.headers['user-agent'] || 'unknown';
+    const ipAddress = req.ip || req.headers['x-forwarded-for'];
+    const deviceInfo = {
+      userAgent: userAgent,
+      ip: ipAddress,
+      deviceId: req.headers['x-device-id'] || null,
+      browser: req.headers['sec-ch-ua'] || null,
+      os: req.headers['sec-ch-ua-platform'] || null,
+      device: req.headers['sec-ch-ua-mobile'] === '?1' ? 'mobile' : 'desktop'
+    };
+
+    // Generate refresh token (long-lived, 7 days)
+    const refreshToken = await refreshTokenService.createRefreshToken(
+      user._id.toString(),
+      deviceInfo,
+      user.firmId
+    );
+
     // Get cookie config based on request context (same as password login)
     const cookieConfig = getCookieConfig(req);
+    const refreshCookieConfig = getCookieConfig(req, 'refresh');
 
-    // Set cookie and return response (same pattern as password login)
+    // Set cookies and return response (same pattern as SSO login)
     res.cookie('accessToken', accessToken, cookieConfig)
+      .cookie('refreshToken', refreshToken, refreshCookieConfig)
       .status(200).json({
         success: true,
         message: 'Login successful',
         messageAr: 'تم تسجيل الدخول بنجاح',
+        accessToken: accessToken,
+        refreshToken: refreshToken,
         user: {
           _id: user._id,
           email: user.email,

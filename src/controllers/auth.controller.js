@@ -593,7 +593,7 @@ const authLogin = async (request, response) => {
                 { email: loginIdentifier }
             ]
         })
-        .select('_id username email password firstName lastName role isSeller isSoloLawyer lawyerWorkMode firmId firmRole firmStatus lawyerProfile image phone country region city timezone notificationPreferences')
+        .select('_id username email password firstName lastName role isSeller isSoloLawyer lawyerWorkMode firmId firmRole firmStatus lawyerProfile image phone country region city timezone notificationPreferences mfaEnabled')
         .setOptions({ bypassFirmFilter: true })
         .lean();
 
@@ -913,7 +913,9 @@ const authLogin = async (request, response) => {
             const userData = {
                 ...data,
                 isSoloLawyer: user.isSoloLawyer || false,
-                lawyerWorkMode: user.lawyerWorkMode || null
+                lawyerWorkMode: user.lawyerWorkMode || null,
+                mfaEnabled: user.mfaEnabled || false,
+                mfaPending: false  // If they completed login, MFA is not pending
             };
 
             // If user is a lawyer, get firm information and permissions
@@ -1058,6 +1060,10 @@ const authLogin = async (request, response) => {
                 // Also set CSRF token in cookie for double-submit pattern using secure configuration
                 response.cookie('csrfToken', csrfTokenData.token, getCSRFCookieConfig(request));
             }
+
+            // Add tokens to response body (in addition to cookies)
+            loginResponse.accessToken = accessToken;
+            loginResponse.refreshToken = refreshToken;
 
             return response
                 .cookie('accessToken', accessToken, getCookieConfig(request, 'access'))
@@ -1855,6 +1861,8 @@ const verifyMagicLink = async (request, response) => {
                 error: false,
                 message: 'تم تسجيل الدخول بنجاح',
                 messageEn: 'Login successful',
+                accessToken: accessToken,
+                refreshToken: refreshToken,
                 user: userData,
                 redirectUrl: result.redirectUrl
             });
@@ -2038,6 +2046,8 @@ const refreshAccessToken = async (request, response) => {
                 error: false,
                 message: 'Token refreshed successfully',
                 messageAr: 'تم تحديث الرمز بنجاح',
+                accessToken: result.accessToken,
+                refreshToken: result.refreshToken,
                 user: result.user
             });
     } catch (error) {
