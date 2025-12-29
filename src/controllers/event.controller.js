@@ -1219,8 +1219,17 @@ const getEventStats = asyncHandler(async (req, res) => {
     const { startDate, endDate } = req.query;
     const userId = req.userID;
     const firmId = req.firmId; // From firmFilter middleware
+    const isSoloLawyer = req.isSoloLawyer;
 
-    const stats = await Event.getStats(userId, { startDate, endDate, firmId });
+    // Pass proper tenant context to model method
+    const filters = { startDate, endDate };
+    if (isSoloLawyer || !firmId) {
+        filters.lawyerId = userId;
+    } else {
+        filters.firmId = firmId;
+    }
+
+    const stats = await Event.getStats(userId, filters);
 
     res.status(200).json({
         success: true,
