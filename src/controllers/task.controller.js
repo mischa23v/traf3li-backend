@@ -10,23 +10,9 @@ const fs = require('fs');
 const path = require('path');
 const logger = require('../utils/logger');
 
-/**
- * Validate tenant context exists
- * Throws 403 if user doesn't have valid firm/solo-lawyer context
- */
-const validateTenantContext = (req) => {
-    if (!req.firmQuery || (!req.firmQuery.firmId && !req.firmQuery.lawyerId)) {
-        throw CustomException(
-            'Access denied. You must be part of a firm or registered as a solo lawyer to access task data.',
-            403
-        );
-    }
-};
-
 // Create task
 const createTask = asyncHandler(async (req, res) => {
-    // Validate tenant context first
-    validateTenantContext(req);
+    // Centralized middleware handles tenant validation - req.firmQuery is guaranteed
 
     const userId = req.userID;
     const firmId = req.firmId; // From firmFilter middleware
@@ -207,8 +193,7 @@ const createTask = asyncHandler(async (req, res) => {
 
 // Get all tasks with filters
 const getTasks = asyncHandler(async (req, res) => {
-    // Validate tenant context first
-    validateTenantContext(req);
+    // Centralized middleware handles tenant validation - req.firmQuery is guaranteed
 
     const {
         status,
@@ -228,7 +213,6 @@ const getTasks = asyncHandler(async (req, res) => {
     } = req.query;
 
     const userId = req.userID;
-    const firmId = req.firmId; // From firmFilter middleware
     const isDeparted = req.isDeparted; // From firmFilter middleware
 
     // IDOR protection - sanitize ObjectIds in query parameters
@@ -236,31 +220,15 @@ const getTasks = asyncHandler(async (req, res) => {
     const sanitizedCaseId = caseId ? sanitizeObjectId(caseId) : null;
     const sanitizedClientId = clientId ? sanitizeObjectId(clientId) : null;
 
-    // Build query - if firmId exists, filter by firm; otherwise by user
-    let query;
-    if (firmId) {
-        // Convert firmId to ObjectId for proper MongoDB matching
-        const firmObjectId = new mongoose.Types.ObjectId(firmId);
-        if (isDeparted) {
-            // Departed users can only see their own tasks
-            query = {
-                firmId: firmObjectId,
-                $or: [
-                    { assignedTo: userId },
-                    { createdBy: userId }
-                ]
-            };
-        } else {
-            // Active firm members see all firm tasks
-            query = { firmId: firmObjectId };
-        }
-    } else {
-        query = {
-            $or: [
-                { assignedTo: userId },
-                { createdBy: userId }
-            ]
-        };
+    // Build query using req.firmQuery for proper tenant isolation
+    let query = { ...req.firmQuery };
+
+    // Departed users can only see their own tasks
+    if (isDeparted) {
+        query.$or = [
+            { assignedTo: userId },
+            { createdBy: userId }
+        ];
     }
 
     if (status) query.status = status;
@@ -317,29 +285,15 @@ const getTasks = asyncHandler(async (req, res) => {
 
 // Get single task
 const getTask = asyncHandler(async (req, res) => {
-    // Validate tenant context first
-    validateTenantContext(req);
+    // Centralized middleware handles tenant validation
 
     const { id } = req.params;
-    const userId = req.userID;
-    const firmId = req.firmId; // From firmFilter middleware
 
     // IDOR protection
     const taskId = sanitizeObjectId(id);
 
-    // Build query with firmId to prevent IDOR
-    const query = { _id: taskId };
-    if (firmId) {
-        query.firmId = firmId;
-    } else {
-        // Solo lawyer - only their own tasks
-        query.$or = [
-            { assignedTo: userId },
-            { createdBy: userId }
-        ];
-    }
-
-    const task = await Task.findOne(query)
+    // Use req.firmQuery for proper tenant isolation
+    const task = await Task.findOne({ _id: taskId, ...req.firmQuery })
         .populate('assignedTo', 'firstName lastName username email image')
         .populate('createdBy', 'firstName lastName username email image')
         .populate('caseId', 'title caseNumber category')
@@ -362,12 +316,10 @@ const getTask = asyncHandler(async (req, res) => {
 
 // Update task
 const updateTask = asyncHandler(async (req, res) => {
-    // Validate tenant context first
-    validateTenantContext(req);
+    // Centralized middleware handles tenant validation
 
     const { id } = req.params;
     const userId = req.userID;
-    const firmId = req.firmId; // From firmFilter middleware
 
     // Block departed users from updating
     if (req.isDeparted) {
@@ -377,19 +329,8 @@ const updateTask = asyncHandler(async (req, res) => {
     // IDOR protection
     const taskId = sanitizeObjectId(id);
 
-    // Build query with firmId to prevent IDOR
-    const query = { _id: taskId };
-    if (firmId) {
-        query.firmId = firmId;
-    } else {
-        // Solo lawyer - only their own tasks
-        query.$or = [
-            { assignedTo: userId },
-            { createdBy: userId }
-        ];
-    }
-
-    const task = await Task.findOne(query);
+    // Use req.firmQuery for proper tenant isolation
+    const task = await Task.findOne({ _id: taskId, ...req.firmQuery });
 
     if (!task) {
         throw CustomException('Task not found', 404);
@@ -570,7 +511,7 @@ const updateTask = asyncHandler(async (req, res) => {
 // Delete task
 const deleteTask = asyncHandler(async (req, res) => {
     // Validate tenant context first
-    validateTenantContext(req);
+    // Centralized middleware handles tenant validation
 
     const { id } = req.params;
     const userId = req.userID;
@@ -1378,7 +1319,7 @@ const bulkDeleteTasks = asyncHandler(async (req, res) => {
 // Get task stats
 const getTaskStats = asyncHandler(async (req, res) => {
     // Validate tenant context first
-    validateTenantContext(req);
+    // Centralized middleware handles tenant validation
 
     const userId = req.userID;
     const firmId = req.firmId;
@@ -1395,7 +1336,7 @@ const getTaskStats = asyncHandler(async (req, res) => {
 // Get upcoming tasks
 const getUpcomingTasks = asyncHandler(async (req, res) => {
     // Validate tenant context first
-    validateTenantContext(req);
+    // Centralized middleware handles tenant validation
 
     const { days = 7 } = req.query;
 
@@ -1424,7 +1365,7 @@ const getUpcomingTasks = asyncHandler(async (req, res) => {
 // Get overdue tasks
 const getOverdueTasks = asyncHandler(async (req, res) => {
     // Validate tenant context first
-    validateTenantContext(req);
+    // Centralized middleware handles tenant validation
 
     // Use req.firmQuery for proper firm/lawyer isolation (set by firmFilter middleware)
     const tasks = await Task.find({
@@ -1447,7 +1388,7 @@ const getOverdueTasks = asyncHandler(async (req, res) => {
 // Get tasks by case
 const getTasksByCase = asyncHandler(async (req, res) => {
     // Validate tenant context first
-    validateTenantContext(req);
+    // Centralized middleware handles tenant validation
 
     const { caseId } = req.params;
     const userId = req.userID;
@@ -1481,7 +1422,7 @@ const getTasksByCase = asyncHandler(async (req, res) => {
 // Get tasks due today
 const getTasksDueToday = asyncHandler(async (req, res) => {
     // Validate tenant context first
-    validateTenantContext(req);
+    // Centralized middleware handles tenant validation
 
     const userId = req.userID;
     const firmId = req.firmId; // From firmFilter middleware
