@@ -54,6 +54,53 @@ if (!req.hasPermission('cases', 'edit')) {
 }
 ```
 
+## What IS vs IS NOT Centralized
+
+### Centralized (Middleware handles automatically)
+| What | Where | Notes |
+|------|-------|-------|
+| `req.firmQuery` | authenticatedApi.middleware.js | Set ONCE per request |
+| `req.hasPermission()` | authenticatedApi.middleware.js | Permission checker function |
+| `req.addFirmId()` | authenticatedApi.middleware.js | Helper for creating records |
+| Route validation | authenticatedApi.middleware.js | Path normalization for v1/v2 |
+
+### NOT Centralized (Must do in EVERY controller)
+| What | Why | Example |
+|------|-----|---------|
+| Using `...req.firmQuery` in queries | Each model has different schema | `Case.find({ ...req.firmQuery })` |
+| Additional filters | Business logic varies | `{ ...req.firmQuery, status: 'active' }` |
+| Permission checks | Different endpoints need different permissions | `req.hasPermission('cases', 'edit')` |
+
+### FIRM_ISOLATION_VIOLATION Errors
+
+The `globalFirmIsolation` Mongoose plugin throws `FIRM_ISOLATION_VIOLATION` (500 error) when a query lacks tenant filters. This is a **safety net**.
+
+**When you see this error:**
+1. Find the controller making the query
+2. Add `...req.firmQuery` to the query
+3. For model static methods (like `Model.getStats()`), pass `req.firmQuery` or `firmId`/`lawyerId` as parameter
+
+**Common patterns that cause this error:**
+```javascript
+// BAD - missing tenant filter
+const items = await Model.find({ status: 'active' });
+
+// GOOD - includes tenant filter
+const items = await Model.find({ ...req.firmQuery, status: 'active' });
+
+// BAD - model method ignores firmId
+static async getStats(userId) {
+    return this.aggregate([{ $match: { createdBy: userId } }]);
+}
+
+// GOOD - model method uses firmId
+static async getStats(userId, filters = {}) {
+    const match = {};
+    if (filters.firmId) match.firmId = new ObjectId(filters.firmId);
+    return this.aggregate([{ $match: match }]);
+}
+```
+
 ## Critical Security Requirements
 
 ### 1. Multi-Tenancy
