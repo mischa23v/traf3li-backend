@@ -76,7 +76,7 @@ const walkthroughSchema = new mongoose.Schema({
         ref: 'Firm',
         index: true,
         default: null
-    },,
+     },
 
 
     // For solo lawyers (no firm) - enables row-level security

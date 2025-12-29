@@ -112,7 +112,7 @@ const permissionConfigSchema = new mongoose.Schema({
         required: true,
         unique: true,
         index: true
-    },,
+     },
 
 
     // For solo lawyers (no firm) - enables row-level security

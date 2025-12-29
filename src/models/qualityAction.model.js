@@ -94,7 +94,7 @@ const qualityActionSchema = new Schema({
         ref: 'Firm',
         required: false,
         index: true
-    },,
+     },
 
 
     // For solo lawyers (no firm) - enables row-level security
