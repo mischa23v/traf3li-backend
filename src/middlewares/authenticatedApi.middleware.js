@@ -33,7 +33,9 @@ const {
 
 // Routes that skip ALL authentication (truly public)
 // NOTE: Paths are relative to /api mount point (no /api prefix)
+// Following industry gold standard (AWS, Google, Okta, Auth0)
 const PUBLIC_ROUTES = [
+    // Core auth endpoints
     '/auth/login',
     '/auth/register',
     '/auth/forgot-password',
@@ -41,6 +43,8 @@ const PUBLIC_ROUTES = [
     '/auth/verify-email',
     '/auth/verify-otp',
     '/auth/csrf',
+
+    // OAuth/SSO providers
     '/auth/google',
     '/auth/google/callback',
     '/auth/saml',
@@ -49,6 +53,24 @@ const PUBLIC_ROUTES = [
     '/auth/sso/initiate',
     '/auth/sso/detect',
     '/auth/sso/callback',
+
+    // CAPTCHA (needed before login/register)
+    '/auth/verify-captcha',
+    '/auth/captcha/providers',
+    '/auth/captcha/status',
+
+    // WebAuthn/Passkeys (authenticate endpoints are pre-auth)
+    '/auth/webauthn/authenticate/start',
+    '/auth/webauthn/authenticate/finish',
+
+    // LDAP login
+    '/auth/ldap/login',
+
+    // MFA verification (post-login but pre-session)
+    '/auth/mfa/verify',
+    '/auth/mfa/backup-codes/verify',
+
+    // Other public endpoints
     '/oauth',
     '/webhooks',
     '/health',
