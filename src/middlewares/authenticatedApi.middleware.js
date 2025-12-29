@@ -149,20 +149,39 @@ const SKIP_FIRM_CONTEXT_VALIDATION = [
 ];
 
 /**
+ * Normalize path by stripping API version prefix
+ * This allows route matching to work across all versions (v1, v2, etc.)
+ * Example: '/v1/reminders' → '/reminders'
+ */
+const normalizePathForMatching = (path) => {
+    // Strip /v1, /v2, /v3, etc. prefix
+    return path.replace(/^\/v\d+/, '');
+};
+
+/**
  * Check if path matches any route pattern
+ * Automatically handles versioned paths (e.g., /v1/auth/login matches /auth/login)
  */
 const matchesRoute = (path, routes) => {
+    // Normalize the path to handle version prefixes
+    const normalizedPath = normalizePathForMatching(path);
+
     return routes.some(route => {
-        // Exact match or prefix match
-        if (path === route || path.startsWith(route + '/')) {
-            return true;
-        }
-        // Handle route patterns like /api/auth/* matching /api/auth/login
-        if (route.endsWith('/*')) {
-            const prefix = route.slice(0, -2);
-            return path.startsWith(prefix);
-        }
-        return path.startsWith(route);
+        // Check both original and normalized path
+        const pathsToCheck = [path, normalizedPath];
+
+        return pathsToCheck.some(checkPath => {
+            // Exact match or prefix match
+            if (checkPath === route || checkPath.startsWith(route + '/')) {
+                return true;
+            }
+            // Handle route patterns like /auth/* matching /auth/login
+            if (route.endsWith('/*')) {
+                const prefix = route.slice(0, -2);
+                return checkPath === prefix || checkPath.startsWith(prefix + '/');
+            }
+            return false;
+        });
     });
 };
 
@@ -426,7 +445,11 @@ const authenticatedApi = async (req, res, next) => {
 
         // 5. Validate firm context for routes that require tenant isolation
         // If firmQuery is empty (no firmId or lawyerId), check if route requires it
-        const hasFirmContext = req.firmQuery && (req.firmQuery.firmId || req.firmQuery.lawyerId);
+        // Use explicit boolean check to avoid JavaScript truthiness issues with empty objects
+        const hasFirmContext = Boolean(
+            req.firmQuery &&
+            (req.firmQuery.firmId || req.firmQuery.lawyerId)
+        );
         if (!hasFirmContext && !matchesRoute(req.path, SKIP_FIRM_CONTEXT_VALIDATION)) {
             // Route requires firm context but user doesn't have one
             return res.status(403).json({
@@ -462,6 +485,7 @@ module.exports = {
     AUTH_ONLY_ROUTES,
     SKIP_FIRM_CONTEXT_VALIDATION,
     matchesRoute,
+    normalizePathForMatching,
     checkIsSoloLawyer,
     setFirmContext
 };
