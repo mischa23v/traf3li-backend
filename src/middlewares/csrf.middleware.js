@@ -168,8 +168,22 @@ const validateOrigin = (request) => {
  */
 const csrfProtection = async (request, response, next) => {
     try {
+        // Aggressive logging for debugging
+        // eslint-disable-next-line no-console
+        console.log('[CSRF] Validating request:', {
+            method: request.method,
+            path: request.path,
+            origin: request.headers.origin || 'none',
+            referer: request.headers.referer || 'none',
+            hasCSRFHeader: !!request.headers['x-csrf-token'],
+            hasCSRFCookie: !!request.cookies?.csrfToken,
+            cookies: Object.keys(request.cookies || {})
+        });
+
         // Skip if CSRF protection is disabled
         if (!csrfService.isEnabled()) {
+            // eslint-disable-next-line no-console
+            console.log('[CSRF] Protection disabled, skipping validation');
             logger.debug('CSRF protection disabled, skipping validation');
             return next();
         }
@@ -177,6 +191,8 @@ const csrfProtection = async (request, response, next) => {
         // Only validate state-changing requests
         const safeMethods = ['GET', 'HEAD', 'OPTIONS'];
         if (safeMethods.includes(request.method)) {
+            // eslint-disable-next-line no-console
+            console.log('[CSRF] Safe HTTP method, skipping:', request.method);
             logger.debug('Safe HTTP method, skipping CSRF validation', { method: request.method });
             return next();
         }

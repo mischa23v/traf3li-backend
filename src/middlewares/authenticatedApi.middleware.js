@@ -350,7 +350,12 @@ const authenticatedApi = async (req, res, next) => {
         // If it's an auth error, it was already handled by verifyToken
         if (!res.headersSent) {
             // eslint-disable-next-line no-console
-            console.error('[AuthenticatedApi] Error:', error.message);
+            console.error('[AuthenticatedApi] Error:', error.message, {
+                path: req.path,
+                method: req.method,
+                ip: req.ip,
+                stack: error.stack
+            });
             return res.status(500).json({
                 success: false,
                 message: 'Authentication error',
