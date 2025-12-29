@@ -34,6 +34,7 @@ const { getCSRFCookieConfig } = require('../utils/cookieConfig');
  * These are public endpoints used before authentication (login flows)
  * Origin validation is still performed for security
  */
+// NOTE: These are full paths (CSRF middleware is applied per-route, not mounted)
 const CSRF_EXEMPT_ROUTES = [
     '/api/auth/login',
     '/api/auth/register',
@@ -47,6 +48,19 @@ const CSRF_EXEMPT_ROUTES = [
     '/api/auth/saml',
     '/api/auth/saml/callback',
     '/api/webhooks',
+    // Also match paths without /api prefix (for mounted routes)
+    '/auth/login',
+    '/auth/register',
+    '/auth/forgot-password',
+    '/auth/reset-password',
+    '/auth/sso/initiate',
+    '/auth/sso/detect',
+    '/auth/sso/callback',
+    '/auth/google',
+    '/auth/google/callback',
+    '/auth/saml',
+    '/auth/saml/callback',
+    '/webhooks',
 ];
 
 /**

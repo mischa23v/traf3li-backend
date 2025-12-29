@@ -32,41 +32,43 @@ const {
 } = require('../config/permissions.config');
 
 // Routes that skip ALL authentication (truly public)
+// NOTE: Paths are relative to /api mount point (no /api prefix)
 const PUBLIC_ROUTES = [
-    '/api/auth/login',
-    '/api/auth/register',
-    '/api/auth/forgot-password',
-    '/api/auth/reset-password',
-    '/api/auth/verify-email',
-    '/api/auth/verify-otp',
-    '/api/auth/google',
-    '/api/auth/google/callback',
-    '/api/auth/saml',
-    '/api/auth/saml/callback',
-    '/api/auth/sso/providers',
-    '/api/auth/sso/initiate',
-    '/api/auth/sso/detect',
-    '/api/auth/sso/callback',
-    '/api/oauth',
-    '/api/webhooks',
-    '/api/health',
-    '/api/public',
-    '/api/status',
-    '/api/invitations/verify',
-    '/api/invitations/accept',
+    '/auth/login',
+    '/auth/register',
+    '/auth/forgot-password',
+    '/auth/reset-password',
+    '/auth/verify-email',
+    '/auth/verify-otp',
+    '/auth/google',
+    '/auth/google/callback',
+    '/auth/saml',
+    '/auth/saml/callback',
+    '/auth/sso/providers',
+    '/auth/sso/initiate',
+    '/auth/sso/detect',
+    '/auth/sso/callback',
+    '/oauth',
+    '/webhooks',
+    '/health',
+    '/public',
+    '/status',
+    '/invitations/verify',
+    '/invitations/accept',
 ];
 
 // Routes that need auth but skip firm context (user-level operations)
+// NOTE: Paths are relative to /api mount point (no /api prefix)
 const AUTH_ONLY_ROUTES = [
-    '/api/auth/me',
-    '/api/auth/logout',
-    '/api/auth/refresh',
-    '/api/auth/mfa',
-    '/api/users/profile',
-    '/api/firms/create',
-    '/api/firms/available',
-    '/api/invitations',
-    '/api/setup',
+    '/auth/me',
+    '/auth/logout',
+    '/auth/refresh',
+    '/auth/mfa',
+    '/users/profile',
+    '/firms/create',
+    '/firms/available',
+    '/invitations',
+    '/setup',
 ];
 
 /**
