@@ -1476,9 +1476,6 @@ const getCalendarItemDetails = asyncHandler(async (req, res) => {
         throw CustomException('Invalid item ID format', 400);
     }
 
-    // Get firmId for multi-tenant isolation
-    const firmId = req.firmId || req.user?.firmId;
-
     // Generate cache key
     const cacheKey = cacheKeys.itemDetails(type, id);
 
@@ -1499,13 +1496,8 @@ const getCalendarItemDetails = asyncHandler(async (req, res) => {
 
     switch (type) {
         case 'event':
-            // SECURITY: Include firmId in query to prevent cross-firm IDOR
-            const eventQuery = { _id: sanitizedId };
-            if (firmId) {
-                eventQuery.firmId = firmId;
-            }
-
-            item = await Event.findOne(eventQuery)
+            // SECURITY: Use req.firmQuery for multi-tenant isolation
+            item = await Event.findOne({ _id: sanitizedId, ...req.firmQuery })
                 .populate('createdBy', 'username firstName lastName image email')
                 .populate('organizer', 'username firstName lastName image email')
                 .populate('attendees.userId', 'username firstName lastName image email')
@@ -1538,13 +1530,8 @@ const getCalendarItemDetails = asyncHandler(async (req, res) => {
             break;
 
         case 'task':
-            // SECURITY: Include firmId in query to prevent cross-firm IDOR
-            const taskQuery = { _id: sanitizedId };
-            if (firmId) {
-                taskQuery.firmId = firmId;
-            }
-
-            item = await Task.findOne(taskQuery)
+            // SECURITY: Use req.firmQuery for multi-tenant isolation
+            item = await Task.findOne({ _id: sanitizedId, ...req.firmQuery })
                 .populate('assignedTo', 'username firstName lastName image email')
                 .populate('createdBy', 'username firstName lastName image email')
                 .populate('caseId', 'title caseNumber category')
@@ -1568,13 +1555,8 @@ const getCalendarItemDetails = asyncHandler(async (req, res) => {
             break;
 
         case 'reminder':
-            // SECURITY: Include firmId in query to prevent cross-firm IDOR
-            const reminderQuery = { _id: sanitizedId, userId };
-            if (firmId) {
-                reminderQuery.firmId = firmId;
-            }
-
-            item = await Reminder.findOne(reminderQuery)
+            // SECURITY: Use req.firmQuery for multi-tenant isolation
+            item = await Reminder.findOne({ _id: sanitizedId, userId, ...req.firmQuery })
                 .populate('relatedCase', 'title caseNumber category')
                 .populate('relatedTask', 'title status dueDate')
                 .populate('relatedEvent', 'title startDateTime')
@@ -1588,17 +1570,12 @@ const getCalendarItemDetails = asyncHandler(async (req, res) => {
             break;
 
         case 'case-document':
-            // Enhanced IDOR protection - only return documents from user's cases
-            const caseDocQuery = {
+            // SECURITY: Use req.firmQuery for multi-tenant isolation
+            const caseDoc = await Case.findOne({
                 lawyerId: userId,
-                'richDocuments._id': sanitizedId
-            };
-            // Add firmId for multi-tenant isolation
-            if (firmId) {
-                caseDocQuery.firmId = firmId;
-            }
-
-            const caseDoc = await Case.findOne(caseDocQuery)
+                'richDocuments._id': sanitizedId,
+                ...req.firmQuery
+            })
                 .populate('richDocuments.createdBy', 'firstName lastName')
                 .select('_id title caseNumber category richDocuments.$')
                 .lean();

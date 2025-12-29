@@ -1,7 +1,7 @@
 /**
  * Appointment Routes
  *
- * Routes for managing appointments and bookings.
+ * Routes for managing appointments, availability, blocked times, and settings.
  */
 
 const express = require('express');
@@ -14,7 +14,6 @@ const {
     validatePublicBooking,
     validateGetAvailableSlots
 } = require('../validators/crm.validator');
-const { verifyToken } = require('../middlewares/jwt');
 
 // ═══════════════════════════════════════════════════════════════
 // PUBLIC ROUTES (no auth required)
@@ -27,11 +26,108 @@ const { verifyToken } = require('../middlewares/jwt');
  */
 router.post('/book/:firmId', validatePublicBooking, appointmentController.publicBook);
 
-// Apply authentication middleware to remaining routes
-router.use(verifyToken);
+/**
+ * @route   GET /api/v1/appointments/available-slots
+ * @desc    Get available time slots for booking (public for clients/marketplace)
+ * @access  Public
+ */
+router.get('/available-slots', appointmentController.getAvailableSlotsEnhanced);
 
 // ═══════════════════════════════════════════════════════════════
-// PRIVATE ROUTES
+// AVAILABILITY ROUTES
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * @route   GET /api/v1/appointments/availability
+ * @desc    Get lawyer's weekly availability schedule
+ * @access  Private
+ */
+router.get('/availability', appointmentController.getAvailability);
+
+/**
+ * @route   POST /api/v1/appointments/availability
+ * @desc    Create new availability slot
+ * @access  Private
+ */
+router.post('/availability', appointmentController.createAvailability);
+
+/**
+ * @route   POST /api/v1/appointments/availability/bulk
+ * @desc    Bulk update entire week schedule
+ * @access  Private
+ */
+router.post('/availability/bulk', appointmentController.bulkUpdateAvailability);
+
+/**
+ * @route   PUT /api/v1/appointments/availability/:id
+ * @desc    Update availability slot
+ * @access  Private
+ */
+router.put('/availability/:id', validateIdParam, appointmentController.updateAvailability);
+
+/**
+ * @route   DELETE /api/v1/appointments/availability/:id
+ * @desc    Delete availability slot
+ * @access  Private
+ */
+router.delete('/availability/:id', validateIdParam, appointmentController.deleteAvailability);
+
+// ═══════════════════════════════════════════════════════════════
+// BLOCKED TIMES ROUTES
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * @route   GET /api/v1/appointments/blocked-times
+ * @desc    Get blocked time periods
+ * @access  Private
+ */
+router.get('/blocked-times', appointmentController.getBlockedTimes);
+
+/**
+ * @route   POST /api/v1/appointments/blocked-times
+ * @desc    Create blocked time
+ * @access  Private
+ */
+router.post('/blocked-times', appointmentController.createBlockedTime);
+
+/**
+ * @route   DELETE /api/v1/appointments/blocked-times/:id
+ * @desc    Delete blocked time
+ * @access  Private
+ */
+router.delete('/blocked-times/:id', validateIdParam, appointmentController.deleteBlockedTime);
+
+// ═══════════════════════════════════════════════════════════════
+// SETTINGS ROUTES
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * @route   GET /api/v1/appointments/settings
+ * @desc    Get lawyer's appointment settings
+ * @access  Private
+ */
+router.get('/settings', appointmentController.getSettings);
+
+/**
+ * @route   PUT /api/v1/appointments/settings
+ * @desc    Update appointment settings
+ * @access  Private
+ */
+router.put('/settings', appointmentController.updateSettings);
+
+// ═══════════════════════════════════════════════════════════════
+// STATISTICS ROUTES
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * @route   GET /api/v1/appointments/stats
+ * @desc    Get appointment statistics
+ * @access  Private
+ */
+router.get('/stats', appointmentController.getStats);
+
+// ═══════════════════════════════════════════════════════════════
+// APPOINTMENT CRUD ROUTES
 // ═══════════════════════════════════════════════════════════════
 
 /**
@@ -43,7 +139,7 @@ router.get('/', appointmentController.getAll);
 
 /**
  * @route   GET /api/v1/appointments/slots
- * @desc    Get available time slots for booking
+ * @desc    Get available time slots for booking (legacy)
  * @access  Private
  */
 router.get('/slots', validateGetAvailableSlots, appointmentController.getAvailableSlots);
@@ -89,6 +185,13 @@ router.put('/:id/complete', validateIdParam, appointmentController.complete);
  * @access  Private
  */
 router.put('/:id/no-show', validateIdParam, appointmentController.markNoShow);
+
+/**
+ * @route   POST /api/v1/appointments/:id/reschedule
+ * @desc    Reschedule appointment
+ * @access  Private
+ */
+router.post('/:id/reschedule', validateIdParam, appointmentController.reschedule);
 
 /**
  * @route   DELETE /api/v1/appointments/:id
