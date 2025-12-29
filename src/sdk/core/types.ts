@@ -277,7 +277,7 @@ export interface ChangePasswordData {
  */
 export interface ResetPasswordData {
   token: string;
-  password: string;
+  newPassword: string;
 }
 
 // ═══════════════════════════════════════════════════════════════

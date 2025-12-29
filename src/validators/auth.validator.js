@@ -96,9 +96,12 @@ const sendOTPSchema = Joi.object({
             'string.email': 'البريد الإلكتروني غير صالح / Invalid email format',
             'any.required': 'البريد الإلكتروني مطلوب / Email is required'
         }),
-    type: Joi.string()
-        .valid('login', 'register', 'reset-password', 'verify-email')
+    purpose: Joi.string()
+        .valid('login', 'registration', 'password_reset', 'email_verification', 'transaction')
         .default('login')
+        .messages({
+            'any.only': 'غرض غير صالح / Invalid purpose'
+        })
 });
 
 /**
@@ -116,6 +119,12 @@ const verifyOTPSchema = Joi.object({
             'string.length': 'رمز التحقق يجب أن يكون 6 أرقام / OTP must be 6 digits',
             'string.pattern.base': 'رمز التحقق يجب أن يحتوي على أرقام فقط / OTP must contain only numbers',
             'any.required': 'رمز التحقق مطلوب / OTP is required'
+        }),
+    purpose: Joi.string()
+        .valid('login', 'registration', 'password_reset', 'email_verification', 'transaction')
+        .optional()
+        .messages({
+            'any.only': 'غرض غير صالح / Invalid purpose'
         })
 });
 
