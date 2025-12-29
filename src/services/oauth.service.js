@@ -12,6 +12,7 @@ const { CustomException } = require('../utils');
 const auditLogService = require('./auditLog.service');
 const refreshTokenService = require('./refreshToken.service');
 const { generateAppleClientSecret, decodeAppleIdToken, mapAppleUserInfo } = require('./appleOAuth.helper');
+const { generateAccessToken } = require('../utils/generateToken');
 
 const { JWT_SECRET, FRONTEND_URL, DASHBOARD_URL } = process.env;
 
@@ -800,11 +801,18 @@ class OAuthService {
             throw CustomException('هذه اللوحة مخصصة للمحامين فقط - This dashboard is for lawyers only', 403);
         }
 
-        // Generate JWT access token
-        const token = jwt.sign({
-            _id: user._id,
-            isSeller: user.isSeller
-        }, JWT_SECRET, { expiresIn: '7 days' });
+        // Generate JWT access token using proper utility (matches verification requirements)
+        // This uses the same issuer, audience, and key rotation as regular login
+        let firm = null;
+        if (user.firmId) {
+            try {
+                firm = await Firm.findById(user.firmId)
+                    .select('name nameEnglish licenseNumber status members subscription');
+            } catch (firmErr) {
+                logger.warn('Failed to fetch firm for token generation', { error: firmErr.message });
+            }
+        }
+        const token = await generateAccessToken(user, { firm });
 
         // Generate refresh token (matching regular login behavior)
         const deviceInfo = {
@@ -857,32 +865,19 @@ class OAuthService {
             timezone: user.timezone
         };
 
-        // If user has a firm, get firm details (like normal login does)
-        if (user.firmId) {
-            try {
-                const firm = await Firm.findById(user.firmId)
-                    .select('name nameEnglish licenseNumber status members subscription');
+        // If user has a firm, add firm details to userData (reuse firm from token generation)
+        if (firm) {
+            userData.firm = {
+                id: firm._id,
+                name: firm.name,
+                nameEnglish: firm.nameEnglish,
+                status: firm.status
+            };
 
-                if (firm) {
-                    userData.firm = {
-                        id: firm._id,
-                        name: firm.name,
-                        nameEnglish: firm.nameEnglish,
-                        status: firm.status
-                    };
-
-                    // Get user's permissions from firm members
-                    const member = firm.members?.find(m => m.userId?.toString() === user._id.toString());
-                    if (member) {
-                        userData.firmPermissions = member.permissions || {};
-                    }
-                }
-            } catch (firmError) {
-                logger.warn('Failed to fetch firm details for OAuth login', {
-                    userId: user._id,
-                    firmId: user.firmId,
-                    error: firmError.message
-                });
+            // Get user's permissions from firm members
+            const member = firm.members?.find(m => m.userId?.toString() === user._id.toString());
+            if (member) {
+                userData.firmPermissions = member.permissions || {};
             }
         }
 
