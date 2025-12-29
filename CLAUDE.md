@@ -10,6 +10,47 @@ Before writing ANY code, read:
 
 This is a multi-tenant legal practice management SaaS application. Every database operation MUST enforce tenant isolation.
 
+## CRITICAL: API Contract Rules (Gold Standard)
+
+**Follow what Google, AWS, Microsoft, Amazon, Apple do - NO BANDAIDS.**
+
+When there is a mismatch between frontend and backend:
+1. **DO NOT auto-fix backend** to accommodate bad frontend requests
+2. **Identify which side violates the gold standard**
+3. **Ask the violating side to change**
+4. **Return clear error messages** explaining what's wrong
+
+### Examples
+
+**BAD - Bandaid fix:**
+```javascript
+// Frontend sends lawyerId="current" instead of ObjectId
+if (lawyerId === 'current') {
+    lawyerId = req.userID;  // DON'T DO THIS
+}
+```
+
+**GOOD - Enforce correct contract:**
+```javascript
+// Validate ObjectId format, return clear error
+if (!/^[0-9a-fA-F]{24}$/.test(lawyerId)) {
+    return res.status(400).json({
+        success: false,
+        message: 'lawyerId must be a valid ObjectId. Send user._id from auth context.'
+    });
+}
+```
+
+### API Contract Standards
+
+| Parameter | Must Be | Not Acceptable |
+|-----------|---------|----------------|
+| IDs (userId, caseId, etc.) | Valid 24-char ObjectId | "current", "me", "self", null |
+| Dates | ISO 8601 format | Unix timestamps, relative strings |
+| Booleans | true/false | "true", "false", 1, 0 |
+
+**Frontend has auth context with user._id - they must send it.**
+
 ## Authentication & Authorization Architecture
 
 ### Global Middleware (Enterprise Gold Standard)

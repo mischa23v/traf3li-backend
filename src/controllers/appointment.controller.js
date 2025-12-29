@@ -1221,23 +1221,20 @@ exports.deleteBlockedTime = async (req, res) => {
  */
 exports.getAvailableSlotsEnhanced = async (req, res) => {
     try {
-        let { lawyerId, startDate, endDate, duration = 30 } = req.query;
-
-        // Handle "current" as special value for authenticated user's own slots
-        if (lawyerId === 'current') {
-            if (!req.userID) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Authentication required when using lawyerId=current'
-                });
-            }
-            lawyerId = req.userID;
-        }
+        const { lawyerId, startDate, endDate, duration = 30 } = req.query;
 
         if (!lawyerId || !startDate || !endDate) {
             return res.status(400).json({
                 success: false,
                 message: 'lawyerId, startDate, and endDate are required'
+            });
+        }
+
+        // Validate lawyerId is a valid ObjectId
+        if (!/^[0-9a-fA-F]{24}$/.test(lawyerId)) {
+            return res.status(400).json({
+                success: false,
+                message: 'lawyerId must be a valid ObjectId. Frontend should send user._id from auth context, not "current"'
             });
         }
 
