@@ -43,6 +43,10 @@ const PUBLIC_ROUTES = [
     '/api/auth/google/callback',
     '/api/auth/saml',
     '/api/auth/saml/callback',
+    '/api/auth/sso/providers',
+    '/api/auth/sso/initiate',
+    '/api/auth/sso/detect',
+    '/api/auth/sso/callback',
     '/api/oauth',
     '/api/webhooks',
     '/api/health',
@@ -345,6 +349,7 @@ const authenticatedApi = async (req, res, next) => {
     } catch (error) {
         // If it's an auth error, it was already handled by verifyToken
         if (!res.headersSent) {
+            // eslint-disable-next-line no-console
             console.error('[AuthenticatedApi] Error:', error.message);
             return res.status(500).json({
                 success: false,
