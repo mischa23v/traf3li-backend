@@ -26,6 +26,42 @@ const logger = require('../utils/contextLogger');
 const { getCSRFCookieConfig } = require('../utils/cookieConfig');
 
 // ═══════════════════════════════════════════════════════════════
+// CSRF EXEMPT ROUTES (public endpoints that don't require CSRF)
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Routes that are exempt from CSRF validation
+ * These are public endpoints used before authentication (login flows)
+ * Origin validation is still performed for security
+ */
+const CSRF_EXEMPT_ROUTES = [
+    '/api/auth/login',
+    '/api/auth/register',
+    '/api/auth/forgot-password',
+    '/api/auth/reset-password',
+    '/api/auth/sso/initiate',
+    '/api/auth/sso/detect',
+    '/api/auth/sso/callback',
+    '/api/auth/google',
+    '/api/auth/google/callback',
+    '/api/auth/saml',
+    '/api/auth/saml/callback',
+    '/api/webhooks',
+];
+
+/**
+ * Check if path matches any exempt route
+ */
+const isCSRFExempt = (path) => {
+    return CSRF_EXEMPT_ROUTES.some(route => {
+        if (path === route || path.startsWith(route + '/')) {
+            return true;
+        }
+        return path.startsWith(route);
+    });
+};
+
+// ═══════════════════════════════════════════════════════════════
 // ALLOWED ORIGINS CONFIGURATION
 // ═══════════════════════════════════════════════════════════════
 
@@ -194,6 +230,14 @@ const csrfProtection = async (request, response, next) => {
             // eslint-disable-next-line no-console
             console.log('[CSRF] Safe HTTP method, skipping:', request.method);
             logger.debug('Safe HTTP method, skipping CSRF validation', { method: request.method });
+            return next();
+        }
+
+        // Skip CSRF for exempt routes (public login endpoints)
+        if (isCSRFExempt(request.path)) {
+            // eslint-disable-next-line no-console
+            console.log('[CSRF] Exempt route, skipping:', request.path);
+            logger.debug('CSRF exempt route, skipping validation', { path: request.path });
             return next();
         }
 
