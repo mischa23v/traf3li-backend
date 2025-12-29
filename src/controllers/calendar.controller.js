@@ -1087,6 +1087,7 @@ const getCalendarGridSummary = asyncHandler(async (req, res) => {
             Event.aggregate([
                 {
                     $match: {
+                        ...req.firmQuery, // Tenant isolation
                         $or: [
                             { createdBy: userObjectId },
                             { 'attendees.userId': userObjectId }
@@ -1120,6 +1121,7 @@ const getCalendarGridSummary = asyncHandler(async (req, res) => {
             Task.aggregate([
                 {
                     $match: {
+                        ...req.firmQuery, // Tenant isolation
                         $or: [
                             { assignedTo: userObjectId },
                             { createdBy: userObjectId }
@@ -1162,6 +1164,7 @@ const getCalendarGridSummary = asyncHandler(async (req, res) => {
             Reminder.aggregate([
                 {
                     $match: {
+                        ...req.firmQuery, // Tenant isolation
                         userId: userObjectId,
                         reminderDateTime: { $gte: start, $lte: end }
                     }
@@ -1938,8 +1941,9 @@ const getSidebarData = asyncHandler(async (req, res) => {
 
     // Execute both queries in parallel
     const [calendarEvents, upcomingReminders] = await Promise.all([
-        // Calendar events in date range
+        // Calendar events in date range - use req.firmQuery for proper tenant isolation
         Event.find({
+            ...req.firmQuery, // Tenant isolation
             $or: [
                 { createdBy: userObjectId },
                 { 'attendees.userId': userObjectId }
@@ -1952,8 +1956,9 @@ const getSidebarData = asyncHandler(async (req, res) => {
         .limit(10)
         .lean(),
 
-        // Upcoming reminders (pending only)
+        // Upcoming reminders (pending only) - use req.firmQuery for proper tenant isolation
         Reminder.find({
+            ...req.firmQuery, // Tenant isolation
             userId: userObjectId,
             status: 'pending',
             reminderDateTime: { $gte: new Date(), $lte: reminderEnd }
