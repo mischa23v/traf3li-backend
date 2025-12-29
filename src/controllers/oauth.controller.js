@@ -733,7 +733,12 @@ const callbackPost = async (request, response) => {
             user: result.user,
             isNewUser: result.isNewUser,
             registrationRequired: result.isNewUser,  // Explicit flag for frontend clarity
-            // Frontend expects accessToken and refreshToken (not just 'token')
+            // OAuth 2.0 standard format (snake_case) - Industry standard for tokens
+            access_token: result.isNewUser ? null : result.token,
+            refresh_token: result.isNewUser ? null : result.refreshToken || null,
+            token_type: 'Bearer',
+            expires_in: 900, // 15 minutes in seconds (standard access token lifetime)
+            // Backwards compatibility (camelCase) - for existing frontend code
             accessToken: result.isNewUser ? null : result.token,
             refreshToken: result.isNewUser ? null : result.refreshToken || null
         };

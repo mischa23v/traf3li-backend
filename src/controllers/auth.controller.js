@@ -1062,6 +1062,12 @@ const authLogin = async (request, response) => {
             }
 
             // Add tokens to response body (in addition to cookies)
+            // OAuth 2.0 standard format (snake_case)
+            loginResponse.access_token = accessToken;
+            loginResponse.refresh_token = refreshToken;
+            loginResponse.token_type = 'Bearer';
+            loginResponse.expires_in = 900; // 15 minutes in seconds
+            // Backwards compatibility (camelCase)
             loginResponse.accessToken = accessToken;
             loginResponse.refreshToken = refreshToken;
 
@@ -1861,6 +1867,12 @@ const verifyMagicLink = async (request, response) => {
                 error: false,
                 message: 'تم تسجيل الدخول بنجاح',
                 messageEn: 'Login successful',
+                // OAuth 2.0 standard format (snake_case)
+                access_token: accessToken,
+                refresh_token: refreshToken,
+                token_type: 'Bearer',
+                expires_in: 900, // 15 minutes in seconds
+                // Backwards compatibility (camelCase)
                 accessToken: accessToken,
                 refreshToken: refreshToken,
                 user: userData,
@@ -2038,7 +2050,7 @@ const refreshAccessToken = async (request, response) => {
             }
         );
 
-        // Return new tokens
+        // Return new tokens (OAuth 2.0 standard format + backwards compatibility)
         return response
             .cookie('accessToken', result.accessToken, accessCookieConfig)
             .cookie('refreshToken', result.refreshToken, refreshCookieConfig)
@@ -2046,6 +2058,12 @@ const refreshAccessToken = async (request, response) => {
                 error: false,
                 message: 'Token refreshed successfully',
                 messageAr: 'تم تحديث الرمز بنجاح',
+                // OAuth 2.0 standard format (snake_case)
+                access_token: result.accessToken,
+                refresh_token: result.refreshToken,
+                token_type: 'Bearer',
+                expires_in: 900, // 15 minutes in seconds
+                // Backwards compatibility (camelCase)
                 accessToken: result.accessToken,
                 refreshToken: result.refreshToken,
                 user: result.user

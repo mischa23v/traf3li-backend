@@ -266,6 +266,12 @@ const verifyOTP = async (req, res) => {
         success: true,
         message: 'Login successful',
         messageAr: 'تم تسجيل الدخول بنجاح',
+        // OAuth 2.0 standard format (snake_case) - Industry standard for tokens
+        access_token: accessToken,
+        refresh_token: refreshToken,
+        token_type: 'Bearer',
+        expires_in: 604800, // 7 days in seconds (matching JWT expiresIn)
+        // Backwards compatibility (camelCase) - for existing frontend code
         accessToken: accessToken,
         refreshToken: refreshToken,
         user: {
