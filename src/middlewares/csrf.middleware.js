@@ -112,18 +112,17 @@ const getAllowedOrigins = () => {
 
     const isProduction = process.env.NODE_ENV === 'production';
 
-    if (isProduction) {
-        return [
-            'https://traf3li.com',
-            'https://www.traf3li.com',
-            'https://dashboard.traf3li.com',
-            'https://api.traf3li.com',
-            'https://app.traf3li.com'
-        ];
-    }
+    // Base production origins
+    const productionOrigins = [
+        'https://traf3li.com',
+        'https://www.traf3li.com',
+        'https://dashboard.traf3li.com',
+        'https://api.traf3li.com',
+        'https://app.traf3li.com'
+    ];
 
-    // Development origins
-    return [
+    // Development origins (localhost variants)
+    const devOrigins = [
         'http://localhost:3000',
         'http://localhost:3001',
         'http://localhost:5173',
@@ -136,6 +135,15 @@ const getAllowedOrigins = () => {
         'http://127.0.0.1:5175',
         'http://127.0.0.1:5176'
     ];
+
+    // In production, include both production AND dev origins
+    // This allows local development against production API
+    if (isProduction) {
+        return [...productionOrigins, ...devOrigins];
+    }
+
+    // In development, only need dev origins
+    return devOrigins;
 };
 
 // ═══════════════════════════════════════════════════════════════
