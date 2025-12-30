@@ -26,6 +26,31 @@ const escapeRegex = (str) => {
 };
 
 /**
+ * Helper to normalize tenant filter
+ * Accepts either:
+ * - Object with firmId or lawyerId (new pattern)
+ * - String/ObjectId firmId (legacy pattern)
+ * @param {Object|String|ObjectId} tenantFilterOrFirmId - Tenant filter or firm ID
+ * @returns {Object} Normalized tenant filter with ObjectIds
+ */
+const normalizeTenantFilter = (tenantFilterOrFirmId) => {
+  // If it's already an object with firmId or lawyerId, use it
+  if (tenantFilterOrFirmId && typeof tenantFilterOrFirmId === 'object') {
+    if (tenantFilterOrFirmId.firmId) {
+      return { firmId: new mongoose.Types.ObjectId(tenantFilterOrFirmId.firmId) };
+    }
+    if (tenantFilterOrFirmId.lawyerId) {
+      return { lawyerId: new mongoose.Types.ObjectId(tenantFilterOrFirmId.lawyerId) };
+    }
+  }
+  // Legacy support: treat as firmId string
+  if (tenantFilterOrFirmId) {
+    return { firmId: new mongoose.Types.ObjectId(tenantFilterOrFirmId) };
+  }
+  return {};
+};
+
+/**
  * Report Builder Service Class
  */
 class ReportBuilderService {
@@ -38,17 +63,18 @@ class ReportBuilderService {
    * @param {String|ObjectId} reportId - Report definition ID
    * @param {Object} params - User input parameters for filters
    * @param {String|ObjectId} userId - User ID executing the report
-   * @param {String|ObjectId} firmId - Firm ID for multi-tenancy
+   * @param {Object|String|ObjectId} tenantFilterOrFirmId - Tenant filter object or firm ID for multi-tenancy
    * @returns {Promise<Object>} Report execution result with data
    */
-  async executeReport(reportId, params = {}, userId, firmId) {
+  async executeReport(reportId, params = {}, userId, tenantFilterOrFirmId) {
     try {
-      logger.info('Executing report', { reportId, userId, firmId, paramsCount: Object.keys(params).length });
+      const tenantFilter = normalizeTenantFilter(tenantFilterOrFirmId);
+      logger.info('Executing report', { reportId, userId, tenantFilter, paramsCount: Object.keys(params).length });
 
-      // Get report definition
+      // Get report definition with tenant isolation
       const report = await ReportDefinition.findOne({
         _id: reportId,
-        firmId
+        ...tenantFilter
       });
 
       if (!report) {
@@ -56,13 +82,13 @@ class ReportBuilderService {
       }
 
       // Verify user has access to this report
-      const hasAccess = await this._verifyReportAccess(report, userId, firmId);
+      const hasAccess = await this._verifyReportAccess(report, userId, tenantFilter);
       if (!hasAccess) {
         throw new Error('Access denied to this report');
       }
 
       // Build aggregation pipeline
-      const pipeline = this.buildPipeline(report, params, firmId);
+      const pipeline = this.buildPipeline(report, params, tenantFilter);
 
       // Execute query on the data source
       const dataSourceModel = report.dataSources[0]?.model;
@@ -143,23 +169,22 @@ class ReportBuilderService {
    * Build MongoDB aggregation pipeline from report definition
    * @param {Object} report - Report definition document
    * @param {Object} params - User input parameters
-   * @param {String|ObjectId} firmId - Firm ID for multi-tenancy
+   * @param {Object|String|ObjectId} tenantFilterOrFirmId - Tenant filter or firm ID for multi-tenancy
    * @returns {Array} MongoDB aggregation pipeline
    */
-  buildPipeline(report, params, firmId) {
+  buildPipeline(report, params, tenantFilterOrFirmId) {
     const pipeline = [];
 
-    // Add firmId filter for multi-tenancy (ALWAYS FIRST)
+    // Normalize tenant filter and add as first match stage (ALWAYS FIRST for security)
+    const tenantFilter = normalizeTenantFilter(tenantFilterOrFirmId);
     pipeline.push({
-      $match: {
-        firmId: new mongoose.Types.ObjectId(firmId)
-      }
+      $match: tenantFilter
     });
 
     // Apply static and dynamic filters
     const filterStage = this._buildFilterStage(report.filters, params);
     if (filterStage && Object.keys(filterStage.$match).length > 0) {
-      // Merge with firmId filter if no other filters, otherwise add new stage
+      // Merge with tenant filter if no other filters, otherwise add new stage
       if (pipeline[0].$match) {
         pipeline[0].$match = { ...pipeline[0].$match, ...filterStage.$match };
       } else {
@@ -711,12 +736,12 @@ class ReportBuilderService {
 
   /**
    * Get reports for user
-   * @param {String|ObjectId} firmId - Firm ID
+   * @param {Object|String|ObjectId} tenantFilterOrFirmId - Tenant filter object or firm ID
    * @param {String|ObjectId} userId - User ID
    * @param {Object} options - Query options (type, scope, search, pagination)
    * @returns {Promise<Object>} Reports and pagination info
    */
-  async getReportsForUser(firmId, userId, options = {}) {
+  async getReportsForUser(tenantFilterOrFirmId, userId, options = {}) {
     try {
       const {
         type,
@@ -728,7 +753,9 @@ class ReportBuilderService {
         sortOrder = 'desc'
       } = options;
 
-      const query = { firmId };
+      // Normalize tenant filter for query
+      const tenantFilter = normalizeTenantFilter(tenantFilterOrFirmId);
+      const query = { ...tenantFilter };
 
       // Filter by type
       if (type) {
@@ -769,7 +796,7 @@ class ReportBuilderService {
       ]);
 
       logger.info('Retrieved reports for user', {
-        firmId,
+        tenantFilter,
         userId,
         count: reports.length,
         total,
@@ -801,24 +828,25 @@ class ReportBuilderService {
    * @param {String|ObjectId} reportId - Report ID to clone
    * @param {String|ObjectId} userId - User ID (new owner)
    * @param {String} newName - Name for cloned report
-   * @param {String|ObjectId} firmId - Firm ID
+   * @param {Object|String|ObjectId} tenantFilterOrFirmId - Tenant filter or firm ID
    * @returns {Promise<Object>} New report document
    */
-  async cloneReport(reportId, userId, newName, firmId) {
+  async cloneReport(reportId, userId, newName, tenantFilterOrFirmId) {
     try {
-      logger.info('Cloning report', { reportId, userId, newName, firmId });
+      const tenantFilter = normalizeTenantFilter(tenantFilterOrFirmId);
+      logger.info('Cloning report', { reportId, userId, newName, tenantFilter });
 
-      // Get original report
+      // Get original report with tenant isolation
       const original = await ReportDefinition.findOne({
         _id: reportId,
-        firmId
+        ...tenantFilter
       });
 
       if (!original) {
         throw new Error('Report not found or access denied');
       }
 
-      // Create clone
+      // Create clone with same tenant context
       const clone = new ReportDefinition({
         ...original.toObject(),
         _id: undefined,
@@ -912,15 +940,16 @@ class ReportBuilderService {
    * @param {String} format - Export format (pdf, excel, csv)
    * @param {Object} params - Report parameters
    * @param {String|ObjectId} userId - User ID
-   * @param {String|ObjectId} firmId - Firm ID
+   * @param {Object|String|ObjectId} tenantFilterOrFirmId - Tenant filter or firm ID
    * @returns {Promise<Buffer|String>} File buffer or download URL
    */
-  async exportReport(reportId, format, params, userId, firmId) {
+  async exportReport(reportId, format, params, userId, tenantFilterOrFirmId) {
     try {
-      logger.info('Exporting report', { reportId, format, userId, firmId });
+      const tenantFilter = normalizeTenantFilter(tenantFilterOrFirmId);
+      logger.info('Exporting report', { reportId, format, userId, tenantFilter });
 
-      // Execute report to get data
-      const result = await this.executeReport(reportId, params, userId, firmId);
+      // Execute report to get data (already supports tenant filter)
+      const result = await this.executeReport(reportId, params, userId, tenantFilterOrFirmId);
 
       let exportedData;
 
@@ -1230,10 +1259,24 @@ class ReportBuilderService {
   /**
    * Verify user has access to report
    * @private
+   * @param {Object} report - Report document
+   * @param {String|ObjectId} userId - User ID
+   * @param {Object} tenantFilter - Tenant filter object with firmId or lawyerId
    */
-  async _verifyReportAccess(report, userId, firmId) {
-    // Check firm isolation
-    if (report.firmId.toString() !== firmId.toString()) {
+  async _verifyReportAccess(report, userId, tenantFilter) {
+    // Check tenant isolation - report must belong to same tenant
+    if (tenantFilter.firmId) {
+      // Firm member: report must have same firmId
+      if (!report.firmId || report.firmId.toString() !== tenantFilter.firmId.toString()) {
+        return false;
+      }
+    } else if (tenantFilter.lawyerId) {
+      // Solo lawyer: report must have same lawyerId
+      if (!report.lawyerId || report.lawyerId.toString() !== tenantFilter.lawyerId.toString()) {
+        return false;
+      }
+    } else {
+      // No tenant context - deny access
       return false;
     }
 
@@ -1242,7 +1285,7 @@ class ReportBuilderService {
       return false;
     }
 
-    // Team reports: any user in the firm can access
+    // Team reports: any user in the firm/context can access
     if (report.scope === 'team') {
       return true;
     }

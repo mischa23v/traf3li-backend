@@ -210,18 +210,20 @@ const reportDefinitionSchema = new mongoose.Schema({
         required: true,
         index: true
     },
+    // For firm members - firmId is set
     firmId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Firm',
-        required: true,
         index: true
-     },
+        // Not required - solo lawyers won't have firmId
+    },
 
-    // For solo lawyers (no firm) - enables row-level security
+    // For solo lawyers (no firm) - lawyerId is set instead
     lawyerId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
         index: true
+        // Not required - firm members won't have lawyerId
     },
     createdBy: {
         type: mongoose.Schema.Types.ObjectId,
@@ -234,10 +236,29 @@ const reportDefinitionSchema = new mongoose.Schema({
 });
 
 // ═══════════════════════════════════════════════════════════════
+// VALIDATION
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Pre-save validation to ensure tenant isolation
+ * At least one of firmId OR lawyerId must be set
+ */
+reportDefinitionSchema.pre('save', function(next) {
+    if (!this.firmId && !this.lawyerId) {
+        const error = new Error('Either firmId or lawyerId must be provided for tenant isolation');
+        error.name = 'ValidationError';
+        return next(error);
+    }
+    next();
+});
+
+// ═══════════════════════════════════════════════════════════════
 // INDEXES
 // ═══════════════════════════════════════════════════════════════
 reportDefinitionSchema.index({ firmId: 1, createdBy: 1, createdAt: -1 });
+reportDefinitionSchema.index({ lawyerId: 1, createdBy: 1, createdAt: -1 }); // For solo lawyers
 reportDefinitionSchema.index({ firmId: 1, scope: 1, isPublic: 1 });
+reportDefinitionSchema.index({ lawyerId: 1, scope: 1, isPublic: 1 }); // For solo lawyers
 reportDefinitionSchema.index({ type: 1 });
 reportDefinitionSchema.index({ name: 'text', description: 'text' });
 reportDefinitionSchema.index({ 'schedule.enabled': 1, 'schedule.frequency': 1 });
