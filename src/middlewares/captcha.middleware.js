@@ -29,9 +29,11 @@ const logger = require('../utils/contextLogger');
 const auditLogService = require('../services/auditLog.service');
 
 // Environment configuration with defaults
+// NOTE: CAPTCHA disabled by default for development. Enable in production with:
+//   CAPTCHA_REQUIRED_ON_LOGIN=after_failures (or 'true')
 const CAPTCHA_CONFIG = {
     requiredOnRegister: process.env.CAPTCHA_REQUIRED_ON_REGISTER === 'true',
-    requiredOnLogin: process.env.CAPTCHA_REQUIRED_ON_LOGIN || 'after_failures',
+    requiredOnLogin: process.env.CAPTCHA_REQUIRED_ON_LOGIN || 'false',
     requiredOnForgotPassword: process.env.CAPTCHA_REQUIRED_ON_FORGOT_PASSWORD === 'true',
     failedLoginThreshold: parseInt(process.env.CAPTCHA_FAILED_LOGIN_THRESHOLD) || 3,
     defaultProvider: process.env.CAPTCHA_DEFAULT_PROVIDER || 'recaptcha'
