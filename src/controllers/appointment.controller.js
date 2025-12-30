@@ -510,13 +510,13 @@ exports.getAvailableSlots = async (req, res) => {
         }
 
         // Get CRM settings for working hours
-        // GOLD STANDARD: Lazy initialization fallback - if settings don't exist, create them
-        // Enterprise systems never block users with "Settings not found" errors
+        // GOLD STANDARD: Lazy initialization - auto-create if missing
+        // Enterprise systems (SAP, Salesforce, Microsoft) never block users with "Settings not found"
         let settings = await CRMSettings.findOne(tenantFilter);
 
-        if (!settings && tenantFilter.firmId) {
-            // Auto-create CRM settings with sensible defaults
-            settings = await CRMSettings.getOrCreate(tenantFilter.firmId);
+        if (!settings && (tenantFilter.firmId || tenantFilter.lawyerId)) {
+            // Auto-create CRM settings with sensible defaults (supports firms AND solo lawyers)
+            settings = await CRMSettings.getOrCreateByQuery(tenantFilter);
         }
 
         if (!settings) {

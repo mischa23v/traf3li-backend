@@ -137,20 +137,20 @@ const conversionSettingsSchema = new mongoose.Schema({
 // ═══════════════════════════════════════════════════════════════
 
 const crmSettingsSchema = new mongoose.Schema({
+    // For firm members - one settings document per firm
     firmId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Firm',
-        required: true,
-        unique: true,
-        index: true
-     },
+        index: true,
+        sparse: true  // Allows null for solo lawyers
+    },
 
-
-    // For solo lawyers (no firm) - enables row-level security
+    // For solo lawyers (no firm) - one settings document per lawyer
     lawyerId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
-        index: true
+        index: true,
+        sparse: true  // Allows null for firm members
     },
     leadSettings: { type: leadSettingsSchema, default: () => ({}) },
     caseSettings: { type: caseSettingsSchema, default: () => ({}) },
@@ -167,11 +167,50 @@ const crmSettingsSchema = new mongoose.Schema({
 });
 
 // ═══════════════════════════════════════════════════════════════
+// INDEXES - Ensure one settings document per firm OR per solo lawyer
+// ═══════════════════════════════════════════════════════════════
+
+crmSettingsSchema.index({ firmId: 1 }, { unique: true, sparse: true });
+crmSettingsSchema.index({ lawyerId: 1 }, { unique: true, sparse: true });
+
+// ═══════════════════════════════════════════════════════════════
+// PRE-SAVE VALIDATION
+// ═══════════════════════════════════════════════════════════════
+
+crmSettingsSchema.pre('save', function(next) {
+    // GOLD STANDARD: Either firmId OR lawyerId must be present (multi-tenant support)
+    if (!this.firmId && !this.lawyerId) {
+        return next(new Error('CRM Settings must have either firmId (for firms) or lawyerId (for solo lawyers)'));
+    }
+    next();
+});
+
+// ═══════════════════════════════════════════════════════════════
 // STATIC METHODS
 // ═══════════════════════════════════════════════════════════════
 
 /**
- * Get or create CRM settings for a firm
+ * Get or create CRM settings using firmQuery pattern
+ * GOLD STANDARD: Supports both firm members and solo lawyers
+ * @param {Object} firmQuery - { firmId } or { lawyerId }
+ * @returns {Promise<Object>} CRM settings document
+ */
+crmSettingsSchema.statics.getOrCreateByQuery = async function(firmQuery) {
+    if (!firmQuery || (!firmQuery.firmId && !firmQuery.lawyerId)) {
+        throw new Error('firmQuery must contain either firmId or lawyerId');
+    }
+
+    let settings = await this.findOne(firmQuery);
+
+    if (!settings) {
+        settings = await this.create(firmQuery);
+    }
+
+    return settings;
+};
+
+/**
+ * Get or create CRM settings for a firm (legacy - for backward compatibility)
  * @param {ObjectId} firmId - Firm ID
  * @returns {Promise<Object>} CRM settings document
  */
