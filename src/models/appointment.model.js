@@ -277,7 +277,7 @@ appointmentSchema.statics.getForDateRange = async function(firmId, startDate, en
 
 /**
  * Get available time slots
- * @param {ObjectId} firmId - Firm ID
+ * @param {Object} firmQuery - Tenant filter (firmId or lawyerId from req.firmQuery)
  * @param {Date} date - Date to check
  * @param {ObjectId} assignedTo - User ID
  * @param {Number} duration - Slot duration in minutes
@@ -286,7 +286,7 @@ appointmentSchema.statics.getForDateRange = async function(firmId, startDate, en
  * @returns {Promise<Array>} Array of available slots
  */
 appointmentSchema.statics.getAvailableSlots = async function(
-    firmId,
+    firmQuery,
     date,
     assignedTo,
     duration,
@@ -303,9 +303,9 @@ appointmentSchema.statics.getAvailableSlots = async function(
     const dayEnd = new Date(date);
     dayEnd.setHours(23, 59, 59, 999);
 
-    // Get existing appointments for the day
+    // Get existing appointments for the day - use firmQuery for tenant isolation
     const appointments = await this.find({
-        firmId,
+        ...firmQuery,
         assignedTo,
         scheduledTime: { $gte: dayStart, $lte: dayEnd },
         status: { $in: ['scheduled', 'confirmed'] }

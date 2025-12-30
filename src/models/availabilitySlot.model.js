@@ -145,19 +145,19 @@ availabilitySlotSchema.statics.getForDay = async function(lawyerId, dayOfWeek, f
 /**
  * Bulk update availability for a lawyer (replaces all slots)
  * @param {ObjectId} lawyerId - Lawyer's user ID
- * @param {ObjectId} firmId - Firm ID
+ * @param {Object} firmQuery - Tenant filter (firmId or lawyerId from req.firmQuery)
  * @param {Array} slots - Array of slot data
  * @returns {Promise<Array>} Created slots
  */
-availabilitySlotSchema.statics.bulkUpdate = async function(lawyerId, firmId, slots) {
-    // Delete existing slots for this lawyer
-    await this.deleteMany({ lawyerId, firmId });
+availabilitySlotSchema.statics.bulkUpdate = async function(lawyerId, firmQuery, slots) {
+    // Delete existing slots for this lawyer with tenant isolation
+    await this.deleteMany({ lawyerId, ...firmQuery });
 
-    // Create new slots
+    // Create new slots with tenant context
     const slotsWithIds = slots.map(slot => ({
         ...slot,
         lawyerId,
-        firmId
+        ...firmQuery
     }));
 
     return this.insertMany(slotsWithIds);

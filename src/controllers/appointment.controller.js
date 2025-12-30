@@ -7,8 +7,9 @@
 const Appointment = require('../models/appointment.model');
 const CRMSettings = require('../models/crmSettings.model');
 const CrmActivity = require('../models/crmActivity.model');
-const { pickAllowedFields } = require('../utils/securityUtils');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const logger = require('../utils/logger');
+const mongoose = require('mongoose');
 
 // ═══════════════════════════════════════════════════════════════
 // SECURITY CONSTANTS
@@ -217,7 +218,8 @@ exports.getById = async (req, res) => {
             });
         }
 
-        const { id } = req.params;
+        // Sanitize ID param to prevent NoSQL injection
+        const id = sanitizeObjectId(req.params.id);
 
         // IDOR Protection: Use firmQuery for firm isolation
         const appointment = await Appointment.findOne({ _id: id, ...req.firmQuery })
@@ -257,11 +259,25 @@ exports.getById = async (req, res) => {
  */
 exports.getAvailableSlots = async (req, res) => {
     try {
-        const firmId = req.firmId;
         const { date, assignedTo, duration = 30 } = req.query;
 
+        // Build tenant filter for CRM settings query
+        const tenantFilter = {};
+        if (req.firmQuery?.firmId) {
+            tenantFilter.firmId = req.firmQuery.firmId;
+        } else if (req.firmQuery?.lawyerId) {
+            tenantFilter.lawyerId = req.firmQuery.lawyerId;
+        }
+
         // Get CRM settings for working hours
-        const settings = await CRMSettings.getOrCreate(firmId);
+        const settings = await CRMSettings.findOne(tenantFilter);
+
+        if (!settings) {
+            return res.status(400).json({
+                success: false,
+                message: 'لم يتم العثور على إعدادات / Settings not found'
+            });
+        }
 
         if (!settings.appointmentSettings?.enabled) {
             return res.status(400).json({
@@ -288,8 +304,9 @@ exports.getAvailableSlots = async (req, res) => {
 
         const buffer = settings.appointmentSettings.bufferBetweenAppointments || 15;
 
+        // Pass firmQuery for tenant isolation
         const slots = await Appointment.getAvailableSlots(
-            firmId,
+            req.firmQuery,
             requestedDate,
             assignedTo,
             parseInt(duration),
@@ -333,9 +350,7 @@ exports.create = async (req, res) => {
             });
         }
 
-        const firmId = req.firmId;
         const userId = req.userID;
-        const isSoloLawyer = req.isSoloLawyer;
 
         // Mass assignment protection: only allow specific fields
         const safeData = pickAllowedFields(req.body, ALLOWED_CREATE_FIELDS);
@@ -349,16 +364,12 @@ exports.create = async (req, res) => {
             });
         }
 
-        // Multi-tenancy: Set firmId for firm users, omit for solo lawyers
-        const appointmentData = {
+        // Multi-tenancy: Use req.addFirmId() for proper firm/solo lawyer isolation
+        const appointmentData = req.addFirmId({
             ...safeData,
             createdBy: userId,
             status: 'scheduled' // Force status to prevent mass assignment
-        };
-
-        if (!isSoloLawyer && firmId) {
-            appointmentData.firmId = firmId;
-        }
+        });
 
         const appointment = await Appointment.create(appointmentData);
 
@@ -516,7 +527,8 @@ exports.update = async (req, res) => {
             });
         }
 
-        const { id } = req.params;
+        // Sanitize ID param to prevent NoSQL injection
+        const id = sanitizeObjectId(req.params.id);
         const userId = req.userID;
 
         // Mass assignment protection: only allow specific fields
@@ -591,7 +603,8 @@ exports.cancel = async (req, res) => {
             });
         }
 
-        const { id } = req.params;
+        // Sanitize ID param to prevent NoSQL injection
+        const id = sanitizeObjectId(req.params.id);
         const userId = req.userID;
 
         // Mass assignment protection: only allow reason field
@@ -660,7 +673,8 @@ exports.complete = async (req, res) => {
             });
         }
 
-        const { id } = req.params;
+        // Sanitize ID param to prevent NoSQL injection
+        const id = sanitizeObjectId(req.params.id);
         const userId = req.userID;
 
         // Mass assignment protection: only allow specific fields
@@ -730,7 +744,8 @@ exports.markNoShow = async (req, res) => {
             });
         }
 
-        const { id } = req.params;
+        // Sanitize ID param to prevent NoSQL injection
+        const id = sanitizeObjectId(req.params.id);
         const userId = req.userID;
 
         // IDOR Protection: Verify appointment belongs to user's firm/lawyer
@@ -787,7 +802,8 @@ exports.confirm = async (req, res) => {
             });
         }
 
-        const { id } = req.params;
+        // Sanitize ID param to prevent NoSQL injection
+        const id = sanitizeObjectId(req.params.id);
         const userId = req.userID;
 
         // IDOR Protection: Verify appointment belongs to user's firm/lawyer
@@ -907,16 +923,15 @@ exports.createAvailability = async (req, res) => {
         }
 
         const userId = req.userID;
-        const firmId = req.firmId;
 
         // Mass assignment protection
         const safeData = pickAllowedFields(req.body, ALLOWED_AVAILABILITY_FIELDS);
 
-        const slotData = {
+        // Use req.addFirmId() for proper firm/solo lawyer isolation
+        const slotData = req.addFirmId({
             ...safeData,
-            lawyerId: userId,
-            firmId
-        };
+            lawyerId: userId
+        });
 
         const slot = await AvailabilitySlot.create(slotData);
 
@@ -947,7 +962,8 @@ exports.updateAvailability = async (req, res) => {
             });
         }
 
-        const { id } = req.params;
+        // Sanitize ID param to prevent NoSQL injection
+        const id = sanitizeObjectId(req.params.id);
 
         // Mass assignment protection
         const safeData = pickAllowedFields(req.body, ALLOWED_AVAILABILITY_FIELDS);
@@ -993,7 +1009,8 @@ exports.deleteAvailability = async (req, res) => {
             });
         }
 
-        const { id } = req.params;
+        // Sanitize ID param to prevent NoSQL injection
+        const id = sanitizeObjectId(req.params.id);
 
         // IDOR Protection: Delete with firmQuery
         const slot = await AvailabilitySlot.findOneAndDelete({
@@ -1035,7 +1052,6 @@ exports.bulkUpdateAvailability = async (req, res) => {
         }
 
         const userId = req.userID;
-        const firmId = req.firmId;
         const { slots } = req.body;
 
         if (!Array.isArray(slots)) {
@@ -1048,8 +1064,8 @@ exports.bulkUpdateAvailability = async (req, res) => {
         // Validate each slot
         const safeSlots = slots.map(slot => pickAllowedFields(slot, ALLOWED_AVAILABILITY_FIELDS));
 
-        // Bulk update
-        const result = await AvailabilitySlot.bulkUpdate(userId, firmId, safeSlots);
+        // Bulk update - pass req.firmQuery for proper tenant isolation
+        const result = await AvailabilitySlot.bulkUpdate(userId, req.firmQuery, safeSlots);
 
         res.json({
             success: true,
@@ -1134,7 +1150,6 @@ exports.createBlockedTime = async (req, res) => {
         }
 
         const userId = req.userID;
-        const firmId = req.firmId;
 
         // Mass assignment protection
         const safeData = pickAllowedFields(req.body, ALLOWED_BLOCKED_TIME_FIELDS);
@@ -1147,12 +1162,12 @@ exports.createBlockedTime = async (req, res) => {
             });
         }
 
-        const blockedTimeData = {
+        // Use req.addFirmId() for proper firm/solo lawyer isolation
+        const blockedTimeData = req.addFirmId({
             ...safeData,
             lawyerId: userId,
-            firmId,
             createdBy: userId
-        };
+        });
 
         const blockedTime = await BlockedTime.create(blockedTimeData);
 
@@ -1183,7 +1198,8 @@ exports.deleteBlockedTime = async (req, res) => {
             });
         }
 
-        const { id } = req.params;
+        // Sanitize ID param to prevent NoSQL injection
+        const id = sanitizeObjectId(req.params.id);
 
         // IDOR Protection: Delete with firmQuery
         const blockedTime = await BlockedTime.findOneAndDelete({
@@ -1373,10 +1389,33 @@ exports.getSettings = async (req, res) => {
             });
         }
 
-        const firmId = req.firmId;
+        // Build tenant filter for proper firm/solo lawyer isolation
+        const tenantFilter = {};
+        if (req.firmQuery?.firmId) {
+            tenantFilter.firmId = req.firmQuery.firmId;
+        } else if (req.firmQuery?.lawyerId) {
+            tenantFilter.lawyerId = req.firmQuery.lawyerId;
+        }
 
-        // Get settings from CRM Settings
-        const settings = await CRMSettings.getOrCreate(firmId);
+        // Get settings from CRM Settings - use findOne with tenant filter
+        let settings = await CRMSettings.findOne(tenantFilter);
+
+        // Create default settings if not found
+        if (!settings) {
+            settings = await CRMSettings.create(req.addFirmId({
+                appointmentSettings: {
+                    enabled: false,
+                    defaultDuration: 30,
+                    allowedDurations: [15, 30, 45, 60],
+                    advanceBookingDays: 30,
+                    minAdvanceBookingHours: 24,
+                    bufferBetweenAppointments: 15,
+                    sendReminders: true,
+                    reminderHoursBefore: 24,
+                    publicBookingEnabled: false
+                }
+            }));
+        }
 
         res.json({
             success: true,
@@ -1407,7 +1446,13 @@ exports.updateSettings = async (req, res) => {
             });
         }
 
-        const firmId = req.firmId;
+        // Build tenant filter for proper firm/solo lawyer isolation
+        const tenantFilter = {};
+        if (req.firmQuery?.firmId) {
+            tenantFilter.firmId = req.firmQuery.firmId;
+        } else if (req.firmQuery?.lawyerId) {
+            tenantFilter.lawyerId = req.firmQuery.lawyerId;
+        }
 
         // Allowed settings fields
         const allowedFields = [
@@ -1425,12 +1470,19 @@ exports.updateSettings = async (req, res) => {
 
         const safeData = pickAllowedFields(req.body, allowedFields);
 
-        // Update CRM settings
-        const settings = await CRMSettings.findOneAndUpdate(
-            { firmId },
+        // Update CRM settings with tenant filter
+        let settings = await CRMSettings.findOneAndUpdate(
+            tenantFilter,
             { $set: { appointmentSettings: safeData } },
-            { new: true, upsert: true }
+            { new: true }
         );
+
+        // If settings don't exist, create them
+        if (!settings) {
+            settings = await CRMSettings.create(req.addFirmId({
+                appointmentSettings: safeData
+            }));
+        }
 
         res.json({
             success: true,
@@ -1565,7 +1617,8 @@ exports.reschedule = async (req, res) => {
             });
         }
 
-        const { id } = req.params;
+        // Sanitize ID param to prevent NoSQL injection
+        const id = sanitizeObjectId(req.params.id);
         const userId = req.userID;
 
         // Only allow date and startTime for rescheduling
