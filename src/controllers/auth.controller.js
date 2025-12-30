@@ -2343,17 +2343,39 @@ const resetPassword = async (request, response) => {
     const ipAddress = request.ip || request.headers['x-forwarded-for']?.split(',')[0] || 'unknown';
 
     try {
-        // Hash the provided token to compare with stored hash
-        const crypto = require('crypto');
-        const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+        let user = null;
+        let tokenSource = null;
 
-        // Find user with matching token and non-expired token (bypass firmFilter for auth)
-        const user = await User.findOne({
-            passwordResetToken: hashedToken,
-            passwordResetExpires: { $gt: Date.now() }
-        })
-            .select('_id email firstName lastName password passwordResetToken passwordResetExpires')
-            .setOptions({ bypassFirmFilter: true });
+        // First, try to verify as JWT token (from OTP-based password reset flow)
+        try {
+            const decoded = jwt.verify(token, JWT_SECRET);
+            if (decoded.purpose === 'password_reset' && decoded.email) {
+                // Find user by email from JWT (bypass firmFilter for auth)
+                user = await User.findOne({ email: decoded.email.toLowerCase() })
+                    .select('_id email firstName lastName password')
+                    .setOptions({ bypassFirmFilter: true });
+                tokenSource = 'jwt';
+                logger.info('Password reset using OTP-based JWT token', { email: decoded.email });
+            }
+        } catch (jwtError) {
+            // Not a valid JWT, will try SHA256 hash lookup below
+            logger.debug('Token is not a valid JWT, trying SHA256 hash lookup', { error: jwtError.message });
+        }
+
+        // If JWT verification failed, try SHA256 hash lookup (email-based password reset flow)
+        if (!user) {
+            const crypto = require('crypto');
+            const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+
+            // Find user with matching token and non-expired token (bypass firmFilter for auth)
+            user = await User.findOne({
+                passwordResetToken: hashedToken,
+                passwordResetExpires: { $gt: Date.now() }
+            })
+                .select('_id email firstName lastName password passwordResetToken passwordResetExpires')
+                .setOptions({ bypassFirmFilter: true });
+            tokenSource = 'email';
+        }
 
         if (!user) {
             logger.warn('Invalid or expired password reset token', { ipAddress });
@@ -2437,11 +2459,12 @@ const resetPassword = async (request, response) => {
                 userEmail: user.email,
                 ipAddress,
                 userAgent: request.headers['user-agent'] || 'unknown',
-                severity: 'medium'
+                severity: 'medium',
+                tokenSource: tokenSource // 'jwt' for OTP flow, 'email' for email flow
             }
         );
 
-        logger.info('Password reset successful', { userId: user._id, email: user.email });
+        logger.info('Password reset successful', { userId: user._id, email: user.email, tokenSource });
 
         // Trigger password reset completed webhook (fire-and-forget)
         (async () => {
