@@ -4,9 +4,12 @@
  * Handles self-serve report builder endpoints for creating, managing,
  * and executing custom reports with dynamic data sources, filters,
  * and visualizations.
+ *
+ * NOTE: Tenant context (req.firmQuery) is set by authenticatedApi middleware.
+ * The globalFirmIsolation Mongoose plugin enforces tenant filters on all queries.
+ * See .claude/FIRM_ISOLATION.md for patterns.
  */
 
-const mongoose = require('mongoose');
 const ReportDefinition = require('../models/reportDefinition.model');
 const ReportBuilderService = require('../services/reportBuilder.service');
 const asyncHandler = require('../utils/asyncHandler');
@@ -14,35 +17,6 @@ const CustomException = require('../utils/CustomException');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const logger = require('../utils/logger');
 const { sanitizeFilename } = require('../utils/sanitize');
-
-/**
- * Helper function to check if request has valid tenant context
- * Works for both firm members (firmId) and solo lawyers (lawyerId)
- * @param {Object} req - Express request object
- * @returns {boolean} True if valid tenant context exists
- */
-const hasTenantContext = (req) => {
-    return Boolean(
-        req.firmQuery &&
-        (req.firmQuery.firmId || req.firmQuery.lawyerId)
-    );
-};
-
-/**
- * Helper function to get tenant filter for queries
- * Converts string IDs to ObjectIds for aggregation pipelines
- * @param {Object} req - Express request object
- * @returns {Object} Filter object with firmId or lawyerId
- */
-const getTenantFilter = (req) => {
-    if (req.firmQuery?.firmId) {
-        return { firmId: new mongoose.Types.ObjectId(req.firmQuery.firmId) };
-    } else if (req.firmQuery?.lawyerId) {
-        return { lawyerId: new mongoose.Types.ObjectId(req.firmQuery.lawyerId) };
-    }
-    // Fallback for safety - should not reach here if hasTenantContext passes
-    return { lawyerId: new mongoose.Types.ObjectId(req.userID) };
-};
 
 // ═══════════════════════════════════════════════════════════════
 // REPORT DEFINITION CRUD
@@ -54,11 +28,6 @@ const getTenantFilter = (req) => {
  */
 const listReports = asyncHandler(async (req, res) => {
     const userId = req.userID;
-
-    // Validate tenant context (works for both firm members and solo lawyers)
-    if (!hasTenantContext(req)) {
-        throw CustomException('يجب أن تكون جزءًا من شركة أو محامٍ مستقل / You must be part of a firm or a solo lawyer', 403);
-    }
 
     // Mass assignment protection - only allow specific query parameters
     const allowedParams = pickAllowedFields(req.query, [
@@ -89,9 +58,8 @@ const listReports = asyncHandler(async (req, res) => {
         throw CustomException('نطاق التقرير غير صالح / Invalid report scope', 400);
     }
 
-    // Get reports using service with tenant filter
-    const tenantFilter = getTenantFilter(req);
-    const result = await ReportBuilderService.getReportsForUser(tenantFilter, userId, {
+    // Get reports using service - pass req.firmQuery for tenant isolation
+    const result = await ReportBuilderService.getReportsForUser(req.firmQuery, userId, {
         type,
         scope,
         search,
@@ -103,7 +71,6 @@ const listReports = asyncHandler(async (req, res) => {
 
     logger.info('Reports listed successfully', {
         userId,
-        tenantFilter,
         count: result.reports.length,
         total: result.pagination.total
     });
@@ -121,11 +88,6 @@ const listReports = asyncHandler(async (req, res) => {
  */
 const createReport = asyncHandler(async (req, res) => {
     const userId = req.userID;
-
-    // Validate tenant context (works for both firm members and solo lawyers)
-    if (!hasTenantContext(req)) {
-        throw CustomException('يجب أن تكون جزءًا من شركة أو محامٍ مستقل / You must be part of a firm or a solo lawyer', 403);
-    }
 
     // Mass assignment protection - only allow specific fields
     const allowedFields = pickAllowedFields(req.body, [
@@ -156,7 +118,6 @@ const createReport = asyncHandler(async (req, res) => {
     if (!validation.valid) {
         logger.warn('Report validation failed', {
             userId,
-            tenantFilter: getTenantFilter(req),
             errors: validation.errors
         });
         throw CustomException(
@@ -165,7 +126,7 @@ const createReport = asyncHandler(async (req, res) => {
         );
     }
 
-    // Create report definition using req.addFirmId for proper tenant context
+    // Create report - req.addFirmId() adds firmId/lawyerId based on user context
     const reportData = req.addFirmId({
         ...allowedFields,
         ownerId: userId,
@@ -179,7 +140,6 @@ const createReport = asyncHandler(async (req, res) => {
     logger.info('Report created successfully', {
         reportId: report._id,
         userId,
-        tenantFilter: getTenantFilter(req),
         type: report.type,
         name: report.name
     });
@@ -199,18 +159,13 @@ const getReport = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
 
-    // Validate tenant context (works for both firm members and solo lawyers)
-    if (!hasTenantContext(req)) {
-        throw CustomException('يجب أن تكون جزءًا من شركة أو محامٍ مستقل / You must be part of a firm or a solo lawyer', 403);
-    }
-
     // Sanitize and validate ObjectId
     const sanitizedId = sanitizeObjectId(id);
     if (!sanitizedId) {
         throw CustomException('معرف التقرير غير صالح / Invalid report ID', 400);
     }
 
-    // Get report with tenant isolation (firmId OR lawyerId)
+    // Get report with tenant isolation - spread req.firmQuery
     const report = await ReportDefinition.findOne({
         _id: sanitizedId,
         ...req.firmQuery
@@ -234,8 +189,7 @@ const getReport = asyncHandler(async (req, res) => {
 
     logger.info('Report retrieved successfully', {
         reportId: report._id,
-        userId,
-        tenantFilter: getTenantFilter(req)
+        userId
     });
 
     res.status(200).json({
@@ -251,11 +205,6 @@ const getReport = asyncHandler(async (req, res) => {
 const updateReport = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
-
-    // Validate tenant context (works for both firm members and solo lawyers)
-    if (!hasTenantContext(req)) {
-        throw CustomException('يجب أن تكون جزءًا من شركة أو محامٍ مستقل / You must be part of a firm or a solo lawyer', 403);
-    }
 
     // Sanitize and validate ObjectId
     const sanitizedId = sanitizeObjectId(id);
@@ -277,7 +226,7 @@ const updateReport = asyncHandler(async (req, res) => {
         'scope'
     ]);
 
-    // Get report with tenant isolation (firmId OR lawyerId)
+    // Get report with tenant isolation
     const report = await ReportDefinition.findOne({
         _id: sanitizedId,
         ...req.firmQuery
@@ -291,9 +240,6 @@ const updateReport = asyncHandler(async (req, res) => {
     if (report.scope === 'personal' && report.ownerId.toString() !== userId) {
         throw CustomException('التقرير غير موجود / Report not found', 404);
     }
-
-    // TODO: Add role-based permission check for team/global reports
-    // For team/global reports, only admins should be able to update
 
     // Input validation - validate name if provided
     if (allowedUpdates.name !== undefined) {
@@ -313,7 +259,6 @@ const updateReport = asyncHandler(async (req, res) => {
         if (!validation.valid) {
             logger.warn('Report validation failed on update', {
                 userId,
-                tenantFilter: getTenantFilter(req),
                 reportId: sanitizedId,
                 errors: validation.errors
             });
@@ -334,7 +279,6 @@ const updateReport = asyncHandler(async (req, res) => {
     logger.info('Report updated successfully', {
         reportId: report._id,
         userId,
-        tenantFilter: getTenantFilter(req),
         updatedFields: Object.keys(allowedUpdates)
     });
 
@@ -353,18 +297,13 @@ const deleteReport = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
 
-    // Validate tenant context (works for both firm members and solo lawyers)
-    if (!hasTenantContext(req)) {
-        throw CustomException('يجب أن تكون جزءًا من شركة أو محامٍ مستقل / You must be part of a firm or a solo lawyer', 403);
-    }
-
     // Sanitize and validate ObjectId
     const sanitizedId = sanitizeObjectId(id);
     if (!sanitizedId) {
         throw CustomException('معرف التقرير غير صالح / Invalid report ID', 400);
     }
 
-    // Get report with tenant isolation (firmId OR lawyerId)
+    // Get report with tenant isolation
     const report = await ReportDefinition.findOne({
         _id: sanitizedId,
         ...req.firmQuery
@@ -386,8 +325,7 @@ const deleteReport = asyncHandler(async (req, res) => {
 
     logger.info('Report deleted successfully', {
         reportId: sanitizedId,
-        userId,
-        tenantFilter: getTenantFilter(req)
+        userId
     });
 
     res.status(200).json({
@@ -407,11 +345,6 @@ const deleteReport = asyncHandler(async (req, res) => {
 const executeReport = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
-
-    // Validate tenant context (works for both firm members and solo lawyers)
-    if (!hasTenantContext(req)) {
-        throw CustomException('يجب أن تكون جزءًا من شركة أو محامٍ مستقل / You must be part of a firm or a solo lawyer', 403);
-    }
 
     // Sanitize and validate ObjectId
     const sanitizedId = sanitizeObjectId(id);
@@ -433,19 +366,17 @@ const executeReport = asyncHandler(async (req, res) => {
     }
     params._limit = limit;
 
-    // Execute report using service with tenant filter
-    const tenantFilter = getTenantFilter(req);
+    // Execute report - pass req.firmQuery for tenant isolation
     const result = await ReportBuilderService.executeReport(
         sanitizedId,
         params,
         userId,
-        tenantFilter
+        req.firmQuery
     );
 
     logger.info('Report executed successfully', {
         reportId: sanitizedId,
         userId,
-        tenantFilter,
         rowCount: result.data?.rows?.length || 0
     });
 
@@ -462,11 +393,6 @@ const executeReport = asyncHandler(async (req, res) => {
 const exportReport = asyncHandler(async (req, res) => {
     const { id, format } = req.params;
     const userId = req.userID;
-
-    // Validate tenant context (works for both firm members and solo lawyers)
-    if (!hasTenantContext(req)) {
-        throw CustomException('يجب أن تكون جزءًا من شركة أو محامٍ مستقل / You must be part of a firm or a solo lawyer', 403);
-    }
 
     // Sanitize and validate ObjectId
     const sanitizedId = sanitizeObjectId(id);
@@ -486,20 +412,18 @@ const exportReport = asyncHandler(async (req, res) => {
     // Mass assignment protection - get query parameters (filter inputs)
     const params = { ...req.query };
 
-    // Export report using service with tenant filter
-    const tenantFilter = getTenantFilter(req);
+    // Export report - pass req.firmQuery for tenant isolation
     const exportedData = await ReportBuilderService.exportReport(
         sanitizedId,
         format,
         params,
         userId,
-        tenantFilter
+        req.firmQuery
     );
 
     logger.info('Report exported successfully', {
         reportId: sanitizedId,
         userId,
-        tenantFilter,
         format,
         size: exportedData.length
     });
@@ -527,7 +451,7 @@ const exportReport = asyncHandler(async (req, res) => {
             extension = format;
     }
 
-    // Get report name for filename with tenant isolation
+    // Get report name for filename
     const report = await ReportDefinition.findOne({
         _id: sanitizedId,
         ...req.firmQuery
@@ -553,11 +477,6 @@ const cloneReport = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
 
-    // Validate tenant context (works for both firm members and solo lawyers)
-    if (!hasTenantContext(req)) {
-        throw CustomException('يجب أن تكون جزءًا من شركة أو محامٍ مستقل / You must be part of a firm or a solo lawyer', 403);
-    }
-
     // Sanitize and validate ObjectId
     const sanitizedId = sanitizeObjectId(id);
     if (!sanitizedId) {
@@ -573,20 +492,18 @@ const cloneReport = asyncHandler(async (req, res) => {
         throw CustomException('اسم التقرير غير صالح / Invalid report name', 400);
     }
 
-    // Clone report using service with tenant filter
-    const tenantFilter = getTenantFilter(req);
+    // Clone report - pass req.firmQuery for tenant isolation
     const clonedReport = await ReportBuilderService.cloneReport(
         sanitizedId,
         userId,
         newName,
-        tenantFilter
+        req.firmQuery
     );
 
     logger.info('Report cloned successfully', {
         originalId: sanitizedId,
         clonedId: clonedReport._id,
-        userId,
-        tenantFilter
+        userId
     });
 
     res.status(201).json({
@@ -603,11 +520,6 @@ const cloneReport = asyncHandler(async (req, res) => {
 const updateSchedule = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
-
-    // Validate tenant context (works for both firm members and solo lawyers)
-    if (!hasTenantContext(req)) {
-        throw CustomException('يجب أن تكون جزءًا من شركة أو محامٍ مستقل / You must be part of a firm or a solo lawyer', 403);
-    }
 
     // Sanitize and validate ObjectId
     const sanitizedId = sanitizeObjectId(id);
@@ -669,7 +581,6 @@ const updateSchedule = asyncHandler(async (req, res) => {
     logger.info('Report schedule updated successfully', {
         reportId: sanitizedId,
         userId,
-        tenantFilter: getTenantFilter(req),
         enabled: allowedFields.enabled,
         frequency: allowedFields.frequency
     });
@@ -692,11 +603,6 @@ const updateSchedule = asyncHandler(async (req, res) => {
 const validateReport = asyncHandler(async (req, res) => {
     const userId = req.userID;
 
-    // Validate tenant context (works for both firm members and solo lawyers)
-    if (!hasTenantContext(req)) {
-        throw CustomException('يجب أن تكون جزءًا من شركة أو محامٍ مستقل / You must be part of a firm or a solo lawyer', 403);
-    }
-
     // Mass assignment protection - only allow report definition fields
     const allowedFields = pickAllowedFields(req.body, [
         'name',
@@ -714,7 +620,6 @@ const validateReport = asyncHandler(async (req, res) => {
 
     logger.info('Report validation performed', {
         userId,
-        tenantFilter: getTenantFilter(req),
         valid: validation.valid,
         errorCount: validation.errors.length
     });
