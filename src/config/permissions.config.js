@@ -94,6 +94,7 @@ const MODULES = {
     DOCUMENTS: 'documents',
     TASKS: 'tasks',
     EVENTS: 'events',
+    APPOINTMENTS: 'appointments', // Schedule management (availability, blocked times, cross-lawyer management)
     TIME_TRACKING: 'timeTracking',
     REPORTS: 'reports',
     SETTINGS: 'settings',
@@ -120,6 +121,7 @@ const ROLE_PERMISSIONS = {
             documents: 'full',
             tasks: 'full',
             events: 'full',
+            appointments: 'full', // Can manage all lawyers' schedules
             timeTracking: 'full',
             reports: 'full',
             settings: 'full',
@@ -150,6 +152,7 @@ const ROLE_PERMISSIONS = {
             documents: 'full',
             tasks: 'full',
             events: 'full',
+            appointments: 'full', // Can manage all lawyers' schedules
             timeTracking: 'full',
             reports: 'full',
             settings: 'edit',  // Can edit but not full control
@@ -180,6 +183,7 @@ const ROLE_PERMISSIONS = {
             documents: 'full',
             tasks: 'full',
             events: 'full',
+            appointments: 'full', // Can manage all lawyers' schedules (senior role)
             timeTracking: 'full',
             reports: 'view',
             settings: 'view',
@@ -210,6 +214,7 @@ const ROLE_PERMISSIONS = {
             documents: 'edit',
             tasks: 'full',     // Full control over their tasks
             events: 'full',
+            appointments: 'edit', // Can manage own schedule only
             timeTracking: 'full',
             reports: 'view',
             settings: 'none',
@@ -240,6 +245,7 @@ const ROLE_PERMISSIONS = {
             documents: 'edit',
             tasks: 'edit',
             events: 'edit',
+            appointments: 'view', // Can view schedules
             timeTracking: 'edit',
             reports: 'none',
             settings: 'none',
@@ -270,6 +276,7 @@ const ROLE_PERMISSIONS = {
             documents: 'view',
             tasks: 'edit',
             events: 'edit',
+            appointments: 'edit', // Can manage schedules (booking support)
             timeTracking: 'view',
             reports: 'none',
             settings: 'none',
@@ -300,6 +307,7 @@ const ROLE_PERMISSIONS = {
             documents: 'view',
             tasks: 'edit',
             events: 'edit',
+            appointments: 'view', // Can view for billing purposes
             timeTracking: 'view',  // For billing purposes
             reports: 'full',
             settings: 'none',
@@ -332,6 +340,7 @@ const ROLE_PERMISSIONS = {
             documents: 'none',      // No document access (unless explicitly shared)
             tasks: 'none',          // No task access
             events: 'none',         // No event access
+            appointments: 'none',   // No schedule access
             timeTracking: 'none',   // No time tracking access
             reports: 'none',        // No reports access
             settings: 'none',       // No settings access
@@ -377,6 +386,7 @@ const ROLE_PERMISSIONS = {
             documents: 'view',   // Read-only to case documents
             tasks: 'view',       // Read-only to their tasks
             events: 'view',      // Read-only to their events
+            appointments: 'none', // No schedule access after departure
             timeTracking: 'view', // Can see their time entries
             reports: 'none',
             settings: 'none',
@@ -420,6 +430,7 @@ const ROLE_PERMISSIONS = {
             documents: 'full',
             tasks: 'full',
             events: 'full',
+            appointments: 'full', // Full control over own schedule
             timeTracking: 'full',
             reports: 'full',
             settings: 'full',

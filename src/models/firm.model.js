@@ -36,6 +36,7 @@ const teamMemberSchema = new mongoose.Schema({
         documents: { type: String, enum: ['none', 'view', 'edit', 'full'], default: 'view' },
         tasks: { type: String, enum: ['none', 'view', 'edit', 'full'], default: 'edit' },
         events: { type: String, enum: ['none', 'view', 'edit', 'full'], default: 'edit' },
+        appointments: { type: String, enum: ['none', 'view', 'edit', 'full'], default: 'edit' }, // Schedule management
         timeTracking: { type: String, enum: ['none', 'view', 'edit', 'full'], default: 'edit' },
         reports: { type: String, enum: ['none', 'view', 'edit', 'full'], default: 'none' },
         settings: { type: String, enum: ['none', 'view', 'edit', 'full'], default: 'none' },
