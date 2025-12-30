@@ -8,6 +8,7 @@ const Appointment = require('../models/appointment.model');
 const CRMSettings = require('../models/crmSettings.model');
 const CrmActivity = require('../models/crmActivity.model');
 const Firm = require('../models/firm.model');
+const Event = require('../models/event.model');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const logger = require('../utils/logger');
 const mongoose = require('mongoose');
@@ -225,6 +226,146 @@ const validateTargetLawyer = async (req, targetLawyerId) => {
         lawyerId: sanitizedTargetId,
         error: null,
         isManagingOther: true
+    };
+};
+
+/**
+ * Check for schedule conflicts before creating/rescheduling appointments
+ * Enterprise-grade conflict detection following SAP/Microsoft/AWS patterns
+ *
+ * @param {Object} firmQuery - Tenant isolation query (firmId or lawyerId)
+ * @param {ObjectId} assignedTo - Lawyer the appointment is assigned to
+ * @param {Date} scheduledTime - Start time of the appointment
+ * @param {Number} duration - Duration in minutes
+ * @param {ObjectId|null} excludeAppointmentId - Exclude this appointment ID (for reschedule)
+ * @returns {Promise<Object>} - { hasConflict: boolean, conflicts: Array, message: string }
+ */
+const checkScheduleConflicts = async (firmQuery, assignedTo, scheduledTime, duration, excludeAppointmentId = null) => {
+    const startTime = new Date(scheduledTime);
+    const endTime = new Date(startTime.getTime() + (duration || 30) * 60 * 1000);
+    const conflicts = [];
+
+    // 1. Check existing appointments
+    const appointmentQuery = {
+        ...firmQuery,
+        assignedTo: assignedTo,
+        status: { $in: ['scheduled', 'confirmed'] },
+        $or: [
+            // New appointment starts during existing
+            { scheduledTime: { $lte: startTime }, endTime: { $gt: startTime } },
+            // New appointment ends during existing
+            { scheduledTime: { $lt: endTime }, endTime: { $gte: endTime } },
+            // Existing appointment is within new appointment
+            { scheduledTime: { $gte: startTime }, endTime: { $lte: endTime } },
+            // New appointment is within existing
+            { scheduledTime: { $lte: startTime }, endTime: { $gte: endTime } }
+        ]
+    };
+
+    // Exclude current appointment if rescheduling
+    if (excludeAppointmentId) {
+        appointmentQuery._id = { $ne: excludeAppointmentId };
+    }
+
+    const conflictingAppointments = await Appointment.find(appointmentQuery)
+        .select('appointmentNumber scheduledTime endTime customerName')
+        .limit(5);
+
+    for (const apt of conflictingAppointments) {
+        conflicts.push({
+            type: 'appointment',
+            id: apt._id,
+            reference: apt.appointmentNumber,
+            title: `Appointment with ${apt.customerName}`,
+            startTime: apt.scheduledTime,
+            endTime: apt.endTime
+        });
+    }
+
+    // 2. Check blocked times
+    const BlockedTime = require('../models/blockedTime.model');
+    const blockedTimeQuery = {
+        ...firmQuery,
+        lawyerId: assignedTo,
+        $or: [
+            { startDateTime: { $lte: startTime }, endDateTime: { $gt: startTime } },
+            { startDateTime: { $lt: endTime }, endDateTime: { $gte: endTime } },
+            { startDateTime: { $gte: startTime }, endDateTime: { $lte: endTime } },
+            { startDateTime: { $lte: startTime }, endDateTime: { $gte: endTime } }
+        ]
+    };
+
+    const conflictingBlocked = await BlockedTime.find(blockedTimeQuery)
+        .select('startDateTime endDateTime reason')
+        .limit(5);
+
+    for (const blocked of conflictingBlocked) {
+        conflicts.push({
+            type: 'blocked_time',
+            id: blocked._id,
+            title: blocked.reason || 'Blocked time',
+            startTime: blocked.startDateTime,
+            endTime: blocked.endDateTime
+        });
+    }
+
+    // 3. Check events (court hearings, meetings, etc.)
+    const eventQuery = {
+        ...firmQuery,
+        status: { $nin: ['canceled', 'cancelled'] },
+        $or: [
+            { 'attendees.userId': assignedTo },
+            { createdBy: assignedTo }
+        ],
+        $and: [
+            {
+                $or: [
+                    { startDateTime: { $lte: startTime }, endDateTime: { $gt: startTime } },
+                    { startDateTime: { $lt: endTime }, endDateTime: { $gte: endTime } },
+                    { startDateTime: { $gte: startTime }, endDateTime: { $lte: endTime } },
+                    { startDateTime: { $lte: startTime }, endDateTime: { $gte: endTime } }
+                ]
+            }
+        ]
+    };
+
+    const conflictingEvents = await Event.find(eventQuery)
+        .select('eventId title type startDateTime endDateTime')
+        .limit(5);
+
+    for (const event of conflictingEvents) {
+        conflicts.push({
+            type: 'event',
+            subType: event.type,
+            id: event._id,
+            reference: event.eventId,
+            title: event.title || `${event.type} event`,
+            startTime: event.startDateTime,
+            endTime: event.endDateTime
+        });
+    }
+
+    // Build response
+    if (conflicts.length === 0) {
+        return {
+            hasConflict: false,
+            conflicts: [],
+            message: null
+        };
+    }
+
+    // Create human-readable message
+    const conflictTypes = [...new Set(conflicts.map(c => c.type))];
+    let message = 'الوقت المحدد يتعارض مع / Time slot conflicts with: ';
+    if (conflictTypes.includes('appointment')) message += 'existing appointments, ';
+    if (conflictTypes.includes('blocked_time')) message += 'blocked times, ';
+    if (conflictTypes.includes('event')) message += 'scheduled events, ';
+    message = message.slice(0, -2); // Remove trailing comma
+
+    return {
+        hasConflict: true,
+        conflicts,
+        message
     };
 };
 
@@ -460,6 +601,23 @@ exports.create = async (req, res) => {
             return res.status(400).json({
                 success: false,
                 message: validation.error
+            });
+        }
+
+        // Enterprise: Check for schedule conflicts before creating
+        const assignedTo = safeData.assignedTo || userId;
+        const conflictCheck = await checkScheduleConflicts(
+            req.firmQuery,
+            assignedTo,
+            safeData.scheduledTime,
+            safeData.duration || 30
+        );
+
+        if (conflictCheck.hasConflict) {
+            return res.status(409).json({
+                success: false,
+                message: conflictCheck.message,
+                conflicts: conflictCheck.conflicts
             });
         }
 
@@ -1820,6 +1978,23 @@ exports.reschedule = async (req, res) => {
             return res.status(400).json({
                 success: false,
                 message: 'الوقت الجديد يجب أن يكون في المستقبل / New time must be in the future'
+            });
+        }
+
+        // Enterprise: Check for schedule conflicts before rescheduling
+        const conflictCheck = await checkScheduleConflicts(
+            req.firmQuery,
+            appointment.assignedTo,
+            newScheduledTime,
+            appointment.duration || 30,
+            appointment._id // Exclude current appointment
+        );
+
+        if (conflictCheck.hasConflict) {
+            return res.status(409).json({
+                success: false,
+                message: conflictCheck.message,
+                conflicts: conflictCheck.conflicts
             });
         }
 
