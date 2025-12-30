@@ -79,7 +79,7 @@ const appointmentSettingsSchema = new mongoose.Schema({
         wednesday: { type: workingHoursSchema, default: () => ({ enabled: true, start: '09:00', end: '17:00' }) },
         thursday: { type: workingHoursSchema, default: () => ({ enabled: true, start: '09:00', end: '17:00' }) },
         friday: { type: workingHoursSchema, default: () => ({ enabled: false, start: '09:00', end: '17:00' }) },
-        saturday: { type: workingHoursSchema, default: () => ({ enabled: false, start: '09:00', end: '17:00' }) }
+        saturday: { type: workingHoursSchema, default: () => ({ enabled: true, start: '09:00', end: '17:00' }) }
     },
     sendReminders: { type: Boolean, default: true },
     reminderHoursBefore: { type: [Number], default: [24, 1] },
