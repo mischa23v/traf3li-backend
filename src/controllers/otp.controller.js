@@ -6,7 +6,7 @@
 const { EmailOTP, User, Firm } = require('../models');
 const { generateOTP, hashOTP } = require('../utils/otp.utils');
 const NotificationDeliveryService = require('../services/notificationDelivery.service');
-const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const { getCookieConfig } = require('../utils/cookieConfig');
 const { sanitizeObjectId, timingSafeEqual } = require('../utils/securityUtils');
 const logger = require('../utils/logger');
@@ -199,19 +199,31 @@ const verifyOTP = async (req, res) => {
     }
 
     if (purpose === 'password_reset') {
-      // Generate password reset token
-      const resetToken = jwt.sign(
-        { email: email.toLowerCase(), purpose: 'password_reset' },
-        process.env.JWT_SECRET,
-        { expiresIn: '1h' }
+      // Generate secure reset token (same mechanism as email-based password reset)
+      // This ensures consistent security model: single-use, stored in DB, clearable
+      const resetToken = crypto.randomBytes(32).toString('hex');
+      const hashedToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+
+      // Store hashed token in DB with 30-min expiry (same as email flow)
+      await User.findOneAndUpdate(
+        { email: email.toLowerCase() },
+        {
+          passwordResetToken: hashedToken,
+          passwordResetExpires: new Date(Date.now() + 30 * 60 * 1000), // 30 minutes
+          passwordResetRequestedAt: new Date()
+        },
+        { bypassFirmFilter: true }
       );
+
+      logger.info('Password reset token generated via OTP flow', { email: email.toLowerCase() });
 
       return res.status(200).json({
         success: true,
         verified: true,
         message: 'OTP verified. You can now reset your password.',
         messageAr: 'تم التحقق من الرمز. يمكنك الآن إعادة تعيين كلمة المرور.',
-        resetToken
+        resetToken,  // Frontend sends this to POST /auth/reset-password
+        expiresInMinutes: 30  // Token validity period
       });
     }
 
