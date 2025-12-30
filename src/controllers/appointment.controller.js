@@ -7,6 +7,7 @@
 const Appointment = require('../models/appointment.model');
 const CRMSettings = require('../models/crmSettings.model');
 const CrmActivity = require('../models/crmActivity.model');
+const Firm = require('../models/firm.model');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const logger = require('../utils/logger');
 const mongoose = require('mongoose');
@@ -127,6 +128,104 @@ const validateAppointmentData = (data, isPublic = false) => {
     }
 
     return { valid: true, error: null };
+};
+
+/**
+ * Validate and resolve target lawyer for cross-lawyer schedule management
+ * Enterprise-grade validation following AWS/Azure IAM patterns
+ *
+ * @param {Object} req - Express request object
+ * @param {string|null} targetLawyerId - Target lawyer ID from request body (optional)
+ * @returns {Promise<Object>} - { valid: boolean, lawyerId: ObjectId, error: string|null, isManagingOther: boolean }
+ *
+ * Business Rules:
+ * 1. If no targetLawyerId provided → use current user (self-management)
+ * 2. If targetLawyerId === current user → self-management (no special permissions needed)
+ * 3. If targetLawyerId !== current user → requires 'appointments' 'full' permission
+ * 4. Target lawyer must belong to the same firm (CRITICAL: prevents cross-tenant access)
+ * 5. Solo lawyers cannot manage other lawyers (they have no firm)
+ */
+const validateTargetLawyer = async (req, targetLawyerId) => {
+    const currentUserId = req.userID;
+    const firmId = req.firmQuery?.firmId;
+
+    // Case 1: No target specified - self-management
+    if (!targetLawyerId) {
+        return {
+            valid: true,
+            lawyerId: currentUserId,
+            error: null,
+            isManagingOther: false
+        };
+    }
+
+    // Sanitize the target lawyer ID
+    const sanitizedTargetId = sanitizeObjectId(targetLawyerId);
+    if (!sanitizedTargetId) {
+        return {
+            valid: false,
+            lawyerId: null,
+            error: 'targetLawyerId must be a valid ObjectId',
+            isManagingOther: false
+        };
+    }
+
+    // Case 2: Target is self - no special permissions needed
+    if (sanitizedTargetId.toString() === currentUserId.toString()) {
+        return {
+            valid: true,
+            lawyerId: currentUserId,
+            error: null,
+            isManagingOther: false
+        };
+    }
+
+    // Case 3: Managing another lawyer - requires firm context and permissions
+
+    // Solo lawyers cannot manage other lawyers
+    if (!firmId) {
+        return {
+            valid: false,
+            lawyerId: null,
+            error: 'Solo lawyers cannot manage other lawyers\' schedules. Only firm members can do this.',
+            isManagingOther: true
+        };
+    }
+
+    // Check permission - requires 'appointments' 'full' permission
+    if (!req.hasPermission || !req.hasPermission('appointments', 'full')) {
+        return {
+            valid: false,
+            lawyerId: null,
+            error: 'Permission denied. Managing other lawyers\' schedules requires \'appointments\' full permission.',
+            isManagingOther: true
+        };
+    }
+
+    // CRITICAL: Validate target lawyer belongs to the same firm
+    // This prevents IDOR attacks where an admin tries to manage lawyers in other firms
+    const firm = await Firm.findOne({
+        _id: firmId,
+        'members.userId': sanitizedTargetId,
+        'members.status': { $ne: 'departed' }
+    }).select('_id');
+
+    if (!firm) {
+        return {
+            valid: false,
+            lawyerId: null,
+            error: 'Target lawyer not found in your firm. You can only manage schedules for active members of your firm.',
+            isManagingOther: true
+        };
+    }
+
+    // All validations passed
+    return {
+        valid: true,
+        lawyerId: sanitizedTargetId,
+        error: null,
+        isManagingOther: true
+    };
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -860,7 +959,8 @@ const ALLOWED_AVAILABILITY_FIELDS = [
     'endTime',
     'slotDuration',
     'breakBetweenSlots',
-    'isActive'
+    'isActive',
+    'targetLawyerId' // Enterprise: allows firm admins to manage other lawyers' availability
 ];
 
 /**
@@ -872,7 +972,8 @@ const ALLOWED_BLOCKED_TIME_FIELDS = [
     'reason',
     'isAllDay',
     'isRecurring',
-    'recurrencePattern'
+    'recurrencePattern',
+    'targetLawyerId' // Enterprise: allows firm admins to manage other lawyers' blocked times
 ];
 
 /**
@@ -912,6 +1013,10 @@ exports.getAvailability = async (req, res) => {
 
 /**
  * Create availability slot
+ *
+ * Enterprise Feature: Supports cross-lawyer schedule management
+ * - If no targetLawyerId provided: creates availability for current user
+ * - If targetLawyerId provided: requires 'appointments' 'full' permission and firm membership validation
  */
 exports.createAvailability = async (req, res) => {
     try {
@@ -922,18 +1027,33 @@ exports.createAvailability = async (req, res) => {
             });
         }
 
-        const userId = req.userID;
-
         // Mass assignment protection
         const safeData = pickAllowedFields(req.body, ALLOWED_AVAILABILITY_FIELDS);
+
+        // Enterprise: Validate target lawyer (self or another firm member with permissions)
+        const targetValidation = await validateTargetLawyer(req, safeData.targetLawyerId);
+        if (!targetValidation.valid) {
+            return res.status(403).json({
+                success: false,
+                message: targetValidation.error
+            });
+        }
+
+        // Remove targetLawyerId from data (it's not a model field)
+        delete safeData.targetLawyerId;
 
         // Use req.addFirmId() for proper firm/solo lawyer isolation
         const slotData = req.addFirmId({
             ...safeData,
-            lawyerId: userId
+            lawyerId: targetValidation.lawyerId
         });
 
         const slot = await AvailabilitySlot.create(slotData);
+
+        // Log if managing another lawyer's schedule
+        if (targetValidation.isManagingOther) {
+            logger.info(`User ${req.userID} created availability slot for lawyer ${targetValidation.lawyerId}`);
+        }
 
         res.status(201).json({
             success: true,
@@ -1041,6 +1161,10 @@ exports.deleteAvailability = async (req, res) => {
 
 /**
  * Bulk update availability (replace entire schedule)
+ *
+ * Enterprise Feature: Supports cross-lawyer schedule management
+ * - If no targetLawyerId provided: updates current user's schedule
+ * - If targetLawyerId provided: requires 'appointments' 'full' permission and firm membership validation
  */
 exports.bulkUpdateAvailability = async (req, res) => {
     try {
@@ -1051,8 +1175,7 @@ exports.bulkUpdateAvailability = async (req, res) => {
             });
         }
 
-        const userId = req.userID;
-        const { slots } = req.body;
+        const { slots, targetLawyerId } = req.body;
 
         if (!Array.isArray(slots)) {
             return res.status(400).json({
@@ -1061,11 +1184,29 @@ exports.bulkUpdateAvailability = async (req, res) => {
             });
         }
 
-        // Validate each slot
-        const safeSlots = slots.map(slot => pickAllowedFields(slot, ALLOWED_AVAILABILITY_FIELDS));
+        // Enterprise: Validate target lawyer (self or another firm member with permissions)
+        const targetValidation = await validateTargetLawyer(req, targetLawyerId);
+        if (!targetValidation.valid) {
+            return res.status(403).json({
+                success: false,
+                message: targetValidation.error
+            });
+        }
+
+        // Validate each slot and remove targetLawyerId if present
+        const safeSlots = slots.map(slot => {
+            const safeSlot = pickAllowedFields(slot, ALLOWED_AVAILABILITY_FIELDS);
+            delete safeSlot.targetLawyerId; // Remove from individual slots
+            return safeSlot;
+        });
 
         // Bulk update - pass req.firmQuery for proper tenant isolation
-        const result = await AvailabilitySlot.bulkUpdate(userId, req.firmQuery, safeSlots);
+        const result = await AvailabilitySlot.bulkUpdate(targetValidation.lawyerId, req.firmQuery, safeSlots);
+
+        // Log if managing another lawyer's schedule
+        if (targetValidation.isManagingOther) {
+            logger.info(`User ${req.userID} bulk updated availability for lawyer ${targetValidation.lawyerId}`);
+        }
 
         res.json({
             success: true,
@@ -1139,6 +1280,10 @@ exports.getBlockedTimes = async (req, res) => {
 
 /**
  * Create blocked time
+ *
+ * Enterprise Feature: Supports cross-lawyer schedule management
+ * - If no targetLawyerId provided: blocks time for current user
+ * - If targetLawyerId provided: requires 'appointments' 'full' permission and firm membership validation
  */
 exports.createBlockedTime = async (req, res) => {
     try {
@@ -1154,6 +1299,18 @@ exports.createBlockedTime = async (req, res) => {
         // Mass assignment protection
         const safeData = pickAllowedFields(req.body, ALLOWED_BLOCKED_TIME_FIELDS);
 
+        // Enterprise: Validate target lawyer (self or another firm member with permissions)
+        const targetValidation = await validateTargetLawyer(req, safeData.targetLawyerId);
+        if (!targetValidation.valid) {
+            return res.status(403).json({
+                success: false,
+                message: targetValidation.error
+            });
+        }
+
+        // Remove targetLawyerId from data (it's not a model field)
+        delete safeData.targetLawyerId;
+
         // Validate dates
         if (!safeData.startDateTime || !safeData.endDateTime) {
             return res.status(400).json({
@@ -1165,11 +1322,16 @@ exports.createBlockedTime = async (req, res) => {
         // Use req.addFirmId() for proper firm/solo lawyer isolation
         const blockedTimeData = req.addFirmId({
             ...safeData,
-            lawyerId: userId,
+            lawyerId: targetValidation.lawyerId,
             createdBy: userId
         });
 
         const blockedTime = await BlockedTime.create(blockedTimeData);
+
+        // Log if managing another lawyer's schedule
+        if (targetValidation.isManagingOther) {
+            logger.info(`User ${userId} created blocked time for lawyer ${targetValidation.lawyerId}`);
+        }
 
         res.status(201).json({
             success: true,
