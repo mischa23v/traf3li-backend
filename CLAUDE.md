@@ -1,10 +1,31 @@
 # Claude Code Instructions for traf3li-backend
 
-## IMPORTANT: Read Security Rules First
+## ⛔ MANDATORY: Read These Files BEFORE Writing ANY Code
 
-Before writing ANY code, read:
-- `.claude/SECURITY_RULES.md` - Quick reference (MUST READ)
-- `SECURITY_GUIDELINES.md` - Detailed patterns and templates
+**STOP. You MUST read these files first. Do not proceed without understanding them.**
+
+| File | Purpose | Priority |
+|------|---------|----------|
+| `CLAUDE.md` | This file - project overview & architecture | 🔴 Critical |
+| `.claude/SECURITY_RULES.md` | Security patterns quick reference | 🔴 Critical |
+| `.claude/FIRM_ISOLATION.md` | Tenant isolation patterns (firmId/lawyerId) | 🔴 Critical |
+| `SECURITY_GUIDELINES.md` | Detailed templates for controllers/services | 🟡 Reference |
+
+### Why This Matters
+
+This is a **multi-tenant legal SaaS** handling sensitive client data. Incorrect patterns cause:
+- **Data leaks** between law firms
+- **FIRM_ISOLATION_VIOLATION** errors (500s in production)
+- **Security vulnerabilities** (IDOR, injection, etc.)
+
+### Key Rules Summary
+
+1. **NEVER** check `if (!req.firmId)` - solo lawyers don't have firmId
+2. **ALWAYS** use `...req.firmQuery` in queries - middleware sets this
+3. **ALWAYS** use `req.addFirmId(data)` when creating records
+4. **NEVER** use `findById()` - use `findOne({ _id, ...req.firmQuery })`
+5. **NEVER** add bandaid validation - the Mongoose plugin catches issues
+6. **PASS** `req.firmQuery` to services, not `req.firmId`
 
 ## Project Overview
 

@@ -4,6 +4,10 @@
  * Handles self-serve report builder endpoints for creating, managing,
  * and executing custom reports with dynamic data sources, filters,
  * and visualizations.
+ *
+ * NOTE: Tenant context (req.firmQuery) is set by authenticatedApi middleware.
+ * The globalFirmIsolation Mongoose plugin enforces tenant filters on all queries.
+ * See .claude/FIRM_ISOLATION.md for patterns.
  */
 
 const ReportDefinition = require('../models/reportDefinition.model');
@@ -24,11 +28,6 @@ const { sanitizeFilename } = require('../utils/sanitize');
  */
 const listReports = asyncHandler(async (req, res) => {
     const userId = req.userID;
-    const firmId = req.firmId;
-
-    if (!firmId) {
-        throw CustomException('معرف الشركة مطلوب / Firm ID required', 403);
-    }
 
     // Mass assignment protection - only allow specific query parameters
     const allowedParams = pickAllowedFields(req.query, [
@@ -59,8 +58,8 @@ const listReports = asyncHandler(async (req, res) => {
         throw CustomException('نطاق التقرير غير صالح / Invalid report scope', 400);
     }
 
-    // Get reports using service
-    const result = await ReportBuilderService.getReportsForUser(firmId, userId, {
+    // Get reports using service - pass req.firmQuery for tenant isolation
+    const result = await ReportBuilderService.getReportsForUser(req.firmQuery, userId, {
         type,
         scope,
         search,
@@ -72,7 +71,6 @@ const listReports = asyncHandler(async (req, res) => {
 
     logger.info('Reports listed successfully', {
         userId,
-        firmId,
         count: result.reports.length,
         total: result.pagination.total
     });
@@ -90,11 +88,6 @@ const listReports = asyncHandler(async (req, res) => {
  */
 const createReport = asyncHandler(async (req, res) => {
     const userId = req.userID;
-    const firmId = req.firmId;
-
-    if (!firmId) {
-        throw CustomException('معرف الشركة مطلوب / Firm ID required', 403);
-    }
 
     // Mass assignment protection - only allow specific fields
     const allowedFields = pickAllowedFields(req.body, [
@@ -125,7 +118,6 @@ const createReport = asyncHandler(async (req, res) => {
     if (!validation.valid) {
         logger.warn('Report validation failed', {
             userId,
-            firmId,
             errors: validation.errors
         });
         throw CustomException(
@@ -134,22 +126,20 @@ const createReport = asyncHandler(async (req, res) => {
         );
     }
 
-    // Create report definition
-    const reportData = {
+    // Create report - req.addFirmId() adds firmId/lawyerId based on user context
+    const reportData = req.addFirmId({
         ...allowedFields,
         ownerId: userId,
-        firmId,
         createdBy: userId,
         scope: allowedFields.scope || 'personal',
         isPublic: allowedFields.isPublic || false
-    };
+    });
 
     const report = await ReportDefinition.create(reportData);
 
     logger.info('Report created successfully', {
         reportId: report._id,
         userId,
-        firmId,
         type: report.type,
         name: report.name
     });
@@ -168,11 +158,6 @@ const createReport = asyncHandler(async (req, res) => {
 const getReport = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
-    const firmId = req.firmId;
-
-    if (!firmId) {
-        throw CustomException('معرف الشركة مطلوب / Firm ID required', 403);
-    }
 
     // Sanitize and validate ObjectId
     const sanitizedId = sanitizeObjectId(id);
@@ -180,10 +165,10 @@ const getReport = asyncHandler(async (req, res) => {
         throw CustomException('معرف التقرير غير صالح / Invalid report ID', 400);
     }
 
-    // Get report with firm isolation
+    // Get report with tenant isolation - spread req.firmQuery
     const report = await ReportDefinition.findOne({
         _id: sanitizedId,
-        firmId
+        ...req.firmQuery
     })
         .populate('ownerId', 'name email username')
         .populate('createdBy', 'name email username');
@@ -204,8 +189,7 @@ const getReport = asyncHandler(async (req, res) => {
 
     logger.info('Report retrieved successfully', {
         reportId: report._id,
-        userId,
-        firmId
+        userId
     });
 
     res.status(200).json({
@@ -221,11 +205,6 @@ const getReport = asyncHandler(async (req, res) => {
 const updateReport = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
-    const firmId = req.firmId;
-
-    if (!firmId) {
-        throw CustomException('معرف الشركة مطلوب / Firm ID required', 403);
-    }
 
     // Sanitize and validate ObjectId
     const sanitizedId = sanitizeObjectId(id);
@@ -247,10 +226,10 @@ const updateReport = asyncHandler(async (req, res) => {
         'scope'
     ]);
 
-    // Get report with firm isolation
+    // Get report with tenant isolation
     const report = await ReportDefinition.findOne({
         _id: sanitizedId,
-        firmId
+        ...req.firmQuery
     });
 
     if (!report) {
@@ -261,9 +240,6 @@ const updateReport = asyncHandler(async (req, res) => {
     if (report.scope === 'personal' && report.ownerId.toString() !== userId) {
         throw CustomException('التقرير غير موجود / Report not found', 404);
     }
-
-    // TODO: Add role-based permission check for team/global reports
-    // For team/global reports, only admins should be able to update
 
     // Input validation - validate name if provided
     if (allowedUpdates.name !== undefined) {
@@ -283,7 +259,6 @@ const updateReport = asyncHandler(async (req, res) => {
         if (!validation.valid) {
             logger.warn('Report validation failed on update', {
                 userId,
-                firmId,
                 reportId: sanitizedId,
                 errors: validation.errors
             });
@@ -304,7 +279,6 @@ const updateReport = asyncHandler(async (req, res) => {
     logger.info('Report updated successfully', {
         reportId: report._id,
         userId,
-        firmId,
         updatedFields: Object.keys(allowedUpdates)
     });
 
@@ -322,11 +296,6 @@ const updateReport = asyncHandler(async (req, res) => {
 const deleteReport = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
-    const firmId = req.firmId;
-
-    if (!firmId) {
-        throw CustomException('معرف الشركة مطلوب / Firm ID required', 403);
-    }
 
     // Sanitize and validate ObjectId
     const sanitizedId = sanitizeObjectId(id);
@@ -334,10 +303,10 @@ const deleteReport = asyncHandler(async (req, res) => {
         throw CustomException('معرف التقرير غير صالح / Invalid report ID', 400);
     }
 
-    // Get report with firm isolation
+    // Get report with tenant isolation
     const report = await ReportDefinition.findOne({
         _id: sanitizedId,
-        firmId
+        ...req.firmQuery
     });
 
     if (!report) {
@@ -351,13 +320,12 @@ const deleteReport = asyncHandler(async (req, res) => {
 
     await ReportDefinition.findOneAndDelete({
         _id: sanitizedId,
-        firmId
+        ...req.firmQuery
     });
 
     logger.info('Report deleted successfully', {
         reportId: sanitizedId,
-        userId,
-        firmId
+        userId
     });
 
     res.status(200).json({
@@ -377,11 +345,6 @@ const deleteReport = asyncHandler(async (req, res) => {
 const executeReport = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
-    const firmId = req.firmId;
-
-    if (!firmId) {
-        throw CustomException('معرف الشركة مطلوب / Firm ID required', 403);
-    }
 
     // Sanitize and validate ObjectId
     const sanitizedId = sanitizeObjectId(id);
@@ -403,18 +366,17 @@ const executeReport = asyncHandler(async (req, res) => {
     }
     params._limit = limit;
 
-    // Execute report using service
+    // Execute report - pass req.firmQuery for tenant isolation
     const result = await ReportBuilderService.executeReport(
         sanitizedId,
         params,
         userId,
-        firmId
+        req.firmQuery
     );
 
     logger.info('Report executed successfully', {
         reportId: sanitizedId,
         userId,
-        firmId,
         rowCount: result.data?.rows?.length || 0
     });
 
@@ -431,11 +393,6 @@ const executeReport = asyncHandler(async (req, res) => {
 const exportReport = asyncHandler(async (req, res) => {
     const { id, format } = req.params;
     const userId = req.userID;
-    const firmId = req.firmId;
-
-    if (!firmId) {
-        throw CustomException('معرف الشركة مطلوب / Firm ID required', 403);
-    }
 
     // Sanitize and validate ObjectId
     const sanitizedId = sanitizeObjectId(id);
@@ -455,19 +412,18 @@ const exportReport = asyncHandler(async (req, res) => {
     // Mass assignment protection - get query parameters (filter inputs)
     const params = { ...req.query };
 
-    // Export report using service
+    // Export report - pass req.firmQuery for tenant isolation
     const exportedData = await ReportBuilderService.exportReport(
         sanitizedId,
         format,
         params,
         userId,
-        firmId
+        req.firmQuery
     );
 
     logger.info('Report exported successfully', {
         reportId: sanitizedId,
         userId,
-        firmId,
         format,
         size: exportedData.length
     });
@@ -498,7 +454,7 @@ const exportReport = asyncHandler(async (req, res) => {
     // Get report name for filename
     const report = await ReportDefinition.findOne({
         _id: sanitizedId,
-        firmId
+        ...req.firmQuery
     });
     const filename = report
         ? sanitizeFilename(`${report.name}_${Date.now()}.${extension}`)
@@ -520,11 +476,6 @@ const exportReport = asyncHandler(async (req, res) => {
 const cloneReport = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
-    const firmId = req.firmId;
-
-    if (!firmId) {
-        throw CustomException('معرف الشركة مطلوب / Firm ID required', 403);
-    }
 
     // Sanitize and validate ObjectId
     const sanitizedId = sanitizeObjectId(id);
@@ -541,19 +492,18 @@ const cloneReport = asyncHandler(async (req, res) => {
         throw CustomException('اسم التقرير غير صالح / Invalid report name', 400);
     }
 
-    // Clone report using service
+    // Clone report - pass req.firmQuery for tenant isolation
     const clonedReport = await ReportBuilderService.cloneReport(
         sanitizedId,
         userId,
         newName,
-        firmId
+        req.firmQuery
     );
 
     logger.info('Report cloned successfully', {
         originalId: sanitizedId,
         clonedId: clonedReport._id,
-        userId,
-        firmId
+        userId
     });
 
     res.status(201).json({
@@ -570,11 +520,6 @@ const cloneReport = asyncHandler(async (req, res) => {
 const updateSchedule = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
-    const firmId = req.firmId;
-
-    if (!firmId) {
-        throw CustomException('معرف الشركة مطلوب / Firm ID required', 403);
-    }
 
     // Sanitize and validate ObjectId
     const sanitizedId = sanitizeObjectId(id);
@@ -636,7 +581,6 @@ const updateSchedule = asyncHandler(async (req, res) => {
     logger.info('Report schedule updated successfully', {
         reportId: sanitizedId,
         userId,
-        firmId,
         enabled: allowedFields.enabled,
         frequency: allowedFields.frequency
     });
@@ -658,11 +602,6 @@ const updateSchedule = asyncHandler(async (req, res) => {
  */
 const validateReport = asyncHandler(async (req, res) => {
     const userId = req.userID;
-    const firmId = req.firmId;
-
-    if (!firmId) {
-        throw CustomException('معرف الشركة مطلوب / Firm ID required', 403);
-    }
 
     // Mass assignment protection - only allow report definition fields
     const allowedFields = pickAllowedFields(req.body, [
@@ -681,7 +620,6 @@ const validateReport = asyncHandler(async (req, res) => {
 
     logger.info('Report validation performed', {
         userId,
-        firmId,
         valid: validation.valid,
         errorCount: validation.errors.length
     });
