@@ -510,12 +510,19 @@ exports.getAvailableSlots = async (req, res) => {
         }
 
         // Get CRM settings for working hours
-        const settings = await CRMSettings.findOne(tenantFilter);
+        // GOLD STANDARD: Lazy initialization fallback - if settings don't exist, create them
+        // Enterprise systems never block users with "Settings not found" errors
+        let settings = await CRMSettings.findOne(tenantFilter);
+
+        if (!settings && tenantFilter.firmId) {
+            // Auto-create CRM settings with sensible defaults
+            settings = await CRMSettings.getOrCreate(tenantFilter.firmId);
+        }
 
         if (!settings) {
             return res.status(400).json({
                 success: false,
-                message: 'لم يتم العثور على إعدادات / Settings not found'
+                message: 'لم يتم العثور على إعدادات / Settings not found. Please contact support.'
             });
         }
 

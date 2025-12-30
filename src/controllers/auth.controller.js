@@ -1,4 +1,5 @@
 const { User, Firm, FirmInvitation } = require('../models');
+const CRMSettings = require('../models/crmSettings.model');
 const { CustomException } = require('../utils');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
@@ -353,6 +354,11 @@ const authRegister = async (request, response) => {
                         maxClients: 100
                     }
                 });
+
+                // GOLD STANDARD: Auto-provision CRM settings with sensible defaults
+                // Enterprise systems (SAP, Salesforce, Microsoft) create all required
+                // configurations on tenant creation so features work immediately
+                await CRMSettings.getOrCreate(firm._id);
 
                 // Update user with firm info
                 // NOTE: Bypass firmIsolation filter - user doesn't have firmId yet during registration
