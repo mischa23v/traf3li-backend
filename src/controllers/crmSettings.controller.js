@@ -1,7 +1,10 @@
 /**
  * CRM Settings Controller
  *
- * Handles CRM configuration operations.
+ * GOLD STANDARD: Follows FIRM_ISOLATION.md patterns
+ * - Uses req.firmQuery (not req.firmId) for tenant isolation
+ * - Supports both firm members and solo lawyers
+ * - Uses req.addFirmId() for creates
  */
 
 const CRMSettings = require('../models/crmSettings.model');
@@ -14,7 +17,8 @@ const logger = require('../utils/logger');
 // ═══════════════════════════════════════════════════════════════
 
 /**
- * Get CRM settings for the current firm
+ * Get CRM settings for the current firm/lawyer
+ * GOLD STANDARD: Uses req.firmQuery for tenant isolation
  */
 exports.getSettings = async (req, res) => {
     try {
@@ -25,24 +29,9 @@ exports.getSettings = async (req, res) => {
             });
         }
 
-        const firmId = sanitizeObjectId(req.firmId);
-        if (!firmId) {
-            return res.status(400).json({
-                success: false,
-                message: 'Invalid firm ID'
-            });
-        }
-
-        // Get or create settings
-        const settings = await CRMSettings.getOrCreate(firmId);
-
-        // IDOR Protection: Verify the settings belong to the user's firm
-        if (settings && settings.firmId.toString() !== firmId.toString()) {
-            return res.status(403).json({
-                success: false,
-                message: 'ليس لديك صلاحية للوصول / Access denied'
-            });
-        }
+        // GOLD STANDARD: Use req.firmQuery (supports both firms and solo lawyers)
+        // Get or create settings with lazy initialization
+        const settings = await CRMSettings.getOrCreateByQuery(req.firmQuery);
 
         res.json({
             success: true,
@@ -64,6 +53,7 @@ exports.getSettings = async (req, res) => {
 
 /**
  * Update CRM settings (partial update supported)
+ * GOLD STANDARD: Uses req.firmQuery for tenant isolation
  */
 exports.updateSettings = async (req, res) => {
     try {
@@ -74,13 +64,11 @@ exports.updateSettings = async (req, res) => {
             });
         }
 
-        const firmId = sanitizeObjectId(req.firmId);
         const userId = sanitizeObjectId(req.userID);
-
-        if (!firmId || !userId) {
+        if (!userId) {
             return res.status(400).json({
                 success: false,
-                message: 'Invalid firm ID or user ID'
+                message: 'Invalid user ID'
             });
         }
 
@@ -115,15 +103,6 @@ exports.updateSettings = async (req, res) => {
             });
         }
 
-        // IDOR Protection: Verify existing settings belong to the user's firm
-        const existingSettings = await CRMSettings.findOne({ firmId });
-        if (existingSettings && existingSettings.firmId.toString() !== firmId.toString()) {
-            return res.status(403).json({
-                success: false,
-                message: 'ليس لديك صلاحية للوصول / Access denied'
-            });
-        }
-
         // Build update object with dot notation for nested updates
         const updateObj = {};
 
@@ -149,21 +128,33 @@ exports.updateSettings = async (req, res) => {
             }
         }
 
-        // Perform update
+        // GOLD STANDARD: Use req.firmQuery for tenant-isolated update
         const settings = await CRMSettings.findOneAndUpdate(
-            { firmId },
+            { ...req.firmQuery },
             {
                 $set: {
                     ...updateObj,
                     updatedAt: new Date()
                 }
             },
-            { new: true, upsert: true }
+            { new: true, upsert: true, setDefaultsOnInsert: true }
         );
+
+        // If upsert created a new doc, ensure it has the tenant context
+        if (!settings.firmId && !settings.lawyerId) {
+            // Add tenant context from req.firmQuery
+            if (req.firmQuery.firmId) {
+                settings.firmId = req.firmQuery.firmId;
+            } else if (req.firmQuery.lawyerId) {
+                settings.lawyerId = req.firmQuery.lawyerId;
+            }
+            await settings.save();
+        }
 
         // Log activity
         await CrmActivity.logActivity({
             lawyerId: userId,
+            firmId: req.firmQuery?.firmId || null,
             type: 'settings_updated',
             entityType: 'crm_settings',
             entityId: settings._id,
@@ -193,6 +184,7 @@ exports.updateSettings = async (req, res) => {
 
 /**
  * Reset CRM settings to defaults
+ * GOLD STANDARD: Uses req.firmQuery for tenant isolation
  */
 exports.resetSettings = async (req, res) => {
     try {
@@ -203,32 +195,24 @@ exports.resetSettings = async (req, res) => {
             });
         }
 
-        const firmId = sanitizeObjectId(req.firmId);
         const userId = sanitizeObjectId(req.userID);
-
-        if (!firmId || !userId) {
+        if (!userId) {
             return res.status(400).json({
                 success: false,
-                message: 'Invalid firm ID or user ID'
+                message: 'Invalid user ID'
             });
         }
 
-        // IDOR Protection: Verify existing settings belong to the user's firm before deleting
-        const existingSettings = await CRMSettings.findOne({ firmId });
-        if (existingSettings && existingSettings.firmId.toString() !== firmId.toString()) {
-            return res.status(403).json({
-                success: false,
-                message: 'ليس لديك صلاحية للوصول / Access denied'
-            });
-        }
+        // GOLD STANDARD: Use req.firmQuery for tenant-isolated delete
+        await CRMSettings.findOneAndDelete({ ...req.firmQuery });
 
-        // Delete existing and create fresh
-        await CRMSettings.findOneAndDelete({ firmId });
-        const settings = await CRMSettings.create({ firmId });
+        // Create fresh settings with tenant context
+        const settings = await CRMSettings.create(req.firmQuery);
 
         // Log activity
         await CrmActivity.logActivity({
             lawyerId: userId,
+            firmId: req.firmQuery?.firmId || null,
             type: 'settings_reset',
             entityType: 'crm_settings',
             entityId: settings._id,

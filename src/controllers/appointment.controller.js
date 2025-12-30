@@ -510,12 +510,19 @@ exports.getAvailableSlots = async (req, res) => {
         }
 
         // Get CRM settings for working hours
-        const settings = await CRMSettings.findOne(tenantFilter);
+        // GOLD STANDARD: Lazy initialization - auto-create if missing
+        // Enterprise systems (SAP, Salesforce, Microsoft) never block users with "Settings not found"
+        let settings = await CRMSettings.findOne(tenantFilter);
+
+        if (!settings && (tenantFilter.firmId || tenantFilter.lawyerId)) {
+            // Auto-create CRM settings with sensible defaults (supports firms AND solo lawyers)
+            settings = await CRMSettings.getOrCreateByQuery(tenantFilter);
+        }
 
         if (!settings) {
             return res.status(400).json({
                 success: false,
-                message: 'لم يتم العثور على إعدادات / Settings not found'
+                message: 'لم يتم العثور على إعدادات / Settings not found. Please contact support.'
             });
         }
 
