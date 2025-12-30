@@ -26,6 +26,13 @@ const {
     getCostCenterReport
 } = require('../controllers/accountingReports.controller');
 
+// Chart reports (dashboard charts)
+const {
+    getCasesChart,
+    getRevenueChart,
+    getTasksChart
+} = require('../controllers/chartReports.controller');
+
 const app = express.Router();
 
 // Accounting/Financial reports (must be before /:id routes)
@@ -41,6 +48,11 @@ app.get('/client-statement', sensitiveRateLimiter, userMiddleware, getClientStat
 app.get('/vendor-ledger', sensitiveRateLimiter, userMiddleware, getVendorLedger);
 app.get('/gross-profit', sensitiveRateLimiter, userMiddleware, getGrossProfitReport);
 app.get('/cost-center', sensitiveRateLimiter, userMiddleware, getCostCenterReport);
+
+// Dashboard chart reports
+app.get('/cases-chart', userMiddleware, getCasesChart);
+app.get('/revenue-chart', userMiddleware, getRevenueChart);
+app.get('/tasks-chart', userMiddleware, getTasksChart);
 
 // Report export
 app.post('/export', sensitiveRateLimiter, userMiddleware, exportReport);
