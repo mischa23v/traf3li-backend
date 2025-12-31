@@ -293,11 +293,15 @@ const appointmentSchema = new mongoose.Schema({
 // INDEXES
 // ═══════════════════════════════════════════════════════════════
 
-appointmentSchema.index({ firmId: 1, appointmentNumber: 1 }, { unique: true });
-appointmentSchema.index({ firmId: 1, scheduledTime: 1, status: 1 });
-appointmentSchema.index({ firmId: 1, assignedTo: 1, scheduledTime: 1 });
-appointmentSchema.index({ firmId: 1, partyId: 1, appointmentWith: 1 });
-appointmentSchema.index({ firmId: 1, caseId: 1 });
+// IMPORTANT: Include lawyerId in unique index to support solo lawyers
+// Without lawyerId, all solo lawyers share firmId=null and would conflict on appointment numbers
+// Migration note: If old index exists, drop it manually:
+//   db.appointments.dropIndex({ firmId: 1, appointmentNumber: 1 })
+appointmentSchema.index({ firmId: 1, lawyerId: 1, appointmentNumber: 1 }, { unique: true });
+appointmentSchema.index({ firmId: 1, lawyerId: 1, scheduledTime: 1, status: 1 });
+appointmentSchema.index({ firmId: 1, lawyerId: 1, assignedTo: 1, scheduledTime: 1 });
+appointmentSchema.index({ firmId: 1, lawyerId: 1, partyId: 1, appointmentWith: 1 });
+appointmentSchema.index({ firmId: 1, lawyerId: 1, caseId: 1 });
 
 // ═══════════════════════════════════════════════════════════════
 // PRE-SAVE HOOKS
