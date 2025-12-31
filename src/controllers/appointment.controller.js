@@ -810,7 +810,11 @@ exports.create = async (req, res) => {
                 appointment.microsoftCalendarEventId = syncResult.microsoft.eventId;
             }
             if (Object.keys(calendarUpdateFields).length > 0) {
-                await Appointment.findByIdAndUpdate(appointment._id, calendarUpdateFields);
+                // SECURITY: Use findOneAndUpdate with firmQuery instead of findByIdAndUpdate
+                await Appointment.findOneAndUpdate(
+                    { _id: appointment._id, ...req.firmQuery },
+                    calendarUpdateFields
+                );
             }
 
             calendarSync = syncResult;
@@ -949,7 +953,11 @@ exports.publicBook = async (req, res) => {
                 calendarUpdateFields.microsoftCalendarEventId = syncResult.microsoft.eventId;
             }
             if (Object.keys(calendarUpdateFields).length > 0) {
-                await Appointment.findByIdAndUpdate(appointment._id, calendarUpdateFields);
+                // SECURITY: Use findOneAndUpdate with firmId instead of findByIdAndUpdate
+                await Appointment.findOneAndUpdate(
+                    { _id: appointment._id, firmId },
+                    calendarUpdateFields
+                );
             }
 
             calendarSync = syncResult;
@@ -2505,7 +2513,11 @@ exports.syncToCalendar = async (req, res) => {
             calendarUpdateFields.microsoftCalendarEventId = syncResult.microsoft.eventId;
         }
         if (Object.keys(calendarUpdateFields).length > 0) {
-            await Appointment.findByIdAndUpdate(appointment._id, calendarUpdateFields);
+            // SECURITY: Use findOneAndUpdate with firmQuery instead of findByIdAndUpdate
+            await Appointment.findOneAndUpdate(
+                { _id: appointment._id, ...req.firmQuery },
+                calendarUpdateFields
+            );
         }
 
         // Log activity
