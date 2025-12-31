@@ -28,6 +28,7 @@ const { syncAppointmentToCalendars, getCalendarConnectionStatus } = require('../
  * @param {Object} extra - Additional data to log
  */
 const debugLog = (endpoint, req, extra = {}) => {
+    // Include key values directly in log string for Render visibility
     const debugInfo = {
         endpoint,
         timestamp: new Date().toISOString(),
@@ -39,10 +40,12 @@ const debugLog = (endpoint, req, extra = {}) => {
         userId: req.userID,
         firmId: req.firmId,
         firmQuery: req.firmQuery,
+        isSoloLawyer: req.isSoloLawyer,
         isDeparted: req.isDeparted,
         ...extra
     };
-    logger.info(`[APPOINTMENT-DEBUG] ${endpoint}:`, JSON.stringify(debugInfo, null, 2));
+    const stepInfo = extra.step ? ` [${extra.step}]` : '';
+    logger.info(`[APPOINTMENT-DEBUG] ${endpoint}${stepInfo}: userId=${req.userID} firmId=${req.firmId} isSoloLawyer=${req.isSoloLawyer} firmQuery=${JSON.stringify(req.firmQuery)} | ${JSON.stringify(debugInfo)}`);
 };
 
 /**
@@ -52,6 +55,8 @@ const debugLog = (endpoint, req, extra = {}) => {
  * @param {Object} context - Additional context
  */
 const debugError = (endpoint, error, context = {}) => {
+    // Include error message directly in log string for Render visibility
+    // Winston JSON format truncates secondary arguments
     const errorInfo = {
         endpoint,
         timestamp: new Date().toISOString(),
@@ -60,7 +65,7 @@ const debugError = (endpoint, error, context = {}) => {
         errorStack: error.stack,
         ...context
     };
-    logger.error(`[APPOINTMENT-ERROR] ${endpoint}:`, JSON.stringify(errorInfo, null, 2));
+    logger.error(`[APPOINTMENT-ERROR] ${endpoint}: ${error.message} | Full: ${JSON.stringify(errorInfo)}`);
 };
 
 // ═══════════════════════════════════════════════════════════════
