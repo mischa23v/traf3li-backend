@@ -866,17 +866,21 @@ exports.create = async (req, res) => {
             { path: 'caseId', select: 'title caseNumber' }
         ]);
 
-        // Log activity
-        await CrmActivity.logActivity({
-            lawyerId: userId,
-            type: 'appointment_created',
-            entityType: 'appointment',
-            entityId: appointment._id,
-            entityName: appointment.appointmentNumber,
-            title: `Appointment created: ${appointment.appointmentNumber}`,
-            description: `With ${appointment.customerName} on ${appointment.scheduledTime}`,
-            performedBy: userId
-        });
+        // Log activity (non-blocking - don't fail request if activity logging fails)
+        try {
+            await CrmActivity.logActivity({
+                lawyerId: userId,
+                type: 'appointment_created',
+                entityType: 'appointment',
+                entityId: appointment._id,
+                entityName: appointment.appointmentNumber,
+                title: `Appointment created: ${appointment.appointmentNumber}`,
+                description: `With ${appointment.customerName} on ${appointment.scheduledTime}`,
+                performedBy: userId
+            });
+        } catch (activityError) {
+            logger.warn('Activity logging failed (non-blocking):', activityError.message);
+        }
 
         // Gold Standard: Auto-sync to connected calendars (Google, Microsoft)
         let calendarSync = null;
@@ -911,11 +915,16 @@ exports.create = async (req, res) => {
             logger.warn('Calendar sync failed (non-blocking):', syncError.message);
         }
 
-        // Generate "Add to Calendar" links for the response
-        const calendarLinks = generateCalendarLinksWithLabels(
-            appointment,
-            process.env.API_URL || 'https://api.traf3li.com'
-        );
+        // Generate "Add to Calendar" links for the response (non-blocking)
+        let calendarLinks = { links: {} };
+        try {
+            calendarLinks = generateCalendarLinksWithLabels(
+                appointment,
+                process.env.API_URL || 'https://api.traf3li.com'
+            );
+        } catch (linksError) {
+            logger.warn('Calendar links generation failed (non-blocking):', linksError.message);
+        }
 
         res.status(201).json({
             success: true,
