@@ -135,6 +135,13 @@ router.put('/settings', appointmentController.updateSettings);
  */
 router.get('/stats', appointmentController.getStats);
 
+/**
+ * @route   GET /api/v1/appointments/debug
+ * @desc    Diagnostic endpoint to debug tenant context issues
+ * @access  Private (Admin/Debug only)
+ */
+router.get('/debug', appointmentController.debug);
+
 // ═══════════════════════════════════════════════════════════════
 // CALENDAR INTEGRATION ROUTES
 // Gold Standard: Same pattern used by Calendly, Cal.com, Acuity

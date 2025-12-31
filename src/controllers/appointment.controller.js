@@ -2728,3 +2728,82 @@ exports.syncToCalendar = async (req, res) => {
         });
     }
 };
+
+// ═══════════════════════════════════════════════════════════════
+// DEBUG / DIAGNOSTIC ENDPOINT
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Diagnostic endpoint to debug tenant context issues
+ * Helps identify why appointments may not be displaying
+ */
+exports.debug = async (req, res) => {
+    debugLog('debug', req);
+    try {
+        // Get counts with and without tenant filter
+        const [
+            totalAppointments,
+            tenantAppointments,
+            sampleWithoutFilter,
+            sampleWithFilter
+        ] = await Promise.all([
+            // Total appointments in system (bypassing tenant filter for diagnosis)
+            Appointment.countDocuments({}).setOptions({ bypassFirmFilter: true }),
+            // Appointments matching tenant filter
+            Appointment.countDocuments(req.firmQuery),
+            // Sample appointment without filter (to see what firmId/lawyerId it has)
+            Appointment.findOne({})
+                .select('_id appointmentNumber firmId lawyerId createdAt')
+                .setOptions({ bypassFirmFilter: true })
+                .lean(),
+            // Sample appointment with filter
+            Appointment.findOne(req.firmQuery)
+                .select('_id appointmentNumber firmId lawyerId createdAt')
+                .lean()
+        ]);
+
+        res.json({
+            success: true,
+            message: 'Diagnostic information for debugging tenant context',
+            data: {
+                currentUser: {
+                    userId: req.userID,
+                    firmId: req.firmId,
+                    isSoloLawyer: req.isSoloLawyer,
+                    firmQuery: req.firmQuery
+                },
+                counts: {
+                    totalAppointmentsInSystem: totalAppointments,
+                    appointmentsMatchingTenantFilter: tenantAppointments,
+                    mismatchedAppointments: totalAppointments - tenantAppointments
+                },
+                samples: {
+                    withoutFilter: sampleWithoutFilter ? {
+                        id: sampleWithoutFilter._id,
+                        appointmentNumber: sampleWithoutFilter.appointmentNumber,
+                        firmId: sampleWithoutFilter.firmId?.toString() || null,
+                        lawyerId: sampleWithoutFilter.lawyerId?.toString() || null
+                    } : null,
+                    withFilter: sampleWithFilter ? {
+                        id: sampleWithFilter._id,
+                        appointmentNumber: sampleWithFilter.appointmentNumber,
+                        firmId: sampleWithFilter.firmId?.toString() || null,
+                        lawyerId: sampleWithFilter.lawyerId?.toString() || null
+                    } : null
+                },
+                diagnosis: totalAppointments > 0 && tenantAppointments === 0
+                    ? 'TENANT_MISMATCH: Appointments exist but none match your tenant context. Check if firmId/lawyerId in appointments matches your user context.'
+                    : tenantAppointments > 0
+                        ? 'OK: Appointments found matching your tenant context.'
+                        : 'EMPTY: No appointments in the system.'
+            }
+        });
+    } catch (error) {
+        debugError('debug', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error running diagnostics',
+            error: error.message
+        });
+    }
+};
