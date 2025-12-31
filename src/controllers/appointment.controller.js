@@ -1564,12 +1564,20 @@ exports.deleteBlockedTime = async (req, res) => {
  */
 exports.getAvailableSlotsEnhanced = async (req, res) => {
     try {
-        const { lawyerId, startDate, endDate, duration = 30 } = req.query;
+        const { lawyerId, duration = 30 } = req.query;
+
+        // Support both date range (startDate/endDate) and single date convenience param
+        // If only 'date' is provided, use it as both startDate and endDate
+        let { startDate, endDate } = req.query;
+        if (!startDate && !endDate && req.query.date) {
+            startDate = req.query.date;
+            endDate = req.query.date;
+        }
 
         if (!lawyerId || !startDate || !endDate) {
             return res.status(400).json({
                 success: false,
-                message: 'lawyerId, startDate, and endDate are required'
+                message: 'lawyerId and either (startDate + endDate) or date are required'
             });
         }
 
