@@ -794,7 +794,40 @@ exports.publicBook = async (req, res) => {
 
         const appointment = await Appointment.create(appointmentData);
 
-        // TODO: Send confirmation email to customer
+        // Gold Standard: Auto-sync public bookings to assigned lawyer's calendar
+        let calendarSync = null;
+        try {
+            const syncResult = await syncAppointmentToCalendars(
+                appointment,
+                assignedTo,
+                firmId,
+                'create'
+            );
+
+            // Update appointment with calendar event IDs if synced
+            const calendarUpdateFields = {};
+            if (syncResult.google?.eventId) {
+                calendarUpdateFields.calendarEventId = syncResult.google.eventId;
+            }
+            if (syncResult.microsoft?.eventId) {
+                calendarUpdateFields.microsoftCalendarEventId = syncResult.microsoft.eventId;
+            }
+            if (Object.keys(calendarUpdateFields).length > 0) {
+                await Appointment.findByIdAndUpdate(appointment._id, calendarUpdateFields);
+            }
+
+            calendarSync = syncResult;
+        } catch (syncError) {
+            logger.warn('Public booking calendar sync failed (non-blocking):', syncError.message);
+        }
+
+        // Generate "Add to Calendar" links for customer
+        const calendarLinks = generateCalendarLinksWithLabels(
+            appointment,
+            process.env.API_URL || 'https://api.traf3li.com'
+        );
+
+        // TODO: Send confirmation email to customer with calendar links
 
         res.status(201).json({
             success: true,
@@ -804,7 +837,9 @@ exports.publicBook = async (req, res) => {
                 scheduledTime: appointment.scheduledTime,
                 duration: appointment.duration,
                 status: appointment.status
-            }
+            },
+            calendarLinks: calendarLinks.links,
+            calendarSync
         });
     } catch (error) {
         logger.error('Error with public booking:', error);
@@ -877,10 +912,26 @@ exports.update = async (req, res) => {
             performedBy: userId
         });
 
+        // Gold Standard: Sync update to connected calendars
+        let calendarSync = null;
+        try {
+            if (appointment.calendarEventId || appointment.microsoftCalendarEventId) {
+                calendarSync = await syncAppointmentToCalendars(
+                    appointment,
+                    appointment.assignedTo,
+                    req.firmId,
+                    'update'
+                );
+            }
+        } catch (syncError) {
+            logger.warn('Calendar update sync failed (non-blocking):', syncError.message);
+        }
+
         res.json({
             success: true,
             message: 'تم تحديث الموعد بنجاح / Appointment updated successfully',
-            data: appointment
+            data: appointment,
+            calendarSync
         });
     } catch (error) {
         logger.error('Error updating appointment:', error);
@@ -2086,6 +2137,21 @@ exports.reschedule = async (req, res) => {
             performedBy: userId
         });
 
+        // Gold Standard: Sync reschedule to connected calendars
+        let calendarSync = null;
+        try {
+            if (appointment.calendarEventId || appointment.microsoftCalendarEventId) {
+                calendarSync = await syncAppointmentToCalendars(
+                    appointment,
+                    appointment.assignedTo,
+                    req.firmId,
+                    'update'
+                );
+            }
+        } catch (syncError) {
+            logger.warn('Calendar reschedule sync failed (non-blocking):', syncError.message);
+        }
+
         // Populate for response
         await appointment.populate([
             { path: 'assignedTo', select: 'firstName lastName avatar email' },
@@ -2096,7 +2162,8 @@ exports.reschedule = async (req, res) => {
         res.json({
             success: true,
             message: 'تم إعادة جدولة الموعد بنجاح / Appointment rescheduled successfully',
-            data: appointment
+            data: appointment,
+            calendarSync
         });
     } catch (error) {
         logger.error('Error rescheduling appointment:', error);
@@ -2245,6 +2312,97 @@ exports.getCalendarStatus = async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'خطأ في جلب حالة التقويم / Error getting calendar status',
+            error: error.message
+        });
+    }
+};
+
+/**
+ * Manually sync an appointment to connected calendars
+ * POST /api/appointments/:id/sync-calendar
+ *
+ * Gold Standard: Allows manual sync/re-sync if initial sync failed or
+ * after user connects their calendar. Same pattern as Calendly, Cal.com.
+ */
+exports.syncToCalendar = async (req, res) => {
+    try {
+        if (req.isDeparted) {
+            return res.status(403).json({
+                success: false,
+                message: 'ليس لديك صلاحية للوصول / Access denied'
+            });
+        }
+
+        const id = sanitizeObjectId(req.params.id);
+
+        // IDOR Protection: Verify appointment belongs to user's firm/lawyer
+        const appointment = await Appointment.findOne({ _id: id, ...req.firmQuery })
+            .populate('assignedTo', 'firstName lastName email');
+
+        if (!appointment) {
+            return res.status(404).json({
+                success: false,
+                message: 'الموعد غير موجود / Appointment not found'
+            });
+        }
+
+        // Don't sync cancelled or completed appointments
+        if (['cancelled', 'completed', 'no_show'].includes(appointment.status)) {
+            return res.status(400).json({
+                success: false,
+                message: 'لا يمكن مزامنة هذا الموعد / Cannot sync this appointment status'
+            });
+        }
+
+        // Determine action based on existing calendar event IDs
+        const hasExistingEvent = appointment.calendarEventId || appointment.microsoftCalendarEventId;
+        const action = hasExistingEvent ? 'update' : 'create';
+
+        // Perform sync
+        const syncResult = await syncAppointmentToCalendars(
+            appointment,
+            appointment.assignedTo?._id || appointment.assignedTo,
+            req.firmId,
+            action
+        );
+
+        // Update appointment with new calendar event IDs if created
+        const calendarUpdateFields = {};
+        if (syncResult.google?.eventId && !appointment.calendarEventId) {
+            calendarUpdateFields.calendarEventId = syncResult.google.eventId;
+        }
+        if (syncResult.microsoft?.eventId && !appointment.microsoftCalendarEventId) {
+            calendarUpdateFields.microsoftCalendarEventId = syncResult.microsoft.eventId;
+        }
+        if (Object.keys(calendarUpdateFields).length > 0) {
+            await Appointment.findByIdAndUpdate(appointment._id, calendarUpdateFields);
+        }
+
+        // Log activity
+        await CrmActivity.logActivity({
+            lawyerId: req.userID,
+            type: 'appointment_synced',
+            entityType: 'appointment',
+            entityId: appointment._id,
+            entityName: appointment.appointmentNumber,
+            title: `Appointment synced to calendar: ${appointment.appointmentNumber}`,
+            performedBy: req.userID
+        });
+
+        res.json({
+            success: true,
+            message: 'تم مزامنة الموعد بنجاح / Appointment synced successfully',
+            data: {
+                appointmentId: appointment._id,
+                appointmentNumber: appointment.appointmentNumber,
+                syncResult
+            }
+        });
+    } catch (error) {
+        logger.error('Error syncing appointment to calendar:', error);
+        res.status(500).json({
+            success: false,
+            message: 'خطأ في مزامنة الموعد / Error syncing appointment',
             error: error.message
         });
     }

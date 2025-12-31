@@ -154,6 +154,14 @@ router.get('/calendar-status', appointmentController.getCalendarStatus);
  */
 router.get('/:id/calendar-links', validateIdParam, appointmentController.getCalendarLinks);
 
+/**
+ * @route   POST /api/v1/appointments/:id/sync-calendar
+ * @desc    Manually sync appointment to connected calendars (Google, Microsoft)
+ * @access  Private
+ * @note    Gold Standard: Allows retry if initial sync failed, or sync after connecting calendar
+ */
+router.post('/:id/sync-calendar', validateIdParam, appointmentController.syncToCalendar);
+
 // ═══════════════════════════════════════════════════════════════
 // APPOINTMENT CRUD ROUTES
 // ═══════════════════════════════════════════════════════════════
