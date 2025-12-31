@@ -14,6 +14,7 @@ const {
     validatePublicBooking,
     validateGetAvailableSlots
 } = require('../validators/crm.validator');
+const { normalizeAppointment } = require('../middlewares/appointmentNormalize.middleware');
 
 // ═══════════════════════════════════════════════════════════════
 // PUBLIC ROUTES (no auth required)
@@ -24,7 +25,7 @@ const {
  * @desc    Public booking endpoint
  * @access  Public
  */
-router.post('/book/:firmId', validatePublicBooking, appointmentController.publicBook);
+router.post('/book/:firmId', normalizeAppointment, validatePublicBooking, appointmentController.publicBook);
 
 /**
  * @route   GET /api/v1/appointments/available-slots
@@ -192,14 +193,14 @@ router.get('/:id', validateIdParam, appointmentController.getById);
  * @desc    Create a new appointment
  * @access  Private
  */
-router.post('/', validateCreateAppointment, appointmentController.create);
+router.post('/', normalizeAppointment, validateCreateAppointment, appointmentController.create);
 
 /**
  * @route   PUT /api/v1/appointments/:id
  * @desc    Update an appointment
  * @access  Private
  */
-router.put('/:id', validateIdParam, validateUpdateAppointment, appointmentController.update);
+router.put('/:id', validateIdParam, normalizeAppointment, validateUpdateAppointment, appointmentController.update);
 
 /**
  * @route   PUT /api/v1/appointments/:id/confirm
@@ -227,7 +228,7 @@ router.put('/:id/no-show', validateIdParam, appointmentController.markNoShow);
  * @desc    Reschedule appointment
  * @access  Private
  */
-router.post('/:id/reschedule', validateIdParam, appointmentController.reschedule);
+router.post('/:id/reschedule', validateIdParam, normalizeAppointment, appointmentController.reschedule);
 
 /**
  * @route   DELETE /api/v1/appointments/:id

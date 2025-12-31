@@ -386,7 +386,12 @@ const createAppointmentSchema = Joi.object({
     locationType: Joi.string().valid('office', 'virtual', 'client_site', 'other'),
     location: Joi.string().max(500),
     meetingLink: Joi.string().uri(),
-    sendReminder: Joi.boolean()
+    sendReminder: Joi.boolean(),
+    // Additional optional fields
+    type: Joi.string().valid('consultation', 'follow_up', 'initial', 'general'),
+    source: Joi.string().valid('manual', 'public_booking', 'marketplace', 'referral'),
+    price: Joi.number().min(0),
+    currency: Joi.string().max(3)
 });
 
 const updateAppointmentSchema = Joi.object({
@@ -408,7 +413,15 @@ const updateAppointmentSchema = Joi.object({
     outcome: Joi.string().max(2000),
     followUpRequired: Joi.boolean(),
     followUpDate: Joi.date().iso(),
-    cancellationReason: Joi.string().max(500)
+    cancellationReason: Joi.string().max(500),
+    // Additional optional fields
+    type: Joi.string().valid('consultation', 'follow_up', 'initial', 'general'),
+    source: Joi.string().valid('manual', 'public_booking', 'marketplace', 'referral'),
+    price: Joi.number().min(0),
+    currency: Joi.string().max(3),
+    isPaid: Joi.boolean(),
+    paymentId: Joi.string().max(100),
+    paymentMethod: Joi.string().max(50)
 });
 
 const publicBookingSchema = Joi.object({
@@ -417,7 +430,10 @@ const publicBookingSchema = Joi.object({
     customerPhone: Joi.string().pattern(/^\+?[0-9]{10,15}$/),
     scheduledTime: Joi.date().iso().greater('now').required(),
     duration: Joi.number().integer().valid(15, 30, 45, 60).required(),
-    notes: Joi.string().max(1000)
+    customerNotes: Joi.string().max(1000),
+    // Additional optional fields that may come from frontend
+    type: Joi.string().valid('consultation', 'follow_up', 'initial', 'general'),
+    locationType: Joi.string().valid('office', 'virtual', 'client_site', 'other')
 });
 
 const getAvailableSlotsSchema = Joi.object({
