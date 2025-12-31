@@ -13,6 +13,10 @@ const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils'
 const logger = require('../utils/logger');
 const mongoose = require('mongoose');
 
+// Calendar integration services (Gold Standard: Calendly, Cal.com pattern)
+const { generateICS, generateCancellationICS, generateCalendarLinksWithLabels } = require('../services/icsGenerator.service');
+const { syncAppointmentToCalendars, getCalendarConnectionStatus } = require('../services/appointmentCalendarSync.service');
+
 // ═══════════════════════════════════════════════════════════════
 // SECURITY CONSTANTS
 // ═══════════════════════════════════════════════════════════════
@@ -656,10 +660,41 @@ exports.create = async (req, res) => {
             performedBy: userId
         });
 
+        // Gold Standard: Auto-sync to connected calendars (Google, Microsoft)
+        let calendarSync = null;
+        try {
+            const syncResult = await syncAppointmentToCalendars(
+                appointment,
+                assignedTo,
+                req.firmId,
+                'create'
+            );
+
+            // Update appointment with calendar event ID if synced
+            if (syncResult.google?.eventId) {
+                await Appointment.findByIdAndUpdate(appointment._id, {
+                    calendarEventId: syncResult.google.eventId
+                });
+                appointment.calendarEventId = syncResult.google.eventId;
+            }
+
+            calendarSync = syncResult;
+        } catch (syncError) {
+            logger.warn('Calendar sync failed (non-blocking):', syncError.message);
+        }
+
+        // Generate "Add to Calendar" links for the response
+        const calendarLinks = generateCalendarLinksWithLabels(
+            appointment,
+            process.env.API_URL || 'https://api.traf3li.com'
+        );
+
         res.status(201).json({
             success: true,
             message: 'تم إنشاء الموعد بنجاح / Appointment created successfully',
-            data: appointment
+            data: appointment,
+            calendarLinks: calendarLinks.links,
+            calendarSync
         });
     } catch (error) {
         logger.error('Error creating appointment:', error);
@@ -894,6 +929,21 @@ exports.cancel = async (req, res) => {
 
         await appointment.cancel(userId, reason);
 
+        // Gold Standard: Sync cancellation to connected calendars
+        let calendarSync = null;
+        try {
+            if (appointment.calendarEventId) {
+                calendarSync = await syncAppointmentToCalendars(
+                    appointment,
+                    appointment.assignedTo,
+                    req.firmId,
+                    'cancel'
+                );
+            }
+        } catch (syncError) {
+            logger.warn('Calendar cancellation sync failed (non-blocking):', syncError.message);
+        }
+
         // Log activity
         await CrmActivity.logActivity({
             lawyerId: userId,
@@ -909,7 +959,8 @@ exports.cancel = async (req, res) => {
         res.json({
             success: true,
             message: 'تم إلغاء الموعد بنجاح / Appointment cancelled successfully',
-            data: appointment
+            data: appointment,
+            calendarSync
         });
     } catch (error) {
         logger.error('Error cancelling appointment:', error);
@@ -2046,6 +2097,148 @@ exports.reschedule = async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'خطأ في إعادة جدولة الموعد / Error rescheduling appointment',
+            error: error.message
+        });
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════
+// CALENDAR INTEGRATION ENDPOINTS
+// Gold Standard: Same pattern used by Calendly, Cal.com, Acuity
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Download ICS calendar file for an appointment
+ * GET /api/appointments/:id/calendar.ics
+ *
+ * Enables "Add to Apple Calendar" and works with any calendar app.
+ * Can be accessed publicly (for email links) or authenticated.
+ */
+exports.downloadICS = async (req, res) => {
+    try {
+        const id = sanitizeObjectId(req.params.id);
+
+        // Find appointment - allow public access for email links
+        // but restrict to firm if user is authenticated
+        let appointment;
+        if (req.userID && req.firmQuery) {
+            appointment = await Appointment.findOne({ _id: id, ...req.firmQuery })
+                .populate('assignedTo', 'firstName lastName email');
+        } else {
+            // Public access - just find by ID
+            appointment = await Appointment.findById(id)
+                .populate('assignedTo', 'firstName lastName email');
+        }
+
+        if (!appointment) {
+            return res.status(404).json({
+                success: false,
+                message: 'الموعد غير موجود / Appointment not found'
+            });
+        }
+
+        // Build organizer info from assigned lawyer
+        const organizer = {
+            name: appointment.assignedTo
+                ? `${appointment.assignedTo.firstName} ${appointment.assignedTo.lastName}`
+                : 'Traf3li',
+            email: appointment.assignedTo?.email || 'noreply@traf3li.com'
+        };
+
+        // Generate ICS content
+        const icsContent = generateICS(appointment, organizer);
+
+        // Set headers for file download
+        res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="appointment-${appointment.appointmentNumber}.ics"`);
+
+        res.send(icsContent);
+    } catch (error) {
+        logger.error('Error generating ICS file:', error);
+        res.status(500).json({
+            success: false,
+            message: 'خطأ في إنشاء ملف التقويم / Error generating calendar file',
+            error: error.message
+        });
+    }
+};
+
+/**
+ * Get "Add to Calendar" links for an appointment
+ * GET /api/appointments/:id/calendar-links
+ *
+ * Returns links for Google Calendar, Outlook, Yahoo, and ICS download.
+ * Gold Standard: Same links used by Eventbrite, Meetup, LinkedIn Events.
+ */
+exports.getCalendarLinks = async (req, res) => {
+    try {
+        const id = sanitizeObjectId(req.params.id);
+
+        // IDOR Protection: Verify appointment belongs to user's firm/lawyer
+        const appointment = await Appointment.findOne({ _id: id, ...req.firmQuery });
+
+        if (!appointment) {
+            return res.status(404).json({
+                success: false,
+                message: 'الموعد غير موجود / Appointment not found'
+            });
+        }
+
+        // Generate calendar links
+        const baseUrl = process.env.API_URL || 'https://api.traf3li.com';
+        const calendarData = generateCalendarLinksWithLabels(appointment, baseUrl);
+
+        res.json({
+            success: true,
+            data: {
+                appointmentId: appointment._id,
+                appointmentNumber: appointment.appointmentNumber,
+                scheduledTime: appointment.scheduledTime,
+                ...calendarData
+            }
+        });
+    } catch (error) {
+        logger.error('Error generating calendar links:', error);
+        res.status(500).json({
+            success: false,
+            message: 'خطأ في إنشاء روابط التقويم / Error generating calendar links',
+            error: error.message
+        });
+    }
+};
+
+/**
+ * Get user's calendar connection status
+ * GET /api/appointments/calendar-status
+ *
+ * Returns which calendars are connected and if auto-sync is enabled.
+ */
+exports.getCalendarStatus = async (req, res) => {
+    try {
+        const userId = req.userID;
+        const firmId = req.firmId;
+
+        const status = await getCalendarConnectionStatus(userId, firmId);
+
+        res.json({
+            success: true,
+            data: {
+                connections: status,
+                message: {
+                    en: status.google.connected || status.microsoft.connected
+                        ? 'Calendar connected. Appointments will sync automatically.'
+                        : 'No calendar connected. Connect Google or Microsoft Calendar for auto-sync.',
+                    ar: status.google.connected || status.microsoft.connected
+                        ? 'التقويم متصل. ستتم مزامنة المواعيد تلقائياً.'
+                        : 'لا يوجد تقويم متصل. اربط تقويم جوجل أو مايكروسوفت للمزامنة التلقائية.'
+                }
+            }
+        });
+    } catch (error) {
+        logger.error('Error getting calendar status:', error);
+        res.status(500).json({
+            success: false,
+            message: 'خطأ في جلب حالة التقويم / Error getting calendar status',
             error: error.message
         });
     }
