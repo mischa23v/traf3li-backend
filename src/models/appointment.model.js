@@ -159,6 +159,12 @@ const appointmentSchema = new mongoose.Schema({
         trim: true,
         maxlength: 1000
     },
+    subject: {
+        type: String,
+        trim: true,
+        maxlength: 200,
+        default: ''
+    },
 
     // Party linkage
     appointmentWith: {
