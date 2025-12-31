@@ -2,6 +2,25 @@
 
 ---
 
+## 📋 COMPLETION REQUIREMENTS
+
+**When completing ANY task, Claude MUST:**
+
+1. **Provide a Score out of 100** - Rate the work quality based on:
+   - Security compliance (25 points)
+   - Code quality & patterns (25 points)
+   - Completeness of implementation (25 points)
+   - Documentation & standards (25 points)
+
+2. **Create a Pull Request** - Always push changes and provide PR details:
+   - Branch name
+   - Title
+   - Summary of changes
+   - Files modified
+   - Link to create PR
+
+---
+
 ## 🏆 GOLD STANDARD COMPLIANCE - PRODUCTION READY
 
 **This codebase meets enterprise standards from AWS, Google, Microsoft, Apple, and SAP.**
