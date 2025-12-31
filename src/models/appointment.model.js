@@ -805,6 +805,26 @@ appointmentSchema.virtual('timeRange').get(function() {
     return `${startTime} - ${endTime}`;
 });
 
+/**
+ * Get date in YYYY-MM-DD format (frontend compatibility)
+ * Frontend expects: date: "2026-01-01"
+ * Backend stores: scheduledTime: "2026-01-01T09:00:00.000Z"
+ */
+appointmentSchema.virtual('date').get(function() {
+    if (!this.scheduledTime) return '';
+    return this.scheduledTime.toISOString().split('T')[0];
+});
+
+/**
+ * Get start time in HH:MM format (frontend compatibility)
+ * Frontend expects: startTime: "09:00"
+ * Backend stores: scheduledTime: "2026-01-01T09:00:00.000Z"
+ */
+appointmentSchema.virtual('startTime').get(function() {
+    if (!this.scheduledTime) return '';
+    return this.scheduledTime.toTimeString().slice(0, 5);
+});
+
 // ═══════════════════════════════════════════════════════════════
 // FRONTEND COMPATIBILITY ALIASES
 // Backend stores: customerName, customerEmail, customerPhone, customerNotes
