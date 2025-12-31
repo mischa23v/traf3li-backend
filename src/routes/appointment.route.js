@@ -239,7 +239,7 @@ router.post('/:id/reschedule', validateIdParam, normalizeAppointment, appointmen
 
 /**
  * @route   DELETE /api/v1/appointments/:id
- * @desc    Cancel an appointment
+ * @desc    Delete an appointment permanently (hard delete)
  * @access  Private
  */
 router.delete('/:id', validateIdParam, appointmentController.cancel);
