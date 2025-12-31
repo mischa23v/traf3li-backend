@@ -11,6 +11,17 @@
 | `.claude/FIRM_ISOLATION.md` | Tenant isolation patterns (firmId/lawyerId) | 🔴 Critical |
 | `SECURITY_GUIDELINES.md` | Detailed templates for controllers/services | 🟡 Reference |
 
+---
+
+## Gold Standard Compliance (AWS, Google, Microsoft, Apple, SAP)
+
+This codebase follows enterprise-grade patterns from:
+- **AWS** - IAM-style scope validation, retry with exponential backoff
+- **Google** - OAuth 2.0 with HMAC-signed state, Calendar API patterns
+- **Microsoft** - Graph API patterns, PKCE OAuth, token auto-refresh
+- **Apple** - RFC 5545 ICS compliance, privacy-first data handling
+- **SAP/Salesforce** - Pre-save hooks for calculated fields, audit trails
+
 ### Why This Matters
 
 This is a **multi-tenant legal SaaS** handling sensitive client data. Incorrect patterns cause:
@@ -234,3 +245,285 @@ app.get('/', userMiddleware, firmFilter, getItems);  // DON'T DO THIS
 6. Use `sanitizeObjectId` for all IDs
 7. Use `escapeRegex` for search queries
 8. Check `req.hasPermission()` for restricted operations
+
+---
+
+## OAuth & External Integration Patterns (Critical)
+
+### OAuth State Security (CSRF Protection)
+
+**Gold Standard: HMAC-SHA256 signed state (AWS, Google, Microsoft pattern)**
+
+```javascript
+// ✅ CORRECT - Sign state with HMAC-SHA256
+signState(stateData) {
+    const payload = JSON.stringify(stateData);
+    const signature = crypto
+        .createHmac('sha256', this.getStateSigningSecret())
+        .update(payload)
+        .digest('hex');
+    return `${Buffer.from(payload).toString('base64')}.${signature}`;
+}
+
+// ✅ CORRECT - Verify with timing-safe comparison
+verifyState(signedState) {
+    const [encodedPayload, providedSignature] = signedState.split('.');
+    const expectedSignature = crypto
+        .createHmac('sha256', secret)
+        .update(payload)
+        .digest('hex');
+
+    if (!crypto.timingSafeEqual(
+        Buffer.from(providedSignature, 'hex'),
+        Buffer.from(expectedSignature, 'hex')
+    )) {
+        throw CustomException('Invalid state signature', 400);
+    }
+}
+
+// ❌ WRONG - Base64 encoding is forgeable
+const state = Buffer.from(JSON.stringify(data)).toString('base64');
+```
+
+### Scope Validation Before Operations
+
+**Gold Standard: AWS IAM / Azure AD pattern - validate permissions BEFORE action**
+
+```javascript
+// ✅ CORRECT - Validate scopes before proceeding
+const scopeValidation = this.validateScopes(integration.scope, 'write');
+if (!scopeValidation.valid) {
+    throw CustomException(
+        `Insufficient permissions. Missing: ${scopeValidation.missing.join(', ')}`,
+        403
+    );
+}
+
+// ❌ WRONG - No scope check, will fail mid-operation
+await calendar.events.insert(...);  // Might fail with cryptic error
+```
+
+### Token Auto-Refresh (Proactive)
+
+**Gold Standard: Refresh tokens 5 minutes BEFORE expiry, not after failure**
+
+```javascript
+// ✅ CORRECT - Proactive refresh with buffer
+const fiveMinutesFromNow = new Date(Date.now() + 5 * 60 * 1000);
+if (expiresAt <= fiveMinutesFromNow) {
+    await this.refreshToken(userId, firmId);
+}
+
+// ❌ WRONG - Reactive refresh after failure
+try {
+    await api.call();
+} catch (e) {
+    if (e.code === 'TOKEN_EXPIRED') {
+        await refresh();  // User already saw an error!
+    }
+}
+```
+
+### Background Token Refresh Job
+
+Location: `src/jobs/googleCalendarTokenRefresh.job.js`
+
+- Runs hourly, refreshes tokens expiring within 24 hours
+- Auto-disconnects integrations with invalid refresh tokens
+- Logs statistics for monitoring
+
+---
+
+## Calendar Integration Patterns (Critical)
+
+### Calendar Sync is Non-Blocking
+
+**Gold Standard: Calendar failures NEVER break core appointment operations**
+
+```javascript
+// ✅ CORRECT - Non-blocking sync with error capture
+let calendarSync = null;
+try {
+    calendarSync = await syncAppointmentToCalendars(
+        appointment,
+        appointment.assignedTo,
+        req.firmId,
+        'create'
+    );
+} catch (syncError) {
+    logger.warn('Calendar sync failed (non-blocking):', syncError.message);
+    // Continue - appointment was created successfully
+}
+
+// Save calendar event IDs if sync succeeded
+if (calendarSync?.google?.eventId) {
+    appointment.calendarEventId = calendarSync.google.eventId;
+}
+
+// ❌ WRONG - Sync failure breaks the appointment flow
+await syncAppointmentToCalendars(...);  // If this throws, appointment creation fails
+```
+
+### All Appointment Operations Must Sync
+
+| Operation | Sync Action | Non-Blocking? |
+|-----------|-------------|---------------|
+| create | 'create' | ✅ Yes |
+| update | 'update' | ✅ Yes |
+| reschedule | 'update' | ✅ Yes |
+| confirm | 'update' | ✅ Yes |
+| complete | 'update' | ✅ Yes |
+| markNoShow | 'update' | ✅ Yes |
+| cancel | 'cancel' | ✅ Yes |
+| publicBook | 'create' | ✅ Yes |
+
+### ICS Generator - RFC 5545 Compliance
+
+**Required Properties (Apple, Google, Outlook compatibility):**
+
+```javascript
+// ✅ CORRECT - Full RFC 5545 compliance
+const lines = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Traf3li//Appointments//EN',
+    'BEGIN:VEVENT',
+    `DTSTAMP:${formatICSDate(now)}`,
+    `CREATED:${formatICSDate(created)}`,           // Required
+    `LAST-MODIFIED:${formatICSDate(lastModified)}`, // Required
+    `TRANSP:${showAsBusy ? 'OPAQUE' : 'TRANSPARENT'}`, // Busy/Free
+    `CLASS:${visibility}`,                          // PUBLIC/PRIVATE
+    // CN must be quoted if contains special chars
+    `ORGANIZER;CN=${quoteParamValue(name)}:mailto:${email}`,
+    'END:VEVENT',
+    'END:VCALENDAR'
+];
+
+// ❌ WRONG - Missing required properties
+const lines = [
+    'BEGIN:VCALENDAR',
+    'BEGIN:VEVENT',
+    `DTSTART:${start}`,
+    'END:VEVENT',
+    'END:VCALENDAR'
+];
+```
+
+### ICS Data Sanitization (Privacy)
+
+```javascript
+// ✅ CORRECT - Sanitize sensitive data before export
+function sanitizeDescription(text) {
+    return text
+        .replace(/\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b/g, '[CARD REDACTED]')
+        .replace(/\b\d{3}[-\s]?\d{2}[-\s]?\d{4}\b/g, '[ID REDACTED]')
+        .substring(0, 500);
+}
+
+// ❌ WRONG - Exposes all notes including sensitive data
+description: notes
+```
+
+---
+
+## External API Patterns (Critical)
+
+### Retry with Exponential Backoff
+
+**Location:** `src/utils/retryWithBackoff.js`
+
+**Pre-configured Service Configs:**
+
+| Service | Max Retries | Base Delay | Max Delay | Use For |
+|---------|-------------|------------|-----------|---------|
+| `calendar` | 3 | 1000ms | 15000ms | Google/Microsoft Calendar |
+| `oauth` | 2 | 500ms | 5000ms | Token refresh |
+| `government` | 4 | 2000ms | 60000ms | NAFATH, NAJIZ |
+| `payment` | 2 | 1000ms | 10000ms | Payment gateways |
+
+```javascript
+// ✅ CORRECT - Use pre-configured retry
+const { wrapExternalCall } = require('../utils/externalServiceWrapper');
+
+await wrapExternalCall(
+    () => googleCalendar.events.insert(...),
+    'calendar'
+);
+
+// ❌ WRONG - No retry, single failure = complete failure
+await googleCalendar.events.insert(...);
+```
+
+### Conflict Detection (Events)
+
+**Check ALL ways a user can be associated with an event:**
+
+```javascript
+// ✅ CORRECT - Check organizer, attendees, AND creator
+const eventQuery = {
+    ...firmQuery,
+    status: { $nin: ['canceled', 'cancelled'] },
+    $or: [
+        { organizer: assignedTo },           // Primary owner
+        { 'attendees.userId': assignedTo },  // Invited participant
+        { createdBy: assignedTo }            // Creator
+    ],
+    // Time overlap check...
+};
+
+// ❌ WRONG - Missing organizer check
+$or: [
+    { 'attendees.userId': assignedTo },
+    { createdBy: assignedTo }
+]
+```
+
+---
+
+## Update Operations - Use .save() for Hooks
+
+**Gold Standard: SAP/Salesforce pattern - calculated fields via pre-save hooks**
+
+```javascript
+// ✅ CORRECT - .save() triggers pre-save hooks (endTime recalculation)
+const appointment = await Appointment.findOne({ _id: id, ...req.firmQuery });
+Object.assign(appointment, safeData);
+await appointment.save();  // Pre-save hook recalculates endTime
+
+// ❌ WRONG - findOneAndUpdate bypasses pre-save hooks
+await Appointment.findOneAndUpdate(
+    { _id: id, ...req.firmQuery },
+    { $set: { duration: 60 } }  // endTime NOT recalculated!
+);
+```
+
+---
+
+## Background Jobs
+
+### Key Jobs Location: `src/jobs/`
+
+| Job | Schedule | Purpose |
+|-----|----------|---------|
+| `googleCalendarTokenRefresh.job.js` | Hourly (min 30) | Proactive token refresh 24h before expiry |
+| `sessionCleanup.job.js` | Hourly (min 0) | Clean expired sessions |
+| `dataRetention.job.js` | Daily | Archive/delete old data |
+
+### Job Pattern
+
+```javascript
+// Standard job structure
+async function runJob() {
+    logger.info('[JobName] Starting...');
+    try {
+        const results = await doWork();
+        logger.info('[JobName] Completed', results);
+    } catch (error) {
+        logger.error('[JobName] Failed:', error.message);
+    }
+}
+
+function scheduleJob() {
+    cron.schedule('30 * * * *', runJob);  // Every hour at :30
+}
+```
