@@ -18,6 +18,52 @@ const { generateICS, generateCancellationICS, generateCalendarLinksWithLabels } 
 const { syncAppointmentToCalendars, getCalendarConnectionStatus } = require('../services/appointmentCalendarSync.service');
 
 // ═══════════════════════════════════════════════════════════════
+// DEBUG LOGGING HELPER
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Log debug information for appointment API requests
+ * @param {string} endpoint - Name of the endpoint
+ * @param {Object} req - Express request object
+ * @param {Object} extra - Additional data to log
+ */
+const debugLog = (endpoint, req, extra = {}) => {
+    const debugInfo = {
+        endpoint,
+        timestamp: new Date().toISOString(),
+        method: req.method,
+        path: req.path,
+        params: req.params,
+        query: req.query,
+        body: req.body,
+        userId: req.userID,
+        firmId: req.firmId,
+        firmQuery: req.firmQuery,
+        isDeparted: req.isDeparted,
+        ...extra
+    };
+    logger.info(`[APPOINTMENT-DEBUG] ${endpoint}:`, JSON.stringify(debugInfo, null, 2));
+};
+
+/**
+ * Log error with full context for debugging
+ * @param {string} endpoint - Name of the endpoint
+ * @param {Error} error - The error object
+ * @param {Object} context - Additional context
+ */
+const debugError = (endpoint, error, context = {}) => {
+    const errorInfo = {
+        endpoint,
+        timestamp: new Date().toISOString(),
+        errorMessage: error.message,
+        errorName: error.name,
+        errorStack: error.stack,
+        ...context
+    };
+    logger.error(`[APPOINTMENT-ERROR] ${endpoint}:`, JSON.stringify(errorInfo, null, 2));
+};
+
+// ═══════════════════════════════════════════════════════════════
 // SECURITY CONSTANTS
 // ═══════════════════════════════════════════════════════════════
 
@@ -502,8 +548,10 @@ const checkScheduleConflicts = async (firmQuery, assignedTo, scheduledTime, dura
  * Get all appointments with filters
  */
 exports.getAll = async (req, res) => {
+    debugLog('getAll', req);
     try {
         if (req.isDeparted) {
+            debugLog('getAll', req, { blocked: 'isDeparted' });
             return res.status(403).json({
                 success: false,
                 message: 'ليس لديك صلاحية للوصول / Access denied'
@@ -558,7 +606,7 @@ exports.getAll = async (req, res) => {
             }
         });
     } catch (error) {
-        logger.error('Error getting appointments:', error);
+        debugError('getAll', error, { query: req.query });
         res.status(500).json({
             success: false,
             message: 'خطأ في جلب المواعيد / Error fetching appointments',
@@ -575,8 +623,10 @@ exports.getAll = async (req, res) => {
  * Get appointment by ID
  */
 exports.getById = async (req, res) => {
+    debugLog('getById', req);
     try {
         if (req.isDeparted) {
+            debugLog('getById', req, { blocked: 'isDeparted' });
             return res.status(403).json({
                 success: false,
                 message: 'ليس لديك صلاحية للوصول / Access denied'
@@ -606,7 +656,7 @@ exports.getById = async (req, res) => {
             data: appointment
         });
     } catch (error) {
-        logger.error('Error getting appointment:', error);
+        debugError('getById', error, { appointmentId: req.params.id });
         res.status(500).json({
             success: false,
             message: 'خطأ في جلب الموعد / Error fetching appointment',
@@ -623,6 +673,7 @@ exports.getById = async (req, res) => {
  * Get available time slots for booking
  */
 exports.getAvailableSlots = async (req, res) => {
+    debugLog('getAvailableSlots', req);
     try {
         const { date, assignedTo, duration = 30 } = req.query;
 
@@ -697,7 +748,7 @@ exports.getAvailableSlots = async (req, res) => {
             }
         });
     } catch (error) {
-        logger.error('Error getting available slots:', error);
+        debugError('getAvailableSlots', error, { query: req.query });
         res.status(500).json({
             success: false,
             message: 'خطأ في جلب الفترات المتاحة / Error fetching available slots',
@@ -714,8 +765,10 @@ exports.getAvailableSlots = async (req, res) => {
  * Create a new appointment
  */
 exports.create = async (req, res) => {
+    debugLog('create', req);
     try {
         if (req.isDeparted) {
+            debugLog('create', req, { blocked: 'isDeparted' });
             return res.status(403).json({
                 success: false,
                 message: 'ليس لديك صلاحية للوصول / Access denied'
@@ -726,9 +779,11 @@ exports.create = async (req, res) => {
 
         // FRONTEND COMPATIBILITY: Normalize field names and convert date+startTime
         const normalizedBody = normalizeAppointmentData(req.body);
+        debugLog('create', req, { step: 'normalized', normalizedBody });
 
         // Mass assignment protection: only allow specific fields
         const safeData = pickAllowedFields(normalizedBody, ALLOWED_CREATE_FIELDS);
+        debugLog('create', req, { step: 'safeData', safeData });
 
         // Set default source if not provided
         if (!safeData.source) {
@@ -738,6 +793,7 @@ exports.create = async (req, res) => {
         // Validate appointment data
         const validation = validateAppointmentData(safeData);
         if (!validation.valid) {
+            debugLog('create', req, { step: 'validation_failed', validation, safeData });
             return res.status(400).json({
                 success: false,
                 message: validation.error
@@ -755,6 +811,7 @@ exports.create = async (req, res) => {
         );
 
         if (conflictCheck.hasConflict) {
+            debugLog('create', req, { step: 'conflict_found', conflictCheck });
             return res.status(409).json({
                 success: false,
                 message: conflictCheck.message,
@@ -769,8 +826,10 @@ exports.create = async (req, res) => {
             createdBy: userId,
             status: 'scheduled' // Force status to prevent mass assignment
         });
+        debugLog('create', req, { step: 'appointmentData', appointmentData });
 
         const appointment = await Appointment.create(appointmentData);
+        debugLog('create', req, { step: 'created', appointmentId: appointment._id, appointmentNumber: appointment.appointmentNumber });
 
         // Populate for response
         await appointment.populate([
@@ -838,7 +897,7 @@ exports.create = async (req, res) => {
             calendarSync
         });
     } catch (error) {
-        logger.error('Error creating appointment:', error);
+        debugError('create', error, { body: req.body, userId: req.userID, firmQuery: req.firmQuery });
         res.status(500).json({
             success: false,
             message: 'خطأ في إنشاء الموعد / Error creating appointment',
@@ -855,11 +914,13 @@ exports.create = async (req, res) => {
  * Public booking endpoint (no auth required)
  */
 exports.publicBook = async (req, res) => {
+    debugLog('publicBook', req, { firmIdParam: req.params.firmId });
     try {
         const { firmId } = req.params;
 
         // FRONTEND COMPATIBILITY: Normalize field names and convert date+startTime
         const normalizedBody = normalizeAppointmentData(req.body);
+        debugLog('publicBook', req, { step: 'normalized', normalizedBody });
 
         // Mass assignment protection: extract only allowed fields
         const publicAllowedFields = [
@@ -988,7 +1049,7 @@ exports.publicBook = async (req, res) => {
             calendarSync
         });
     } catch (error) {
-        logger.error('Error with public booking:', error);
+        debugError('publicBook', error, { body: req.body, firmId: req.params.firmId });
         res.status(500).json({
             success: false,
             message: 'خطأ في الحجز / Error booking appointment',
@@ -1005,8 +1066,10 @@ exports.publicBook = async (req, res) => {
  * Update an appointment
  */
 exports.update = async (req, res) => {
+    debugLog('update', req);
     try {
         if (req.isDeparted) {
+            debugLog('update', req, { blocked: 'isDeparted' });
             return res.status(403).json({
                 success: false,
                 message: 'ليس لديك صلاحية للوصول / Access denied'
@@ -1019,6 +1082,7 @@ exports.update = async (req, res) => {
 
         // FRONTEND COMPATIBILITY: Normalize field names and convert date+startTime
         const normalizedBody = normalizeAppointmentData(req.body);
+        debugLog('update', req, { step: 'normalized', normalizedBody, appointmentId: id });
 
         // Mass assignment protection: only allow specific fields
         const safeData = pickAllowedFields(normalizedBody, ALLOWED_UPDATE_FIELDS);
@@ -1026,6 +1090,7 @@ exports.update = async (req, res) => {
         // Validate appointment data
         const validation = validateAppointmentData(safeData);
         if (!validation.valid) {
+            debugLog('update', req, { step: 'validation_failed', validation, safeData });
             return res.status(400).json({
                 success: false,
                 message: validation.error
@@ -1087,7 +1152,7 @@ exports.update = async (req, res) => {
             calendarSync
         });
     } catch (error) {
-        logger.error('Error updating appointment:', error);
+        debugError('update', error, { body: req.body, appointmentId: req.params.id });
         res.status(500).json({
             success: false,
             message: 'خطأ في تحديث الموعد / Error updating appointment',
@@ -1104,8 +1169,10 @@ exports.update = async (req, res) => {
  * Cancel an appointment
  */
 exports.cancel = async (req, res) => {
+    debugLog('cancel', req);
     try {
         if (req.isDeparted) {
+            debugLog('cancel', req, { blocked: 'isDeparted' });
             return res.status(403).json({
                 success: false,
                 message: 'ليس لديك صلاحية للوصول / Access denied'
@@ -1115,6 +1182,7 @@ exports.cancel = async (req, res) => {
         // Sanitize ID param to prevent NoSQL injection
         const id = sanitizeObjectId(req.params.id);
         const userId = req.userID;
+        debugLog('cancel', req, { step: 'starting', appointmentId: id });
 
         // Mass assignment protection: only allow reason field
         const safeData = pickAllowedFields(req.body, ALLOWED_CANCEL_FIELDS);
@@ -1173,7 +1241,7 @@ exports.cancel = async (req, res) => {
             calendarSync
         });
     } catch (error) {
-        logger.error('Error cancelling appointment:', error);
+        debugError('cancel', error, { appointmentId: req.params.id });
         res.status(500).json({
             success: false,
             message: 'خطأ في إلغاء الموعد / Error cancelling appointment',
@@ -1190,8 +1258,10 @@ exports.cancel = async (req, res) => {
  * Mark appointment as completed
  */
 exports.complete = async (req, res) => {
+    debugLog('complete', req);
     try {
         if (req.isDeparted) {
+            debugLog('complete', req, { blocked: 'isDeparted' });
             return res.status(403).json({
                 success: false,
                 message: 'ليس لديك صلاحية للوصول / Access denied'
@@ -1201,6 +1271,7 @@ exports.complete = async (req, res) => {
         // Sanitize ID param to prevent NoSQL injection
         const id = sanitizeObjectId(req.params.id);
         const userId = req.userID;
+        debugLog('complete', req, { step: 'starting', appointmentId: id });
 
         // Mass assignment protection: only allow specific fields
         const safeData = pickAllowedFields(req.body, ALLOWED_COMPLETE_FIELDS);
@@ -1260,7 +1331,7 @@ exports.complete = async (req, res) => {
             calendarSync
         });
     } catch (error) {
-        logger.error('Error completing appointment:', error);
+        debugError('complete', error, { body: req.body, appointmentId: req.params.id });
         res.status(500).json({
             success: false,
             message: 'خطأ في إكمال الموعد / Error completing appointment',
@@ -1277,8 +1348,10 @@ exports.complete = async (req, res) => {
  * Mark appointment as no-show
  */
 exports.markNoShow = async (req, res) => {
+    debugLog('markNoShow', req);
     try {
         if (req.isDeparted) {
+            debugLog('markNoShow', req, { blocked: 'isDeparted' });
             return res.status(403).json({
                 success: false,
                 message: 'ليس لديك صلاحية للوصول / Access denied'
@@ -1288,6 +1361,7 @@ exports.markNoShow = async (req, res) => {
         // Sanitize ID param to prevent NoSQL injection
         const id = sanitizeObjectId(req.params.id);
         const userId = req.userID;
+        debugLog('markNoShow', req, { step: 'starting', appointmentId: id });
 
         // IDOR Protection: Verify appointment belongs to user's firm/lawyer
         const appointment = await Appointment.findOne({ _id: id, ...req.firmQuery });
@@ -1334,7 +1408,7 @@ exports.markNoShow = async (req, res) => {
             calendarSync
         });
     } catch (error) {
-        logger.error('Error marking no-show:', error);
+        debugError('markNoShow', error, { appointmentId: req.params.id });
         res.status(500).json({
             success: false,
             message: 'خطأ في تسجيل عدم الحضور / Error marking no-show',
@@ -1351,8 +1425,10 @@ exports.markNoShow = async (req, res) => {
  * Confirm an appointment
  */
 exports.confirm = async (req, res) => {
+    debugLog('confirm', req);
     try {
         if (req.isDeparted) {
+            debugLog('confirm', req, { blocked: 'isDeparted' });
             return res.status(403).json({
                 success: false,
                 message: 'ليس لديك صلاحية للوصول / Access denied'
@@ -1362,6 +1438,7 @@ exports.confirm = async (req, res) => {
         // Sanitize ID param to prevent NoSQL injection
         const id = sanitizeObjectId(req.params.id);
         const userId = req.userID;
+        debugLog('confirm', req, { step: 'starting', appointmentId: id });
 
         // IDOR Protection: Verify appointment belongs to user's firm/lawyer
         const appointment = await Appointment.findOne({ _id: id, ...req.firmQuery });
@@ -1408,7 +1485,7 @@ exports.confirm = async (req, res) => {
             calendarSync
         });
     } catch (error) {
-        logger.error('Error confirming appointment:', error);
+        debugError('confirm', error, { appointmentId: req.params.id });
         res.status(500).json({
             success: false,
             message: 'خطأ في تأكيد الموعد / Error confirming appointment',
@@ -1454,8 +1531,10 @@ const ALLOWED_BLOCKED_TIME_FIELDS = [
  * Get lawyer's availability schedule
  */
 exports.getAvailability = async (req, res) => {
+    debugLog('getAvailability', req);
     try {
         if (req.isDeparted) {
+            debugLog('getAvailability', req, { blocked: 'isDeparted' });
             return res.status(403).json({
                 success: false,
                 message: 'ليس لديك صلاحية للوصول / Access denied'
@@ -1464,6 +1543,7 @@ exports.getAvailability = async (req, res) => {
 
         const { lawyerId } = req.query;
         const targetLawyerId = lawyerId || req.userID;
+        debugLog('getAvailability', req, { step: 'starting', targetLawyerId });
 
         // IDOR Protection: Use firmQuery for firm isolation
         const slots = await AvailabilitySlot.find({
@@ -1476,7 +1556,7 @@ exports.getAvailability = async (req, res) => {
             data: slots
         });
     } catch (error) {
-        logger.error('Error getting availability:', error);
+        debugError('getAvailability', error, { query: req.query });
         res.status(500).json({
             success: false,
             message: 'خطأ في جلب جدول التوفر / Error fetching availability',
@@ -1493,6 +1573,7 @@ exports.getAvailability = async (req, res) => {
  * - If targetLawyerId provided: requires 'appointments' 'full' permission and firm membership validation
  */
 exports.createAvailability = async (req, res) => {
+    debugLog('createAvailability', req);
     try {
         if (req.isDeparted) {
             return res.status(403).json({
@@ -1503,6 +1584,7 @@ exports.createAvailability = async (req, res) => {
 
         // Mass assignment protection
         const safeData = pickAllowedFields(req.body, ALLOWED_AVAILABILITY_FIELDS);
+        debugLog('createAvailability', req, { step: 'safeData', safeData });
 
         // Enterprise: Validate target lawyer (self or another firm member with permissions)
         const targetValidation = await validateTargetLawyer(req, safeData.targetLawyerId);
@@ -1535,7 +1617,7 @@ exports.createAvailability = async (req, res) => {
             data: slot
         });
     } catch (error) {
-        logger.error('Error creating availability:', error);
+        debugError('createAvailability', error, { body: req.body });
         res.status(500).json({
             success: false,
             message: 'خطأ في إنشاء فترة التوفر / Error creating availability',
@@ -1548,6 +1630,7 @@ exports.createAvailability = async (req, res) => {
  * Update availability slot
  */
 exports.updateAvailability = async (req, res) => {
+    debugLog('updateAvailability', req);
     try {
         if (req.isDeparted) {
             return res.status(403).json({
@@ -1558,6 +1641,7 @@ exports.updateAvailability = async (req, res) => {
 
         // Sanitize ID param to prevent NoSQL injection
         const id = sanitizeObjectId(req.params.id);
+        debugLog('updateAvailability', req, { step: 'starting', slotId: id });
 
         // Mass assignment protection
         const safeData = pickAllowedFields(req.body, ALLOWED_AVAILABILITY_FIELDS);
@@ -1582,7 +1666,7 @@ exports.updateAvailability = async (req, res) => {
             data: slot
         });
     } catch (error) {
-        logger.error('Error updating availability:', error);
+        debugError('updateAvailability', error, { body: req.body, slotId: req.params.id });
         res.status(500).json({
             success: false,
             message: 'خطأ في تحديث فترة التوفر / Error updating availability',
@@ -1595,6 +1679,7 @@ exports.updateAvailability = async (req, res) => {
  * Delete availability slot
  */
 exports.deleteAvailability = async (req, res) => {
+    debugLog('deleteAvailability', req);
     try {
         if (req.isDeparted) {
             return res.status(403).json({
@@ -1605,6 +1690,7 @@ exports.deleteAvailability = async (req, res) => {
 
         // Sanitize ID param to prevent NoSQL injection
         const id = sanitizeObjectId(req.params.id);
+        debugLog('deleteAvailability', req, { step: 'starting', slotId: id });
 
         // IDOR Protection: Delete with firmQuery
         const slot = await AvailabilitySlot.findOneAndDelete({
@@ -1624,7 +1710,7 @@ exports.deleteAvailability = async (req, res) => {
             message: 'تم حذف فترة التوفر بنجاح / Availability slot deleted successfully'
         });
     } catch (error) {
-        logger.error('Error deleting availability:', error);
+        debugError('deleteAvailability', error, { slotId: req.params.id });
         res.status(500).json({
             success: false,
             message: 'خطأ في حذف فترة التوفر / Error deleting availability',
@@ -1641,6 +1727,7 @@ exports.deleteAvailability = async (req, res) => {
  * - If targetLawyerId provided: requires 'appointments' 'full' permission and firm membership validation
  */
 exports.bulkUpdateAvailability = async (req, res) => {
+    debugLog('bulkUpdateAvailability', req);
     try {
         if (req.isDeparted) {
             return res.status(403).json({
@@ -1650,6 +1737,7 @@ exports.bulkUpdateAvailability = async (req, res) => {
         }
 
         const { slots, targetLawyerId } = req.body;
+        debugLog('bulkUpdateAvailability', req, { step: 'starting', slotsCount: slots?.length, targetLawyerId });
 
         if (!Array.isArray(slots)) {
             return res.status(400).json({
@@ -1689,6 +1777,7 @@ exports.bulkUpdateAvailability = async (req, res) => {
         });
     } catch (error) {
         logger.error('Error bulk updating availability:', error);
+        debugError('bulkUpdateAvailability', error, { body: req.body });
         res.status(500).json({
             success: false,
             message: 'خطأ في تحديث جدول التوفر / Error updating availability schedule',
@@ -1705,6 +1794,7 @@ exports.bulkUpdateAvailability = async (req, res) => {
  * Get blocked times
  */
 exports.getBlockedTimes = async (req, res) => {
+    debugLog('getBlockedTimes', req);
     try {
         if (req.isDeparted) {
             return res.status(403).json({
@@ -1715,6 +1805,7 @@ exports.getBlockedTimes = async (req, res) => {
 
         const userId = req.userID;
         const { startDate, endDate } = req.query;
+        debugLog('getBlockedTimes', req, { step: 'starting', startDate, endDate });
 
         // IDOR Protection: Use firmQuery for firm isolation
         const query = {
@@ -1743,7 +1834,7 @@ exports.getBlockedTimes = async (req, res) => {
             data: blockedTimes
         });
     } catch (error) {
-        logger.error('Error getting blocked times:', error);
+        debugError('getBlockedTimes', error, { query: req.query });
         res.status(500).json({
             success: false,
             message: 'خطأ في جلب أوقات الحظر / Error fetching blocked times',
@@ -1760,6 +1851,7 @@ exports.getBlockedTimes = async (req, res) => {
  * - If targetLawyerId provided: requires 'appointments' 'full' permission and firm membership validation
  */
 exports.createBlockedTime = async (req, res) => {
+    debugLog('createBlockedTime', req);
     try {
         if (req.isDeparted) {
             return res.status(403).json({
@@ -1772,6 +1864,7 @@ exports.createBlockedTime = async (req, res) => {
 
         // Mass assignment protection
         const safeData = pickAllowedFields(req.body, ALLOWED_BLOCKED_TIME_FIELDS);
+        debugLog('createBlockedTime', req, { step: 'safeData', safeData });
 
         // Enterprise: Validate target lawyer (self or another firm member with permissions)
         const targetValidation = await validateTargetLawyer(req, safeData.targetLawyerId);
@@ -1813,7 +1906,7 @@ exports.createBlockedTime = async (req, res) => {
             data: blockedTime
         });
     } catch (error) {
-        logger.error('Error creating blocked time:', error);
+        debugError('createBlockedTime', error, { body: req.body });
         res.status(500).json({
             success: false,
             message: 'خطأ في إنشاء وقت الحظر / Error creating blocked time',
@@ -1826,6 +1919,7 @@ exports.createBlockedTime = async (req, res) => {
  * Delete blocked time
  */
 exports.deleteBlockedTime = async (req, res) => {
+    debugLog('deleteBlockedTime', req);
     try {
         if (req.isDeparted) {
             return res.status(403).json({
@@ -1836,6 +1930,7 @@ exports.deleteBlockedTime = async (req, res) => {
 
         // Sanitize ID param to prevent NoSQL injection
         const id = sanitizeObjectId(req.params.id);
+        debugLog('deleteBlockedTime', req, { step: 'starting', blockedTimeId: id });
 
         // IDOR Protection: Delete with firmQuery
         const blockedTime = await BlockedTime.findOneAndDelete({
@@ -1855,7 +1950,7 @@ exports.deleteBlockedTime = async (req, res) => {
             message: 'تم حذف وقت الحظر بنجاح / Blocked time deleted successfully'
         });
     } catch (error) {
-        logger.error('Error deleting blocked time:', error);
+        debugError('deleteBlockedTime', error, { blockedTimeId: req.params.id });
         res.status(500).json({
             success: false,
             message: 'خطأ في حذف وقت الحظر / Error deleting blocked time',
@@ -1872,8 +1967,10 @@ exports.deleteBlockedTime = async (req, res) => {
  * Get available time slots (enhanced with blocked times check)
  */
 exports.getAvailableSlotsEnhanced = async (req, res) => {
+    debugLog('getAvailableSlotsEnhanced', req);
     try {
         const { lawyerId, duration = 30 } = req.query;
+        debugLog('getAvailableSlotsEnhanced', req, { step: 'starting', lawyerId, duration, query: req.query });
 
         // Support both date range (startDate/endDate) and single date convenience param
         // If only 'date' is provided, use it as both startDate and endDate
@@ -2008,7 +2105,7 @@ exports.getAvailableSlotsEnhanced = async (req, res) => {
             }
         });
     } catch (error) {
-        logger.error('Error getting available slots:', error);
+        debugError('getAvailableSlotsEnhanced', error, { query: req.query });
         res.status(500).json({
             success: false,
             message: 'خطأ في جلب الفترات المتاحة / Error fetching available slots',
@@ -2025,6 +2122,7 @@ exports.getAvailableSlotsEnhanced = async (req, res) => {
  * Get appointment settings
  */
 exports.getSettings = async (req, res) => {
+    debugLog('getSettings', req);
     try {
         if (req.isDeparted) {
             return res.status(403).json({
@@ -2069,7 +2167,7 @@ exports.getSettings = async (req, res) => {
             }
         });
     } catch (error) {
-        logger.error('Error getting settings:', error);
+        debugError('getSettings', error);
         res.status(500).json({
             success: false,
             message: 'خطأ في جلب الإعدادات / Error fetching settings',
@@ -2082,6 +2180,7 @@ exports.getSettings = async (req, res) => {
  * Update appointment settings
  */
 exports.updateSettings = async (req, res) => {
+    debugLog('updateSettings', req);
     try {
         if (req.isDeparted) {
             return res.status(403).json({
@@ -2090,6 +2189,7 @@ exports.updateSettings = async (req, res) => {
             });
         }
 
+        debugLog('updateSettings', req, { step: 'starting', body: req.body });
         // Build tenant filter for proper firm/solo lawyer isolation
         const tenantFilter = {};
         if (req.firmQuery?.firmId) {
@@ -2134,7 +2234,7 @@ exports.updateSettings = async (req, res) => {
             data: settings.appointmentSettings
         });
     } catch (error) {
-        logger.error('Error updating settings:', error);
+        debugError('updateSettings', error, { body: req.body });
         res.status(500).json({
             success: false,
             message: 'خطأ في تحديث الإعدادات / Error updating settings',
@@ -2151,6 +2251,7 @@ exports.updateSettings = async (req, res) => {
  * Get appointment statistics (including revenue)
  */
 exports.getStats = async (req, res) => {
+    debugLog('getStats', req);
     try {
         if (req.isDeparted) {
             return res.status(403).json({
@@ -2160,6 +2261,7 @@ exports.getStats = async (req, res) => {
         }
 
         const { startDate, endDate } = req.query;
+        debugLog('getStats', req, { step: 'starting', startDate, endDate });
 
         // Parse dates if provided
         let start = null;
@@ -2175,7 +2277,7 @@ exports.getStats = async (req, res) => {
             data: stats
         });
     } catch (error) {
-        logger.error('Error getting stats:', error);
+        debugError('getStats', error, { query: req.query });
         res.status(500).json({
             success: false,
             message: 'خطأ في جلب الإحصائيات / Error fetching statistics',
@@ -2192,8 +2294,10 @@ exports.getStats = async (req, res) => {
  * Reschedule an appointment
  */
 exports.reschedule = async (req, res) => {
+    debugLog('reschedule', req);
     try {
         if (req.isDeparted) {
+            debugLog('reschedule', req, { blocked: 'isDeparted' });
             return res.status(403).json({
                 success: false,
                 message: 'ليس لديك صلاحية للوصول / Access denied'
@@ -2203,6 +2307,7 @@ exports.reschedule = async (req, res) => {
         // Sanitize ID param to prevent NoSQL injection
         const id = sanitizeObjectId(req.params.id);
         const userId = req.userID;
+        debugLog('reschedule', req, { step: 'starting', appointmentId: id, body: req.body });
 
         // Only allow date and startTime for rescheduling
         const { date, startTime } = req.body;
@@ -2306,7 +2411,7 @@ exports.reschedule = async (req, res) => {
             calendarSync
         });
     } catch (error) {
-        logger.error('Error rescheduling appointment:', error);
+        debugError('reschedule', error, { body: req.body, appointmentId: req.params.id });
         res.status(500).json({
             success: false,
             message: 'خطأ في إعادة جدولة الموعد / Error rescheduling appointment',
@@ -2328,8 +2433,10 @@ exports.reschedule = async (req, res) => {
  * Can be accessed publicly (for email links) or authenticated.
  */
 exports.downloadICS = async (req, res) => {
+    debugLog('downloadICS', req);
     try {
         const id = sanitizeObjectId(req.params.id);
+        debugLog('downloadICS', req, { step: 'starting', appointmentId: id });
 
         // Find appointment - allow public access for email links
         // but restrict to firm if user is authenticated
@@ -2367,7 +2474,7 @@ exports.downloadICS = async (req, res) => {
 
         res.send(icsContent);
     } catch (error) {
-        logger.error('Error generating ICS file:', error);
+        debugError('downloadICS', error, { appointmentId: req.params.id });
         res.status(500).json({
             success: false,
             message: 'خطأ في إنشاء ملف التقويم / Error generating calendar file',
@@ -2384,8 +2491,10 @@ exports.downloadICS = async (req, res) => {
  * Gold Standard: Same links used by Eventbrite, Meetup, LinkedIn Events.
  */
 exports.getCalendarLinks = async (req, res) => {
+    debugLog('getCalendarLinks', req);
     try {
         const id = sanitizeObjectId(req.params.id);
+        debugLog('getCalendarLinks', req, { step: 'starting', appointmentId: id });
 
         // IDOR Protection: Verify appointment belongs to user's firm/lawyer
         const appointment = await Appointment.findOne({ _id: id, ...req.firmQuery });
@@ -2411,7 +2520,7 @@ exports.getCalendarLinks = async (req, res) => {
             }
         });
     } catch (error) {
-        logger.error('Error generating calendar links:', error);
+        debugError('getCalendarLinks', error, { appointmentId: req.params.id });
         res.status(500).json({
             success: false,
             message: 'خطأ في إنشاء روابط التقويم / Error generating calendar links',
@@ -2427,9 +2536,11 @@ exports.getCalendarLinks = async (req, res) => {
  * Returns which calendars are connected and if auto-sync is enabled.
  */
 exports.getCalendarStatus = async (req, res) => {
+    debugLog('getCalendarStatus', req);
     try {
         const userId = req.userID;
         const firmId = req.firmId;
+        debugLog('getCalendarStatus', req, { step: 'starting', userId, firmId });
 
         const status = await getCalendarConnectionStatus(userId, firmId);
 
@@ -2448,7 +2559,7 @@ exports.getCalendarStatus = async (req, res) => {
             }
         });
     } catch (error) {
-        logger.error('Error getting calendar status:', error);
+        debugError('getCalendarStatus', error);
         res.status(500).json({
             success: false,
             message: 'خطأ في جلب حالة التقويم / Error getting calendar status',
@@ -2465,8 +2576,10 @@ exports.getCalendarStatus = async (req, res) => {
  * after user connects their calendar. Same pattern as Calendly, Cal.com.
  */
 exports.syncToCalendar = async (req, res) => {
+    debugLog('syncToCalendar', req);
     try {
         if (req.isDeparted) {
+            debugLog('syncToCalendar', req, { blocked: 'isDeparted' });
             return res.status(403).json({
                 success: false,
                 message: 'ليس لديك صلاحية للوصول / Access denied'
@@ -2474,6 +2587,7 @@ exports.syncToCalendar = async (req, res) => {
         }
 
         const id = sanitizeObjectId(req.params.id);
+        debugLog('syncToCalendar', req, { step: 'starting', appointmentId: id });
 
         // IDOR Protection: Verify appointment belongs to user's firm/lawyer
         const appointment = await Appointment.findOne({ _id: id, ...req.firmQuery })
@@ -2543,7 +2657,7 @@ exports.syncToCalendar = async (req, res) => {
             }
         });
     } catch (error) {
-        logger.error('Error syncing appointment to calendar:', error);
+        debugError('syncToCalendar', error, { appointmentId: req.params.id });
         res.status(500).json({
             success: false,
             message: 'خطأ في مزامنة الموعد / Error syncing appointment',
