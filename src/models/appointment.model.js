@@ -828,10 +828,10 @@ appointmentSchema.virtual('notes').get(function() {
     return this.customerNotes;
 });
 
-// lawyerId is alias for assignedTo (frontend sends lawyerId, backend stores assignedTo)
-appointmentSchema.virtual('lawyerId').get(function() {
-    return this.assignedTo;
-});
+// NOTE: lawyerId is a REAL field (for tenant isolation), NOT a virtual.
+// It is NOT an alias for assignedTo - they are different concepts:
+// - lawyerId: Which solo lawyer OWNS this record (tenant isolation)
+// - assignedTo: Which lawyer is assigned to HANDLE this appointment
 
 appointmentSchema.set('toJSON', { virtuals: true });
 appointmentSchema.set('toObject', { virtuals: true });
