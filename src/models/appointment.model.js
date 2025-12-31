@@ -805,6 +805,34 @@ appointmentSchema.virtual('timeRange').get(function() {
     return `${startTime} - ${endTime}`;
 });
 
+// ═══════════════════════════════════════════════════════════════
+// FRONTEND COMPATIBILITY ALIASES
+// Backend stores: customerName, customerEmail, customerPhone, customerNotes
+// Frontend expects: clientName, clientEmail, clientPhone, notes
+// These virtual fields provide both naming conventions in API responses
+// ═══════════════════════════════════════════════════════════════
+
+appointmentSchema.virtual('clientName').get(function() {
+    return this.customerName;
+});
+
+appointmentSchema.virtual('clientEmail').get(function() {
+    return this.customerEmail;
+});
+
+appointmentSchema.virtual('clientPhone').get(function() {
+    return this.customerPhone;
+});
+
+appointmentSchema.virtual('notes').get(function() {
+    return this.customerNotes;
+});
+
+// lawyerId is alias for assignedTo (frontend sends lawyerId, backend stores assignedTo)
+appointmentSchema.virtual('lawyerId').get(function() {
+    return this.assignedTo;
+});
+
 appointmentSchema.set('toJSON', { virtuals: true });
 appointmentSchema.set('toObject', { virtuals: true });
 
