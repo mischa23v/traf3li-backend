@@ -19,6 +19,8 @@
  * - status aliases (pending -> scheduled)
  */
 
+const logger = require('../utils/logger');
+
 /**
  * Field alias mapping: Frontend field names -> Backend field names
  */
@@ -76,13 +78,24 @@ const normalizeAppointmentData = (data) => {
             datePart = dateStr;
         }
 
-        // Create ISO datetime string
+        // Create ISO datetime string with proper error handling
         const isoDateTime = `${datePart}T${timeStr}:00`;
-        normalized.scheduledTime = new Date(isoDateTime).toISOString();
+        const parsedDate = new Date(isoDateTime);
 
-        // Clean up temporary fields
-        delete normalized.date;
-        delete normalized.startTime;
+        // Validate the parsed date before converting to ISO string
+        if (isNaN(parsedDate.getTime())) {
+            logger.warn('[NORMALIZE-MIDDLEWARE] Invalid date/time format:', {
+                date: dateStr,
+                startTime: timeStr,
+                isoDateTime
+            });
+            // Keep original fields for validation to catch and return proper error
+        } else {
+            normalized.scheduledTime = parsedDate.toISOString();
+            // Clean up temporary fields only if conversion succeeded
+            delete normalized.date;
+            delete normalized.startTime;
+        }
     }
 
     // 3. Map locationType aliases and handle edge cases
@@ -112,10 +125,34 @@ const normalizeAppointmentData = (data) => {
  * router.post('/', normalizeAppointment, validateCreateAppointment, controller.create);
  */
 const normalizeAppointment = (req, res, next) => {
-    if (req.body && typeof req.body === 'object') {
-        req.body = normalizeAppointmentData(req.body);
+    try {
+        logger.info('[NORMALIZE-MIDDLEWARE] Input:', JSON.stringify({
+            method: req.method,
+            path: req.path,
+            body: req.body
+        }));
+
+        if (req.body && typeof req.body === 'object') {
+            req.body = normalizeAppointmentData(req.body);
+        }
+
+        logger.info('[NORMALIZE-MIDDLEWARE] Output:', JSON.stringify({
+            normalizedBody: req.body
+        }));
+
+        next();
+    } catch (error) {
+        logger.error('[NORMALIZE-MIDDLEWARE] Error:', {
+            message: error.message,
+            stack: error.stack,
+            body: req.body
+        });
+        return res.status(400).json({
+            success: false,
+            message: 'Invalid request data format',
+            error: error.message
+        });
     }
-    next();
 };
 
 module.exports = {

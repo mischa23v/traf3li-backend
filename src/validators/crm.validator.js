@@ -544,26 +544,46 @@ const markLostSchema = Joi.object({
 
 const validate = (schema, source = 'body') => {
     return (req, res, next) => {
-        const data = source === 'query' ? req.query : req.body;
-        const { error, value } = schema.validate(data, {
-            abortEarly: false,
-            stripUnknown: true
-        });
+        try {
+            const data = source === 'query' ? req.query : req.body;
+            const { error, value } = schema.validate(data, {
+                abortEarly: false,
+                stripUnknown: true
+            });
 
-        if (error) {
-            return res.status(400).json({
+            if (error) {
+                console.log('[VALIDATION-ERROR]', {
+                    path: req.path,
+                    source,
+                    data,
+                    errors: error.details.map(e => e.message)
+                });
+                return res.status(400).json({
+                    success: false,
+                    message: 'خطأ في التحقق / Validation error',
+                    errors: error.details.map(e => e.message)
+                });
+            }
+
+            if (source === 'query') {
+                req.query = value;
+            } else {
+                req.body = value;
+            }
+            next();
+        } catch (err) {
+            console.error('[VALIDATION-EXCEPTION]', {
+                path: req.path,
+                source,
+                error: err.message,
+                stack: err.stack
+            });
+            return res.status(500).json({
                 success: false,
-                message: 'خطأ في التحقق / Validation error',
-                errors: error.details.map(e => e.message)
+                message: 'Validation processing error',
+                error: err.message
             });
         }
-
-        if (source === 'query') {
-            req.query = value;
-        } else {
-            req.body = value;
-        }
-        next();
     };
 };
 
