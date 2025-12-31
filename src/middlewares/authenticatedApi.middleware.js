@@ -230,6 +230,20 @@ const setFirmContext = async (req, userId) => {
         .setOptions({ bypassFirmFilter: true })
         .lean();
 
+    // Debug logging for tenant context setup
+    // eslint-disable-next-line no-console
+    console.log('[FIRM-CONTEXT] setFirmContext:', {
+        userId,
+        user: user ? {
+            firmId: user.firmId,
+            firmRole: user.firmRole,
+            isSoloLawyer: user.isSoloLawyer,
+            lawyerWorkMode: user.lawyerWorkMode,
+            role: user.role
+        } : null,
+        checkIsSoloLawyer: user ? checkIsSoloLawyer(user) : false
+    });
+
     if (!user) {
         // User not found - minimal context
         req.firmId = null;
@@ -360,6 +374,15 @@ const setFirmContext = async (req, userId) => {
             return data;
         };
     } else {
+        // WARNING: User has no firm and is not recognized as a lawyer
+        // This will cause issues with multi-tenant operations
+        // eslint-disable-next-line no-console
+        console.warn('[FIRM-CONTEXT] WARNING: User without firm or lawyer role:', {
+            userId,
+            userRole: user?.role,
+            userFirmId: user?.firmId,
+            message: 'User cannot create tenant-isolated resources. Set role="lawyer" to enable solo lawyer mode.'
+        });
         req.firmId = null;
         req.firmQuery = {};
         req.permissions = {};
