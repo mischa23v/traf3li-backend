@@ -146,8 +146,12 @@ const appointmentSchema = new mongoose.Schema({
         trim: true
     },
 
-    // Calendar integration
+    // Calendar integration (Google Calendar event ID)
     calendarEventId: {
+        type: String
+    },
+    // Microsoft Calendar event ID
+    microsoftCalendarEventId: {
         type: String
     },
 

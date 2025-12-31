@@ -37,14 +37,74 @@ class GoogleCalendarService {
         );
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    // SCOPE VALIDATION
+    // Gold Standard: Validate scopes before operations (AWS, Azure pattern)
+    // ═══════════════════════════════════════════════════════════════
+
     /**
-     * Get authenticated OAuth2 client for user
+     * Required scopes for different operations
      */
-    async getAuthenticatedClient(userId, firmId = null) {
+    static REQUIRED_SCOPES = {
+        read: ['https://www.googleapis.com/auth/calendar.readonly', 'https://www.googleapis.com/auth/calendar'],
+        write: ['https://www.googleapis.com/auth/calendar', 'https://www.googleapis.com/auth/calendar.events'],
+        full: ['https://www.googleapis.com/auth/calendar']
+    };
+
+    /**
+     * Validate that user has required scopes for an operation
+     * Gold Standard: Pre-operation scope validation (same as AWS IAM, Azure AD)
+     *
+     * @param {string} grantedScopes - Space-separated scope string from integration
+     * @param {string} operation - Operation type: 'read' | 'write' | 'full'
+     * @returns {Object} { valid: boolean, missing: string[] }
+     */
+    validateScopes(grantedScopes, operation = 'read') {
+        if (!grantedScopes) {
+            return {
+                valid: false,
+                missing: GoogleCalendarService.REQUIRED_SCOPES[operation] || []
+            };
+        }
+
+        const granted = grantedScopes.split(' ');
+        const required = GoogleCalendarService.REQUIRED_SCOPES[operation] || [];
+
+        // Check if at least one required scope is granted
+        // (Google Calendar scopes are hierarchical - calendar includes events)
+        const hasRequiredScope = required.some(scope => granted.includes(scope));
+
+        if (hasRequiredScope) {
+            return { valid: true, missing: [] };
+        }
+
+        // Return which scopes are missing
+        const missing = required.filter(scope => !granted.includes(scope));
+        return { valid: false, missing };
+    }
+
+    /**
+     * Get authenticated OAuth2 client for user with scope validation
+     * @param {string} userId - User ID
+     * @param {string} firmId - Firm ID
+     * @param {string} requiredOperation - Operation type: 'read' | 'write' | 'full'
+     * @returns {Object} OAuth2 client
+     */
+    async getAuthenticatedClient(userId, firmId = null, requiredOperation = 'read') {
         const integration = await GoogleCalendarIntegration.findActiveIntegration(userId, firmId);
 
         if (!integration) {
             throw CustomException('Google Calendar not connected', 404);
+        }
+
+        // Gold Standard: Validate scopes before proceeding
+        const scopeValidation = this.validateScopes(integration.scope, requiredOperation);
+        if (!scopeValidation.valid) {
+            logger.warn(`Insufficient scopes for user ${userId}. Missing: ${scopeValidation.missing.join(', ')}`);
+            throw CustomException(
+                `Insufficient permissions. Please reconnect Google Calendar to grant required access. Missing: ${scopeValidation.missing.join(', ')}`,
+                403
+            );
         }
 
         const oauth2Client = this.createOAuth2Client();
@@ -79,6 +139,86 @@ class GoogleCalendarService {
     // ═══════════════════════════════════════════════════════════════
 
     /**
+     * Get HMAC secret for state signing
+     * Gold Standard: HMAC-SHA256 signed state prevents CSRF forgery
+     * @returns {string} Secret key for HMAC signing
+     */
+    getStateSigningSecret() {
+        // Use a dedicated secret or fall back to a hash of existing secrets
+        const secret = process.env.OAUTH_STATE_SECRET ||
+            crypto.createHash('sha256')
+                .update(GOOGLE_CLIENT_SECRET + 'oauth-state-signing-key')
+                .digest('hex');
+        return secret;
+    }
+
+    /**
+     * Sign OAuth state with HMAC-SHA256
+     * Gold Standard: Prevents state forgery attacks (same pattern as Microsoft, Google, AWS)
+     * @param {Object} stateData - State data to sign
+     * @returns {string} Signed state string
+     */
+    signState(stateData) {
+        const payload = JSON.stringify(stateData);
+        const signature = crypto
+            .createHmac('sha256', this.getStateSigningSecret())
+            .update(payload)
+            .digest('hex');
+
+        // Format: base64(payload).signature
+        const encodedPayload = Buffer.from(payload).toString('base64');
+        return `${encodedPayload}.${signature}`;
+    }
+
+    /**
+     * Verify and decode HMAC-signed OAuth state
+     * Gold Standard: Validates signature before trusting state data
+     * @param {string} signedState - Signed state string
+     * @returns {Object} Verified state data or throws error
+     */
+    verifyState(signedState) {
+        if (!signedState || typeof signedState !== 'string') {
+            throw CustomException('Invalid state parameter', 400);
+        }
+
+        const parts = signedState.split('.');
+        if (parts.length !== 2) {
+            throw CustomException('Malformed state parameter', 400);
+        }
+
+        const [encodedPayload, providedSignature] = parts;
+
+        // Decode payload
+        let payload;
+        try {
+            payload = Buffer.from(encodedPayload, 'base64').toString('utf-8');
+        } catch {
+            throw CustomException('Invalid state encoding', 400);
+        }
+
+        // Verify signature (timing-safe comparison)
+        const expectedSignature = crypto
+            .createHmac('sha256', this.getStateSigningSecret())
+            .update(payload)
+            .digest('hex');
+
+        if (!crypto.timingSafeEqual(
+            Buffer.from(providedSignature, 'hex'),
+            Buffer.from(expectedSignature, 'hex')
+        )) {
+            logger.warn('OAuth state signature mismatch - possible CSRF attack');
+            throw CustomException('Invalid state signature', 400);
+        }
+
+        // Parse and return verified data
+        try {
+            return JSON.parse(payload);
+        } catch {
+            throw CustomException('Invalid state payload', 400);
+        }
+    }
+
+    /**
      * Generate OAuth URL for user to authorize
      * @param {string} userId - User ID
      * @param {string} firmId - Firm ID
@@ -87,19 +227,17 @@ class GoogleCalendarService {
     async getAuthUrl(userId, firmId = null) {
         const oauth2Client = this.createOAuth2Client();
 
-        // Generate state for CSRF protection
-        const state = crypto.randomBytes(32).toString('hex');
-
-        // Store state in integration (temporary)
-        // In production, you might want to use Redis or cache service
+        // Gold Standard: HMAC-SHA256 signed state for CSRF protection
+        // Same pattern used by Microsoft, AWS, and Google's own OAuth implementations
         const stateData = {
             userId,
             firmId,
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            nonce: crypto.randomBytes(16).toString('hex') // Additional entropy
         };
 
-        // You could store this in cache service similar to oauth.service.js
-        // For now, we'll include it in the state parameter
+        // Sign the state with HMAC-SHA256 (prevents forgery)
+        const signedState = this.signState(stateData);
 
         const authUrl = oauth2Client.generateAuthUrl({
             access_type: 'offline',
@@ -108,7 +246,7 @@ class GoogleCalendarService {
                 'https://www.googleapis.com/auth/calendar',
                 'https://www.googleapis.com/auth/calendar.events'
             ],
-            state: Buffer.from(JSON.stringify(stateData)).toString('base64')
+            state: signedState
         });
 
         return authUrl;
@@ -117,21 +255,17 @@ class GoogleCalendarService {
     /**
      * Handle OAuth callback
      * @param {string} code - Authorization code
-     * @param {string} state - State parameter
+     * @param {string} state - State parameter (HMAC-signed)
      * @returns {object} Integration result
      */
     async handleCallback(code, state) {
-        // Decode state
-        let stateData;
-        try {
-            stateData = JSON.parse(Buffer.from(state, 'base64').toString());
-        } catch (error) {
-            throw CustomException('Invalid state parameter', 400);
-        }
+        // Gold Standard: Verify HMAC signature before trusting state
+        // This prevents CSRF and state forgery attacks
+        const stateData = this.verifyState(state);
 
         const { userId, firmId, timestamp } = stateData;
 
-        // Validate state timestamp (prevent replay attacks)
+        // Validate state timestamp (prevent replay attacks - 15 minute window)
         const fifteenMinutesAgo = Date.now() - 15 * 60 * 1000;
         if (timestamp < fifteenMinutesAgo) {
             throw CustomException('Authorization expired. Please try again.', 400);
@@ -320,7 +454,8 @@ class GoogleCalendarService {
      * @returns {array} List of calendars
      */
     async getCalendars(userId, firmId = null) {
-        const oauth2Client = await this.getAuthenticatedClient(userId, firmId);
+        // Scope: read operation only needs calendar.readonly or calendar
+        const oauth2Client = await this.getAuthenticatedClient(userId, firmId, 'read');
         const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
 
         try {
@@ -346,7 +481,8 @@ class GoogleCalendarService {
      * @returns {array} List of events
      */
     async getEvents(userId, calendarId, startDate, endDate, firmId = null) {
-        const oauth2Client = await this.getAuthenticatedClient(userId, firmId);
+        // Scope: read operation
+        const oauth2Client = await this.getAuthenticatedClient(userId, firmId, 'read');
         const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
 
         try {
@@ -379,7 +515,8 @@ class GoogleCalendarService {
      * @returns {object} Created event
      */
     async createEvent(userId, calendarId, eventData, firmId = null) {
-        const oauth2Client = await this.getAuthenticatedClient(userId, firmId);
+        // Scope: write operation requires calendar.events or calendar scope
+        const oauth2Client = await this.getAuthenticatedClient(userId, firmId, 'write');
         const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
 
         const googleEvent = this.mapEventToGoogle(eventData);
@@ -414,7 +551,8 @@ class GoogleCalendarService {
      * @returns {object} Updated event
      */
     async updateEvent(userId, calendarId, eventId, eventData, firmId = null) {
-        const oauth2Client = await this.getAuthenticatedClient(userId, firmId);
+        // Scope: write operation requires calendar.events or calendar scope
+        const oauth2Client = await this.getAuthenticatedClient(userId, firmId, 'write');
         const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
 
         const googleEvent = this.mapEventToGoogle(eventData);
@@ -450,7 +588,8 @@ class GoogleCalendarService {
      * @returns {object} Result
      */
     async deleteEvent(userId, calendarId, eventId, firmId = null) {
-        const oauth2Client = await this.getAuthenticatedClient(userId, firmId);
+        // Scope: write operation requires calendar.events or calendar scope
+        const oauth2Client = await this.getAuthenticatedClient(userId, firmId, 'write');
         const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
 
         try {

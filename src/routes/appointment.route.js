@@ -33,6 +33,14 @@ router.post('/book/:firmId', validatePublicBooking, appointmentController.public
  */
 router.get('/available-slots', appointmentController.getAvailableSlotsEnhanced);
 
+/**
+ * @route   GET /api/v1/appointments/:id/calendar.ics
+ * @desc    Download ICS calendar file for appointment (works with Apple Calendar, Outlook, etc.)
+ * @access  Public (for email links) or Private
+ * @note    Gold Standard: Same pattern used by Calendly, Cal.com, Eventbrite
+ */
+router.get('/:id/calendar.ics', appointmentController.downloadICS);
+
 // ═══════════════════════════════════════════════════════════════
 // AVAILABILITY ROUTES
 // ═══════════════════════════════════════════════════════════════
@@ -125,6 +133,34 @@ router.put('/settings', appointmentController.updateSettings);
  * @access  Private
  */
 router.get('/stats', appointmentController.getStats);
+
+// ═══════════════════════════════════════════════════════════════
+// CALENDAR INTEGRATION ROUTES
+// Gold Standard: Same pattern used by Calendly, Cal.com, Acuity
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * @route   GET /api/v1/appointments/calendar-status
+ * @desc    Get user's calendar connection status (Google, Microsoft)
+ * @access  Private
+ */
+router.get('/calendar-status', appointmentController.getCalendarStatus);
+
+/**
+ * @route   GET /api/v1/appointments/:id/calendar-links
+ * @desc    Get "Add to Calendar" links for an appointment (Google, Outlook, Yahoo, Apple)
+ * @access  Private
+ * @note    Returns links that work with any calendar service
+ */
+router.get('/:id/calendar-links', validateIdParam, appointmentController.getCalendarLinks);
+
+/**
+ * @route   POST /api/v1/appointments/:id/sync-calendar
+ * @desc    Manually sync appointment to connected calendars (Google, Microsoft)
+ * @access  Private
+ * @note    Gold Standard: Allows retry if initial sync failed, or sync after connecting calendar
+ */
+router.post('/:id/sync-calendar', validateIdParam, appointmentController.syncToCalendar);
 
 // ═══════════════════════════════════════════════════════════════
 // APPOINTMENT CRUD ROUTES

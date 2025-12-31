@@ -135,20 +135,83 @@ async function storeTokens(userId, firmId, tokenData) {
 
 /**
  * Retrieve and decrypt Microsoft tokens
+ * Auto-refreshes if token is expired or about to expire (within 5 minutes)
+ * Gold Standard: Same pattern as Google OAuth, AWS Cognito
+ *
  * @param {string} userId - User ID
+ * @param {boolean} autoRefresh - Whether to auto-refresh expired tokens (default: true)
  * @returns {Object} Decrypted token data
  */
-async function getTokens(userId) {
+async function getTokens(userId, autoRefresh = true) {
     const user = await User.findById(userId).select('integrations');
     if (!user || !user.integrations?.microsoftCalendar?.connected) {
         throw new Error('Microsoft Calendar not connected for this user');
     }
 
     const msConfig = user.integrations.microsoftCalendar;
+    const now = new Date();
+    const expiresAt = new Date(msConfig.expiresAt);
+    const fiveMinutesFromNow = new Date(now.getTime() + 5 * 60 * 1000);
 
-    // Check if token is expired
-    if (new Date() >= msConfig.expiresAt) {
-        throw new Error('Access token expired. Please refresh the token.');
+    // Check if token is expired or about to expire (within 5 minutes)
+    if (expiresAt <= fiveMinutesFromNow) {
+        if (!autoRefresh) {
+            throw new Error('Access token expired. Please refresh the token.');
+        }
+
+        // Auto-refresh the token
+        if (!msConfig.refreshToken) {
+            throw new Error('Access token expired and no refresh token available. Please reconnect.');
+        }
+
+        logger.info('Microsoft Calendar token expired or expiring soon, auto-refreshing...', { userId });
+
+        try {
+            const params = new URLSearchParams({
+                client_id: MS_CONFIG.clientId,
+                client_secret: MS_CONFIG.clientSecret,
+                refresh_token: decrypt(msConfig.refreshToken),
+                grant_type: 'refresh_token',
+                scope: MS_CONFIG.scopes.join(' ')
+            });
+
+            const response = await fetch(`${MS_CONFIG.authority}/oauth2/v2.0/token`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: params.toString()
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(`Token refresh failed: ${error.error_description || error.error}`);
+            }
+
+            const tokenData = await response.json();
+
+            // Store new tokens
+            await storeTokens(userId, msConfig.firmId, {
+                accessToken: tokenData.access_token,
+                refreshToken: tokenData.refresh_token || decrypt(msConfig.refreshToken),
+                expiresIn: tokenData.expires_in,
+                tokenType: tokenData.token_type,
+                scope: tokenData.scope
+            });
+
+            logger.info('Microsoft Calendar token auto-refreshed successfully', { userId });
+
+            return {
+                accessToken: tokenData.access_token,
+                refreshToken: tokenData.refresh_token || decrypt(msConfig.refreshToken),
+                tokenType: tokenData.token_type || 'Bearer',
+                expiresAt: new Date(Date.now() + (tokenData.expires_in || 3600) * 1000),
+                firmId: msConfig.firmId
+            };
+        } catch (refreshError) {
+            logger.error('Microsoft Calendar auto-refresh failed:', refreshError);
+            throw new Error(`Token auto-refresh failed: ${refreshError.message}`);
+        }
     }
 
     return {
