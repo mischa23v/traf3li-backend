@@ -44,14 +44,16 @@ const recurrencePatternSchema = new mongoose.Schema({
 // ═══════════════════════════════════════════════════════════════
 
 const blockedTimeSchema = new mongoose.Schema({
+    // For firm members - firmId provides tenant isolation
+    // NOT required because solo lawyers don't have a firmId
     firmId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Firm',
-        required: true,
         index: true
     },
 
-    // For solo lawyers (no firm) - enables row-level security
+    // For solo lawyers (no firm) - lawyerId provides row-level security
+    // Required for all blocked times (firm members AND solo lawyers)
     lawyerId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
