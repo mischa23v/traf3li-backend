@@ -452,6 +452,18 @@ appointmentSchema.statics.getAvailableSlots = async function(
         status: { $in: ['scheduled', 'confirmed'] }
     }).sort({ scheduledTime: 1 });
 
+    // GOLD STANDARD: Also check BlockedTime to prevent scheduling during blocked periods
+    // This was missing and caused Issue #3 - slots showing as available during blocked times
+    const BlockedTime = mongoose.model('BlockedTime');
+    const blockedTimes = await BlockedTime.find({
+        ...firmQuery,
+        lawyerId: assignedTo,
+        $or: [
+            // Blocked time overlaps with this day
+            { startDateTime: { $lte: dayEnd }, endDateTime: { $gte: dayStart } }
+        ]
+    }).sort({ startDateTime: 1 });
+
     // Parse working hours
     const [startHour, startMin] = workingHours.start.split(':').map(Number);
     const [endHour, endMin] = workingHours.end.split(':').map(Number);
@@ -473,7 +485,7 @@ appointmentSchema.statics.getAvailableSlots = async function(
         const slotEnd = new Date(currentTime + slotDuration);
 
         // Check if slot conflicts with existing appointments
-        const hasConflict = appointments.some(apt => {
+        const hasAppointmentConflict = appointments.some(apt => {
             const aptStart = apt.scheduledTime.getTime();
             const aptEnd = apt.endTime.getTime();
 
@@ -488,12 +500,24 @@ appointmentSchema.statics.getAvailableSlots = async function(
             );
         });
 
+        // Check if slot conflicts with blocked times
+        const hasBlockedConflict = blockedTimes.some(blocked => {
+            const blockedStart = blocked.startDateTime.getTime();
+            const blockedEnd = blocked.endDateTime.getTime();
+
+            return (
+                (currentTime >= blockedStart && currentTime < blockedEnd) ||
+                (currentTime + slotDuration > blockedStart && currentTime + slotDuration <= blockedEnd) ||
+                (currentTime <= blockedStart && currentTime + slotDuration >= blockedEnd)
+            );
+        });
+
         slots.push({
             start: slotStart.toTimeString().slice(0, 5),
             end: slotEnd.toTimeString().slice(0, 5),
             startTime: slotStart,
             endTime: slotEnd,
-            available: !hasConflict
+            available: !hasAppointmentConflict && !hasBlockedConflict
         });
 
         currentTime += slotDuration;

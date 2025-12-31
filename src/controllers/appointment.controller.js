@@ -17,6 +17,69 @@ const mongoose = require('mongoose');
 const { generateICS, generateCancellationICS, generateCalendarLinksWithLabels } = require('../services/icsGenerator.service');
 const { syncAppointmentToCalendars, getCalendarConnectionStatus } = require('../services/appointmentCalendarSync.service');
 
+// Cache service for CRM settings optimization (Issue #5 fix - 40s load time)
+const cache = require('../services/cache.service');
+
+// ═══════════════════════════════════════════════════════════════
+// CRM SETTINGS CACHE HELPER (PERFORMANCE OPTIMIZATION)
+// ═══════════════════════════════════════════════════════════════
+
+const CRM_SETTINGS_CACHE_TTL = 300; // 5 minutes cache TTL
+
+/**
+ * Generate cache key for CRM settings
+ * @param {Object} firmQuery - Tenant query { firmId } or { lawyerId }
+ * @returns {string} Cache key
+ */
+const getCrmSettingsCacheKey = (firmQuery) => {
+    if (firmQuery?.firmId) {
+        return `crm-settings:firm:${firmQuery.firmId}`;
+    }
+    if (firmQuery?.lawyerId) {
+        return `crm-settings:lawyer:${firmQuery.lawyerId}`;
+    }
+    return null;
+};
+
+/**
+ * Get CRM settings with caching (GOLD STANDARD: Performance optimization)
+ * Reduces 40s load time to near-instant for subsequent requests
+ * @param {Object} tenantFilter - { firmId } or { lawyerId }
+ * @returns {Promise<Object|null>} CRM settings
+ */
+const getCRMSettingsWithCache = async (tenantFilter) => {
+    const cacheKey = getCrmSettingsCacheKey(tenantFilter);
+
+    // Try cache first
+    if (cacheKey) {
+        const cachedSettings = await cache.get(cacheKey);
+        if (cachedSettings) {
+            return cachedSettings;
+        }
+    }
+
+    // Fetch from database with .lean() for performance
+    let settings = await CRMSettings.findOne(tenantFilter).lean();
+
+    // Cache the result
+    if (settings && cacheKey) {
+        await cache.set(cacheKey, settings, CRM_SETTINGS_CACHE_TTL);
+    }
+
+    return settings;
+};
+
+/**
+ * Invalidate CRM settings cache
+ * @param {Object} tenantFilter - { firmId } or { lawyerId }
+ */
+const invalidateCRMSettingsCache = async (tenantFilter) => {
+    const cacheKey = getCrmSettingsCacheKey(tenantFilter);
+    if (cacheKey) {
+        await cache.del(cacheKey);
+    }
+};
+
 // ═══════════════════════════════════════════════════════════════
 // DEBUG LOGGING HELPER
 // ═══════════════════════════════════════════════════════════════
@@ -693,13 +756,18 @@ exports.getAvailableSlots = async (req, res) => {
         }
 
         // Get CRM settings for working hours
-        // GOLD STANDARD: Lazy initialization - auto-create if missing
-        // Enterprise systems (SAP, Salesforce, Microsoft) never block users with "Settings not found"
-        let settings = await CRMSettings.findOne(tenantFilter);
+        // GOLD STANDARD: Use cached settings for performance (Issue #5 fix)
+        // Reduces 40s load time to near-instant for subsequent requests
+        let settings = await getCRMSettingsWithCache(tenantFilter);
 
         if (!settings && (tenantFilter.firmId || tenantFilter.lawyerId)) {
             // Auto-create CRM settings with sensible defaults (supports firms AND solo lawyers)
             settings = await CRMSettings.getOrCreateByQuery(tenantFilter);
+            // Cache the newly created settings
+            const cacheKey = getCrmSettingsCacheKey(tenantFilter);
+            if (cacheKey) {
+                await cache.set(cacheKey, settings.toObject ? settings.toObject() : settings, CRM_SETTINGS_CACHE_TTL);
+            }
         }
 
         if (!settings) {
@@ -718,7 +786,12 @@ exports.getAvailableSlots = async (req, res) => {
 
         const requestedDate = new Date(date);
         const dayOfWeek = requestedDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
-        const workingHours = settings.getWorkingHours(dayOfWeek);
+        // OPTIMIZATION: Direct property access (compatible with .lean() cached objects)
+        const workingHours = settings.appointmentSettings?.workingHours?.[dayOfWeek] || {
+            enabled: false,
+            start: '09:00',
+            end: '17:00'
+        };
 
         if (!workingHours.enabled) {
             return res.json({
@@ -830,6 +903,53 @@ exports.create = async (req, res) => {
             });
         }
 
+        // GOLD STANDARD: Validate working hours before creating appointment
+        // Same pattern as publicBook - prevents scheduling on disabled days
+        // OPTIMIZATION: Use cached settings for performance (Issue #5 fix)
+        if (safeData.scheduledTime) {
+            let settings = await getCRMSettingsWithCache(req.firmQuery);
+            if (!settings) {
+                settings = await CRMSettings.getOrCreateByQuery(req.firmQuery);
+                // Cache the newly created settings
+                const cacheKey = getCrmSettingsCacheKey(req.firmQuery);
+                if (cacheKey) {
+                    await cache.set(cacheKey, settings.toObject ? settings.toObject() : settings, CRM_SETTINGS_CACHE_TTL);
+                }
+            }
+
+            if (settings?.appointmentSettings?.enabled) {
+                const requestedDate = new Date(safeData.scheduledTime);
+                const dayOfWeek = requestedDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+                const workingHours = settings.appointmentSettings?.workingHours?.[dayOfWeek];
+
+                if (!workingHours?.enabled) {
+                    debugLog('create', req, { step: 'working_hours_disabled', dayOfWeek, workingHours });
+                    return res.status(400).json({
+                        success: false,
+                        message: 'هذا اليوم غير متاح للمواعيد / This day is not available for appointments',
+                        dayOfWeek,
+                        workingHoursEnabled: false
+                    });
+                }
+
+                // Also validate time is within working hours
+                const requestedTime = requestedDate.getHours() * 60 + requestedDate.getMinutes();
+                const [startHour, startMin] = (workingHours.start || '09:00').split(':').map(Number);
+                const [endHour, endMin] = (workingHours.end || '17:00').split(':').map(Number);
+                const workStart = startHour * 60 + startMin;
+                const workEnd = endHour * 60 + endMin;
+
+                if (requestedTime < workStart || requestedTime >= workEnd) {
+                    debugLog('create', req, { step: 'outside_working_hours', requestedTime, workStart, workEnd });
+                    return res.status(400).json({
+                        success: false,
+                        message: 'الوقت المحدد خارج ساعات العمل / Requested time is outside working hours',
+                        workingHours: { start: workingHours.start, end: workingHours.end }
+                    });
+                }
+            }
+        }
+
         // Enterprise: Check for schedule conflicts before creating
         // Default assignedTo to current user if not provided
         const assignedTo = safeData.assignedTo || userId;
@@ -890,7 +1010,7 @@ exports.create = async (req, res) => {
             const syncResult = await syncAppointmentToCalendars(
                 appointment,
                 assignedTo,
-                req.firmId,
+                req.firmQuery,
                 'create'
             );
 
@@ -998,8 +1118,9 @@ exports.publicBook = async (req, res) => {
         ];
         const safeInputData = pickAllowedFields(normalizedBody, publicAllowedFields);
 
-        // Get CRM settings
-        const settings = await CRMSettings.findOne({ firmId });
+        // Get CRM settings - OPTIMIZED: Use cached settings (Issue #5 fix)
+        const tenantFilter = { firmId: mongoose.Types.ObjectId.isValid(firmId) ? firmId : null };
+        const settings = await getCRMSettingsWithCache(tenantFilter);
 
         if (!settings?.appointmentSettings?.publicBookingEnabled) {
             return res.status(400).json({
@@ -1200,7 +1321,7 @@ exports.update = async (req, res) => {
                 calendarSync = await syncAppointmentToCalendars(
                     appointment,
                     appointment.assignedTo,
-                    req.firmId,
+                    req.firmQuery,
                     'update'
                 );
             }
@@ -1277,7 +1398,7 @@ exports.cancel = async (req, res) => {
                 calendarSync = await syncAppointmentToCalendars(
                     appointment,
                     appointment.assignedTo,
-                    req.firmId,
+                    req.firmQuery,
                     'cancel'
                 );
             }
@@ -1367,7 +1488,7 @@ exports.complete = async (req, res) => {
                 calendarSync = await syncAppointmentToCalendars(
                     appointment,
                     appointment.assignedTo,
-                    req.firmId,
+                    req.firmQuery,
                     'update'
                 );
             }
@@ -1445,7 +1566,7 @@ exports.markNoShow = async (req, res) => {
                 calendarSync = await syncAppointmentToCalendars(
                     appointment,
                     appointment.assignedTo,
-                    req.firmId,
+                    req.firmQuery,
                     'update'
                 );
             }
@@ -2202,8 +2323,8 @@ exports.getSettings = async (req, res) => {
             tenantFilter.lawyerId = req.firmQuery.lawyerId;
         }
 
-        // Get settings from CRM Settings - use findOne with tenant filter
-        let settings = await CRMSettings.findOne(tenantFilter);
+        // Get settings from CRM Settings - OPTIMIZED: Use cached settings (Issue #5 fix)
+        let settings = await getCRMSettingsWithCache(tenantFilter);
 
         // Create default settings if not found
         if (!settings) {
@@ -2220,13 +2341,19 @@ exports.getSettings = async (req, res) => {
                     publicBookingEnabled: false
                 }
             }));
+            // Cache the newly created settings
+            const cacheKey = getCrmSettingsCacheKey(tenantFilter);
+            if (cacheKey) {
+                await cache.set(cacheKey, settings.toObject ? settings.toObject() : settings, CRM_SETTINGS_CACHE_TTL);
+            }
         }
 
         res.json({
             success: true,
             data: {
                 lawyerId: req.userID,
-                ...settings.appointmentSettings?.toObject?.() || settings.appointmentSettings || {}
+                // OPTIMIZATION: Direct property access (compatible with .lean() cached objects)
+                ...(settings.appointmentSettings || {})
             }
         });
     } catch (error) {
@@ -2290,6 +2417,9 @@ exports.updateSettings = async (req, res) => {
                 appointmentSettings: safeData
             }));
         }
+
+        // OPTIMIZATION: Invalidate cache after update (Issue #5 fix)
+        await invalidateCRMSettingsCache(tenantFilter);
 
         res.json({
             success: true,

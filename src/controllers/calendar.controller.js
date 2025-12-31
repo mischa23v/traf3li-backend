@@ -1715,6 +1715,31 @@ const getCalendarItemDetails = asyncHandler(async (req, res) => {
                 caseCategory: caseDoc.category
             };
             break;
+
+        case 'appointment':
+            // SECURITY: Use req.firmQuery for multi-tenant isolation
+            item = await Appointment.findOne({ _id: sanitizedId, ...req.firmQuery })
+                .populate('assignedTo', 'username firstName lastName image email phone')
+                .populate('partyId', 'firstName lastName companyName email phone')
+                .populate('caseId', 'title caseNumber category')
+                .populate('createdBy', 'firstName lastName')
+                .populate('cancelledBy', 'firstName lastName')
+                .lean();
+
+            // SECURITY: Return 404 (not 403) to prevent information leakage
+            if (!item) {
+                throw CustomException('Appointment not found', 404);
+            }
+
+            // Enhanced IDOR protection - verify ownership/access
+            const hasAppointmentAccess = item.assignedTo?._id?.toString() === userId ||
+                item.createdBy?._id?.toString() === userId;
+
+            // SECURITY: Return 404 (not 403) to prevent information leakage
+            if (!hasAppointmentAccess) {
+                throw CustomException('Appointment not found', 404);
+            }
+            break;
     }
 
     // Cache the result (convert Mongoose doc to plain object for caching)

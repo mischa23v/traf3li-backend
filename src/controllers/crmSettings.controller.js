@@ -5,12 +5,32 @@
  * - Uses req.firmQuery (not req.firmId) for tenant isolation
  * - Supports both firm members and solo lawyers
  * - Uses req.addFirmId() for creates
+ * - Implements caching for performance optimization (Issue #5 fix)
  */
 
 const CRMSettings = require('../models/crmSettings.model');
 const CrmActivity = require('../models/crmActivity.model');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const logger = require('../utils/logger');
+const cache = require('../services/cache.service');
+
+// Cache settings
+const CRM_SETTINGS_CACHE_TTL = 300; // 5 minutes cache TTL
+
+/**
+ * Generate cache key for CRM settings
+ * @param {Object} firmQuery - Tenant query { firmId } or { lawyerId }
+ * @returns {string} Cache key
+ */
+const getCrmSettingsCacheKey = (firmQuery) => {
+    if (firmQuery?.firmId) {
+        return `crm-settings:firm:${firmQuery.firmId}`;
+    }
+    if (firmQuery?.lawyerId) {
+        return `crm-settings:lawyer:${firmQuery.lawyerId}`;
+    }
+    return null;
+};
 
 // ═══════════════════════════════════════════════════════════════
 // GET CRM SETTINGS
@@ -19,6 +39,7 @@ const logger = require('../utils/logger');
 /**
  * Get CRM settings for the current firm/lawyer
  * GOLD STANDARD: Uses req.firmQuery for tenant isolation
+ * OPTIMIZED: Implements caching with 5-minute TTL
  */
 exports.getSettings = async (req, res) => {
     try {
@@ -29,9 +50,34 @@ exports.getSettings = async (req, res) => {
             });
         }
 
+        // Try cache first
+        const cacheKey = getCrmSettingsCacheKey(req.firmQuery);
+        if (cacheKey) {
+            const cachedSettings = await cache.get(cacheKey);
+            if (cachedSettings) {
+                return res.json({
+                    success: true,
+                    data: cachedSettings,
+                    cached: true
+                });
+            }
+        }
+
         // GOLD STANDARD: Use req.firmQuery (supports both firms and solo lawyers)
         // Get or create settings with lazy initialization
-        const settings = await CRMSettings.getOrCreateByQuery(req.firmQuery);
+        // OPTIMIZED: Use .lean() for better performance
+        let settings = await CRMSettings.findOne(req.firmQuery).lean();
+
+        // If not found, create with defaults
+        if (!settings) {
+            const newSettings = await CRMSettings.create(req.firmQuery);
+            settings = newSettings.toObject();
+        }
+
+        // Cache the result
+        if (cacheKey) {
+            await cache.set(cacheKey, settings, CRM_SETTINGS_CACHE_TTL);
+        }
 
         res.json({
             success: true,
@@ -151,6 +197,12 @@ exports.updateSettings = async (req, res) => {
             await settings.save();
         }
 
+        // Invalidate cache after update
+        const cacheKey = getCrmSettingsCacheKey(req.firmQuery);
+        if (cacheKey) {
+            await cache.del(cacheKey);
+        }
+
         // Log activity
         await CrmActivity.logActivity({
             lawyerId: userId,
@@ -185,6 +237,7 @@ exports.updateSettings = async (req, res) => {
 /**
  * Reset CRM settings to defaults
  * GOLD STANDARD: Uses req.firmQuery for tenant isolation
+ * OPTIMIZED: Invalidates cache on reset
  */
 exports.resetSettings = async (req, res) => {
     try {
@@ -205,6 +258,12 @@ exports.resetSettings = async (req, res) => {
 
         // GOLD STANDARD: Use req.firmQuery for tenant-isolated delete
         await CRMSettings.findOneAndDelete({ ...req.firmQuery });
+
+        // Invalidate cache after reset
+        const cacheKey = getCrmSettingsCacheKey(req.firmQuery);
+        if (cacheKey) {
+            await cache.del(cacheKey);
+        }
 
         // Create fresh settings with tenant context
         const settings = await CRMSettings.create(req.firmQuery);
