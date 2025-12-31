@@ -14,6 +14,8 @@
 
 const GoogleCalendarIntegration = require('../models/googleCalendarIntegration.model');
 const googleCalendarService = require('./googleCalendar.service');
+const microsoftCalendarService = require('./microsoftCalendar.service');
+const User = require('../models/user.model');
 const logger = require('../utils/contextLogger');
 
 /**
@@ -241,11 +243,144 @@ function buildGoogleCalendarEvent(appointment) {
 async function syncToMicrosoftCalendar(appointment, userId, firmId, action) {
     const result = { synced: false, eventId: null, error: null };
 
-    // Microsoft Calendar sync would follow similar pattern
-    // For now, return not implemented
-    result.error = 'Microsoft Calendar sync not yet implemented';
+    try {
+        // Check if Microsoft Calendar service is configured
+        if (!microsoftCalendarService.isConfigured()) {
+            result.error = 'Microsoft Calendar not configured';
+            return result;
+        }
+
+        // Check if user has Microsoft Calendar connected
+        const user = await User.findById(userId).select('integrations');
+        if (!user?.integrations?.microsoftCalendar?.connected) {
+            result.error = 'Microsoft Calendar not connected';
+            return result;
+        }
+
+        const msConfig = user.integrations.microsoftCalendar;
+
+        // Check if auto-sync is enabled
+        if (!msConfig.syncSettings?.enabled) {
+            result.error = 'Auto-sync disabled';
+            return result;
+        }
+
+        // Get the default calendar ID
+        const calendarId = msConfig.syncSettings?.defaultCalendarId || null;
+
+        // Build event data for Microsoft
+        const eventData = buildMicrosoftCalendarEvent(appointment);
+
+        if (action === 'create') {
+            // Create new event
+            const event = await microsoftCalendarService.createEvent(
+                userId,
+                calendarId,
+                eventData
+            );
+            result.eventId = event.id;
+            result.synced = true;
+
+            logger.info(`Created Microsoft Calendar event ${event.id} for appointment ${appointment._id}`);
+
+        } else if (action === 'update' && appointment.microsoftCalendarEventId) {
+            // Update existing event
+            await microsoftCalendarService.updateEvent(
+                userId,
+                calendarId,
+                appointment.microsoftCalendarEventId,
+                eventData
+            );
+            result.eventId = appointment.microsoftCalendarEventId;
+            result.synced = true;
+
+            logger.info(`Updated Microsoft Calendar event ${appointment.microsoftCalendarEventId}`);
+
+        } else if (action === 'cancel' && appointment.microsoftCalendarEventId) {
+            // Delete event
+            await microsoftCalendarService.deleteEvent(
+                userId,
+                calendarId,
+                appointment.microsoftCalendarEventId
+            );
+            result.synced = true;
+
+            logger.info(`Deleted Microsoft Calendar event ${appointment.microsoftCalendarEventId}`);
+        }
+
+    } catch (error) {
+        logger.error('Microsoft Calendar sync failed:', error);
+        result.error = error.message;
+    }
 
     return result;
+}
+
+/**
+ * Build Microsoft Calendar event data from appointment
+ *
+ * @param {Object} appointment - Appointment document
+ * @returns {Object} Microsoft Calendar event data
+ */
+function buildMicrosoftCalendarEvent(appointment) {
+    const {
+        customerName,
+        customerEmail,
+        scheduledTime,
+        endTime,
+        duration = 30,
+        notes,
+        location,
+        meetingLink,
+        locationType
+    } = appointment;
+
+    // Calculate end time if not set
+    const start = new Date(scheduledTime);
+    const end = endTime ? new Date(endTime) : new Date(start.getTime() + duration * 60000);
+
+    // Determine location
+    let eventLocation = location || '';
+    if (locationType === 'virtual' && meetingLink) {
+        eventLocation = meetingLink;
+    } else if (locationType === 'virtual') {
+        eventLocation = 'Virtual Meeting';
+    }
+
+    // Build description
+    let description = `Appointment with ${customerName}`;
+    if (notes) {
+        description += `<br><br>Notes:<br>${notes}`;
+    }
+    if (meetingLink) {
+        description += `<br><br>Meeting Link: <a href="${meetingLink}">${meetingLink}</a>`;
+    }
+    if (customerEmail) {
+        description += `<br><br>Client Email: ${customerEmail}`;
+    }
+
+    const event = {
+        title: `Appointment - ${customerName}`,
+        description,
+        startDateTime: start,
+        endDateTime: end,
+        timezone: 'Asia/Riyadh',
+        location: eventLocation ? {
+            name: eventLocation
+        } : null,
+        attendees: []
+    };
+
+    // Add attendee if email provided
+    if (customerEmail) {
+        event.attendees.push({
+            email: customerEmail,
+            name: customerName,
+            isRequired: true
+        });
+    }
+
+    return event;
 }
 
 /**
@@ -257,10 +392,11 @@ async function syncToMicrosoftCalendar(appointment, userId, firmId, action) {
  */
 async function getCalendarConnectionStatus(userId, firmId = null) {
     const status = {
-        google: { connected: false, autoSync: false },
-        microsoft: { connected: false, autoSync: false }
+        google: { connected: false, autoSync: false, calendarId: null },
+        microsoft: { connected: false, autoSync: false, calendarId: null }
     };
 
+    // Check Google Calendar status
     try {
         const googleIntegration = await GoogleCalendarIntegration.findOne({
             userId,
@@ -271,12 +407,32 @@ async function getCalendarConnectionStatus(userId, firmId = null) {
         if (googleIntegration) {
             status.google.connected = true;
             status.google.autoSync = googleIntegration.settings?.autoSync || false;
+            status.google.calendarId = googleIntegration.settings?.defaultCalendarId || 'primary';
         }
     } catch (error) {
         logger.error('Error checking Google Calendar status:', error);
     }
 
-    // Microsoft status check would go here
+    // Check Microsoft Calendar status
+    try {
+        const user = await User.findById(userId).select('integrations');
+
+        if (user?.integrations?.microsoftCalendar?.connected) {
+            const msConfig = user.integrations.microsoftCalendar;
+            status.microsoft.connected = true;
+            status.microsoft.autoSync = msConfig.syncSettings?.enabled || false;
+            status.microsoft.calendarId = msConfig.syncSettings?.defaultCalendarId || null;
+            status.microsoft.connectedAt = msConfig.connectedAt;
+            status.microsoft.lastSyncedAt = msConfig.lastSyncedAt;
+
+            // Check if token is expired
+            if (msConfig.expiresAt) {
+                status.microsoft.tokenExpired = new Date() >= new Date(msConfig.expiresAt);
+            }
+        }
+    } catch (error) {
+        logger.error('Error checking Microsoft Calendar status:', error);
+    }
 
     return status;
 }
@@ -342,5 +498,6 @@ module.exports = {
     getCalendarConnectionStatus,
     enableAutoSync,
     disableAutoSync,
-    buildGoogleCalendarEvent
+    buildGoogleCalendarEvent,
+    buildMicrosoftCalendarEvent
 };

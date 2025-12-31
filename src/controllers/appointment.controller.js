@@ -670,12 +670,18 @@ exports.create = async (req, res) => {
                 'create'
             );
 
-            // Update appointment with calendar event ID if synced
+            // Update appointment with calendar event IDs if synced
+            const calendarUpdateFields = {};
             if (syncResult.google?.eventId) {
-                await Appointment.findByIdAndUpdate(appointment._id, {
-                    calendarEventId: syncResult.google.eventId
-                });
+                calendarUpdateFields.calendarEventId = syncResult.google.eventId;
                 appointment.calendarEventId = syncResult.google.eventId;
+            }
+            if (syncResult.microsoft?.eventId) {
+                calendarUpdateFields.microsoftCalendarEventId = syncResult.microsoft.eventId;
+                appointment.microsoftCalendarEventId = syncResult.microsoft.eventId;
+            }
+            if (Object.keys(calendarUpdateFields).length > 0) {
+                await Appointment.findByIdAndUpdate(appointment._id, calendarUpdateFields);
             }
 
             calendarSync = syncResult;
@@ -932,7 +938,7 @@ exports.cancel = async (req, res) => {
         // Gold Standard: Sync cancellation to connected calendars
         let calendarSync = null;
         try {
-            if (appointment.calendarEventId) {
+            if (appointment.calendarEventId || appointment.microsoftCalendarEventId) {
                 calendarSync = await syncAppointmentToCalendars(
                     appointment,
                     appointment.assignedTo,
