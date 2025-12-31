@@ -745,6 +745,7 @@ exports.create = async (req, res) => {
         }
 
         // Enterprise: Check for schedule conflicts before creating
+        // Default assignedTo to current user if not provided
         const assignedTo = safeData.assignedTo || userId;
         const conflictCheck = await checkScheduleConflicts(
             req.firmQuery,
@@ -764,6 +765,7 @@ exports.create = async (req, res) => {
         // Multi-tenancy: Use req.addFirmId() for proper firm/solo lawyer isolation
         const appointmentData = req.addFirmId({
             ...safeData,
+            assignedTo,  // Use the resolved assignedTo (with default)
             createdBy: userId,
             status: 'scheduled' // Force status to prevent mass assignment
         });
