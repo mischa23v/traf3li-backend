@@ -1350,63 +1350,144 @@ exports.update = async (req, res) => {
 // ═══════════════════════════════════════════════════════════════
 
 /**
- * Cancel an appointment
+ * Cancel an appointment (DELETE /api/v1/appointments/:id)
+ * DEBUG: Extensive logging for delete button troubleshooting
  */
 exports.cancel = async (req, res) => {
-    debugLog('cancel', req);
+    const totalStart = Date.now();
+    debugLog('cancel', req, {
+        step: 'START',
+        appointmentId: req.params.id,
+        body: req.body,
+        headers: {
+            contentType: req.headers['content-type'],
+            authorization: req.headers.authorization ? 'present' : 'missing'
+        }
+    });
+
+    // Log full request details for debugging
+    logger.info(`🗑️ [APPOINTMENT-DELETE-DEBUG] cancel START: appointmentId=${req.params.id} userId=${req.userID} firmQuery=${JSON.stringify(req.firmQuery)}`);
+
     try {
         if (req.isDeparted) {
-            debugLog('cancel', req, { blocked: 'isDeparted' });
+            debugLog('cancel', req, { step: 'BLOCKED', reason: 'isDeparted' });
+            logger.warn(`🗑️ [APPOINTMENT-DELETE-DEBUG] cancel BLOCKED: isDeparted=true`);
             return res.status(403).json({
                 success: false,
-                message: 'ليس لديك صلاحية للوصول / Access denied'
+                message: 'ليس لديك صلاحية للوصول / Access denied',
+                debug: { reason: 'isDeparted' }
             });
         }
 
         // Sanitize ID param to prevent NoSQL injection
         const id = sanitizeObjectId(req.params.id);
         const userId = req.userID;
-        debugLog('cancel', req, { step: 'starting', appointmentId: id });
+
+        if (!id) {
+            debugLog('cancel', req, { step: 'INVALID_ID', rawId: req.params.id });
+            logger.error(`🗑️ [APPOINTMENT-DELETE-DEBUG] cancel INVALID_ID: rawId=${req.params.id}`);
+            return res.status(400).json({
+                success: false,
+                message: 'معرف الموعد غير صالح / Invalid appointment ID',
+                debug: { rawId: req.params.id }
+            });
+        }
+
+        debugLog('cancel', req, { step: 'ID_VALIDATED', sanitizedId: id });
 
         // Mass assignment protection: only allow reason field
         const safeData = pickAllowedFields(req.body, ALLOWED_CANCEL_FIELDS);
         const reason = safeData.reason;
+        debugLog('cancel', req, { step: 'BODY_PARSED', reason, safeDataKeys: Object.keys(safeData) });
 
         // IDOR Protection: Verify appointment belongs to user's firm/lawyer
+        const dbStart = Date.now();
+        debugLog('cancel', req, { step: 'DB_QUERY_START', query: { _id: id, ...req.firmQuery } });
+
         const appointment = await Appointment.findOne({ _id: id, ...req.firmQuery });
+        const dbTime = Date.now() - dbStart;
+
+        debugLog('cancel', req, {
+            step: 'DB_QUERY_DONE',
+            dbTime,
+            found: !!appointment,
+            appointmentId: appointment?._id?.toString(),
+            status: appointment?.status,
+            customerName: appointment?.customerName
+        });
+
+        logger.info(`🗑️ [APPOINTMENT-DELETE-DEBUG] cancel DB_QUERY: found=${!!appointment} status=${appointment?.status} dbTime=${dbTime}ms`);
 
         if (!appointment) {
+            debugLog('cancel', req, {
+                step: 'NOT_FOUND',
+                searchedId: id,
+                firmQuery: req.firmQuery
+            });
+            logger.warn(`🗑️ [APPOINTMENT-DELETE-DEBUG] cancel NOT_FOUND: id=${id} firmQuery=${JSON.stringify(req.firmQuery)}`);
             return res.status(404).json({
                 success: false,
-                message: 'الموعد غير موجود / Appointment not found'
+                message: 'الموعد غير موجود / Appointment not found',
+                debug: {
+                    searchedId: id,
+                    firmQuery: req.firmQuery,
+                    hint: 'Appointment may not exist or may belong to a different firm/lawyer'
+                }
             });
         }
 
+        // Check if already cancelled or completed
         if (['cancelled', 'completed'].includes(appointment.status)) {
+            debugLog('cancel', req, {
+                step: 'ALREADY_CANCELLED_OR_COMPLETED',
+                currentStatus: appointment.status,
+                appointmentNumber: appointment.appointmentNumber,
+                cancelledAt: appointment.cancelledAt,
+                completedAt: appointment.completedAt
+            });
+            logger.warn(`🗑️ [APPOINTMENT-DELETE-DEBUG] cancel BLOCKED: status=${appointment.status} appointmentNumber=${appointment.appointmentNumber}`);
             return res.status(400).json({
                 success: false,
-                message: 'لا يمكن إلغاء هذا الموعد / Cannot cancel this appointment'
+                message: 'لا يمكن إلغاء هذا الموعد / Cannot cancel this appointment',
+                debug: {
+                    currentStatus: appointment.status,
+                    appointmentNumber: appointment.appointmentNumber,
+                    reason: appointment.status === 'cancelled' ? 'Already cancelled' : 'Already completed',
+                    cancelledAt: appointment.cancelledAt,
+                    completedAt: appointment.completedAt,
+                    hint: 'Frontend should hide delete button for cancelled/completed appointments'
+                }
             });
         }
 
+        debugLog('cancel', req, { step: 'CANCELLING', currentStatus: appointment.status });
+        const cancelStart = Date.now();
         await appointment.cancel(userId, reason);
+        const cancelTime = Date.now() - cancelStart;
+        debugLog('cancel', req, { step: 'CANCELLED', cancelTime, newStatus: appointment.status });
+
+        logger.info(`🗑️ [APPOINTMENT-DELETE-DEBUG] cancel SUCCESS: appointmentNumber=${appointment.appointmentNumber} cancelTime=${cancelTime}ms`);
 
         // Gold Standard: Sync cancellation to connected calendars
         let calendarSync = null;
         try {
             if (appointment.calendarEventId || appointment.microsoftCalendarEventId) {
+                debugLog('cancel', req, { step: 'CALENDAR_SYNC_START' });
                 calendarSync = await syncAppointmentToCalendars(
                     appointment,
                     appointment.assignedTo,
                     req.firmQuery,
                     'cancel'
                 );
+                debugLog('cancel', req, { step: 'CALENDAR_SYNC_DONE', calendarSync });
             }
         } catch (syncError) {
+            debugLog('cancel', req, { step: 'CALENDAR_SYNC_ERROR', error: syncError.message });
             logger.warn('Calendar cancellation sync failed (non-blocking):', syncError.message);
         }
 
         // Log activity
+        const activityStart = Date.now();
         await CrmActivity.logActivity({
             lawyerId: userId,
             type: 'appointment_cancelled',
@@ -1417,19 +1498,42 @@ exports.cancel = async (req, res) => {
             description: reason || 'No reason provided',
             performedBy: userId
         });
+        const activityTime = Date.now() - activityStart;
+
+        const totalTime = Date.now() - totalStart;
+        debugLog('cancel', req, {
+            step: 'SUCCESS',
+            totalTime,
+            dbTime,
+            cancelTime,
+            activityTime,
+            appointmentNumber: appointment.appointmentNumber
+        });
+
+        logger.info(`🗑️ [APPOINTMENT-DELETE-DEBUG] cancel COMPLETE: totalTime=${totalTime}ms appointmentNumber=${appointment.appointmentNumber}`);
 
         res.json({
             success: true,
             message: 'تم إلغاء الموعد بنجاح / Appointment cancelled successfully',
             data: appointment,
-            calendarSync
+            calendarSync,
+            timing: { total: totalTime, db: dbTime, cancel: cancelTime, activity: activityTime }
         });
     } catch (error) {
-        debugError('cancel', error, { appointmentId: req.params.id });
+        debugError('cancel', error, { appointmentId: req.params.id, body: req.body });
+        logger.error(`🗑️ [APPOINTMENT-DELETE-DEBUG] cancel ERROR: ${error.message}`, {
+            appointmentId: req.params.id,
+            stack: error.stack?.split('\n').slice(0, 5).join(' | ')
+        });
         res.status(500).json({
             success: false,
             message: 'خطأ في إلغاء الموعد / Error cancelling appointment',
-            error: error.message
+            error: error.message,
+            debug: {
+                appointmentId: req.params.id,
+                errorName: error.name,
+                stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+            }
         });
     }
 };
@@ -2028,34 +2132,76 @@ exports.getBlockedTimes = async (req, res) => {
 };
 
 /**
- * Create blocked time
+ * Create blocked time (حظر وقت)
+ * POST /api/v1/appointments/blocked-times
  *
  * Enterprise Feature: Supports cross-lawyer schedule management
  * - If no targetLawyerId provided: blocks time for current user
  * - If targetLawyerId provided: requires 'appointments' 'full' permission and firm membership validation
+ *
+ * DEBUG: Extensive logging for Block Time troubleshooting
  */
 exports.createBlockedTime = async (req, res) => {
-    debugLog('createBlockedTime', req);
+    const totalStart = Date.now();
+    debugLog('createBlockedTime', req, {
+        step: 'START',
+        bodyKeys: Object.keys(req.body || {}),
+        body: req.body
+    });
+
+    // Log full request for debugging
+    logger.info(`🚫 [BLOCKED-TIME-DEBUG] createBlockedTime START: body=${JSON.stringify(req.body)} userId=${req.userID} firmQuery=${JSON.stringify(req.firmQuery)}`);
+
     try {
         if (req.isDeparted) {
+            debugLog('createBlockedTime', req, { step: 'BLOCKED', reason: 'isDeparted' });
+            logger.warn(`🚫 [BLOCKED-TIME-DEBUG] createBlockedTime BLOCKED: isDeparted=true`);
             return res.status(403).json({
                 success: false,
-                message: 'ليس لديك صلاحية للوصول / Access denied'
+                message: 'ليس لديك صلاحية للوصول / Access denied',
+                debug: { reason: 'isDeparted' }
             });
         }
 
         const userId = req.userID;
+        debugLog('createBlockedTime', req, { step: 'USER_VALIDATED', userId });
 
         // Mass assignment protection
         const safeData = pickAllowedFields(req.body, ALLOWED_BLOCKED_TIME_FIELDS);
-        debugLog('createBlockedTime', req, { step: 'safeData', safeData });
+        debugLog('createBlockedTime', req, {
+            step: 'SAFE_DATA',
+            safeData,
+            allowedFields: ALLOWED_BLOCKED_TIME_FIELDS,
+            receivedFields: Object.keys(req.body || {}),
+            droppedFields: Object.keys(req.body || {}).filter(k => !ALLOWED_BLOCKED_TIME_FIELDS.includes(k))
+        });
+
+        logger.info(`🚫 [BLOCKED-TIME-DEBUG] createBlockedTime SAFE_DATA: ${JSON.stringify(safeData)}`);
 
         // Enterprise: Validate target lawyer (self or another firm member with permissions)
+        const validationStart = Date.now();
         const targetValidation = await validateTargetLawyer(req, safeData.targetLawyerId);
+        const validationTime = Date.now() - validationStart;
+
+        debugLog('createBlockedTime', req, {
+            step: 'TARGET_VALIDATION',
+            validationTime,
+            valid: targetValidation.valid,
+            lawyerId: targetValidation.lawyerId,
+            isManagingOther: targetValidation.isManagingOther,
+            error: targetValidation.error
+        });
+
         if (!targetValidation.valid) {
+            debugLog('createBlockedTime', req, { step: 'VALIDATION_FAILED', error: targetValidation.error });
+            logger.warn(`🚫 [BLOCKED-TIME-DEBUG] createBlockedTime VALIDATION_FAILED: ${targetValidation.error}`);
             return res.status(403).json({
                 success: false,
-                message: targetValidation.error
+                message: targetValidation.error,
+                debug: {
+                    reason: 'Target lawyer validation failed',
+                    targetLawyerId: safeData.targetLawyerId
+                }
             });
         }
 
@@ -2064,9 +2210,60 @@ exports.createBlockedTime = async (req, res) => {
 
         // Validate dates
         if (!safeData.startDateTime || !safeData.endDateTime) {
+            debugLog('createBlockedTime', req, {
+                step: 'DATE_VALIDATION_ERROR',
+                startDateTime: safeData.startDateTime,
+                endDateTime: safeData.endDateTime
+            });
+            logger.warn(`🚫 [BLOCKED-TIME-DEBUG] createBlockedTime DATE_ERROR: startDateTime=${safeData.startDateTime} endDateTime=${safeData.endDateTime}`);
             return res.status(400).json({
                 success: false,
-                message: 'startDateTime and endDateTime are required'
+                message: 'startDateTime and endDateTime are required',
+                debug: {
+                    receivedStartDateTime: safeData.startDateTime,
+                    receivedEndDateTime: safeData.endDateTime,
+                    expectedFormat: 'ISO 8601 date string (e.g., 2025-12-31T09:00:00.000Z)',
+                    hint: 'Both startDateTime and endDateTime must be provided'
+                }
+            });
+        }
+
+        // Parse and validate dates
+        const startDate = new Date(safeData.startDateTime);
+        const endDate = new Date(safeData.endDateTime);
+
+        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+            debugLog('createBlockedTime', req, {
+                step: 'DATE_PARSE_ERROR',
+                startDateTime: safeData.startDateTime,
+                endDateTime: safeData.endDateTime,
+                parsedStart: startDate.toString(),
+                parsedEnd: endDate.toString()
+            });
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid date format',
+                debug: {
+                    startDateTime: safeData.startDateTime,
+                    endDateTime: safeData.endDateTime,
+                    hint: 'Use ISO 8601 format (e.g., 2025-12-31T09:00:00.000Z)'
+                }
+            });
+        }
+
+        if (endDate <= startDate) {
+            debugLog('createBlockedTime', req, {
+                step: 'DATE_ORDER_ERROR',
+                startDateTime: startDate.toISOString(),
+                endDateTime: endDate.toISOString()
+            });
+            return res.status(400).json({
+                success: false,
+                message: 'endDateTime must be after startDateTime',
+                debug: {
+                    startDateTime: startDate.toISOString(),
+                    endDateTime: endDate.toISOString()
+                }
             });
         }
 
@@ -2077,68 +2274,165 @@ exports.createBlockedTime = async (req, res) => {
             createdBy: userId
         });
 
+        debugLog('createBlockedTime', req, {
+            step: 'BLOCKED_TIME_DATA',
+            blockedTimeData: {
+                ...blockedTimeData,
+                startDateTime: blockedTimeData.startDateTime,
+                endDateTime: blockedTimeData.endDateTime
+            }
+        });
+
+        logger.info(`🚫 [BLOCKED-TIME-DEBUG] createBlockedTime DB_CREATE: ${JSON.stringify(blockedTimeData)}`);
+
+        const dbStart = Date.now();
         const blockedTime = await BlockedTime.create(blockedTimeData);
+        const dbTime = Date.now() - dbStart;
+
+        debugLog('createBlockedTime', req, {
+            step: 'DB_CREATE_DONE',
+            dbTime,
+            blockedTimeId: blockedTime._id?.toString()
+        });
 
         // Log if managing another lawyer's schedule
         if (targetValidation.isManagingOther) {
             logger.info(`User ${userId} created blocked time for lawyer ${targetValidation.lawyerId}`);
         }
 
+        const totalTime = Date.now() - totalStart;
+        debugLog('createBlockedTime', req, {
+            step: 'SUCCESS',
+            totalTime,
+            dbTime,
+            blockedTimeId: blockedTime._id?.toString()
+        });
+
+        logger.info(`🚫 [BLOCKED-TIME-DEBUG] createBlockedTime SUCCESS: id=${blockedTime._id} totalTime=${totalTime}ms`);
+
         res.status(201).json({
             success: true,
             message: 'تم إنشاء وقت الحظر بنجاح / Blocked time created successfully',
-            data: blockedTime
+            data: blockedTime,
+            timing: { total: totalTime, db: dbTime }
         });
     } catch (error) {
         debugError('createBlockedTime', error, { body: req.body });
+        logger.error(`🚫 [BLOCKED-TIME-DEBUG] createBlockedTime ERROR: ${error.message}`, {
+            body: req.body,
+            stack: error.stack?.split('\n').slice(0, 5).join(' | ')
+        });
         res.status(500).json({
             success: false,
             message: 'خطأ في إنشاء وقت الحظر / Error creating blocked time',
-            error: error.message
+            error: error.message,
+            debug: {
+                errorName: error.name,
+                body: req.body,
+                stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+            }
         });
     }
 };
 
 /**
  * Delete blocked time
+ * DELETE /api/v1/appointments/blocked-times/:id
+ * DEBUG: Extensive logging for troubleshooting
  */
 exports.deleteBlockedTime = async (req, res) => {
-    debugLog('deleteBlockedTime', req);
+    const totalStart = Date.now();
+    debugLog('deleteBlockedTime', req, {
+        step: 'START',
+        blockedTimeId: req.params.id
+    });
+
+    logger.info(`🚫 [BLOCKED-TIME-DEBUG] deleteBlockedTime START: id=${req.params.id} userId=${req.userID}`);
+
     try {
         if (req.isDeparted) {
+            debugLog('deleteBlockedTime', req, { step: 'BLOCKED', reason: 'isDeparted' });
             return res.status(403).json({
                 success: false,
-                message: 'ليس لديك صلاحية للوصول / Access denied'
+                message: 'ليس لديك صلاحية للوصول / Access denied',
+                debug: { reason: 'isDeparted' }
             });
         }
 
         // Sanitize ID param to prevent NoSQL injection
         const id = sanitizeObjectId(req.params.id);
-        debugLog('deleteBlockedTime', req, { step: 'starting', blockedTimeId: id });
+
+        if (!id) {
+            debugLog('deleteBlockedTime', req, { step: 'INVALID_ID', rawId: req.params.id });
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid blocked time ID',
+                debug: { rawId: req.params.id }
+            });
+        }
+
+        debugLog('deleteBlockedTime', req, { step: 'ID_VALIDATED', sanitizedId: id });
 
         // IDOR Protection: Delete with firmQuery
+        const dbStart = Date.now();
         const blockedTime = await BlockedTime.findOneAndDelete({
             _id: id,
             ...req.firmQuery
         });
+        const dbTime = Date.now() - dbStart;
+
+        debugLog('deleteBlockedTime', req, {
+            step: 'DB_DELETE_DONE',
+            dbTime,
+            found: !!blockedTime,
+            deletedId: blockedTime?._id?.toString()
+        });
+
+        logger.info(`🚫 [BLOCKED-TIME-DEBUG] deleteBlockedTime DB_DELETE: found=${!!blockedTime} dbTime=${dbTime}ms`);
 
         if (!blockedTime) {
+            debugLog('deleteBlockedTime', req, {
+                step: 'NOT_FOUND',
+                searchedId: id,
+                firmQuery: req.firmQuery
+            });
             return res.status(404).json({
                 success: false,
-                message: 'وقت الحظر غير موجود / Blocked time not found'
+                message: 'وقت الحظر غير موجود / Blocked time not found',
+                debug: {
+                    searchedId: id,
+                    firmQuery: req.firmQuery
+                }
             });
         }
 
+        const totalTime = Date.now() - totalStart;
+        debugLog('deleteBlockedTime', req, {
+            step: 'SUCCESS',
+            totalTime,
+            dbTime,
+            deletedId: blockedTime._id?.toString()
+        });
+
+        logger.info(`🚫 [BLOCKED-TIME-DEBUG] deleteBlockedTime SUCCESS: deletedId=${blockedTime._id} totalTime=${totalTime}ms`);
+
         res.json({
             success: true,
-            message: 'تم حذف وقت الحظر بنجاح / Blocked time deleted successfully'
+            message: 'تم حذف وقت الحظر بنجاح / Blocked time deleted successfully',
+            data: blockedTime,
+            timing: { total: totalTime, db: dbTime }
         });
     } catch (error) {
         debugError('deleteBlockedTime', error, { blockedTimeId: req.params.id });
+        logger.error(`🚫 [BLOCKED-TIME-DEBUG] deleteBlockedTime ERROR: ${error.message}`);
         res.status(500).json({
             success: false,
             message: 'خطأ في حذف وقت الحظر / Error deleting blocked time',
-            error: error.message
+            error: error.message,
+            debug: {
+                blockedTimeId: req.params.id,
+                errorName: error.name
+            }
         });
     }
 };
