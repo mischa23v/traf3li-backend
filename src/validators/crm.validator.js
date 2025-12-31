@@ -374,11 +374,12 @@ const createAppointmentSchema = Joi.object({
     customerName: Joi.string().required().max(200).messages({
         'string.empty': 'اسم العميل مطلوب / Customer name is required'
     }),
-    customerEmail: Joi.string().email().required().messages({
+    customerEmail: Joi.string().email().allow('').messages({
         'string.email': 'البريد الإلكتروني غير صالح / Invalid email format'
     }),
-    customerPhone: Joi.string().pattern(/^\+?[0-9]{10,15}$/),
-    customerNotes: Joi.string().max(1000),
+    customerPhone: Joi.string().pattern(/^\+?[0-9]{10,15}$/).allow(''),
+    customerNotes: Joi.string().max(1000).allow(''),
+    subject: Joi.string().max(200).allow(''),
     // Party linkage - optional (model has default: 'lead' for appointmentWith)
     appointmentWith: Joi.string().valid('lead', 'client', 'contact').default('lead'),
     partyId: objectIdValidator,
@@ -387,10 +388,10 @@ const createAppointmentSchema = Joi.object({
     assignedTo: objectIdValidator,
     locationType: Joi.string().valid('office', 'virtual', 'client_site', 'other').default('office'),
     location: Joi.string().max(500),
-    meetingLink: Joi.string().uri(),
+    meetingLink: Joi.string().uri().allow(''),
     sendReminder: Joi.boolean(),
-    // Additional optional fields
-    type: Joi.string().valid('consultation', 'follow_up', 'initial', 'general'),
+    // Type must match model APPOINTMENT_TYPES enum
+    type: Joi.string().valid('consultation', 'follow_up', 'case_review', 'initial_meeting', 'court_preparation', 'document_review', 'other'),
     source: Joi.string().valid('manual', 'public_booking', 'marketplace', 'referral'),
     price: Joi.number().min(0),
     currency: Joi.string().max(3)
@@ -400,9 +401,10 @@ const updateAppointmentSchema = Joi.object({
     scheduledTime: Joi.date().iso(),
     duration: Joi.number().integer().valid(15, 30, 45, 60, 90, 120),
     customerName: Joi.string().max(200),
-    customerEmail: Joi.string().email(),
+    customerEmail: Joi.string().email().allow(''),
     customerPhone: Joi.string().pattern(/^\+?[0-9]{10,15}$/).allow(''),
     customerNotes: Joi.string().max(1000).allow(''),
+    subject: Joi.string().max(200).allow(''),
     appointmentWith: Joi.string().valid('lead', 'client', 'contact'),
     partyId: objectIdValidator,
     caseId: objectIdValidator.allow(null),
@@ -416,8 +418,8 @@ const updateAppointmentSchema = Joi.object({
     followUpRequired: Joi.boolean(),
     followUpDate: Joi.date().iso(),
     cancellationReason: Joi.string().max(500),
-    // Additional optional fields
-    type: Joi.string().valid('consultation', 'follow_up', 'initial', 'general'),
+    // Type must match model APPOINTMENT_TYPES enum
+    type: Joi.string().valid('consultation', 'follow_up', 'case_review', 'initial_meeting', 'court_preparation', 'document_review', 'other'),
     source: Joi.string().valid('manual', 'public_booking', 'marketplace', 'referral'),
     price: Joi.number().min(0),
     currency: Joi.string().max(3),
@@ -428,13 +430,14 @@ const updateAppointmentSchema = Joi.object({
 
 const publicBookingSchema = Joi.object({
     customerName: Joi.string().required().max(200),
-    customerEmail: Joi.string().email().required(),
-    customerPhone: Joi.string().pattern(/^\+?[0-9]{10,15}$/),
+    customerEmail: Joi.string().email().allow(''),
+    customerPhone: Joi.string().pattern(/^\+?[0-9]{10,15}$/).allow(''),
     scheduledTime: Joi.date().iso().greater('now').required(),
     duration: Joi.number().integer().valid(15, 30, 45, 60).required(),
-    customerNotes: Joi.string().max(1000),
-    // Additional optional fields that may come from frontend
-    type: Joi.string().valid('consultation', 'follow_up', 'initial', 'general'),
+    customerNotes: Joi.string().max(1000).allow(''),
+    subject: Joi.string().max(200).allow(''),
+    // Type must match model APPOINTMENT_TYPES enum
+    type: Joi.string().valid('consultation', 'follow_up', 'case_review', 'initial_meeting', 'court_preparation', 'document_review', 'other'),
     locationType: Joi.string().valid('office', 'virtual', 'client_site', 'other')
 });
 
