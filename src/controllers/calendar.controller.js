@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { Event, Task, Reminder, Case } = require('../models');
+const { Event, Task, Reminder, Case, Appointment } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
 const cache = require('../services/cache.service');
@@ -138,7 +138,7 @@ const validateAttendees = (attendees) => {
 };
 
 // Valid filter types as Set for O(1) lookup
-const VALID_CALENDAR_TYPES = new Set(['event', 'task', 'reminder', 'case-document']);
+const VALID_CALENDAR_TYPES = new Set(['event', 'task', 'reminder', 'case-document', 'appointment']);
 const VALID_PRIORITIES = new Set(['low', 'medium', 'high', 'critical', 'urgent']);
 const VALID_STATUSES = new Set(['pending', 'in_progress', 'done', 'cancelled', 'completed', 'scheduled', 'confirmed']);
 
@@ -1059,6 +1059,33 @@ function getReminderColor(priority, status) {
     }
 }
 
+// Helper function to get appointment color based on status and type
+function getAppointmentColor(status, type) {
+    // Status-based colors take priority
+    if (status === 'completed') return '#10b981'; // green
+    if (status === 'cancelled' || status === 'canceled') return '#6b7280'; // gray
+    if (status === 'no_show') return '#ef4444'; // red
+    if (status === 'confirmed') return '#3b82f6'; // blue
+
+    // Type-based colors for scheduled appointments
+    switch (type) {
+        case 'consultation':
+            return '#8b5cf6'; // purple
+        case 'follow_up':
+            return '#06b6d4'; // cyan
+        case 'case_review':
+            return '#f59e0b'; // amber
+        case 'initial_meeting':
+            return '#10b981'; // emerald
+        case 'court_preparation':
+            return '#dc2626'; // red
+        case 'document_review':
+            return '#64748b'; // slate
+        default:
+            return '#3b82f6'; // blue (default)
+    }
+}
+
 /**
  * Get calendar grid summary (counts only - optimized for calendar cells)
  * GET /api/calendar/grid-summary
@@ -1486,6 +1513,40 @@ const getCalendarGridItems = asyncHandler(async (req, res) => {
                                 }
                             });
                         }
+                    });
+                })
+        );
+    }
+
+    // Fetch minimal appointment data - use req.firmQuery for proper tenant isolation
+    if (requestedTypes.has('appointment')) {
+        const appointmentQuery = {
+            ...req.firmQuery,
+            scheduledTime: { $gte: start, $lte: end },
+            status: { $nin: ['cancelled', 'canceled'] }
+        };
+        if (sanitizedCaseId) appointmentQuery.caseId = sanitizedCaseId;
+
+        promises.push(
+            Appointment.find(appointmentQuery)
+                .select('_id customerName scheduledTime endTime duration status type locationType subject')
+                .lean()
+                .then(appointments => {
+                    appointments.forEach(apt => {
+                        items.push({
+                            id: apt._id,
+                            type: 'appointment',
+                            title: apt.subject || apt.customerName || 'Appointment',
+                            startDate: apt.scheduledTime,
+                            endDate: apt.endTime,
+                            allDay: false,
+                            status: apt.status,
+                            appointmentType: apt.type,
+                            locationType: apt.locationType,
+                            customerName: apt.customerName,
+                            duration: apt.duration,
+                            color: getAppointmentColor(apt.status, apt.type)
+                        });
                     });
                 })
         );
