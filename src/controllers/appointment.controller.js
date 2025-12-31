@@ -765,13 +765,36 @@ exports.getAvailableSlots = async (req, res) => {
  * Create a new appointment
  */
 exports.create = async (req, res) => {
-    debugLog('create', req);
+    debugLog('create', req, {
+        isSoloLawyer: req.isSoloLawyer,
+        firmId: req.firmId,
+        firmQuery: req.firmQuery
+    });
     try {
         if (req.isDeparted) {
             debugLog('create', req, { blocked: 'isDeparted' });
             return res.status(403).json({
                 success: false,
                 message: 'ليس لديك صلاحية للوصول / Access denied'
+            });
+        }
+
+        // CRITICAL: Verify tenant context is properly set up
+        // If firmQuery is empty, the user wasn't recognized as solo lawyer or firm member
+        const hasTenantContext = req.firmQuery && (req.firmQuery.firmId || req.firmQuery.lawyerId);
+        if (!hasTenantContext) {
+            logger.error('[APPOINTMENT-ERROR] Missing tenant context:', {
+                userId: req.userID,
+                firmId: req.firmId,
+                isSoloLawyer: req.isSoloLawyer,
+                firmQuery: req.firmQuery,
+                message: 'User not recognized as solo lawyer or firm member. Check user.role in database.'
+            });
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied. You must be part of a firm or registered as a solo lawyer.',
+                code: 'MISSING_TENANT_CONTEXT',
+                hint: 'Ensure your user account has role="lawyer" or is associated with a firm.'
             });
         }
 
