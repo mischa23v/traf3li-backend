@@ -95,7 +95,8 @@ const appointmentSchema = new mongoose.Schema({
     },
     appointmentNumber: {
         type: String,
-        required: true,
+        // NOT required - generated in pre-save hook
+        // Mongoose validates BEFORE pre-save, so required:true would fail
         index: true
     },
 
@@ -234,7 +235,7 @@ const appointmentSchema = new mongoose.Schema({
     },
     paymentMethod: {
         type: String,
-        enum: ['cash', 'card', 'bank_transfer', 'online', 'other'],
+        enum: ['cash', 'card', 'bank_transfer', 'online', 'other', null],
         default: null
     },
     paidAt: {
