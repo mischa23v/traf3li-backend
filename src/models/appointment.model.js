@@ -82,9 +82,10 @@ const appointmentSchema = new mongoose.Schema({
     firmId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Firm',
-        required: true,
+        // Not required - solo lawyers use lawyerId instead
+        // Validation: Either firmId OR lawyerId must be present (enforced by plugin)
         index: true
-     },
+    },
 
     // For solo lawyers (no firm) - enables row-level security
     lawyerId: {
@@ -304,6 +305,14 @@ appointmentSchema.index({ firmId: 1, caseId: 1 });
 
 appointmentSchema.pre('save', async function(next) {
     // ═══════════════════════════════════════════════════════════════
+    // MULTI-TENANCY VALIDATION
+    // Either firmId (firm members) OR lawyerId (solo lawyers) must be present
+    // ═══════════════════════════════════════════════════════════════
+    if (!this.firmId && !this.lawyerId) {
+        return next(new Error('Either firmId or lawyerId is required for tenant isolation'));
+    }
+
+    // ═══════════════════════════════════════════════════════════════
     // FRONTEND COMPATIBILITY - Normalize field values
     // ═══════════════════════════════════════════════════════════════
 
@@ -338,13 +347,19 @@ appointmentSchema.pre('save', async function(next) {
     if (!this.appointmentNumber && this.isNew) {
         const date = new Date();
         const year = date.getFullYear();
-        const count = await mongoose.model('Appointment').countDocuments({
-            firmId: this.firmId,
+        // Build query for either firm members or solo lawyers
+        const countQuery = {
             createdAt: {
                 $gte: new Date(year, 0, 1),
                 $lt: new Date(year + 1, 0, 1)
             }
-        });
+        };
+        if (this.firmId) {
+            countQuery.firmId = this.firmId;
+        } else if (this.lawyerId) {
+            countQuery.lawyerId = this.lawyerId;
+        }
+        const count = await mongoose.model('Appointment').countDocuments(countQuery);
         this.appointmentNumber = `APT-${year}-${String(count + 1).padStart(5, '0')}`;
     }
 
