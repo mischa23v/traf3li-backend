@@ -1,6 +1,16 @@
 const mongoose = require('mongoose');
-const { nanoid } = require('nanoid');
 const crypto = require('crypto');
+
+// Generate nanoid-like short ID using built-in crypto (ESM-compatible)
+const generateShortId = (length = 12) => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    const bytes = crypto.randomBytes(length);
+    let result = '';
+    for (let i = 0; i < length; i++) {
+        result += chars[bytes[i] % chars.length];
+    }
+    return result;
+};
 
 // ═══════════════════════════════════════════════════════════════
 // PAGE SCHEMA
@@ -9,7 +19,7 @@ const crypto = require('crypto');
 const pageSchema = new mongoose.Schema({
     id: {
         type: String,
-        default: () => nanoid(12),
+        default: () => generateShortId(12),
         unique: true,
         index: true
     },
