@@ -23,38 +23,154 @@ const { syncAppointmentToCalendars, getCalendarConnectionStatus } = require('../
 
 /**
  * Allowed fields for appointment creation
+ * Includes both backend and frontend field names (aliases mapped in normalizeAppointmentData)
  */
 const ALLOWED_CREATE_FIELDS = [
+    // Backend field names
     'customerName',
     'customerEmail',
     'customerPhone',
+    'customerNotes',
     'scheduledTime',
     'duration',
-    'notes',
     'assignedTo',
     'partyId',
     'caseId',
     'appointmentWith',
     'locationType',
-    'sendReminder'
+    'location',
+    'meetingLink',
+    'sendReminder',
+    // New fields
+    'type',
+    'source',
+    'price',
+    'currency',
+    // Frontend alias names (will be mapped)
+    'clientName',
+    'clientEmail',
+    'clientPhone',
+    'notes',
+    'lawyerId',
+    'date',
+    'startTime'
 ];
 
 /**
  * Allowed fields for appointment updates
  */
 const ALLOWED_UPDATE_FIELDS = [
+    // Backend field names
     'customerName',
     'customerEmail',
     'customerPhone',
+    'customerNotes',
     'scheduledTime',
     'duration',
-    'notes',
     'assignedTo',
     'partyId',
     'caseId',
     'locationType',
-    'sendReminder'
+    'location',
+    'meetingLink',
+    'sendReminder',
+    // New fields
+    'type',
+    'source',
+    'price',
+    'currency',
+    'isPaid',
+    'paymentId',
+    'paymentMethod',
+    // Frontend alias names (will be mapped)
+    'clientName',
+    'clientEmail',
+    'clientPhone',
+    'notes',
+    'lawyerId',
+    'date',
+    'startTime'
 ];
+
+/**
+ * Field alias mapping: Frontend field names -> Backend field names
+ * This enables frontend compatibility while keeping backend consistent
+ */
+const FIELD_ALIAS_MAP = {
+    'clientName': 'customerName',
+    'clientEmail': 'customerEmail',
+    'clientPhone': 'customerPhone',
+    'notes': 'customerNotes',
+    'lawyerId': 'assignedTo'
+};
+
+/**
+ * Normalize appointment data from frontend format to backend format
+ *
+ * Handles:
+ * 1. Field name aliases (clientName -> customerName)
+ * 2. date + startTime -> scheduledTime conversion
+ * 3. locationType mapping (video -> virtual)
+ * 4. status mapping (pending -> scheduled)
+ *
+ * @param {Object} data - Raw request data
+ * @returns {Object} - Normalized data for backend
+ */
+const normalizeAppointmentData = (data) => {
+    const normalized = { ...data };
+
+    // 1. Map field aliases (frontend names -> backend names)
+    for (const [frontendField, backendField] of Object.entries(FIELD_ALIAS_MAP)) {
+        if (normalized[frontendField] !== undefined && normalized[backendField] === undefined) {
+            normalized[backendField] = normalized[frontendField];
+            delete normalized[frontendField];
+        }
+    }
+
+    // 2. Convert date + startTime to scheduledTime
+    if (normalized.date && normalized.startTime && !normalized.scheduledTime) {
+        // Parse date (YYYY-MM-DD) and time (HH:MM)
+        const dateStr = normalized.date;
+        const timeStr = normalized.startTime;
+
+        // Handle various date formats
+        let datePart;
+        if (dateStr.includes('T')) {
+            // ISO format - extract date part
+            datePart = dateStr.split('T')[0];
+        } else {
+            datePart = dateStr;
+        }
+
+        // Create ISO datetime string
+        const isoDateTime = `${datePart}T${timeStr}:00`;
+        normalized.scheduledTime = new Date(isoDateTime);
+
+        // Clean up temporary fields
+        delete normalized.date;
+        delete normalized.startTime;
+    }
+
+    // 3. Map locationType aliases
+    if (normalized.locationType) {
+        const locationTypeMap = {
+            'video': 'virtual',
+            'in-person': 'office',
+            'inperson': 'office',
+            'in_person': 'office'
+        };
+        if (locationTypeMap[normalized.locationType]) {
+            normalized.locationType = locationTypeMap[normalized.locationType];
+        }
+    }
+
+    // 4. Map status aliases
+    if (normalized.status === 'pending') {
+        normalized.status = 'scheduled';
+    }
+
+    return normalized;
+};
 
 /**
  * Allowed fields for appointment completion
@@ -608,8 +724,16 @@ exports.create = async (req, res) => {
 
         const userId = req.userID;
 
+        // FRONTEND COMPATIBILITY: Normalize field names and convert date+startTime
+        const normalizedBody = normalizeAppointmentData(req.body);
+
         // Mass assignment protection: only allow specific fields
-        const safeData = pickAllowedFields(req.body, ALLOWED_CREATE_FIELDS);
+        const safeData = pickAllowedFields(normalizedBody, ALLOWED_CREATE_FIELDS);
+
+        // Set default source if not provided
+        if (!safeData.source) {
+            safeData.source = 'manual';
+        }
 
         // Validate appointment data
         const validation = validateAppointmentData(safeData);
@@ -728,16 +852,21 @@ exports.publicBook = async (req, res) => {
     try {
         const { firmId } = req.params;
 
+        // FRONTEND COMPATIBILITY: Normalize field names and convert date+startTime
+        const normalizedBody = normalizeAppointmentData(req.body);
+
         // Mass assignment protection: extract only allowed fields
         const publicAllowedFields = [
             'customerName',
             'customerEmail',
             'customerPhone',
+            'customerNotes',
             'scheduledTime',
             'duration',
-            'notes'
+            'type',
+            'locationType'
         ];
-        const safeInputData = pickAllowedFields(req.body, publicAllowedFields);
+        const safeInputData = pickAllowedFields(normalizedBody, publicAllowedFields);
 
         // Get CRM settings
         const settings = await CRMSettings.findOne({ firmId });
@@ -787,12 +916,14 @@ exports.publicBook = async (req, res) => {
             customerName: safeInputData.customerName,
             customerEmail: safeInputData.customerEmail,
             customerPhone: safeInputData.customerPhone,
-            customerNotes: safeInputData.notes,
+            customerNotes: safeInputData.customerNotes,
             scheduledTime: requestedDate,
             duration: safeInputData.duration || settings.appointmentSettings.defaultDuration || 30,
             assignedTo,
             appointmentWith: 'lead',
-            locationType: 'office',
+            type: safeInputData.type || 'consultation',
+            locationType: safeInputData.locationType || 'office',
+            source: 'public_booking',
             status: 'scheduled',
             sendReminder: settings.appointmentSettings.sendReminders
         };
@@ -876,8 +1007,11 @@ exports.update = async (req, res) => {
         const id = sanitizeObjectId(req.params.id);
         const userId = req.userID;
 
+        // FRONTEND COMPATIBILITY: Normalize field names and convert date+startTime
+        const normalizedBody = normalizeAppointmentData(req.body);
+
         // Mass assignment protection: only allow specific fields
-        const safeData = pickAllowedFields(req.body, ALLOWED_UPDATE_FIELDS);
+        const safeData = pickAllowedFields(normalizedBody, ALLOWED_UPDATE_FIELDS);
 
         // Validate appointment data
         const validation = validateAppointmentData(safeData);
@@ -2004,7 +2138,7 @@ exports.updateSettings = async (req, res) => {
 // ═══════════════════════════════════════════════════════════════
 
 /**
- * Get appointment statistics
+ * Get appointment statistics (including revenue)
  */
 exports.getStats = async (req, res) => {
     try {
@@ -2017,79 +2151,18 @@ exports.getStats = async (req, res) => {
 
         const { startDate, endDate } = req.query;
 
-        // IDOR Protection: Use firmQuery for firm isolation
-        const baseQuery = { ...req.firmQuery };
+        // Parse dates if provided
+        let start = null;
+        let end = null;
+        if (startDate) start = new Date(startDate);
+        if (endDate) end = new Date(endDate);
 
-        if (startDate || endDate) {
-            baseQuery.scheduledTime = {};
-            if (startDate) baseQuery.scheduledTime.$gte = new Date(startDate);
-            if (endDate) baseQuery.scheduledTime.$lte = new Date(endDate);
-        }
-
-        // Get counts by status
-        const [
-            total,
-            pending,
-            confirmed,
-            completed,
-            cancelled,
-            noShow
-        ] = await Promise.all([
-            Appointment.countDocuments(baseQuery),
-            Appointment.countDocuments({ ...baseQuery, status: 'scheduled' }),
-            Appointment.countDocuments({ ...baseQuery, status: 'confirmed' }),
-            Appointment.countDocuments({ ...baseQuery, status: 'completed' }),
-            Appointment.countDocuments({ ...baseQuery, status: 'cancelled' }),
-            Appointment.countDocuments({ ...baseQuery, status: 'no_show' })
-        ]);
-
-        // Get today's count
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const tomorrow = new Date(today);
-        tomorrow.setDate(tomorrow.getDate() + 1);
-
-        const todayCount = await Appointment.countDocuments({
-            ...req.firmQuery,
-            scheduledTime: { $gte: today, $lt: tomorrow },
-            status: { $in: ['scheduled', 'confirmed'] }
-        });
-
-        // Get this week's count
-        const weekStart = new Date(today);
-        weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-        const weekEnd = new Date(weekStart);
-        weekEnd.setDate(weekEnd.getDate() + 7);
-
-        const weekCount = await Appointment.countDocuments({
-            ...req.firmQuery,
-            scheduledTime: { $gte: weekStart, $lt: weekEnd },
-            status: { $in: ['scheduled', 'confirmed'] }
-        });
-
-        // Get this month's count
-        const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-        const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-
-        const monthCount = await Appointment.countDocuments({
-            ...req.firmQuery,
-            scheduledTime: { $gte: monthStart, $lte: monthEnd },
-            status: { $in: ['scheduled', 'confirmed'] }
-        });
+        // Use the model's getFullStats method which includes revenue
+        const stats = await Appointment.getFullStats(req.firmQuery, start, end);
 
         res.json({
             success: true,
-            data: {
-                total,
-                pending,
-                confirmed,
-                completed,
-                cancelled,
-                noShow,
-                todayCount,
-                weekCount,
-                monthCount
-            }
+            data: stats
         });
     } catch (error) {
         logger.error('Error getting stats:', error);

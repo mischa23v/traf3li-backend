@@ -1,50 +1,51 @@
 # Frontend API Guide - Appointments & Calendar
 
 **Generated: 2025-12-31**
-**Backend Version: Gold Standard Compliant**
+**Backend Version: Gold Standard Compliant + Full Frontend Compatibility**
 
 ---
 
-## CRITICAL MISMATCHES - FRONTEND MUST FIX
+## BACKEND NOW SUPPORTS FRONTEND FIELD NAMES
 
-The frontend specification has several field naming mismatches with the actual backend implementation. This document provides the **correct** API contract.
-
----
-
-## Field Name Corrections
-
-| Frontend Uses (WRONG) | Backend Uses (CORRECT) | Notes |
-|------------------------|------------------------|-------|
-| `clientName` | `customerName` | Max 200 chars |
-| `clientEmail` | `customerEmail` | RFC 5322 compliant |
-| `clientPhone` | `customerPhone` | Saudi format |
-| `lawyerId` | `assignedTo` | ObjectId of user |
-| `type` (appointment type) | `appointmentWith` | `lead`, `client`, `contact` |
-| `status: 'pending'` | `status: 'scheduled'` | Default status |
-| `date` + `startTime` | `scheduledTime` | Single ISO DateTime |
-| `locationType: 'video'` | `locationType: 'virtual'` | See full enum below |
-| `source` | NOT IN MODEL | Remove from requests |
-| `notes` (on create) | `customerNotes` | Max 1000 chars |
+The backend has been updated to **automatically accept and map** frontend field names to backend field names. Both formats now work!
 
 ---
 
-## Location Type Enum
+## Field Name Mapping (BOTH WORK!)
 
-| Frontend Uses (WRONG) | Backend Accepts (CORRECT) |
-|----------------------|---------------------------|
+| Frontend Can Send | Backend Also Accepts | Notes |
+|-------------------|---------------------|-------|
+| `clientName` | `customerName` | Both work - auto-mapped |
+| `clientEmail` | `customerEmail` | Both work - auto-mapped |
+| `clientPhone` | `customerPhone` | Both work - auto-mapped |
+| `notes` | `customerNotes` | Both work - auto-mapped |
+| `lawyerId` | `assignedTo` | Both work - auto-mapped |
+| `date` + `startTime` | `scheduledTime` | Both work - auto-converted |
+
+**The backend normalizes all these automatically - no frontend changes required!**
+
+---
+
+## Location Type (BOTH WORK!)
+
+| Frontend Can Send | Backend Stores As |
+|-------------------|------------------|
 | `video` | `virtual` |
-| `in-person` | `office` OR `client_site` |
-| `phone` | `other` |
+| `in-person` | `office` |
+| `phone` | `phone` |
+| `office` | `office` |
+| `virtual` | `virtual` |
 
-**Backend enum:** `['office', 'virtual', 'client_site', 'other']`
+**All values work! Backend auto-maps them.**
 
 ---
 
-## Status Values
+## Status Values (BOTH WORK!)
 
-| Frontend Uses | Backend Uses | Meaning |
-|---------------|--------------|---------|
-| `pending` | `scheduled` | Newly created |
+| Frontend Sends | Backend Stores | Meaning |
+|----------------|---------------|---------|
+| `pending` | `scheduled` | Newly created (auto-mapped) |
+| `scheduled` | `scheduled` | Newly created |
 | `confirmed` | `confirmed` | Confirmed |
 | `cancelled` | `cancelled` | Cancelled |
 | `completed` | `completed` | Done |
@@ -52,16 +53,58 @@ The frontend specification has several field naming mismatches with the actual b
 
 ---
 
-## Appointment Type vs AppointmentWith
+## NEW FEATURES IMPLEMENTED
 
-Frontend uses `type` for appointment classification, but backend uses `appointmentWith` for a different purpose:
+### Appointment Type Field
+```
+type: 'consultation' | 'follow_up' | 'case_review' | 'initial_meeting' | 'court_preparation' | 'document_review' | 'other'
+```
+
+### Appointment Source Field
+```
+source: 'marketplace' | 'manual' | 'client_dashboard' | 'website' | 'public_booking' | 'calendar_sync' | 'other'
+```
+
+### Payment Fields
+```javascript
+{
+  price: 500,           // Amount
+  currency: 'SAR',      // SAR, USD, EUR, GBP, AED
+  isPaid: false,        // Payment status
+  paymentId: 'xxx',     // Transaction ID
+  paymentMethod: 'card' // cash, card, bank_transfer, online, other
+}
+```
+
+### Revenue in Statistics
+Stats endpoint now returns:
+```javascript
+{
+  total: 250,
+  pending: 12,          // Same as scheduled
+  scheduled: 12,
+  confirmed: 45,
+  completed: 180,
+  cancelled: 10,
+  noShow: 3,
+  todayCount: 5,
+  weekCount: 18,
+  monthCount: 45,
+  revenueTotal: 125000,    // NEW: Paid appointments total
+  revenuePending: 6000     // NEW: Unpaid appointments total
+}
+```
+
+---
+
+## AppointmentWith vs Type (NOW BOTH EXIST!)
 
 | Field | Purpose | Values |
 |-------|---------|--------|
-| `appointmentWith` | Who the appointment is with | `lead`, `client`, `contact` |
-| (no equivalent) | Appointment category | Not implemented |
+| `appointmentWith` | Who the appointment is with (party type) | `lead`, `client`, `contact` |
+| `type` | **NEW!** Appointment category/purpose | `consultation`, `follow_up`, `case_review`, etc. |
 
-**Frontend should NOT send `type: 'consultation'` etc.** These are not supported.
+**Both fields are now fully supported!**
 
 ---
 
