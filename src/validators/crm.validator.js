@@ -383,7 +383,8 @@ const createAppointmentSchema = Joi.object({
     appointmentWith: Joi.string().valid('lead', 'client', 'contact').default('lead'),
     partyId: objectIdValidator,
     caseId: objectIdValidator,
-    assignedTo: objectIdValidator.required(),
+    // assignedTo is optional - controller defaults to current user if not provided (supports solo lawyers)
+    assignedTo: objectIdValidator,
     locationType: Joi.string().valid('office', 'virtual', 'client_site', 'other').default('office'),
     location: Joi.string().max(500),
     meetingLink: Joi.string().uri(),
