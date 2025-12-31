@@ -897,7 +897,30 @@ exports.create = async (req, res) => {
             calendarSync
         });
     } catch (error) {
-        debugError('create', error, { body: req.body, userId: req.userID, firmQuery: req.firmQuery });
+        debugError('create', error, {
+            body: req.body,
+            userId: req.userID,
+            firmQuery: req.firmQuery,
+            errorCode: error.code,
+            errorName: error.name,
+            keyPattern: error.keyPattern,
+            keyValue: error.keyValue
+        });
+
+        // Handle MongoDB duplicate key error specifically
+        if (error.code === 11000) {
+            logger.error('[APPOINTMENT-ERROR] Duplicate key error - possible index issue with solo lawyers:', {
+                keyPattern: error.keyPattern,
+                keyValue: error.keyValue,
+                message: 'This may be caused by old unique index on (firmId, appointmentNumber). Drop old index: db.appointments.dropIndex({ firmId: 1, appointmentNumber: 1 })'
+            });
+            return res.status(409).json({
+                success: false,
+                message: 'رقم الموعد موجود بالفعل / Appointment number already exists',
+                error: error.message
+            });
+        }
+
         res.status(500).json({
             success: false,
             message: 'خطأ في إنشاء الموعد / Error creating appointment',
