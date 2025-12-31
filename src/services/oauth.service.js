@@ -125,8 +125,99 @@ const PROVIDER_CONFIGS = {
 
 class OAuthService {
     /**
-     * Generate state for CSRF protection
+     * Get the secret key for signing OAuth state
+     * Uses JWT_SECRET or falls back to a derived key
+     * @returns {string} Secret key for HMAC signing
+     */
+    getStateSigningSecret() {
+        // Use JWT_SECRET for consistency with other signed tokens
+        // This is the same pattern as googleCalendar.service.js
+        return process.env.JWT_SECRET || process.env.OAUTH_STATE_SECRET || 'oauth-state-fallback-secret';
+    }
+
+    /**
+     * Sign state data with HMAC-SHA256 (Gold Standard: AWS/Google/Microsoft pattern)
+     * Creates a tamper-proof state token that includes payload data
+     * @param {object} stateData - Data to include in state
+     * @returns {string} Signed state token (base64.signature format)
+     */
+    signState(stateData) {
+        const payload = JSON.stringify(stateData);
+        const signature = crypto
+            .createHmac('sha256', this.getStateSigningSecret())
+            .update(payload)
+            .digest('hex');
+        const encodedPayload = Buffer.from(payload).toString('base64');
+        return `${encodedPayload}.${signature}`;
+    }
+
+    /**
+     * Verify and decode signed state (Gold Standard: timing-safe comparison)
+     * @param {string} signedState - Signed state token to verify
+     * @returns {object|null} Decoded state data or null if invalid
+     */
+    verifyStateSignature(signedState) {
+        if (!signedState || typeof signedState !== 'string') {
+            logger.warn('OAuth: Invalid state format - not a string', { type: typeof signedState });
+            return null;
+        }
+
+        const parts = signedState.split('.');
+        if (parts.length !== 2) {
+            logger.warn('OAuth: Invalid state format - wrong number of parts', { parts: parts.length });
+            return null;
+        }
+
+        const [encodedPayload, providedSignature] = parts;
+
+        try {
+            // Decode payload
+            const payload = Buffer.from(encodedPayload, 'base64').toString('utf8');
+
+            // Calculate expected signature
+            const expectedSignature = crypto
+                .createHmac('sha256', this.getStateSigningSecret())
+                .update(payload)
+                .digest('hex');
+
+            // Timing-safe comparison to prevent timing attacks
+            const providedBuffer = Buffer.from(providedSignature, 'hex');
+            const expectedBuffer = Buffer.from(expectedSignature, 'hex');
+
+            if (providedBuffer.length !== expectedBuffer.length) {
+                logger.warn('OAuth: State signature length mismatch');
+                return null;
+            }
+
+            if (!crypto.timingSafeEqual(providedBuffer, expectedBuffer)) {
+                logger.warn('OAuth: State signature verification failed');
+                return null;
+            }
+
+            // Parse and return state data
+            const stateData = JSON.parse(payload);
+
+            // Validate timestamp (15 minute expiry)
+            const timestamp = stateData.timestamp;
+            if (timestamp && (Date.now() - timestamp > 15 * 60 * 1000)) {
+                logger.warn('OAuth: State token expired', {
+                    age: Math.round((Date.now() - timestamp) / 1000),
+                    maxAge: 900
+                });
+                return null;
+            }
+
+            return stateData;
+        } catch (error) {
+            logger.error('OAuth: State verification error', { error: error.message });
+            return null;
+        }
+    }
+
+    /**
+     * Generate state for CSRF protection (legacy - for backward compatibility)
      * @returns {string} Random state token
+     * @deprecated Use signState() for new implementations
      */
     generateState() {
         return crypto.randomBytes(32).toString('hex');
@@ -186,6 +277,7 @@ class OAuthService {
      * Store state in cache with expiry (15 minutes)
      * @param {string} state - State token
      * @param {object} data - Data to store with state (returnUrl, firmId, etc.)
+     * @deprecated Use signState() instead - HMAC signing eliminates need for server-side storage
      */
     async storeState(state, data) {
         const key = `oauth:state:${state}`;
@@ -193,9 +285,10 @@ class OAuthService {
     }
 
     /**
-     * Verify and consume state
+     * Verify and consume state from cache
      * @param {string} state - State token to verify
      * @returns {object|null} Stored data or null if invalid
+     * @deprecated Use verifyStateSignature() instead - HMAC verification is more secure
      */
     async verifyState(state) {
         const key = `oauth:state:${state}`;
@@ -334,9 +427,6 @@ class OAuthService {
     async getAuthorizationUrl(providerId, returnUrl = '/', firmId = null, usePKCE = false) {
         const config = await this.getProviderConfig(providerId, firmId);
 
-        // Generate state for CSRF protection
-        const state = this.generateState();
-
         // Build redirect URI
         // Priority: 1. Provider-specific env var, 2. Provider config, 3. Backend default
         let redirectUri;
@@ -375,16 +465,28 @@ class OAuthService {
             });
         }
 
-        // Store state with metadata (including code_verifier if PKCE is used)
-        await this.storeState(state, {
+        // Build state data with all necessary metadata
+        const stateData = {
             providerId: config.provider._id.toString(),
             providerType: config.provider.providerType,
             returnUrl: safeReturnUrl,
             firmId: config.provider.firmId,
             redirectUri,
-            codeVerifier, // Store for token exchange
+            codeVerifier, // Store for token exchange (PKCE)
             usePKCE: shouldUsePKCE,
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            nonce: crypto.randomBytes(16).toString('hex') // Additional entropy
+        };
+
+        // Sign state with HMAC-SHA256 (Gold Standard: AWS/Google/Microsoft pattern)
+        // This eliminates the need for server-side cache storage and prevents forgery
+        const signedState = this.signState(stateData);
+
+        logger.info('OAuth: Generated signed state', {
+            provider: config.provider.name,
+            providerType,
+            usePKCE: shouldUsePKCE,
+            stateLength: signedState.length
         });
 
         // Build authorization URL
@@ -393,7 +495,7 @@ class OAuthService {
             redirect_uri: redirectUri,
             response_type: 'code',
             scope: config.scopes.join(' '),
-            state,
+            state: signedState,
             access_type: 'offline', // For Google refresh tokens
             prompt: 'consent' // Force consent to get refresh token
         });
@@ -631,17 +733,30 @@ class OAuthService {
      * Handle OAuth callback
      * @param {string} providerId - Provider ID or provider type
      * @param {string} code - Authorization code
-     * @param {string} state - State token
+     * @param {string} state - State token (HMAC-SHA256 signed)
      * @param {string} ipAddress - User IP address
      * @param {string} userAgent - User agent string
      * @returns {object} Authentication result with token and redirect URL
      */
     async handleCallback(providerId, code, state, ipAddress = null, userAgent = null) {
-        // Verify state
-        const stateData = await this.verifyState(state);
+        // Verify signed state using HMAC-SHA256 with timing-safe comparison
+        // Gold Standard: AWS/Google/Microsoft pattern - cryptographic verification
+        const stateData = this.verifyStateSignature(state);
         if (!stateData) {
-            throw CustomException('Invalid or expired state token', 400);
+            logger.warn('OAuth callback: State verification failed', {
+                providerId,
+                ipAddress,
+                hasState: !!state,
+                stateLength: state?.length
+            });
+            throw CustomException('Invalid or expired state token. Please try signing in again.', 400);
         }
+
+        logger.info('OAuth callback: State verified successfully', {
+            providerId: stateData.providerId,
+            providerType: stateData.providerType,
+            usePKCE: stateData.usePKCE
+        });
 
         // Get provider config (use the stored provider ID from state)
         const config = await this.getProviderConfig(stateData.providerId);

@@ -1346,36 +1346,31 @@ exports.update = async (req, res) => {
 };
 
 // ═══════════════════════════════════════════════════════════════
-// CANCEL APPOINTMENT
+// DELETE APPOINTMENT (Hard Delete)
 // ═══════════════════════════════════════════════════════════════
 
 /**
- * Cancel an appointment (DELETE /api/v1/appointments/:id)
- * DEBUG: Extensive logging for delete button troubleshooting
+ * Delete an appointment permanently (DELETE /api/v1/appointments/:id)
+ *
+ * This performs a HARD DELETE - the appointment is removed from the database.
+ * Users should reschedule if they want to change the date, or delete if they
+ * no longer need the appointment.
  */
 exports.cancel = async (req, res) => {
     const totalStart = Date.now();
-    debugLog('cancel', req, {
+    debugLog('delete', req, {
         step: 'START',
-        appointmentId: req.params.id,
-        body: req.body,
-        headers: {
-            contentType: req.headers['content-type'],
-            authorization: req.headers.authorization ? 'present' : 'missing'
-        }
+        appointmentId: req.params.id
     });
 
-    // Log full request details for debugging
-    logger.info(`🗑️ [APPOINTMENT-DELETE-DEBUG] cancel START: appointmentId=${req.params.id} userId=${req.userID} firmQuery=${JSON.stringify(req.firmQuery)}`);
+    logger.info(`🗑️ [APPOINTMENT-DELETE] START: appointmentId=${req.params.id} userId=${req.userID}`);
 
     try {
         if (req.isDeparted) {
-            debugLog('cancel', req, { step: 'BLOCKED', reason: 'isDeparted' });
-            logger.warn(`🗑️ [APPOINTMENT-DELETE-DEBUG] cancel BLOCKED: isDeparted=true`);
+            debugLog('delete', req, { step: 'BLOCKED', reason: 'isDeparted' });
             return res.status(403).json({
                 success: false,
-                message: 'ليس لديك صلاحية للوصول / Access denied',
-                debug: { reason: 'isDeparted' }
+                message: 'ليس لديك صلاحية للوصول / Access denied'
             });
         }
 
@@ -1384,156 +1379,113 @@ exports.cancel = async (req, res) => {
         const userId = req.userID;
 
         if (!id) {
-            debugLog('cancel', req, { step: 'INVALID_ID', rawId: req.params.id });
-            logger.error(`🗑️ [APPOINTMENT-DELETE-DEBUG] cancel INVALID_ID: rawId=${req.params.id}`);
+            debugLog('delete', req, { step: 'INVALID_ID', rawId: req.params.id });
             return res.status(400).json({
                 success: false,
-                message: 'معرف الموعد غير صالح / Invalid appointment ID',
-                debug: { rawId: req.params.id }
+                message: 'معرف الموعد غير صالح / Invalid appointment ID'
             });
         }
 
-        debugLog('cancel', req, { step: 'ID_VALIDATED', sanitizedId: id });
-
-        // Mass assignment protection: only allow reason field
-        const safeData = pickAllowedFields(req.body, ALLOWED_CANCEL_FIELDS);
-        const reason = safeData.reason;
-        debugLog('cancel', req, { step: 'BODY_PARSED', reason, safeDataKeys: Object.keys(safeData) });
-
-        // IDOR Protection: Verify appointment belongs to user's firm/lawyer
+        // IDOR Protection: Find appointment with tenant isolation
         const dbStart = Date.now();
-        debugLog('cancel', req, { step: 'DB_QUERY_START', query: { _id: id, ...req.firmQuery } });
-
         const appointment = await Appointment.findOne({ _id: id, ...req.firmQuery });
         const dbTime = Date.now() - dbStart;
 
-        debugLog('cancel', req, {
+        debugLog('delete', req, {
             step: 'DB_QUERY_DONE',
             dbTime,
             found: !!appointment,
-            appointmentId: appointment?._id?.toString(),
-            status: appointment?.status,
-            customerName: appointment?.customerName
+            appointmentNumber: appointment?.appointmentNumber
         });
 
-        logger.info(`🗑️ [APPOINTMENT-DELETE-DEBUG] cancel DB_QUERY: found=${!!appointment} status=${appointment?.status} dbTime=${dbTime}ms`);
-
         if (!appointment) {
-            debugLog('cancel', req, {
-                step: 'NOT_FOUND',
-                searchedId: id,
-                firmQuery: req.firmQuery
-            });
-            logger.warn(`🗑️ [APPOINTMENT-DELETE-DEBUG] cancel NOT_FOUND: id=${id} firmQuery=${JSON.stringify(req.firmQuery)}`);
+            logger.warn(`🗑️ [APPOINTMENT-DELETE] NOT_FOUND: id=${id}`);
             return res.status(404).json({
                 success: false,
-                message: 'الموعد غير موجود / Appointment not found',
-                debug: {
-                    searchedId: id,
-                    firmQuery: req.firmQuery,
-                    hint: 'Appointment may not exist or may belong to a different firm/lawyer'
-                }
+                message: 'الموعد غير موجود / Appointment not found'
             });
         }
 
-        // Check if already cancelled or completed
-        if (['cancelled', 'completed'].includes(appointment.status)) {
-            debugLog('cancel', req, {
-                step: 'ALREADY_CANCELLED_OR_COMPLETED',
-                currentStatus: appointment.status,
-                appointmentNumber: appointment.appointmentNumber,
-                cancelledAt: appointment.cancelledAt,
-                completedAt: appointment.completedAt
-            });
-            logger.warn(`🗑️ [APPOINTMENT-DELETE-DEBUG] cancel BLOCKED: status=${appointment.status} appointmentNumber=${appointment.appointmentNumber}`);
-            return res.status(400).json({
-                success: false,
-                message: 'لا يمكن إلغاء هذا الموعد / Cannot cancel this appointment',
-                debug: {
-                    currentStatus: appointment.status,
-                    appointmentNumber: appointment.appointmentNumber,
-                    reason: appointment.status === 'cancelled' ? 'Already cancelled' : 'Already completed',
-                    cancelledAt: appointment.cancelledAt,
-                    completedAt: appointment.completedAt,
-                    hint: 'Frontend should hide delete button for cancelled/completed appointments'
-                }
-            });
-        }
+        // Store appointment info before deletion for logging and calendar sync
+        const appointmentInfo = {
+            _id: appointment._id,
+            appointmentNumber: appointment.appointmentNumber,
+            customerName: appointment.customerName,
+            scheduledTime: appointment.scheduledTime,
+            assignedTo: appointment.assignedTo,
+            calendarEventId: appointment.calendarEventId,
+            microsoftCalendarEventId: appointment.microsoftCalendarEventId
+        };
 
-        debugLog('cancel', req, { step: 'CANCELLING', currentStatus: appointment.status });
-        const cancelStart = Date.now();
-        await appointment.cancel(userId, reason);
-        const cancelTime = Date.now() - cancelStart;
-        debugLog('cancel', req, { step: 'CANCELLED', cancelTime, newStatus: appointment.status });
-
-        logger.info(`🗑️ [APPOINTMENT-DELETE-DEBUG] cancel SUCCESS: appointmentNumber=${appointment.appointmentNumber} cancelTime=${cancelTime}ms`);
-
-        // Gold Standard: Sync cancellation to connected calendars
+        // Delete from connected calendars BEFORE deleting from database
         let calendarSync = null;
         try {
-            if (appointment.calendarEventId || appointment.microsoftCalendarEventId) {
-                debugLog('cancel', req, { step: 'CALENDAR_SYNC_START' });
+            if (appointmentInfo.calendarEventId || appointmentInfo.microsoftCalendarEventId) {
+                debugLog('delete', req, { step: 'CALENDAR_SYNC_START' });
                 calendarSync = await syncAppointmentToCalendars(
                     appointment,
-                    appointment.assignedTo,
+                    appointmentInfo.assignedTo,
                     req.firmQuery,
-                    'cancel'
+                    'cancel' // 'cancel' action deletes from calendar
                 );
-                debugLog('cancel', req, { step: 'CALENDAR_SYNC_DONE', calendarSync });
+                debugLog('delete', req, { step: 'CALENDAR_SYNC_DONE', calendarSync });
             }
         } catch (syncError) {
-            debugLog('cancel', req, { step: 'CALENDAR_SYNC_ERROR', error: syncError.message });
-            logger.warn('Calendar cancellation sync failed (non-blocking):', syncError.message);
+            debugLog('delete', req, { step: 'CALENDAR_SYNC_ERROR', error: syncError.message });
+            logger.warn('Calendar deletion sync failed (non-blocking):', syncError.message);
         }
+
+        // HARD DELETE from database
+        const deleteStart = Date.now();
+        await Appointment.findOneAndDelete({ _id: id, ...req.firmQuery });
+        const deleteTime = Date.now() - deleteStart;
+
+        debugLog('delete', req, { step: 'DELETED', deleteTime });
+        logger.info(`🗑️ [APPOINTMENT-DELETE] SUCCESS: appointmentNumber=${appointmentInfo.appointmentNumber} deleteTime=${deleteTime}ms`);
 
         // Log activity
         const activityStart = Date.now();
         await CrmActivity.logActivity({
             lawyerId: userId,
-            type: 'appointment_cancelled',
+            type: 'appointment_deleted',
             entityType: 'appointment',
-            entityId: appointment._id,
-            entityName: appointment.appointmentNumber,
-            title: `Appointment cancelled: ${appointment.appointmentNumber}`,
-            description: reason || 'No reason provided',
+            entityId: appointmentInfo._id,
+            entityName: appointmentInfo.appointmentNumber,
+            title: `Appointment deleted: ${appointmentInfo.appointmentNumber}`,
+            description: `Deleted appointment with ${appointmentInfo.customerName}`,
             performedBy: userId
         });
         const activityTime = Date.now() - activityStart;
 
         const totalTime = Date.now() - totalStart;
-        debugLog('cancel', req, {
+        debugLog('delete', req, {
             step: 'SUCCESS',
             totalTime,
             dbTime,
-            cancelTime,
+            deleteTime,
             activityTime,
-            appointmentNumber: appointment.appointmentNumber
+            appointmentNumber: appointmentInfo.appointmentNumber
         });
-
-        logger.info(`🗑️ [APPOINTMENT-DELETE-DEBUG] cancel COMPLETE: totalTime=${totalTime}ms appointmentNumber=${appointment.appointmentNumber}`);
 
         res.json({
             success: true,
-            message: 'تم إلغاء الموعد بنجاح / Appointment cancelled successfully',
-            data: appointment,
+            message: 'تم حذف الموعد بنجاح / Appointment deleted successfully',
+            data: {
+                deletedAppointment: appointmentInfo.appointmentNumber,
+                customerName: appointmentInfo.customerName
+            },
             calendarSync,
-            timing: { total: totalTime, db: dbTime, cancel: cancelTime, activity: activityTime }
+            timing: { total: totalTime, db: dbTime, delete: deleteTime, activity: activityTime }
         });
     } catch (error) {
-        debugError('cancel', error, { appointmentId: req.params.id, body: req.body });
-        logger.error(`🗑️ [APPOINTMENT-DELETE-DEBUG] cancel ERROR: ${error.message}`, {
-            appointmentId: req.params.id,
-            stack: error.stack?.split('\n').slice(0, 5).join(' | ')
+        debugError('delete', error, { appointmentId: req.params.id });
+        logger.error(`🗑️ [APPOINTMENT-DELETE] ERROR: ${error.message}`, {
+            appointmentId: req.params.id
         });
         res.status(500).json({
             success: false,
-            message: 'خطأ في إلغاء الموعد / Error cancelling appointment',
-            error: error.message,
-            debug: {
-                appointmentId: req.params.id,
-                errorName: error.name,
-                stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
-            }
+            message: 'خطأ في حذف الموعد / Error deleting appointment',
+            error: error.message
         });
     }
 };
