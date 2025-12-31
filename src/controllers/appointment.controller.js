@@ -2489,16 +2489,28 @@ exports.downloadICS = async (req, res) => {
         const id = sanitizeObjectId(req.params.id);
         debugLog('downloadICS', req, { step: 'starting', appointmentId: id });
 
-        // Find appointment - allow public access for email links
-        // but restrict to firm if user is authenticated
+        // Find appointment - allow public access ONLY for public bookings
+        // Otherwise restrict to authenticated user's tenant
         let appointment;
         if (req.userID && req.firmQuery) {
+            // Authenticated user - use tenant isolation
             appointment = await Appointment.findOne({ _id: id, ...req.firmQuery })
                 .populate('assignedTo', 'firstName lastName email');
         } else {
-            // Public access - just find by ID
-            appointment = await Appointment.findById(id)
-                .populate('assignedTo', 'firstName lastName email');
+            // Public access - ONLY allow for appointments created via public booking
+            // This prevents IDOR where anyone could download any appointment's ICS
+            appointment = await Appointment.findOne({
+                _id: id,
+                source: { $in: ['public_booking', 'marketplace', 'website'] }
+            }).populate('assignedTo', 'firstName lastName email');
+
+            if (!appointment) {
+                // Don't reveal if appointment exists - return generic not found
+                return res.status(404).json({
+                    success: false,
+                    message: 'الموعد غير موجود / Appointment not found'
+                });
+            }
         }
 
         if (!appointment) {
