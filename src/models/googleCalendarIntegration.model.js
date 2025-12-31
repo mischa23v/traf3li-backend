@@ -362,6 +362,25 @@ googleCalendarIntegrationSchema.statics.findExpiredTokens = async function() {
 };
 
 /**
+ * Find tokens expiring within a specified time window
+ * Gold Standard: Proactive token refresh before expiry
+ * @param {number} hoursAhead - Hours ahead to check (default: 24)
+ * @returns {Promise<Array>} Integrations with tokens expiring soon
+ */
+googleCalendarIntegrationSchema.statics.findTokensExpiringSoon = async function(hoursAhead = 24) {
+    const now = new Date();
+    const expiryThreshold = new Date(now.getTime() + hoursAhead * 60 * 60 * 1000);
+
+    return await this.find({
+        isConnected: true,
+        expiresAt: {
+            $gt: now,              // Not yet expired
+            $lte: expiryThreshold  // But will expire within the window
+        }
+    }).select('+accessToken +refreshToken');
+};
+
+/**
  * Find integrations needing sync
  */
 googleCalendarIntegrationSchema.statics.findPendingSync = async function() {

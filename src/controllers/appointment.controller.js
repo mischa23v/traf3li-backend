@@ -314,10 +314,15 @@ const checkScheduleConflicts = async (firmQuery, assignedTo, scheduledTime, dura
     }
 
     // 3. Check events (court hearings, meetings, etc.)
+    // Gold Standard: Check all ways a lawyer can be associated with an event
+    // - As organizer (primary owner)
+    // - As attendee (invited participant)
+    // - As creator (person who created the event)
     const eventQuery = {
         ...firmQuery,
         status: { $nin: ['canceled', 'cancelled'] },
         $or: [
+            { organizer: assignedTo },
             { 'attendees.userId': assignedTo },
             { createdBy: assignedTo }
         ],
@@ -883,16 +888,8 @@ exports.update = async (req, res) => {
             });
         }
 
-        // IDOR Protection: Update with firmQuery to prevent race condition
-        const appointment = await Appointment.findOneAndUpdate(
-            { _id: id, ...req.firmQuery },
-            { $set: safeData },
-            { new: true, runValidators: true }
-        ).populate([
-            { path: 'assignedTo', select: 'firstName lastName avatar email' },
-            { path: 'partyId' },
-            { path: 'caseId', select: 'title caseNumber' }
-        ]);
+        // IDOR Protection: Find with firmQuery first
+        const appointment = await Appointment.findOne({ _id: id, ...req.firmQuery });
 
         if (!appointment) {
             return res.status(404).json({
@@ -900,6 +897,18 @@ exports.update = async (req, res) => {
                 message: 'الموعد غير موجود / Appointment not found'
             });
         }
+
+        // Gold Standard: Use .save() instead of findOneAndUpdate to trigger pre-save hooks
+        // This ensures endTime is recalculated when duration changes (same pattern as SAP, Salesforce)
+        Object.assign(appointment, safeData);
+        await appointment.save();
+
+        // Populate for response
+        await appointment.populate([
+            { path: 'assignedTo', select: 'firstName lastName avatar email' },
+            { path: 'partyId' },
+            { path: 'caseId', select: 'title caseNumber' }
+        ]);
 
         // Log activity
         await CrmActivity.logActivity({

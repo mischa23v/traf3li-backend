@@ -265,6 +265,25 @@ const SERVICE_CONFIGS = {
     maxDelay: 5000,
     timeout: 15000,
   },
+
+  // Calendar APIs (Google Calendar, Microsoft Graph) - Gold Standard
+  // Pattern: Retry on 5xx, 429 (rate limit), and network errors
+  // Same configuration used by Calendly, Cal.com for calendar integrations
+  calendar: {
+    maxRetries: 3,
+    baseDelay: 1000,
+    maxDelay: 15000,
+    timeout: 30000,
+    jitter: true,
+  },
+
+  // OAuth token refresh - quick retries, short timeout
+  oauth: {
+    maxRetries: 2,
+    baseDelay: 500,
+    maxDelay: 5000,
+    timeout: 10000,
+  },
 };
 
 module.exports = {

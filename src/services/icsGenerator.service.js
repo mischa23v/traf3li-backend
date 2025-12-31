@@ -6,6 +6,14 @@
  *
  * Gold Standard: Follows RFC 5545 (iCalendar) specification
  * Used by: Calendly, Cal.com, Acuity, Google Calendar, Microsoft Outlook
+ *
+ * RFC 5545 Compliance:
+ * - Proper CRLF line endings
+ * - Line folding at 75 characters
+ * - Proper parameter quoting (CN with special chars)
+ * - CREATED and LAST-MODIFIED timestamps
+ * - TRANSP (transparency) for busy/free status
+ * - CLASS (visibility/privacy) level
  */
 
 const crypto = require('crypto');
@@ -42,6 +50,43 @@ function escapeICSText(text) {
         .replace(/;/g, '\\;')
         .replace(/,/g, '\\,')
         .replace(/\n/g, '\\n');
+}
+
+/**
+ * Quote parameter value if it contains special characters
+ * RFC 5545: Parameter values containing special chars must be quoted
+ * @param {string} value - Parameter value
+ * @returns {string} Quoted value if needed
+ */
+function quoteParamValue(value) {
+    if (!value) return '';
+    // Check if value contains special characters that need quoting
+    if (/[;:,"]/.test(value) || /\s/.test(value)) {
+        // Escape double quotes and wrap in quotes
+        return `"${value.replace(/"/g, '\\"')}"`;
+    }
+    return value;
+}
+
+/**
+ * Sanitize notes/description for ICS output
+ * Gold Standard: Prevent data leakage through calendar events
+ * @param {string} text - Text to sanitize
+ * @param {number} maxLength - Maximum length (default 500)
+ * @returns {string} Sanitized text
+ */
+function sanitizeDescription(text, maxLength = 500) {
+    if (!text) return '';
+    // Remove potentially sensitive patterns
+    let sanitized = text
+        // Remove credit card patterns
+        .replace(/\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b/g, '[CARD REDACTED]')
+        // Remove SSN-like patterns
+        .replace(/\b\d{3}[-\s]?\d{2}[-\s]?\d{4}\b/g, '[ID REDACTED]')
+        // Truncate to max length
+        .substring(0, maxLength);
+
+    return escapeICSText(sanitized);
 }
 
 /**
@@ -82,6 +127,9 @@ function generateUID(appointmentId, domain = 'traf3li.com') {
 /**
  * Generate ICS content for an appointment
  *
+ * RFC 5545 Compliant ICS Generator
+ * Gold Standard: Same format used by Google Calendar, Apple Calendar, Outlook
+ *
  * @param {Object} appointment - Appointment object
  * @param {string} appointment._id - Appointment ID
  * @param {string} appointment.customerName - Customer name
@@ -93,6 +141,8 @@ function generateUID(appointmentId, domain = 'traf3li.com') {
  * @param {string} appointment.location - Physical location
  * @param {string} appointment.meetingLink - Virtual meeting link
  * @param {string} appointment.locationType - Location type (office, virtual, client_site, other)
+ * @param {Date} appointment.createdAt - Creation timestamp (optional)
+ * @param {Date} appointment.updatedAt - Last update timestamp (optional)
  * @param {Object} organizer - Organizer details
  * @param {string} organizer.name - Organizer name
  * @param {string} organizer.email - Organizer email
@@ -101,6 +151,8 @@ function generateUID(appointmentId, domain = 'traf3li.com') {
  * @param {string} options.method - Calendar method (REQUEST, PUBLISH, CANCEL)
  * @param {number} options.sequence - Sequence number for updates
  * @param {string} options.status - Event status (CONFIRMED, TENTATIVE, CANCELLED)
+ * @param {string} options.visibility - Event visibility (PUBLIC, PRIVATE, CONFIDENTIAL)
+ * @param {boolean} options.showAsBusy - Whether to show as busy (OPAQUE) or free (TRANSPARENT)
  * @returns {string} ICS file content
  */
 function generateICS(appointment, organizer = {}, options = {}) {
@@ -114,7 +166,9 @@ function generateICS(appointment, organizer = {}, options = {}) {
         notes = '',
         location = '',
         meetingLink = '',
-        locationType = 'office'
+        locationType = 'office',
+        createdAt,
+        updatedAt
     } = appointment;
 
     const {
@@ -126,12 +180,19 @@ function generateICS(appointment, organizer = {}, options = {}) {
         prodId = '-//Traf3li//Appointments//EN',
         method = 'PUBLISH',
         sequence = 0,
-        status = 'CONFIRMED'
+        status = 'CONFIRMED',
+        visibility = 'PRIVATE',
+        showAsBusy = true
     } = options;
 
     // Calculate end time if not provided
     const start = new Date(scheduledTime);
     const end = endTime ? new Date(endTime) : new Date(start.getTime() + duration * 60000);
+    const now = new Date();
+
+    // RFC 5545: CREATED and LAST-MODIFIED timestamps
+    const created = createdAt ? new Date(createdAt) : now;
+    const lastModified = updatedAt ? new Date(updatedAt) : now;
 
     // Determine location string
     let locationStr = location;
@@ -141,11 +202,15 @@ function generateICS(appointment, organizer = {}, options = {}) {
         locationStr = 'Virtual Meeting';
     }
 
-    // Build description
-    let description = notes || '';
+    // Build description (sanitized to prevent data leakage)
+    let description = sanitizeDescription(notes);
     if (meetingLink) {
         description = description ? `${description}\\n\\nMeeting Link: ${meetingLink}` : `Meeting Link: ${meetingLink}`;
     }
+
+    // RFC 5545: Properly quote CN parameter values with special characters
+    const quotedOrganizerName = quoteParamValue(organizerName);
+    const quotedCustomerName = quoteParamValue(customerName);
 
     // Generate the ICS content
     const lines = [
@@ -156,18 +221,27 @@ function generateICS(appointment, organizer = {}, options = {}) {
         `METHOD:${method}`,
         'BEGIN:VEVENT',
         foldLine(`UID:${generateUID(_id.toString())}`),
-        `DTSTAMP:${formatICSDate(new Date())}`,
+        `DTSTAMP:${formatICSDate(now)}`,
         `DTSTART:${formatICSDate(start)}`,
         `DTEND:${formatICSDate(end)}`,
+        // RFC 5545: CREATED timestamp
+        `CREATED:${formatICSDate(created)}`,
+        // RFC 5545: LAST-MODIFIED timestamp
+        `LAST-MODIFIED:${formatICSDate(lastModified)}`,
         foldLine(`SUMMARY:${escapeICSText(`Appointment with ${customerName}`)}`),
         `STATUS:${status}`,
         `SEQUENCE:${sequence}`,
-        foldLine(`ORGANIZER;CN=${escapeICSText(organizerName)}:mailto:${organizerEmail}`)
+        // RFC 5545: TRANSP (transparency) - OPAQUE blocks time, TRANSPARENT doesn't
+        `TRANSP:${showAsBusy ? 'OPAQUE' : 'TRANSPARENT'}`,
+        // RFC 5545: CLASS (visibility/privacy)
+        `CLASS:${visibility}`,
+        // RFC 5545: Properly quoted CN parameter
+        foldLine(`ORGANIZER;CN=${quotedOrganizerName}:mailto:${organizerEmail}`)
     ];
 
-    // Add attendee if customer email exists
+    // Add attendee if customer email exists (with properly quoted CN)
     if (customerEmail) {
-        lines.push(foldLine(`ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;CN=${escapeICSText(customerName)}:mailto:${customerEmail}`));
+        lines.push(foldLine(`ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;CN=${quotedCustomerName}:mailto:${customerEmail}`));
     }
 
     // Add location if exists
@@ -177,7 +251,7 @@ function generateICS(appointment, organizer = {}, options = {}) {
 
     // Add description if exists
     if (description) {
-        lines.push(foldLine(`DESCRIPTION:${escapeICSText(description)}`));
+        lines.push(foldLine(`DESCRIPTION:${description}`));
     }
 
     // Add URL if meeting link exists
@@ -314,5 +388,7 @@ module.exports = {
     generateAddToCalendarLinks,
     generateCalendarLinksWithLabels,
     formatICSDate,
-    escapeICSText
+    escapeICSText,
+    quoteParamValue,
+    sanitizeDescription
 };
