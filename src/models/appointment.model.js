@@ -490,7 +490,7 @@ appointmentSchema.statics.getAvailableSlots = async function(
             available: !hasConflict
         });
 
-        currentTime += slotDuration + bufferTime;
+        currentTime += slotDuration;
     }
 
     return slots;
