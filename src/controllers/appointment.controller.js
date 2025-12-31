@@ -830,6 +830,44 @@ exports.create = async (req, res) => {
             });
         }
 
+        // GOLD STANDARD: Validate working hours before creating appointment
+        // Same pattern as publicBook - prevents scheduling on disabled days
+        if (safeData.scheduledTime) {
+            const settings = await CRMSettings.getOrCreateByQuery(req.firmQuery);
+
+            if (settings?.appointmentSettings?.enabled) {
+                const requestedDate = new Date(safeData.scheduledTime);
+                const dayOfWeek = requestedDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+                const workingHours = settings.appointmentSettings?.workingHours?.[dayOfWeek];
+
+                if (!workingHours?.enabled) {
+                    debugLog('create', req, { step: 'working_hours_disabled', dayOfWeek, workingHours });
+                    return res.status(400).json({
+                        success: false,
+                        message: 'هذا اليوم غير متاح للمواعيد / This day is not available for appointments',
+                        dayOfWeek,
+                        workingHoursEnabled: false
+                    });
+                }
+
+                // Also validate time is within working hours
+                const requestedTime = requestedDate.getHours() * 60 + requestedDate.getMinutes();
+                const [startHour, startMin] = (workingHours.start || '09:00').split(':').map(Number);
+                const [endHour, endMin] = (workingHours.end || '17:00').split(':').map(Number);
+                const workStart = startHour * 60 + startMin;
+                const workEnd = endHour * 60 + endMin;
+
+                if (requestedTime < workStart || requestedTime >= workEnd) {
+                    debugLog('create', req, { step: 'outside_working_hours', requestedTime, workStart, workEnd });
+                    return res.status(400).json({
+                        success: false,
+                        message: 'الوقت المحدد خارج ساعات العمل / Requested time is outside working hours',
+                        workingHours: { start: workingHours.start, end: workingHours.end }
+                    });
+                }
+            }
+        }
+
         // Enterprise: Check for schedule conflicts before creating
         // Default assignedTo to current user if not provided
         const assignedTo = safeData.assignedTo || userId;
@@ -890,7 +928,7 @@ exports.create = async (req, res) => {
             const syncResult = await syncAppointmentToCalendars(
                 appointment,
                 assignedTo,
-                req.firmId,
+                req.firmQuery,
                 'create'
             );
 
@@ -1200,7 +1238,7 @@ exports.update = async (req, res) => {
                 calendarSync = await syncAppointmentToCalendars(
                     appointment,
                     appointment.assignedTo,
-                    req.firmId,
+                    req.firmQuery,
                     'update'
                 );
             }
@@ -1277,7 +1315,7 @@ exports.cancel = async (req, res) => {
                 calendarSync = await syncAppointmentToCalendars(
                     appointment,
                     appointment.assignedTo,
-                    req.firmId,
+                    req.firmQuery,
                     'cancel'
                 );
             }
@@ -1367,7 +1405,7 @@ exports.complete = async (req, res) => {
                 calendarSync = await syncAppointmentToCalendars(
                     appointment,
                     appointment.assignedTo,
-                    req.firmId,
+                    req.firmQuery,
                     'update'
                 );
             }
@@ -1445,7 +1483,7 @@ exports.markNoShow = async (req, res) => {
                 calendarSync = await syncAppointmentToCalendars(
                     appointment,
                     appointment.assignedTo,
-                    req.firmId,
+                    req.firmQuery,
                     'update'
                 );
             }

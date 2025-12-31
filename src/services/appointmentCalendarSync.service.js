@@ -26,11 +26,11 @@ const logger = require('../utils/contextLogger');
  *
  * @param {Object} appointment - Appointment document
  * @param {string} userId - User ID (lawyer/assignee)
- * @param {string} firmId - Firm ID (optional for solo lawyers)
+ * @param {Object} firmQuery - Tenant isolation query { firmId } or { lawyerId } (GOLD STANDARD)
  * @param {string} action - 'create' | 'update' | 'cancel'
  * @returns {Object} Sync results { google: {...}, microsoft: {...} }
  */
-async function syncAppointmentToCalendars(appointment, userId, firmId = null, action = 'create') {
+async function syncAppointmentToCalendars(appointment, userId, firmQuery = {}, action = 'create') {
     const results = {
         google: { synced: false, eventId: null, error: null },
         microsoft: { synced: false, eventId: null, error: null }
@@ -38,7 +38,7 @@ async function syncAppointmentToCalendars(appointment, userId, firmId = null, ac
 
     try {
         // Try Google Calendar sync
-        results.google = await syncToGoogleCalendar(appointment, userId, firmId, action);
+        results.google = await syncToGoogleCalendar(appointment, userId, firmQuery, action);
     } catch (error) {
         logger.error('Google Calendar sync error:', error);
         results.google.error = error.message;
@@ -46,7 +46,7 @@ async function syncAppointmentToCalendars(appointment, userId, firmId = null, ac
 
     try {
         // Try Microsoft Calendar sync
-        results.microsoft = await syncToMicrosoftCalendar(appointment, userId, firmId, action);
+        results.microsoft = await syncToMicrosoftCalendar(appointment, userId, firmQuery, action);
     } catch (error) {
         logger.error('Microsoft Calendar sync error:', error);
         results.microsoft.error = error.message;
@@ -60,34 +60,39 @@ async function syncAppointmentToCalendars(appointment, userId, firmId = null, ac
  *
  * @param {Object} appointment - Appointment document
  * @param {string} userId - User ID
- * @param {string} firmId - Firm ID
+ * @param {Object} firmQuery - Tenant isolation query { firmId } or { lawyerId }
  * @param {string} action - 'create' | 'update' | 'cancel'
  * @returns {Object} Sync result
  */
-async function syncToGoogleCalendar(appointment, userId, firmId, action) {
+async function syncToGoogleCalendar(appointment, userId, firmQuery, action) {
     const result = { synced: false, eventId: null, error: null };
 
     try {
+        // GOLD STANDARD: Build proper tenant isolation query
+        // Supports both firm members (firmId) and solo lawyers (lawyerId)
+        const integrationQuery = { userId, isConnected: true };
+        if (firmQuery?.firmId) {
+            integrationQuery.firmId = firmQuery.firmId;
+        } else if (firmQuery?.lawyerId) {
+            integrationQuery.lawyerId = firmQuery.lawyerId;
+        }
+
         // Check if user has Google Calendar connected
-        const integration = await GoogleCalendarIntegration.findOne({
-            userId,
-            ...(firmId && { firmId }),
-            isActive: true
-        });
+        const integration = await GoogleCalendarIntegration.findOne(integrationQuery);
 
         if (!integration) {
             result.error = 'Google Calendar not connected';
             return result;
         }
 
-        // Check if auto-sync is enabled
-        if (!integration.settings?.autoSync) {
+        // Check if auto-sync is enabled (correct field path: autoSync.enabled)
+        if (!integration.autoSync?.enabled) {
             result.error = 'Auto-sync disabled';
             return result;
         }
 
         // Get the default calendar ID
-        const calendarId = integration.settings?.defaultCalendarId || 'primary';
+        const calendarId = integration.primaryCalendarId || 'primary';
 
         // Build event data
         const eventData = buildGoogleCalendarEvent(appointment);
@@ -236,11 +241,11 @@ function buildGoogleCalendarEvent(appointment) {
  *
  * @param {Object} appointment - Appointment document
  * @param {string} userId - User ID
- * @param {string} firmId - Firm ID
+ * @param {Object} firmQuery - Tenant isolation query { firmId } or { lawyerId }
  * @param {string} action - 'create' | 'update' | 'cancel'
  * @returns {Object} Sync result
  */
-async function syncToMicrosoftCalendar(appointment, userId, firmId, action) {
+async function syncToMicrosoftCalendar(appointment, userId, firmQuery, action) {
     const result = { synced: false, eventId: null, error: null };
 
     try {
@@ -387,27 +392,31 @@ function buildMicrosoftCalendarEvent(appointment) {
  * Check if user has any calendar connected
  *
  * @param {string} userId - User ID
- * @param {string} firmId - Firm ID
+ * @param {Object} firmQuery - Tenant isolation query { firmId } or { lawyerId }
  * @returns {Object} Connection status for each calendar
  */
-async function getCalendarConnectionStatus(userId, firmId = null) {
+async function getCalendarConnectionStatus(userId, firmQuery = {}) {
     const status = {
         google: { connected: false, autoSync: false, calendarId: null },
         microsoft: { connected: false, autoSync: false, calendarId: null }
     };
 
+    // GOLD STANDARD: Build proper tenant isolation query for solo lawyers
+    const integrationQuery = { userId, isConnected: true };
+    if (firmQuery?.firmId) {
+        integrationQuery.firmId = firmQuery.firmId;
+    } else if (firmQuery?.lawyerId) {
+        integrationQuery.lawyerId = firmQuery.lawyerId;
+    }
+
     // Check Google Calendar status
     try {
-        const googleIntegration = await GoogleCalendarIntegration.findOne({
-            userId,
-            ...(firmId && { firmId }),
-            isActive: true
-        });
+        const googleIntegration = await GoogleCalendarIntegration.findOne(integrationQuery);
 
         if (googleIntegration) {
             status.google.connected = true;
-            status.google.autoSync = googleIntegration.settings?.autoSync || false;
-            status.google.calendarId = googleIntegration.settings?.defaultCalendarId || 'primary';
+            status.google.autoSync = googleIntegration.autoSync?.enabled || false;
+            status.google.calendarId = googleIntegration.primaryCalendarId || 'primary';
         }
     } catch (error) {
         logger.error('Error checking Google Calendar status:', error);
@@ -441,20 +450,28 @@ async function getCalendarConnectionStatus(userId, firmId = null) {
  * Enable auto-sync for a user's calendar
  *
  * @param {string} userId - User ID
- * @param {string} firmId - Firm ID
+ * @param {Object} firmQuery - Tenant isolation query { firmId } or { lawyerId }
  * @param {string} provider - 'google' | 'microsoft'
  * @param {string} calendarId - Calendar ID to sync to
  * @returns {boolean} Success status
  */
-async function enableAutoSync(userId, firmId, provider, calendarId = 'primary') {
+async function enableAutoSync(userId, firmQuery, provider, calendarId = 'primary') {
     try {
         if (provider === 'google') {
+            // GOLD STANDARD: Build proper query for both firm members and solo lawyers
+            const query = { userId };
+            if (firmQuery?.firmId) {
+                query.firmId = firmQuery.firmId;
+            } else if (firmQuery?.lawyerId) {
+                query.lawyerId = firmQuery.lawyerId;
+            }
+
             await GoogleCalendarIntegration.findOneAndUpdate(
-                { userId, ...(firmId && { firmId }) },
+                query,
                 {
                     $set: {
-                        'settings.autoSync': true,
-                        'settings.defaultCalendarId': calendarId
+                        'autoSync.enabled': true,
+                        primaryCalendarId: calendarId
                     }
                 }
             );
@@ -471,16 +488,24 @@ async function enableAutoSync(userId, firmId, provider, calendarId = 'primary') 
  * Disable auto-sync for a user's calendar
  *
  * @param {string} userId - User ID
- * @param {string} firmId - Firm ID
+ * @param {Object} firmQuery - Tenant isolation query { firmId } or { lawyerId }
  * @param {string} provider - 'google' | 'microsoft'
  * @returns {boolean} Success status
  */
-async function disableAutoSync(userId, firmId, provider) {
+async function disableAutoSync(userId, firmQuery, provider) {
     try {
         if (provider === 'google') {
+            // GOLD STANDARD: Build proper query for both firm members and solo lawyers
+            const query = { userId };
+            if (firmQuery?.firmId) {
+                query.firmId = firmQuery.firmId;
+            } else if (firmQuery?.lawyerId) {
+                query.lawyerId = firmQuery.lawyerId;
+            }
+
             await GoogleCalendarIntegration.findOneAndUpdate(
-                { userId, ...(firmId && { firmId }) },
-                { $set: { 'settings.autoSync': false } }
+                query,
+                { $set: { 'autoSync.enabled': false } }
             );
             return true;
         }
