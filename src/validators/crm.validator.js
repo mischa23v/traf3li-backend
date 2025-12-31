@@ -377,7 +377,9 @@ const createAppointmentSchema = Joi.object({
     customerEmail: Joi.string().email().required().messages({
         'string.email': 'البريد الإلكتروني غير صالح / Invalid email format'
     }),
-    customerPhone: Joi.string().pattern(/^\+?[0-9]{10,15}$/),
+    customerPhone: Joi.string().pattern(/^\+?[0-9]{7,15}$/).allow('').messages({
+        'string.pattern.base': 'رقم الهاتف غير صالح (7-15 رقم) / Invalid phone number (7-15 digits)'
+    }),
     customerNotes: Joi.string().max(1000),
     // Party linkage - optional (model has default: 'lead' for appointmentWith)
     appointmentWith: Joi.string().valid('lead', 'client', 'contact').default('lead'),
@@ -400,7 +402,9 @@ const updateAppointmentSchema = Joi.object({
     duration: Joi.number().integer().valid(15, 30, 45, 60, 90, 120),
     customerName: Joi.string().max(200),
     customerEmail: Joi.string().email(),
-    customerPhone: Joi.string().pattern(/^\+?[0-9]{10,15}$/).allow(''),
+    customerPhone: Joi.string().pattern(/^\+?[0-9]{7,15}$/).allow('').messages({
+        'string.pattern.base': 'رقم الهاتف غير صالح (7-15 رقم) / Invalid phone number (7-15 digits)'
+    }),
     customerNotes: Joi.string().max(1000).allow(''),
     appointmentWith: Joi.string().valid('lead', 'client', 'contact'),
     partyId: objectIdValidator,
@@ -428,7 +432,9 @@ const updateAppointmentSchema = Joi.object({
 const publicBookingSchema = Joi.object({
     customerName: Joi.string().required().max(200),
     customerEmail: Joi.string().email().required(),
-    customerPhone: Joi.string().pattern(/^\+?[0-9]{10,15}$/),
+    customerPhone: Joi.string().pattern(/^\+?[0-9]{7,15}$/).allow('').messages({
+        'string.pattern.base': 'رقم الهاتف غير صالح (7-15 رقم) / Invalid phone number (7-15 digits)'
+    }),
     scheduledTime: Joi.date().iso().greater('now').required(),
     duration: Joi.number().integer().valid(15, 30, 45, 60).required(),
     customerNotes: Joi.string().max(1000),
