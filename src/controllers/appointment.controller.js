@@ -1073,6 +1073,21 @@ exports.complete = async (req, res) => {
 
         await appointment.complete(safeData.outcome, safeData.followUpRequired, safeData.followUpDate);
 
+        // Gold Standard: Sync completion status to connected calendars
+        let calendarSync = null;
+        try {
+            if (appointment.calendarEventId || appointment.microsoftCalendarEventId) {
+                calendarSync = await syncAppointmentToCalendars(
+                    appointment,
+                    appointment.assignedTo,
+                    req.firmId,
+                    'update'
+                );
+            }
+        } catch (syncError) {
+            logger.warn('Calendar complete sync failed (non-blocking):', syncError.message);
+        }
+
         // Log activity
         await CrmActivity.logActivity({
             lawyerId: userId,
@@ -1088,7 +1103,8 @@ exports.complete = async (req, res) => {
         res.json({
             success: true,
             message: 'تم إكمال الموعد بنجاح / Appointment completed successfully',
-            data: appointment
+            data: appointment,
+            calendarSync
         });
     } catch (error) {
         logger.error('Error completing appointment:', error);
@@ -1132,6 +1148,21 @@ exports.markNoShow = async (req, res) => {
 
         await appointment.markNoShow();
 
+        // Gold Standard: Sync no-show status to connected calendars
+        let calendarSync = null;
+        try {
+            if (appointment.calendarEventId || appointment.microsoftCalendarEventId) {
+                calendarSync = await syncAppointmentToCalendars(
+                    appointment,
+                    appointment.assignedTo,
+                    req.firmId,
+                    'update'
+                );
+            }
+        } catch (syncError) {
+            logger.warn('Calendar no-show sync failed (non-blocking):', syncError.message);
+        }
+
         // Log activity
         await CrmActivity.logActivity({
             lawyerId: userId,
@@ -1146,7 +1177,8 @@ exports.markNoShow = async (req, res) => {
         res.json({
             success: true,
             message: 'تم تسجيل عدم الحضور / No-show recorded',
-            data: appointment
+            data: appointment,
+            calendarSync
         });
     } catch (error) {
         logger.error('Error marking no-show:', error);
@@ -1190,6 +1222,21 @@ exports.confirm = async (req, res) => {
 
         await appointment.confirm();
 
+        // Gold Standard: Sync confirmation status to connected calendars
+        let calendarSync = null;
+        try {
+            if (appointment.calendarEventId || appointment.microsoftCalendarEventId) {
+                calendarSync = await syncAppointmentToCalendars(
+                    appointment,
+                    appointment.assignedTo,
+                    req.firmId,
+                    'update'
+                );
+            }
+        } catch (syncError) {
+            logger.warn('Calendar confirm sync failed (non-blocking):', syncError.message);
+        }
+
         // Log activity
         await CrmActivity.logActivity({
             lawyerId: userId,
@@ -1204,7 +1251,8 @@ exports.confirm = async (req, res) => {
         res.json({
             success: true,
             message: 'تم تأكيد الموعد / Appointment confirmed',
-            data: appointment
+            data: appointment,
+            calendarSync
         });
     } catch (error) {
         logger.error('Error confirming appointment:', error);
