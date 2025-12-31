@@ -131,6 +131,7 @@ const LoginHistory = require('./loginHistory.model');
 
 // CRM Models
 const Lead = require('./lead.model');
+const Appointment = require('./appointment.model');
 const CrmActivity = require('./crmActivity.model');
 const Referral = require('./referral.model');
 const Staff = require('./staff.model');
@@ -578,6 +579,7 @@ module.exports = {
 
     // CRM
     Lead,
+    Appointment,
     CrmActivity,
     Referral,
     Staff,
