@@ -1569,7 +1569,7 @@ exports.getAvailableSlotsEnhanced = async (req, res) => {
         if (!lawyerId || !startDate || !endDate) {
             return res.status(400).json({
                 success: false,
-                message: 'lawyerId, startDate, and endDate are required'
+                message: 'lawyerId, startDate, and endDate are required. For single-date queries, use GET /appointments/slots with params: date, assignedTo, duration'
             });
         }
 
