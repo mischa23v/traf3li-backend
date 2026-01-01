@@ -161,6 +161,21 @@ const googleCalendarIntegrationSchema = new mongoose.Schema({
     },
 
     // ═══════════════════════════════════════════════════════════════
+    // DISPLAY SETTINGS
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * Show external Google Calendar events in Traf3li calendar view
+     * When enabled, events from Google Calendar (that weren't created in Traf3li)
+     * will appear in the calendar with a distinct "external" marker
+     * Default: true (show external events)
+     */
+    showExternalEvents: {
+        type: Boolean,
+        default: true
+    },
+
+    // ═══════════════════════════════════════════════════════════════
     // WEBHOOK/PUSH NOTIFICATIONS
     // ═══════════════════════════════════════════════════════════════
     webhook: {

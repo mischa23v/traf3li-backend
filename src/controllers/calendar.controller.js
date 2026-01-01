@@ -6,6 +6,10 @@ const cache = require('../services/cache.service');
 const { pickAllowedFields, sanitizeObjectId, sanitizeString } = require('../utils/securityUtils');
 const logger = require('../utils/logger');
 
+// Google Calendar integration for bi-directional sync
+const googleCalendarService = require('../services/googleCalendar.service');
+const GoogleCalendarIntegration = require('../models/googleCalendarIntegration.model');
+
 /**
  * Validate that the request has proper tenant context
  * SECURITY: Calendar endpoints require firm/lawyer isolation
@@ -138,7 +142,7 @@ const validateAttendees = (attendees) => {
 };
 
 // Valid filter types as Set for O(1) lookup
-const VALID_CALENDAR_TYPES = new Set(['event', 'task', 'reminder', 'case-document', 'appointment']);
+const VALID_CALENDAR_TYPES = new Set(['event', 'task', 'reminder', 'case-document', 'appointment', 'google-calendar']);
 const VALID_PRIORITIES = new Set(['low', 'medium', 'high', 'critical', 'urgent']);
 const VALID_STATUSES = new Set(['pending', 'in_progress', 'done', 'cancelled', 'completed', 'scheduled', 'confirmed']);
 
@@ -185,6 +189,132 @@ const invalidateItemCache = async (type, id) => {
         await cache.del(cacheKeys.itemDetails(type, id));
     } catch (error) {
         logger.error('Error invalidating item cache:', error.message);
+    }
+};
+
+// ============================================
+// GOOGLE CALENDAR INTEGRATION (BI-DIRECTIONAL SYNC)
+// ============================================
+
+/**
+ * Fetch Google Calendar events for a user
+ * Returns events from connected Google Calendar, filtered to exclude
+ * events that were synced FROM Traf3li (to avoid duplicates)
+ *
+ * @param {string} userId - User ID
+ * @param {Object} firmQuery - Tenant isolation query
+ * @param {Date} startDate - Start of date range
+ * @param {Date} endDate - End of date range
+ * @param {Set} existingCalendarEventIds - Set of calendarEventIds already in local DB
+ * @returns {Array} Array of Google Calendar events formatted for calendar view
+ */
+const fetchGoogleCalendarEvents = async (userId, firmQuery, startDate, endDate, existingCalendarEventIds = new Set()) => {
+    try {
+        // Check if user has Google Calendar connected
+        const integrationQuery = { userId, isConnected: true };
+        if (firmQuery?.firmId) {
+            integrationQuery.firmId = firmQuery.firmId;
+        } else if (firmQuery?.lawyerId) {
+            integrationQuery.lawyerId = firmQuery.lawyerId;
+        }
+
+        const integration = await GoogleCalendarIntegration.findOne(integrationQuery);
+
+        if (!integration || !integration.isConnected) {
+            return []; // No Google Calendar connected
+        }
+
+        // Check if user wants to show external events (default: true)
+        if (integration.showExternalEvents === false) {
+            return []; // User disabled external events
+        }
+
+        const firmId = firmQuery?.firmId || null;
+        const calendarId = integration.primaryCalendarId || 'primary';
+
+        // Fetch events from Google Calendar
+        const googleEvents = await googleCalendarService.getEvents(
+            userId,
+            calendarId,
+            startDate,
+            endDate,
+            firmId
+        );
+
+        // Filter and transform Google Calendar events
+        const transformedEvents = [];
+
+        for (const gEvent of googleEvents) {
+            // Skip events that were synced FROM Traf3li (have matching calendarEventId)
+            if (existingCalendarEventIds.has(gEvent.id)) {
+                continue;
+            }
+
+            // Skip cancelled events
+            if (gEvent.status === 'cancelled') {
+                continue;
+            }
+
+            // Transform to calendar view format
+            const startDateTime = gEvent.start?.dateTime
+                ? new Date(gEvent.start.dateTime)
+                : new Date(gEvent.start?.date);
+
+            const endDateTime = gEvent.end?.dateTime
+                ? new Date(gEvent.end.dateTime)
+                : new Date(gEvent.end?.date);
+
+            const isAllDay = !gEvent.start?.dateTime;
+
+            transformedEvents.push({
+                id: `google_${gEvent.id}`, // Prefix to distinguish from local events
+                googleEventId: gEvent.id,
+                type: 'google-calendar',
+                source: 'google',
+                title: gEvent.summary || '(No title)',
+                description: gEvent.description || '',
+                startDate: startDateTime,
+                endDate: endDateTime,
+                allDay: isAllDay,
+                location: gEvent.location || '',
+                status: gEvent.status || 'confirmed',
+                color: '#4285F4', // Google blue
+                isExternal: true,
+                organizer: gEvent.organizer?.email,
+                attendees: gEvent.attendees?.map(a => ({
+                    email: a.email,
+                    name: a.displayName,
+                    responseStatus: a.responseStatus
+                })) || [],
+                meetingLink: gEvent.hangoutLink || gEvent.conferenceData?.entryPoints?.[0]?.uri,
+                htmlLink: gEvent.htmlLink // Link to open in Google Calendar
+            });
+        }
+
+        return transformedEvents;
+
+    } catch (error) {
+        // Non-blocking: if Google Calendar fetch fails, just return empty array
+        logger.warn('Failed to fetch Google Calendar events (non-blocking):', error.message);
+        return [];
+    }
+};
+
+/**
+ * Get existing calendarEventIds from appointments to filter duplicates
+ */
+const getExistingCalendarEventIds = async (firmQuery, startDate, endDate) => {
+    try {
+        const appointments = await Appointment.find({
+            ...firmQuery,
+            scheduledTime: { $gte: startDate, $lte: endDate },
+            calendarEventId: { $exists: true, $ne: null }
+        }).select('calendarEventId').lean();
+
+        return new Set(appointments.map(a => a.calendarEventId));
+    } catch (error) {
+        logger.warn('Failed to get existing calendar event IDs:', error.message);
+        return new Set();
     }
 };
 
@@ -1529,7 +1659,7 @@ const getCalendarGridItems = asyncHandler(async (req, res) => {
 
         promises.push(
             Appointment.find(appointmentQuery)
-                .select('_id customerName scheduledTime endTime duration status type locationType subject')
+                .select('_id customerName scheduledTime endTime duration status type locationType subject calendarEventId')
                 .lean()
                 .then(appointments => {
                     appointments.forEach(apt => {
@@ -1545,7 +1675,8 @@ const getCalendarGridItems = asyncHandler(async (req, res) => {
                             locationType: apt.locationType,
                             customerName: apt.customerName,
                             duration: apt.duration,
-                            color: getAppointmentColor(apt.status, apt.type)
+                            color: getAppointmentColor(apt.status, apt.type),
+                            calendarEventId: apt.calendarEventId // Track synced events
                         });
                     });
                 })
@@ -1553,6 +1684,33 @@ const getCalendarGridItems = asyncHandler(async (req, res) => {
     }
 
     await Promise.all(promises);
+
+    // Fetch Google Calendar events (bi-directional sync)
+    // This runs AFTER local data to get existing calendarEventIds for deduplication
+    if (requestedTypes.has('google-calendar') || !types) {
+        try {
+            // Collect existing calendarEventIds from appointments to filter duplicates
+            const existingCalendarEventIds = new Set(
+                items
+                    .filter(item => item.calendarEventId)
+                    .map(item => item.calendarEventId)
+            );
+
+            const googleEvents = await fetchGoogleCalendarEvents(
+                userId,
+                req.firmQuery,
+                start,
+                end,
+                existingCalendarEventIds
+            );
+
+            // Add Google Calendar events to items
+            items.push(...googleEvents);
+        } catch (error) {
+            // Non-blocking: Google Calendar fetch failure shouldn't break the calendar
+            logger.warn('Google Calendar fetch failed (non-blocking):', error.message);
+        }
+    }
 
     // Sort by start date
     items.sort((a, b) => new Date(a.startDate) - new Date(b.startDate));

@@ -95,7 +95,8 @@ const getStatus = asyncHandler(async (req, res) => {
             autoSync: integration.autoSync,
             selectedCalendars: integration.selectedCalendars,
             primaryCalendarId: integration.primaryCalendarId,
-            syncStats: integration.syncStats
+            syncStats: integration.syncStats,
+            showExternalEvents: integration.showExternalEvents !== false // Default true
         }
     });
 });
@@ -263,6 +264,40 @@ const updateSelectedCalendars = asyncHandler(async (req, res) => {
         data: {
             selectedCalendars: integration.selectedCalendars,
             primaryCalendarId: integration.primaryCalendarId
+        }
+    });
+});
+
+/**
+ * Toggle showing external Google Calendar events in Traf3li calendar
+ * PUT /api/google-calendar/settings/show-external-events
+ *
+ * When enabled, events from Google Calendar (that weren't created in Traf3li)
+ * will appear in the calendar view with a distinct "external" marker
+ */
+const toggleShowExternalEvents = asyncHandler(async (req, res) => {
+    const userId = req.userID;
+    const firmId = req.firmId;
+    const { showExternalEvents } = req.body;
+
+    if (typeof showExternalEvents !== 'boolean') {
+        throw CustomException('showExternalEvents must be a boolean', 400);
+    }
+
+    const integration = await GoogleCalendarIntegration.findActiveIntegration(userId, firmId);
+
+    if (!integration) {
+        throw CustomException('Google Calendar not connected', 404);
+    }
+
+    integration.showExternalEvents = showExternalEvents;
+    await integration.save();
+
+    res.status(200).json({
+        success: true,
+        message: `External events ${showExternalEvents ? 'enabled' : 'disabled'}`,
+        data: {
+            showExternalEvents: integration.showExternalEvents
         }
     });
 });
@@ -451,6 +486,7 @@ module.exports = {
 
     // Settings
     updateSelectedCalendars,
+    toggleShowExternalEvents,
     watchCalendar,
     stopWatch,
 

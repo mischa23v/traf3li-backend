@@ -11,6 +11,7 @@ const {
     updateEvent,
     deleteEvent,
     updateSelectedCalendars,
+    toggleShowExternalEvents,
     watchCalendar,
     stopWatch,
     syncFromGoogle,
@@ -64,6 +65,9 @@ router.delete('/calendars/:calendarId/events/:eventId', userMiddleware, deleteEv
 
 // Update selected calendars
 router.put('/settings/calendars', userMiddleware, updateSelectedCalendars);
+
+// Toggle showing external events in Traf3li calendar
+router.put('/settings/show-external-events', userMiddleware, toggleShowExternalEvents);
 
 // Set up push notifications for a calendar
 router.post('/watch/:calendarId', userMiddleware, watchCalendar);
