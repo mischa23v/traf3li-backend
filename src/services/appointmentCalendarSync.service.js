@@ -68,8 +68,11 @@ async function syncToGoogleCalendar(appointment, userId, firmQuery, action) {
     const result = { synced: false, eventId: null, error: null };
 
     try {
-        // GOLD STANDARD: Build proper tenant isolation query
+        // GOLD STANDARD: Extract firmId from firmQuery for service calls
         // Supports both firm members (firmId) and solo lawyers (lawyerId)
+        const firmId = firmQuery?.firmId || null;
+
+        // Build proper tenant isolation query
         const integrationQuery = { userId, isConnected: true };
         if (firmQuery?.firmId) {
             integrationQuery.firmId = firmQuery.firmId;
