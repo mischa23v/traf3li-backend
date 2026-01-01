@@ -11,10 +11,10 @@
  */
 
 const CRMSettings = require('../models/crmSettings.model');
-const CrmActivity = require('../models/crmActivity.model');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const logger = require('../utils/logger');
 const cache = require('../services/cache.service');
+const QueueService = require('../services/queue.service');
 
 // Cache settings
 const CRM_SETTINGS_CACHE_TTL = 300; // 5 minutes cache TTL
@@ -344,7 +344,7 @@ exports.updateSettings = async (req, res) => {
 
         // Log activity
         const activityStart = Date.now();
-        await CrmActivity.logActivity({
+        QueueService.logActivity({
             lawyerId: userId,
             firmId: req.firmQuery?.firmId || null,
             type: 'settings_updated',
@@ -419,7 +419,7 @@ exports.resetSettings = async (req, res) => {
         const settings = await CRMSettings.create(req.firmQuery);
 
         // Log activity
-        await CrmActivity.logActivity({
+        QueueService.logActivity({
             lawyerId: userId,
             firmId: req.firmQuery?.firmId || null,
             type: 'settings_reset',

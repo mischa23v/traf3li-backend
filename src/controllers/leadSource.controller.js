@@ -5,9 +5,9 @@
  */
 
 const LeadSource = require('../models/leadSource.model');
-const CrmActivity = require('../models/crmActivity.model');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const logger = require('../utils/logger');
+const QueueService = require('../services/queue.service');
 
 // Helper function to escape regex special characters (ReDoS protection)
 const escapeRegex = (str) => {
@@ -208,7 +208,7 @@ exports.create = async (req, res) => {
         const source = await LeadSource.create(sourceData);
 
         // Log activity
-        await CrmActivity.logActivity({
+        QueueService.logActivity({
             lawyerId: userId,
             type: 'lead_source_created',
             entityType: 'lead_source',
@@ -343,7 +343,7 @@ exports.update = async (req, res) => {
         }
 
         // Log activity
-        await CrmActivity.logActivity({
+        QueueService.logActivity({
             lawyerId: userId,
             type: 'lead_source_updated',
             entityType: 'lead_source',
@@ -416,7 +416,7 @@ exports.delete = async (req, res) => {
         }
 
         // Log activity
-        await CrmActivity.logActivity({
+        QueueService.logActivity({
             lawyerId: userId,
             type: 'lead_source_deleted',
             entityType: 'lead_source',

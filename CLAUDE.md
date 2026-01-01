@@ -21,6 +21,38 @@
 
 ---
 
+## ⛔ ANTI-LAZINESS RULE - COMPLETE THE FULL TASK
+
+**NEVER claim "Gold Standard" if the implementation is incomplete.**
+
+When implementing a pattern (like centralized logging, middleware, utilities, etc.):
+
+1. **Search the ENTIRE codebase** for all usages of the pattern being replaced
+2. **Update ALL files** - not just one controller as an "example"
+3. **Verify with grep** that no old patterns remain
+4. **Only then** claim the task is complete
+
+### Examples of LAZY vs COMPLETE
+
+| Scenario | LAZY (❌ WRONG) | COMPLETE (✅ CORRECT) |
+|----------|-----------------|----------------------|
+| Add activity queue | Update 1 controller, leave 41 calls unchanged | Update all 50 calls across 10 files |
+| Add firmId validation | Fix 1 endpoint | Fix all endpoints using the pattern |
+| Centralize error handling | Add middleware, keep old try-catch | Remove all redundant try-catch blocks |
+
+### Before Claiming Complete:
+
+```bash
+# ALWAYS verify no old patterns remain:
+grep -r "OldPattern" src/
+
+# If matches found → task is NOT complete
+```
+
+**If you implement something in one file and leave identical code unchanged in other files, you are being lazy and wasting tokens. The user will have to ask you again to fix the remaining files, doubling the work and cost.**
+
+---
+
 ## 🏆 GOLD STANDARD COMPLIANCE - PRODUCTION READY
 
 **This codebase meets enterprise standards from AWS, Google, Microsoft, Apple, and SAP.**

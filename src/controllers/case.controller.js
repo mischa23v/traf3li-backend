@@ -2,7 +2,7 @@ const { Case, Order, User, Event, Reminder, Firm } = require('../models');
 const AuditLog = require('../models/auditLog.model');
 const CaseAuditLog = require('../models/caseAuditLog.model');
 const CaseAuditService = require('../services/caseAuditService');
-const CrmActivity = require('../models/crmActivity.model');
+const QueueService = require('../services/queue.service');
 const { CustomException } = require('../utils');
 const { calculateLawyerScore } = require('./score.controller');
 const { getUploadPresignedUrl, getDownloadPresignedUrl, deleteFile, generateFileKey } = require('../configs/s3');
@@ -384,7 +384,7 @@ const createCase = async (request, response) => {
 
         // Log CRM activity
         try {
-            await CrmActivity.logActivity({
+            QueueService.logActivity({
                 lawyerId: request.userID,
                 type: 'case_created',
                 entityType: 'case',
@@ -701,7 +701,7 @@ const updateCase = async (request, response) => {
             try {
                 // Check for assignment changes
                 if (changes.assignedTo) {
-                    await CrmActivity.logActivity({
+                    QueueService.logActivity({
                         lawyerId: request.userID,
                         type: 'assignment',
                         entityType: 'case',
@@ -719,7 +719,7 @@ const updateCase = async (request, response) => {
 
                 // Check for status changes
                 if (changes.status) {
-                    await CrmActivity.logActivity({
+                    QueueService.logActivity({
                         lawyerId: request.userID,
                         type: 'status_change',
                         entityType: 'case',
@@ -738,7 +738,7 @@ const updateCase = async (request, response) => {
                 const otherChanges = Object.keys(changes).filter(k => k !== 'assignedTo' && k !== 'status');
                 if (otherChanges.length > 0) {
                     const changedFields = otherChanges.join(', ');
-                    await CrmActivity.logActivity({
+                    QueueService.logActivity({
                         lawyerId: request.userID,
                         type: 'case_updated',
                         entityType: 'case',
@@ -964,7 +964,7 @@ const addHearing = async (request, response) => {
 
         // Log CRM activity for hearing addition
         try {
-            await CrmActivity.logActivity({
+            QueueService.logActivity({
                 lawyerId: request.userID,
                 type: 'case_updated',
                 subType: 'hearing_added',
@@ -1031,7 +1031,7 @@ const updateStatus = async (request, response) => {
 
         // Log CRM activity for status change
         try {
-            await CrmActivity.logActivity({
+            QueueService.logActivity({
                 lawyerId: request.userID,
                 type: 'status_change',
                 entityType: 'case',
@@ -1108,7 +1108,7 @@ const closeCase = async (request, response) => {
 
         // Log CRM activity for case closure
         try {
-            await CrmActivity.logActivity({
+            QueueService.logActivity({
                 lawyerId: request.userID,
                 type: 'status_change',
                 subType: 'case_closed',
@@ -1187,7 +1187,7 @@ const updateOutcome = async (request, response) => {
 
         // Log CRM activity for outcome update
         try {
-            await CrmActivity.logActivity({
+            QueueService.logActivity({
                 lawyerId: request.userID,
                 type: 'status_change',
                 subType: 'outcome_updated',
@@ -1442,7 +1442,7 @@ const updateProgress = async (request, response) => {
 
         // Log CRM activity for progress update (milestone)
         try {
-            await CrmActivity.logActivity({
+            QueueService.logActivity({
                 lawyerId: request.userID,
                 type: 'case_updated',
                 subType: 'progress_updated',
@@ -1514,7 +1514,7 @@ const deleteCase = async (request, response) => {
 
         // Log CRM activity for case deletion
         try {
-            await CrmActivity.logActivity({
+            QueueService.logActivity({
                 lawyerId: request.userID,
                 type: 'case_deleted',
                 entityType: 'case',

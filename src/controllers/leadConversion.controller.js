@@ -13,9 +13,9 @@ const SalesStage = require('../models/salesStage.model');
 const Competitor = require('../models/competitor.model');
 const SalesPerson = require('../models/salesPerson.model');
 const Territory = require('../models/territory.model');
-const CrmActivity = require('../models/crmActivity.model');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const logger = require('../utils/logger');
+const QueueService = require('../services/queue.service');
 
 // ═══════════════════════════════════════════════════════════════
 // CREATE CASE FROM LEAD
@@ -186,7 +186,7 @@ exports.createCaseFromLead = async (req, res) => {
         }
 
         // Log activity
-        await CrmActivity.logActivity({
+        QueueService.logActivity({
             lawyerId: userId,
             type: 'case_created_from_lead',
             entityType: 'case',
@@ -394,7 +394,7 @@ exports.updateCrmStage = async (req, res) => {
         await caseDoc.save();
 
         // Log activity
-        await CrmActivity.logActivity({
+        QueueService.logActivity({
             lawyerId: userId,
             type: 'stage_changed',
             entityType: 'case',
@@ -616,7 +616,7 @@ exports.markCaseAsWon = async (req, res) => {
         }
 
         // Log activity
-        await CrmActivity.logActivity({
+        QueueService.logActivity({
             lawyerId: userId,
             type: 'case_won',
             entityType: 'case',
@@ -737,7 +737,7 @@ exports.markCaseAsLost = async (req, res) => {
         }
 
         // Log activity
-        await CrmActivity.logActivity({
+        QueueService.logActivity({
             lawyerId: userId,
             type: 'case_lost',
             entityType: 'case',

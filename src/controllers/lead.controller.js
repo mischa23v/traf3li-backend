@@ -1,6 +1,6 @@
 const Lead = require('../models/lead.model');
 const Pipeline = require('../models/pipeline.model');
-const CrmActivity = require('../models/crmActivity.model');
+const QueueService = require('../services/queue.service');
 const Client = require('../models/client.model');
 const { pickAllowedFields, sanitizeEmail, sanitizePhone } = require('../utils/securityUtils');
 const logger = require('../utils/logger');
@@ -116,7 +116,7 @@ exports.createLead = async (req, res) => {
         }
 
         // Log activity
-        await CrmActivity.logActivity({
+        QueueService.logActivity({
             lawyerId,
             type: 'lead_created',
             entityType: 'lead',
@@ -357,7 +357,7 @@ exports.updateLead = async (req, res) => {
 
         // Log status change
         if (updates.status && updates.status !== oldStatus) {
-            await CrmActivity.logActivity({
+            QueueService.logActivity({
                 lawyerId,
                 type: 'status_change',
                 entityType: 'lead',
@@ -649,7 +649,7 @@ exports.moveToStage = async (req, res) => {
         }
 
         // Log activity
-        await CrmActivity.logActivity({
+        QueueService.logActivity({
             lawyerId,
             type: 'stage_change',
             entityType: 'lead',
@@ -725,7 +725,7 @@ exports.convertToClient = async (req, res) => {
         const { client, case: createdCase } = result;
 
         // Log activity
-        await CrmActivity.logActivity({
+        QueueService.logActivity({
             lawyerId,
             type: 'lead_converted',
             entityType: 'lead',

@@ -9,8 +9,8 @@ const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils'
 const SalesPerson = require('../models/salesPerson.model');
 const Lead = require('../models/lead.model');
 const Case = require('../models/case.model');
-const CrmActivity = require('../models/crmActivity.model');
 const logger = require('../utils/logger');
+const QueueService = require('../services/queue.service');
 
 // Helper function to escape regex special characters (ReDoS protection)
 const escapeRegex = (str) => {
@@ -471,7 +471,7 @@ exports.create = async (req, res) => {
         const salesPerson = await SalesPerson.create(salesPersonData);
 
         // Log activity
-        await CrmActivity.logActivity({
+        QueueService.logActivity({
             lawyerId: userId,
             type: 'sales_person_created',
             entityType: 'sales_person',
@@ -589,7 +589,7 @@ exports.update = async (req, res) => {
         }
 
         // Log activity
-        await CrmActivity.logActivity({
+        QueueService.logActivity({
             lawyerId: userId,
             type: 'sales_person_updated',
             entityType: 'sales_person',
@@ -657,7 +657,7 @@ exports.delete = async (req, res) => {
         }
 
         // Log activity
-        await CrmActivity.logActivity({
+        QueueService.logActivity({
             lawyerId: userId,
             type: 'sales_person_deleted',
             entityType: 'sales_person',
