@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 const { Client, Case, Invoice, Payment, Firm } = require('../models');
-const CrmActivity = require('../models/crmActivity.model');
+const QueueService = require('../services/queue.service');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
 const wathqService = require('../services/wathqService');
@@ -196,7 +196,7 @@ const createClient = asyncHandler(async (req, res) => {
 
     // Log activity
     try {
-        await CrmActivity.logActivity({
+        QueueService.logActivity({
             lawyerId,
             type: 'note',
             entityType: 'client',
@@ -650,7 +650,7 @@ const updateClient = asyncHandler(async (req, res) => {
 
     // Log activity
     if (Object.keys(changedFields).length > 0) {
-        await CrmActivity.logActivity({
+        QueueService.logActivity({
             lawyerId,
             type: 'note',
             entityType: 'client',
@@ -728,7 +728,7 @@ const deleteClient = asyncHandler(async (req, res) => {
     }
 
     // Log activity before deletion
-    await CrmActivity.logActivity({
+    QueueService.logActivity({
         lawyerId,
         type: 'note',
         entityType: 'client',
@@ -1061,7 +1061,7 @@ const updateStatus = asyncHandler(async (req, res) => {
     await client.save();
 
     // Log status change activity
-    await CrmActivity.logActivity({
+    QueueService.logActivity({
         lawyerId,
         type: 'status_change',
         entityType: 'client',

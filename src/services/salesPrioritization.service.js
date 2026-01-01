@@ -1,9 +1,9 @@
 const Lead = require('../models/lead.model');
 const LeadScore = require('../models/leadScore.model');
-const CrmActivity = require('../models/crmActivity.model');
 const User = require('../models/user.model');
 const mongoose = require('mongoose');
 const logger = require('../utils/logger');
+const QueueService = require('./queue.service');
 
 // ═══════════════════════════════════════════════════════════════
 // SALES PRIORITIZATION SERVICE
@@ -146,7 +146,7 @@ class SalesPrioritizationService {
             await lead.save();
 
             // Log priority assignment
-            await CrmActivity.logActivity({
+            QueueService.logActivity({
                 lawyerId: lead.lawyerId,
                 firmId: firmId,
                 type: 'note',
@@ -369,7 +369,7 @@ class SalesPrioritizationService {
                 await lead.save();
 
                 // Log SLA breach
-                await CrmActivity.logActivity({
+                QueueService.logActivity({
                     lawyerId: lead.lawyerId,
                     firmId: firmId,
                     type: 'note',
@@ -459,7 +459,7 @@ class SalesPrioritizationService {
             await lead.save();
 
             // Log escalation
-            await CrmActivity.logActivity({
+            QueueService.logActivity({
                 lawyerId: lead.lawyerId,
                 firmId: lead.firmId,
                 type: 'assignment',
@@ -540,7 +540,7 @@ class SalesPrioritizationService {
             await lead.save();
 
             // Log contact
-            await CrmActivity.logActivity({
+            QueueService.logActivity({
                 lawyerId: lead.lawyerId,
                 firmId: lead.firmId,
                 type: 'note',
@@ -742,7 +742,7 @@ class SalesPrioritizationService {
                     });
 
                     // Log assignment
-                    await CrmActivity.logActivity({
+                    QueueService.logActivity({
                         lawyerId: lead.lawyerId,
                         firmId: firmId,
                         type: 'assignment',
@@ -904,7 +904,7 @@ class SalesPrioritizationService {
             await lead.save();
 
             // Log nurture assignment
-            await CrmActivity.logActivity({
+            QueueService.logActivity({
                 lawyerId: lead.lawyerId,
                 firmId: lead.firmId,
                 type: 'note',
@@ -988,7 +988,7 @@ class SalesPrioritizationService {
                     });
 
                     // Log reactivation
-                    await CrmActivity.logActivity({
+                    QueueService.logActivity({
                         lawyerId: lead.lawyerId,
                         firmId: firmId,
                         type: 'note',

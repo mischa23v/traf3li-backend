@@ -4,10 +4,10 @@ const WhatsAppMessage = require('../models/whatsappMessage.model');
 const WhatsAppBroadcast = require('../models/whatsappBroadcast.model');
 const Lead = require('../models/lead.model');
 const Client = require('../models/client.model');
-const CrmActivity = require('../models/crmActivity.model');
 const axios = require('axios');
 const logger = require('../utils/logger');
 const { wrapExternalCall } = require('../utils/externalServiceWrapper');
+const QueueService = require('./queue.service');
 
 /**
  * Escape special regex characters to prevent ReDoS attacks
@@ -1259,7 +1259,7 @@ class WhatsAppService {
             }
 
             // Log the activity
-            await CrmActivity.logActivity({
+            QueueService.logActivity({
                 lawyerId: userId,
                 type: 'whatsapp',
                 subType,

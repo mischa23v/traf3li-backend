@@ -149,12 +149,52 @@ const crmActivitySchema = new mongoose.Schema({
             'stage_change',   // تغيير المرحلة
             'assignment',     // تعيين
 
-            // Conversions
-            'lead_created',   // إنشاء عميل محتمل
-            'lead_converted', // تحويل العميل المحتمل
-            'case_created',   // إنشاء قضية
-            'case_updated',   // تحديث قضية
-            'case_deleted',   // حذف قضية
+            // Leads
+            'lead_created',      // إنشاء عميل محتمل
+            'lead_updated',      // تحديث عميل محتمل
+            'lead_converted',    // تحويل العميل المحتمل
+            'lead_escalated',    // تصعيد عميل محتمل
+            'lead_reengaged',    // إعادة تفعيل عميل محتمل
+
+            // Cases
+            'case_created',           // إنشاء قضية
+            'case_updated',           // تحديث قضية
+            'case_deleted',           // حذف قضية
+            'case_created_from_lead', // إنشاء قضية من عميل محتمل
+            'case_won',               // كسب قضية
+            'case_lost',              // خسارة قضية
+            'stage_changed',          // تغيير مرحلة
+
+            // Appointments
+            'appointment_created',     // إنشاء موعد
+            'appointment_updated',     // تحديث موعد
+            'appointment_deleted',     // حذف موعد
+            'appointment_cancelled',   // إلغاء موعد
+            'appointment_completed',   // إكمال موعد
+            'appointment_confirmed',   // تأكيد موعد
+            'appointment_rescheduled', // إعادة جدولة موعد
+            'appointment_no_show',     // عدم حضور
+            'appointment_synced',      // مزامنة موعد
+
+            // Sales Stages
+            'sales_stage_created',    // إنشاء مرحلة مبيعات
+            'sales_stage_updated',    // تحديث مرحلة مبيعات
+            'sales_stage_deleted',    // حذف مرحلة مبيعات
+            'sales_stages_reordered', // إعادة ترتيب مراحل المبيعات
+
+            // Lead Sources
+            'lead_source_created', // إنشاء مصدر عميل محتمل
+            'lead_source_updated', // تحديث مصدر عميل محتمل
+            'lead_source_deleted', // حذف مصدر عميل محتمل
+
+            // Sales Persons
+            'sales_person_created', // إنشاء مندوب مبيعات
+            'sales_person_updated', // تحديث مندوب مبيعات
+            'sales_person_deleted', // حذف مندوب مبيعات
+
+            // Settings
+            'settings_updated', // تحديث الإعدادات
+            'settings_reset',   // إعادة تعيين الإعدادات
 
             // Other
             'other'
@@ -169,7 +209,18 @@ const crmActivitySchema = new mongoose.Schema({
     // ═══════════════════════════════════════════════════════════════
     entityType: {
         type: String,
-        enum: ['lead', 'client', 'contact', 'case', 'organization'],
+        enum: [
+            'lead',
+            'client',
+            'contact',
+            'case',
+            'organization',
+            'appointment',
+            'sales_stage',
+            'lead_source',
+            'sales_person',
+            'settings'
+        ],
         required: true,
         index: true
     },
@@ -442,7 +493,7 @@ crmActivitySchema.statics.getStats = async function(lawyerId, dateRange = {}) {
 
 // Log a quick activity
 crmActivitySchema.statics.logActivity = async function(data) {
-    return await this.create({
+    const activityData = {
         lawyerId: data.lawyerId,
         type: data.type,
         entityType: data.entityType,
@@ -453,7 +504,14 @@ crmActivitySchema.statics.logActivity = async function(data) {
         performedBy: data.performedBy || data.lawyerId,
         status: 'completed',
         completedAt: new Date()
-    });
+    };
+
+    // Include firmId if provided (for firm members)
+    if (data.firmId) {
+        activityData.firmId = data.firmId;
+    }
+
+    return await this.create(activityData);
 };
 
 module.exports = mongoose.model('CrmActivity', crmActivitySchema);

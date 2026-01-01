@@ -6,12 +6,12 @@
 
 const Appointment = require('../models/appointment.model');
 const CRMSettings = require('../models/crmSettings.model');
-const CrmActivity = require('../models/crmActivity.model');
 const Firm = require('../models/firm.model');
 const Event = require('../models/event.model');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const logger = require('../utils/logger');
 const mongoose = require('mongoose');
+const QueueService = require('../services/queue.service');
 
 // Calendar integration services (Gold Standard: Calendly, Cal.com pattern)
 const { generateICS, generateCancellationICS, generateCalendarLinksWithLabels } = require('../services/icsGenerator.service');
@@ -988,21 +988,18 @@ exports.create = async (req, res) => {
             { path: 'caseId', select: 'title caseNumber' }
         ]);
 
-        // Log activity (non-blocking - don't fail request if activity logging fails)
-        try {
-            await CrmActivity.logActivity({
-                lawyerId: userId,
-                type: 'appointment_created',
-                entityType: 'appointment',
-                entityId: appointment._id,
-                entityName: appointment.appointmentNumber,
-                title: `Appointment created: ${appointment.appointmentNumber}`,
-                description: `With ${appointment.customerName} on ${appointment.scheduledTime}`,
-                performedBy: userId
-            });
-        } catch (activityError) {
-            logger.warn('Activity logging failed (non-blocking):', activityError.message);
-        }
+        // Log activity via queue (Gold Standard: fire-and-forget, async processing)
+        QueueService.logActivity({
+            lawyerId: userId,
+            firmId: req.firmId,
+            type: 'appointment_created',
+            entityType: 'appointment',
+            entityId: appointment._id,
+            entityName: appointment.appointmentNumber,
+            title: `Appointment created: ${appointment.appointmentNumber}`,
+            description: `With ${appointment.customerName} on ${appointment.scheduledTime}`,
+            performedBy: userId
+        });
 
         // Gold Standard: Auto-sync to connected calendars (Google, Microsoft)
         let calendarSync = null;
@@ -1303,9 +1300,10 @@ exports.update = async (req, res) => {
             { path: 'caseId', select: 'title caseNumber' }
         ]);
 
-        // Log activity
-        await CrmActivity.logActivity({
+        // Log activity via queue (Gold Standard: fire-and-forget, async processing)
+        QueueService.logActivity({
             lawyerId: userId,
+            firmId: req.firmId,
             type: 'appointment_updated',
             entityType: 'appointment',
             entityId: appointment._id,
@@ -1443,10 +1441,10 @@ exports.cancel = async (req, res) => {
         debugLog('delete', req, { step: 'DELETED', deleteTime });
         logger.info(`🗑️ [APPOINTMENT-DELETE] SUCCESS: appointmentNumber=${appointmentInfo.appointmentNumber} deleteTime=${deleteTime}ms`);
 
-        // Log activity
-        const activityStart = Date.now();
-        await CrmActivity.logActivity({
+        // Log activity via queue (Gold Standard: fire-and-forget, async processing)
+        QueueService.logActivity({
             lawyerId: userId,
+            firmId: req.firmId,
             type: 'appointment_deleted',
             entityType: 'appointment',
             entityId: appointmentInfo._id,
@@ -1455,7 +1453,6 @@ exports.cancel = async (req, res) => {
             description: `Deleted appointment with ${appointmentInfo.customerName}`,
             performedBy: userId
         });
-        const activityTime = Date.now() - activityStart;
 
         const totalTime = Date.now() - totalStart;
         debugLog('delete', req, {
@@ -1463,7 +1460,6 @@ exports.cancel = async (req, res) => {
             totalTime,
             dbTime,
             deleteTime,
-            activityTime,
             appointmentNumber: appointmentInfo.appointmentNumber
         });
 
@@ -1475,7 +1471,7 @@ exports.cancel = async (req, res) => {
                 customerName: appointmentInfo.customerName
             },
             calendarSync,
-            timing: { total: totalTime, db: dbTime, delete: deleteTime, activity: activityTime }
+            timing: { total: totalTime, db: dbTime, delete: deleteTime }
         });
     } catch (error) {
         debugError('delete', error, { appointmentId: req.params.id });
@@ -1552,9 +1548,10 @@ exports.complete = async (req, res) => {
             logger.warn('Calendar complete sync failed (non-blocking):', syncError.message);
         }
 
-        // Log activity
-        await CrmActivity.logActivity({
+        // Log activity via queue (Gold Standard: fire-and-forget, async processing)
+        QueueService.logActivity({
             lawyerId: userId,
+            firmId: req.firmId,
             type: 'appointment_completed',
             entityType: 'appointment',
             entityId: appointment._id,
@@ -1630,9 +1627,10 @@ exports.markNoShow = async (req, res) => {
             logger.warn('Calendar no-show sync failed (non-blocking):', syncError.message);
         }
 
-        // Log activity
-        await CrmActivity.logActivity({
+        // Log activity via queue (Gold Standard: fire-and-forget, async processing)
+        QueueService.logActivity({
             lawyerId: userId,
+            firmId: req.firmId,
             type: 'appointment_no_show',
             entityType: 'appointment',
             entityId: appointment._id,
@@ -1707,9 +1705,10 @@ exports.confirm = async (req, res) => {
             logger.warn('Calendar confirm sync failed (non-blocking):', syncError.message);
         }
 
-        // Log activity
-        await CrmActivity.logActivity({
+        // Log activity via queue (Gold Standard: fire-and-forget, async processing)
+        QueueService.logActivity({
             lawyerId: userId,
+            firmId: req.firmId,
             type: 'appointment_confirmed',
             entityType: 'appointment',
             entityId: appointment._id,
@@ -2809,9 +2808,10 @@ exports.reschedule = async (req, res) => {
         appointment.scheduledTime = newScheduledTime;
         await appointment.save();
 
-        // Log activity
-        await CrmActivity.logActivity({
+        // Log activity via queue (Gold Standard: fire-and-forget, async processing)
+        QueueService.logActivity({
             lawyerId: userId,
+            firmId: req.firmId,
             type: 'appointment_rescheduled',
             entityType: 'appointment',
             entityId: appointment._id,
@@ -3087,9 +3087,10 @@ exports.syncToCalendar = async (req, res) => {
             );
         }
 
-        // Log activity
-        await CrmActivity.logActivity({
+        // Log activity via queue (Gold Standard: fire-and-forget, async processing)
+        QueueService.logActivity({
             lawyerId: req.userID,
+            firmId: req.firmId,
             type: 'appointment_synced',
             entityType: 'appointment',
             entityId: appointment._id,

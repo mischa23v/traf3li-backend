@@ -5,9 +5,9 @@
  */
 
 const SalesStage = require('../models/salesStage.model');
-const CrmActivity = require('../models/crmActivity.model');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const logger = require('../utils/logger');
+const QueueService = require('../services/queue.service');
 
 // ═══════════════════════════════════════════════════════════════
 // LIST SALES STAGES
@@ -180,7 +180,7 @@ exports.create = async (req, res) => {
         const stage = await SalesStage.create(stageData);
 
         // Log activity
-        await CrmActivity.logActivity({
+        QueueService.logActivity({
             lawyerId: userId,
             type: 'sales_stage_created',
             entityType: 'sales_stage',
@@ -301,7 +301,7 @@ exports.update = async (req, res) => {
         }
 
         // Log activity
-        await CrmActivity.logActivity({
+        QueueService.logActivity({
             lawyerId: userId,
             type: 'sales_stage_updated',
             entityType: 'sales_stage',
@@ -363,7 +363,7 @@ exports.delete = async (req, res) => {
         }
 
         // Log activity
-        await CrmActivity.logActivity({
+        QueueService.logActivity({
             lawyerId: userId,
             type: 'sales_stage_deleted',
             entityType: 'sales_stage',
@@ -451,7 +451,7 @@ exports.reorder = async (req, res) => {
         const updatedStages = await SalesStage.find({ ...req.firmQuery }).sort({ order: 1 });
 
         // Log activity
-        await CrmActivity.logActivity({
+        QueueService.logActivity({
             lawyerId: userId,
             type: 'sales_stages_reordered',
             entityType: 'sales_stage',
