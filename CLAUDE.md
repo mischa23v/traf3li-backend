@@ -295,7 +295,9 @@ if (!req.hasPermission('cases', 'edit')) {
 | `req.hasPermission()` | authenticatedApi.middleware.js | Permission checker function |
 | `req.addFirmId()` | authenticatedApi.middleware.js | Helper for creating records |
 | Route validation | authenticatedApi.middleware.js | Path normalization for v1/v2 |
-| `QueueService.logActivity()` | queue.service.js + activity.queue.js | Fire-and-forget CRM activity logging |
+| `QueueService.logActivity()` | queue.service.js | Fire-and-forget activity logging |
+| `QueueService.createNotification()` | queue.service.js | Fire-and-forget notifications |
+| `QueueService.logAudit()` | queue.service.js | Fire-and-forget audit logging |
 
 ### NOT Centralized (Must do in EVERY controller)
 | What | Why | Example |
@@ -690,16 +692,24 @@ function scheduleJob() {
 
 ---
 
-## 📊 Activity Logging (Centralized Queue) - MANDATORY
+## 📊 Non-Blocking Logging (Centralized Queues) - MANDATORY
 
-**All CRM activity logging MUST use `QueueService.logActivity()` - NEVER use `CrmActivity.logActivity()` directly.**
+**All auxiliary logging operations MUST use QueueService methods - NEVER write directly to logging models.**
+
+### Available Queue Methods
+
+| Use Case | Queue Method | Model (DO NOT use directly) |
+|----------|--------------|----------------------------|
+| User activity feed | `QueueService.logActivity()` | CrmActivity |
+| Notifications | `QueueService.createNotification()` | Notification |
+| Audit logs | `QueueService.logAudit()` | AuditLog |
 
 ### Why This Matters
 
 | Method | Response Time | Blocking? | Retry? | Can Fail Request? |
 |--------|---------------|-----------|--------|-------------------|
-| ❌ `CrmActivity.logActivity()` | 30ms | Yes | No | Yes - breaks user operation |
-| ✅ `QueueService.logActivity()` | 2ms | No | Yes (3x) | No - fire-and-forget |
+| ❌ Direct model write | 30ms | Yes | No | Yes - breaks user operation |
+| ✅ QueueService method | 2ms | No | Yes (3x) | No - fire-and-forget |
 
 ### Gold Standard Pattern
 
@@ -709,88 +719,75 @@ function scheduleJob() {
 // ✅ CORRECT - Fire-and-forget queue (no await needed)
 const QueueService = require('../services/queue.service');
 
-// After successful operation (create, update, delete, etc.)
+// Activity logging (user-facing activity feed)
 QueueService.logActivity({
     lawyerId: req.userID,
-    firmId: req.firmId,                    // Optional for firm members
-    type: 'appointment_deleted',           // Must match CrmActivity enum
-    entityType: 'appointment',             // Must match CrmActivity enum
+    firmId: req.firmId,
+    type: 'appointment_deleted',
+    entityType: 'appointment',
     entityId: appointment._id,
     entityName: appointment.appointmentNumber,
     title: `Appointment deleted: ${appointment.appointmentNumber}`,
-    description: `Deleted appointment with ${appointment.customerName}`,
     performedBy: req.userID
 });
 
+// Notification creation
+QueueService.createNotification({
+    firmId: req.firmId,
+    userId: targetUser._id,
+    type: 'invoice_approval_required',
+    title: 'Invoice Approval Required',
+    message: `Invoice ${invoice.number} requires your approval`
+});
+
+// Audit logging (compliance/security)
+QueueService.logAudit({
+    firmId: req.firmId,
+    userId: req.userID,
+    userEmail: req.userEmail,
+    userRole: 'lawyer',
+    action: 'create_invoice',
+    entityType: 'invoice',
+    entityId: invoice._id,
+    ipAddress: req.ip
+});
+
 // ❌ WRONG - Blocking, can fail the entire request
-await CrmActivity.logActivity({...});  // If this fails, user sees 500 error
-```
-
-### Files That Use This Pattern (Reference)
-
-All these files use `QueueService.logActivity()`:
-- `appointment.controller.js` (8 calls)
-- `case.controller.js` (10 calls)
-- `salesPrioritization.service.js` (7 calls)
-- `lead.controller.js` (4 calls)
-- `client.controller.js` (4 calls)
-- `salesStage.controller.js` (4 calls)
-- `leadConversion.controller.js` (4 calls)
-- `leadSource.controller.js` (3 calls)
-- `salesPerson.controller.js` (3 calls)
-- `crmSettings.controller.js` (3 calls)
-- `whatsapp.service.js` (1 call)
-
-### Activity Types (CrmActivity Enum)
-
-When adding a new activity type, ensure it exists in `src/models/crmActivity.model.js`:
-
-```javascript
-// Leads
-'lead_created', 'lead_updated', 'lead_converted', 'lead_escalated', 'lead_reengaged'
-
-// Cases
-'case_created', 'case_updated', 'case_deleted', 'case_created_from_lead',
-'case_won', 'case_lost', 'stage_changed'
-
-// Appointments
-'appointment_created', 'appointment_updated', 'appointment_deleted',
-'appointment_cancelled', 'appointment_completed', 'appointment_confirmed',
-'appointment_rescheduled', 'appointment_no_show', 'appointment_synced'
-
-// Sales Stages
-'sales_stage_created', 'sales_stage_updated', 'sales_stage_deleted', 'sales_stages_reordered'
-
-// Lead Sources
-'lead_source_created', 'lead_source_updated', 'lead_source_deleted'
-
-// Sales Persons
-'sales_person_created', 'sales_person_updated', 'sales_person_deleted'
-
-// Settings
-'settings_updated', 'settings_reset'
-```
-
-### Entity Types (CrmActivity Enum)
-
-```javascript
-'lead', 'client', 'contact', 'case', 'organization',
-'appointment', 'sales_stage', 'lead_source', 'sales_person', 'settings'
+await CrmActivity.logActivity({...});
+await Notification.create({...});
+await AuditLog.log({...});
 ```
 
 ### Queue Infrastructure
 
-| Component | Location | Purpose |
-|-----------|----------|---------|
-| Queue Processor | `src/queues/activity.queue.js` | Processes activity jobs |
-| Queue Service | `src/services/queue.service.js` | Provides `logActivity()` method |
-| Queue Config | `src/configs/queue.js` | Bull + Redis configuration |
+| Queue | Location | Purpose |
+|-------|----------|---------|
+| Activity Queue | `src/queues/activity.queue.js` | User activity feed |
+| Notification Queue | `src/queues/notification.queue.js` | In-app/push notifications |
+| Audit Queue | `src/queues/audit.queue.js` | Compliance audit logs |
+| Queue Service | `src/services/queue.service.js` | Unified API for all queues |
 
-### Verification Command
+### Verification Commands
 
-Before completing any task involving activity logging, verify no direct calls remain:
+Before completing any logging task, verify no direct calls remain:
 
 ```bash
-# Should return 0 matches (only imports and model definition allowed)
-grep -r "CrmActivity.logActivity" src/controllers/ src/services/
+# Activity logging - should return 0 matches
+grep -r "CrmActivity\.logActivity" src/controllers/ src/services/
+
+# Notifications - should return 0 matches (except queue processor)
+grep -r "Notification\.create" src/ | grep -v "notification.queue.js"
+
+# Audit logs - should return 0 matches (except queue processor and compliance services)
+grep -r "AuditLog\.create\|AuditLog\.log" src/ | grep -v "audit.queue.js" | grep -v "auditLog.service.js"
 ```
+
+### NOT YET MIGRATED (Technical Debt)
+
+These patterns still use direct writes and should be migrated:
+
+| Pattern | Calls | Priority |
+|---------|-------|----------|
+| `BillingActivity.logActivity()` | 74+ | High |
+| `TeamActivityLog.log()` | 50+ | High |
+| `CaseAuditLog.log()` | 1 | Low |
