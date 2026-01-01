@@ -86,6 +86,10 @@ const validateProviderType = (providerType) => {
  * Validate OAuth state parameter
  * Prevents CSRF attacks
  *
+ * Supports two formats:
+ * 1. Legacy random hex state: [A-Za-z0-9_-]+ (min 32 chars)
+ * 2. HMAC-signed state: base64payload.hexsignature (Gold Standard pattern)
+ *
  * @param {string} state - State parameter
  * @returns {boolean} - Whether state is valid
  */
@@ -94,15 +98,32 @@ const validateStateParameter = (state) => {
         return false;
     }
 
-    // State should be a secure random string (typically base64url encoded)
     // Minimum length of 32 characters for security
     if (state.length < 32) {
         return false;
     }
 
-    // Should only contain alphanumeric, dash, underscore (URL-safe base64)
-    const stateRegex = /^[A-Za-z0-9_-]+$/;
-    return stateRegex.test(state);
+    // Check for HMAC-signed state format: base64payload.hexsignature
+    // Format: [base64 with optional padding].64-char-hex-signature
+    if (state.includes('.')) {
+        const parts = state.split('.');
+        if (parts.length === 2) {
+            const [payload, signature] = parts;
+            // Payload: base64 (A-Z, a-z, 0-9, -, _, =)
+            // Signature: 64-char hex (0-9, a-f) for SHA256 HMAC
+            const base64Regex = /^[A-Za-z0-9_\-=]+$/;
+            const hexRegex = /^[a-f0-9]{64}$/;
+            if (base64Regex.test(payload) && hexRegex.test(signature)) {
+                return true;
+            }
+        }
+        // If it has dots but doesn't match HMAC format, it's invalid
+        return false;
+    }
+
+    // Legacy format: alphanumeric, dash, underscore (URL-safe base64)
+    const legacyStateRegex = /^[A-Za-z0-9_-]+$/;
+    return legacyStateRegex.test(state);
 };
 
 /**
