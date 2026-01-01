@@ -13,7 +13,7 @@
 
 const logger = require('../utils/logger');
 const cacheService = require('../services/cache.service');
-const AuditLog = require('../models/auditLog.model');
+const QueueService = require('../services/queue.service');
 
 // Configuration
 const CONFIG = {
@@ -127,7 +127,7 @@ const validateDeviceFingerprintMiddleware = async (req, res, next) => {
     // Handle mismatch
     if (!result.valid) {
       // Log suspicious activity
-      await AuditLog.log({
+      QueueService.logAudit({
         userId: req.userID,
         userEmail: req.user.email || 'unknown',
         userRole: req.user.role || 'unknown',

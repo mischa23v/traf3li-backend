@@ -1,5 +1,6 @@
 const logger = require('../utils/logger');
 const AuditLog = require('../models/auditLog.model');
+const QueueService = require('../services/queue.service');
 const auditLogService = require('../services/auditLog.service');
 
 /**
@@ -310,8 +311,8 @@ const logAuthEvent = async (action, data) => {
       errorMessage: data.errorMessage || null,
       timestamp: new Date(),
     };
-    
-    await AuditLog.log(logData);
+
+    QueueService.logAudit(logData);
   } catch (error) {
     logger.error('❌ Failed to log auth event:', error.message);
   }
@@ -328,13 +329,13 @@ const checkSuspiciousActivity = async (userId, ipAddress) => {
     
     if (failedLogins >= 5) {
       // Log suspicious activity
-      await AuditLog.log({
+      QueueService.logAudit({
         userId: userId,
         userEmail: userId || 'unknown',
         userRole: 'unknown',
         action: 'access_sensitive_data',
         resourceType: 'System',
-        details: { 
+        details: {
           reason: 'Multiple failed login attempts',
           failedAttempts: failedLogins,
         },
@@ -345,7 +346,7 @@ const checkSuspiciousActivity = async (userId, ipAddress) => {
         status: 'suspicious',
         timestamp: new Date(),
       });
-      
+
       return true; // Is suspicious
     }
     

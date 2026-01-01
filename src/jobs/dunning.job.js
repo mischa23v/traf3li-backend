@@ -27,7 +27,7 @@ const cron = require('node-cron');
 const DunningPolicy = require('../models/dunningPolicy.model');
 const Invoice = require('../models/invoice.model');
 const Firm = require('../models/firm.model');
-const AuditLog = require('../models/auditLog.model');
+const QueueService = require('../services/queue.service');
 const mongoose = require('mongoose');
 const logger = require('../utils/logger');
 
@@ -734,11 +734,7 @@ async function logDunningAudit(data, session = null) {
       timestamp: new Date()
     };
 
-    if (session) {
-      await AuditLog.create([auditData], { session });
-    } else {
-      await AuditLog.create(auditData);
-    }
+    QueueService.logAudit(auditData);
 
   } catch (error) {
     logger.error('[Dunning Job] Error logging to audit:', error);

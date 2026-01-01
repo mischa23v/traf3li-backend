@@ -17,7 +17,7 @@ const express = require('express');
 const router = express.Router();
 const authenticate = require('../middlewares/authenticate');
 const Consent = require('../models/consent.model');
-const AuditLog = require('../models/auditLog.model');
+const QueueService = require('../services/queue.service');
 const logger = require('../utils/logger');
 
 // Valid consent categories
@@ -124,7 +124,7 @@ router.post('/', authenticate, async (req, res) => {
     await consent.save();
 
     // Audit log
-    await AuditLog.log({
+    QueueService.logAudit({
       userId: req.userID,
       userEmail: req.user?.email || 'unknown',
       userRole: req.user?.role || 'unknown',
@@ -186,7 +186,7 @@ router.put('/:category', authenticate, async (req, res) => {
     });
 
     // Audit log
-    await AuditLog.log({
+    QueueService.logAudit({
       userId: req.userID,
       userEmail: req.user?.email || 'unknown',
       userRole: req.user?.role || 'unknown',
@@ -239,7 +239,7 @@ router.delete('/', authenticate, async (req, res) => {
     });
 
     // Audit log
-    await AuditLog.log({
+    QueueService.logAudit({
       userId: req.userID,
       userEmail: req.user?.email || 'unknown',
       userRole: req.user?.role || 'unknown',
@@ -306,7 +306,7 @@ router.post('/export', authenticate, async (req, res) => {
     await consent.save();
 
     // Audit log
-    await AuditLog.log({
+    QueueService.logAudit({
       userId: req.userID,
       userEmail: req.user?.email || 'unknown',
       userRole: req.user?.role || 'unknown',

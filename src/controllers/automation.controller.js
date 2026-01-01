@@ -1,4 +1,5 @@
-const { Automation, AuditLog } = require('../models');
+const { Automation } = require('../models');
+const QueueService = require('../services/queue.service');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
@@ -256,7 +257,7 @@ const createAutomation = asyncHandler(async (req, res) => {
     const automation = await Automation.create(automationData);
 
     // Audit log
-    await AuditLog.create({
+    QueueService.logAudit({
         firmId,
         userId,
         userEmail: req.user?.email || '',
@@ -436,7 +437,7 @@ const updateAutomation = asyncHandler(async (req, res) => {
     await automation.save();
 
     // Audit log
-    await AuditLog.create({
+    QueueService.logAudit({
         firmId,
         userId,
         userEmail: req.user?.email || '',
@@ -490,7 +491,7 @@ const deleteAutomation = asyncHandler(async (req, res) => {
     }
 
     // Audit log
-    await AuditLog.create({
+    QueueService.logAudit({
         firmId,
         userId,
         userEmail: req.user?.email || '',
@@ -545,7 +546,7 @@ const enableAutomation = asyncHandler(async (req, res) => {
     await automation.enable(userId);
 
     // Audit log
-    await AuditLog.create({
+    QueueService.logAudit({
         firmId,
         userId,
         userEmail: req.user?.email || '',
@@ -606,7 +607,7 @@ const disableAutomation = asyncHandler(async (req, res) => {
     await automation.disable(userId, reason);
 
     // Audit log
-    await AuditLog.create({
+    QueueService.logAudit({
         firmId,
         userId,
         userEmail: req.user?.email || '',

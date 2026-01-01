@@ -20,7 +20,7 @@
 const cron = require('node-cron');
 const workflowService = require('../services/workflow.service');
 const WorkflowInstance = require('../models/workflowInstance.model');
-const AuditLog = require('../models/auditLog.model');
+const QueueService = require('../services/queue.service');
 const logger = require('../utils/logger');
 
 // Job configuration
@@ -415,7 +415,7 @@ const logJobAudit = async (data) => {
             timestamp: new Date()
         };
 
-        await AuditLog.create(auditData);
+        QueueService.logAudit(auditData);
 
     } catch (error) {
         logger.error('[Workflow Jobs] Error logging to audit:', error);

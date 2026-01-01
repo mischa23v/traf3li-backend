@@ -9,7 +9,7 @@ const express = require('express');
 const router = express.Router();
 const authenticate = require('../middlewares/authenticate');
 const { authorize } = require('../middlewares/authorize.middleware');
-const AuditLog = require('../models/auditLog.model');
+const QueueService = require('../services/queue.service');
 const {
   receiveCspReport,
   getCspViolations,
@@ -63,7 +63,7 @@ router.post('/incidents/report', authenticate, async (req, res) => {
     }
 
     // Create security incident log
-    const incident = await AuditLog.log({
+    QueueService.logAudit({
       userId: req.userID,
       userEmail: req.user.email,
       userRole: req.user.role,
@@ -94,6 +94,7 @@ router.post('/incidents/report', authenticate, async (req, res) => {
       },
       complianceTags: ['NCA-ECC', 'ISO27001'],
     });
+    const incident = null; // Audit log queued
 
     // Log to console for immediate visibility
     logger.error('🚨 [SECURITY INCIDENT REPORTED]', {
@@ -326,7 +327,7 @@ router.post('/vulnerability/report', async (req, res) => {
     });
 
     // Store in audit log (with system user)
-    await AuditLog.log({
+    QueueService.logAudit({
       userId: null, // System entry
       userEmail: reporterEmail,
       userRole: 'external',

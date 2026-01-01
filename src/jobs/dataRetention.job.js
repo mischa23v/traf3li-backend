@@ -15,7 +15,7 @@
 const cron = require('node-cron');
 const mongoose = require('mongoose');
 const { User, Invoice, Payment, Case, Client } = require('../models');
-const AuditLog = require('../models/auditLog.model');
+const QueueService = require('../services/queue.service');
 const Consent = require('../models/consent.model');
 const logger = require('../utils/logger');
 
@@ -143,7 +143,7 @@ async function cleanupDepartedUsers() {
       });
 
       // Log the anonymization
-      await AuditLog.log({
+      QueueService.logAudit({
         userId: user._id,
         userEmail: 'system',
         userRole: 'system',
@@ -222,7 +222,7 @@ async function processDeletionRequests() {
       await consent.save();
 
       // Audit log
-      await AuditLog.log({
+      QueueService.logAudit({
         userId: consent.userId?._id,
         userEmail: 'system',
         userRole: 'system',

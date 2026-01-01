@@ -19,7 +19,7 @@
 const cron = require('node-cron');
 const RecurringInvoiceService = require('../services/recurringInvoice.service');
 const Notification = require('../models/notification.model');
-const AuditLog = require('../models/auditLog.model');
+const QueueService = require('../services/queue.service');
 const logger = require('../utils/logger');
 
 // Job configuration
@@ -393,7 +393,7 @@ const logJobAudit = async (data) => {
             timestamp: new Date()
         };
 
-        await AuditLog.create(auditData);
+        QueueService.logAudit(auditData);
 
     } catch (error) {
         logger.error('[Recurring Invoice Jobs] Error logging to audit:', error);

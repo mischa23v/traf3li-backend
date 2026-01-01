@@ -8,7 +8,7 @@
 const logger = require('../utils/logger');
 const ApiKey = require('../models/apiKey.model');
 const { hasApiAccess } = require('../config/plans.config');
-const AuditLog = require('../models/auditLog.model');
+const QueueService = require('../services/queue.service');
 
 /**
  * Main API Key Authentication Middleware
@@ -34,7 +34,7 @@ const apiKeyAuth = async (req, res, next) => {
 
         if (!apiKey) {
             // Log failed attempt
-            await AuditLog.log({
+            QueueService.logAudit({
                 action: 'login_failed',
                 resourceType: 'api_key',
                 userEmail: 'api_request',
@@ -48,7 +48,7 @@ const apiKeyAuth = async (req, res, next) => {
                     reason: 'Invalid or expired API key',
                     keyPrefix: key.substring(0, 12)
                 }
-            }).catch(() => {});
+            });
 
             return res.status(401).json({
                 success: false,
@@ -71,7 +71,7 @@ const apiKeyAuth = async (req, res, next) => {
         // Check IP restrictions
         const clientIp = req.ip || req.connection.remoteAddress;
         if (!apiKey.isIpAllowed(clientIp)) {
-            await AuditLog.log({
+            QueueService.logAudit({
                 action: 'ip_blocked',
                 resourceType: 'api_key',
                 resourceId: apiKey._id,

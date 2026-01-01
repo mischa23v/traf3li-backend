@@ -19,7 +19,6 @@ const mongoose = require('mongoose');
 const RecurringInvoice = require('../models/recurringInvoice.model');
 const Invoice = require('../models/invoice.model');
 const QueueService = require('./queue.service');
-const AuditLog = require('../models/auditLog.model');
 const logger = require('../utils/logger');
 
 /**
@@ -606,11 +605,7 @@ const logRecurringInvoiceAudit = async (data, session = null) => {
             timestamp: new Date()
         };
 
-        if (session) {
-            await AuditLog.create([auditData], { session });
-        } else {
-            await AuditLog.create(auditData);
-        }
+        QueueService.logAudit(auditData);
 
     } catch (error) {
         logger.error('[Recurring Invoice Service] Error logging to audit:', error);

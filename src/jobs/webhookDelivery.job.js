@@ -22,7 +22,7 @@ const cron = require('node-cron');
 const webhookService = require('../services/webhook.service');
 const Webhook = require('../models/webhook.model');
 const WebhookDelivery = require('../models/webhookDelivery.model');
-const AuditLog = require('../models/auditLog.model');
+const QueueService = require('../services/queue.service');
 const logger = require('../utils/logger');
 
 // Job configuration
@@ -526,7 +526,7 @@ const logJobAudit = async (data) => {
             timestamp: new Date()
         };
 
-        await AuditLog.create(auditData);
+        QueueService.logAudit(auditData);
 
     } catch (error) {
         logger.error('[Webhook Jobs] Error logging to audit:', error);

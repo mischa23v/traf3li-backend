@@ -24,6 +24,7 @@ require('../queues/cleanup.queue');
 require('../queues/sync.queue');
 require('../queues/bulkActions.queue');
 const activityQueue = require('../queues/activity.queue');
+const auditQueue = require('../queues/audit.queue');
 
 class QueueService {
   /**
@@ -520,6 +521,60 @@ class QueueService {
    */
   static async logBulkActivities(activities, options = {}) {
     return activityQueue.addBulkActivities(activities, options);
+  }
+
+  /**
+   * Log audit entry via queue (Gold Standard - fire-and-forget)
+   *
+   * This mirrors AuditLog.log() but is non-blocking.
+   * Use for general audit logging where eventual consistency is acceptable.
+   *
+   * COMPLIANCE NOTE: For strict compliance requirements (NCA ECC-2:2024,
+   * PDPL, GDPR) where the audit log MUST be written before the response
+   * is sent, use AuditLog.log() directly instead.
+   *
+   * @param {Object} auditData - Audit log data
+   * @param {string} auditData.firmId - Firm ID (for multi-tenancy)
+   * @param {string} auditData.userId - User ID who performed action (required)
+   * @param {string} auditData.userEmail - User email (required)
+   * @param {string} auditData.userRole - User role (required)
+   * @param {string} auditData.action - Action performed (e.g., 'create', 'update')
+   * @param {string} auditData.entityType - Entity type (e.g., 'invoice', 'case')
+   * @param {string} auditData.entityId - Entity ID
+   * @param {string} auditData.ipAddress - Client IP address (required)
+   * @param {string} auditData.userAgent - Client user agent
+   * @param {Object} auditData.details - Additional details
+   * @param {Object} options - Job options (optional)
+   * @returns {Promise<Object>} Job info
+   *
+   * @example
+   * // Fire-and-forget audit logging
+   * QueueService.logAudit({
+   *   firmId: req.firmId,
+   *   userId: req.userID,
+   *   userEmail: req.userEmail,
+   *   userRole: req.userRole || 'lawyer',
+   *   action: 'create_invoice',
+   *   entityType: 'invoice',
+   *   entityId: invoice._id,
+   *   ipAddress: req.ip,
+   *   userAgent: req.get('User-Agent'),
+   *   details: { invoiceNumber: invoice.number }
+   * });
+   */
+  static async logAudit(auditData, options = {}) {
+    return auditQueue.addAuditLog(auditData, options);
+  }
+
+  /**
+   * Log multiple audit entries via queue (for bulk operations)
+   *
+   * @param {Array} entries - Array of audit log entries
+   * @param {Object} options - Job options (optional)
+   * @returns {Promise<Object>} Job info
+   */
+  static async logBulkAudit(entries, options = {}) {
+    return auditQueue.addBulkAuditLogs(entries, options);
   }
 }
 

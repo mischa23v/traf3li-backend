@@ -10,7 +10,7 @@
 
 const asyncHandler = require('../utils/asyncHandler');
 const ApiKey = require('../models/apiKey.model');
-const AuditLog = require('../models/auditLog.model');
+const QueueService = require('../services/queue.service');
 const CustomException = require('../utils/CustomException');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
@@ -152,7 +152,7 @@ const createApiKey = asyncHandler(async (req, res) => {
     });
 
     // Log the action
-    await AuditLog.log({
+    QueueService.logAudit({
         userId,
         userEmail: req.user?.email || 'unknown',
         userRole: req.user?.role || 'lawyer',
@@ -334,7 +334,7 @@ const updateApiKey = asyncHandler(async (req, res) => {
     await apiKey.save();
 
     // Log the action
-    await AuditLog.log({
+    QueueService.logAudit({
         userId,
         userEmail: req.user?.email || 'unknown',
         userRole: req.user?.role || 'lawyer',
@@ -404,7 +404,7 @@ const revokeApiKey = asyncHandler(async (req, res) => {
     await apiKey.save();
 
     // Log the action
-    await AuditLog.log({
+    QueueService.logAudit({
         userId,
         userEmail: req.user?.email || 'unknown',
         userRole: req.user?.role || 'lawyer',
@@ -512,7 +512,7 @@ const regenerateApiKey = asyncHandler(async (req, res) => {
     });
 
     // Log the action
-    await AuditLog.log({
+    QueueService.logAudit({
         userId,
         userEmail: req.user?.email || 'unknown',
         userRole: req.user?.role || 'lawyer',
