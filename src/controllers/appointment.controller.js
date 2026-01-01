@@ -1443,19 +1443,25 @@ exports.cancel = async (req, res) => {
         debugLog('delete', req, { step: 'DELETED', deleteTime });
         logger.info(`🗑️ [APPOINTMENT-DELETE] SUCCESS: appointmentNumber=${appointmentInfo.appointmentNumber} deleteTime=${deleteTime}ms`);
 
-        // Log activity
-        const activityStart = Date.now();
-        await CrmActivity.logActivity({
-            lawyerId: userId,
-            type: 'appointment_deleted',
-            entityType: 'appointment',
-            entityId: appointmentInfo._id,
-            entityName: appointmentInfo.appointmentNumber,
-            title: `Appointment deleted: ${appointmentInfo.appointmentNumber}`,
-            description: `Deleted appointment with ${appointmentInfo.customerName}`,
-            performedBy: userId
-        });
-        const activityTime = Date.now() - activityStart;
+        // Log activity (non-blocking - don't fail request if activity logging fails)
+        let activityTime = 0;
+        try {
+            const activityStart = Date.now();
+            await CrmActivity.logActivity({
+                lawyerId: userId,
+                firmId: req.firmId,
+                type: 'appointment_deleted',
+                entityType: 'appointment',
+                entityId: appointmentInfo._id,
+                entityName: appointmentInfo.appointmentNumber,
+                title: `Appointment deleted: ${appointmentInfo.appointmentNumber}`,
+                description: `Deleted appointment with ${appointmentInfo.customerName}`,
+                performedBy: userId
+            });
+            activityTime = Date.now() - activityStart;
+        } catch (activityError) {
+            logger.warn('Activity logging failed (non-blocking):', activityError.message);
+        }
 
         const totalTime = Date.now() - totalStart;
         debugLog('delete', req, {

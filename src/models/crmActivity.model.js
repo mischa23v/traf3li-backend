@@ -156,6 +156,13 @@ const crmActivitySchema = new mongoose.Schema({
             'case_updated',   // تحديث قضية
             'case_deleted',   // حذف قضية
 
+            // Appointments
+            'appointment_created',   // إنشاء موعد
+            'appointment_updated',   // تحديث موعد
+            'appointment_deleted',   // حذف موعد
+            'appointment_cancelled', // إلغاء موعد
+            'appointment_completed', // إكمال موعد
+
             // Other
             'other'
         ],
@@ -169,7 +176,7 @@ const crmActivitySchema = new mongoose.Schema({
     // ═══════════════════════════════════════════════════════════════
     entityType: {
         type: String,
-        enum: ['lead', 'client', 'contact', 'case', 'organization'],
+        enum: ['lead', 'client', 'contact', 'case', 'organization', 'appointment'],
         required: true,
         index: true
     },
@@ -442,7 +449,7 @@ crmActivitySchema.statics.getStats = async function(lawyerId, dateRange = {}) {
 
 // Log a quick activity
 crmActivitySchema.statics.logActivity = async function(data) {
-    return await this.create({
+    const activityData = {
         lawyerId: data.lawyerId,
         type: data.type,
         entityType: data.entityType,
@@ -453,7 +460,14 @@ crmActivitySchema.statics.logActivity = async function(data) {
         performedBy: data.performedBy || data.lawyerId,
         status: 'completed',
         completedAt: new Date()
-    });
+    };
+
+    // Include firmId if provided (for firm members)
+    if (data.firmId) {
+        activityData.firmId = data.firmId;
+    }
+
+    return await this.create(activityData);
 };
 
 module.exports = mongoose.model('CrmActivity', crmActivitySchema);
