@@ -1,8 +1,9 @@
-const { Expense, Case, Client, User, BillingActivity } = require('../models');
+const { Expense, Case, Client, User } = require('../models');
 const { CustomException } = require('../utils');
 const asyncHandler = require('../utils/asyncHandler');
 const mongoose = require('mongoose');
 const { pickAllowedFields } = require('../utils/securityUtils');
+const QueueService = require('../services/queue.service');
 
 // ═══════════════════════════════════════════════════════════════
 // HELPER: Validate expense amount
@@ -228,8 +229,8 @@ const createExpense = asyncHandler(async (req, res) => {
         createdBy: lawyerId
     });
 
-    // Log activity
-    await BillingActivity.logActivity({
+    // Fire-and-forget: Queue the billing activity log
+    QueueService.logBillingActivity({
         activityType: 'expense_created',
         userId: lawyerId,
         relatedModel: 'Expense',
@@ -471,8 +472,8 @@ const updateExpense = asyncHandler(async (req, res) => {
         .populate('employeeId', 'firstName lastName')
         .populate('lawyerId', 'firstName lastName username email');
 
-    // Log activity
-    await BillingActivity.logActivity({
+    // Fire-and-forget: Queue the billing activity log
+    QueueService.logBillingActivity({
         activityType: 'expense_updated',
         userId: lawyerId,
         relatedModel: 'Expense',
@@ -534,8 +535,8 @@ const deleteExpense = asyncHandler(async (req, res) => {
     // SECURITY: Use secure query to ensure firmId ownership is enforced
     await Expense.findOneAndDelete(query);
 
-    // Log activity
-    await BillingActivity.logActivity({
+    // Fire-and-forget: Queue the billing activity log
+    QueueService.logBillingActivity({
         activityType: 'expense_deleted',
         userId: lawyerId,
         relatedModel: 'Expense',
@@ -582,8 +583,8 @@ const submitExpense = asyncHandler(async (req, res) => {
     // Use the model method
     await expense.submit(lawyerId);
 
-    // Log activity
-    await BillingActivity.logActivity({
+    // Fire-and-forget: Queue the billing activity log
+    QueueService.logBillingActivity({
         activityType: 'expense_submitted',
         userId: lawyerId,
         relatedModel: 'Expense',
@@ -646,8 +647,8 @@ const approveExpense = asyncHandler(async (req, res) => {
     try {
         const { expense: approvedExpense, glEntry } = await expense.approve(lawyerId, session);
 
-        // Log activity
-        await BillingActivity.logActivity({
+        // Fire-and-forget: Queue the billing activity log
+        QueueService.logBillingActivity({
             activityType: 'expense_approved',
             userId: lawyerId,
             relatedModel: 'Expense',
@@ -721,8 +722,8 @@ const rejectExpense = asyncHandler(async (req, res) => {
     // Use the model method
     await expense.reject(lawyerId, reason);
 
-    // Log activity
-    await BillingActivity.logActivity({
+    // Fire-and-forget: Queue the billing activity log
+    QueueService.logBillingActivity({
         activityType: 'expense_rejected',
         userId: lawyerId,
         relatedModel: 'Expense',
@@ -776,8 +777,8 @@ const markAsReimbursed = asyncHandler(async (req, res) => {
     // Use the model method
     await expense.reimburse(lawyerId, amount);
 
-    // Log activity
-    await BillingActivity.logActivity({
+    // Fire-and-forget: Queue the billing activity log
+    QueueService.logBillingActivity({
         activityType: 'expense_reimbursed',
         userId: lawyerId,
         relatedModel: 'Expense',
@@ -1188,8 +1189,8 @@ const bulkDeleteExpenses = asyncHandler(async (req, res) => {
 
     const result = await Expense.deleteMany(accessQuery);
 
-    // Log activity
-    await BillingActivity.logActivity({
+    // Fire-and-forget: Queue the billing activity log
+    QueueService.logBillingActivity({
         activityType: 'expenses_bulk_deleted',
         userId: lawyerId,
         relatedModel: 'Expense',

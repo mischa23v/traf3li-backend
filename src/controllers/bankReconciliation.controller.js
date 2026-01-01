@@ -1,9 +1,10 @@
-const { BankReconciliation, BankAccount, BillingActivity } = require('../models');
+const { BankReconciliation, BankAccount } = require('../models');
 const { CustomException } = require('../utils');
 const asyncHandler = require('../utils/asyncHandler');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const bankReconciliationService = require('../services/bankReconciliation.service');
 const currencyService = require('../services/currency.service');
+const QueueService = require('../services/queue.service');
 const BankTransaction = require('../models/bankTransaction.model');
 const BankTransactionMatch = require('../models/bankTransactionMatch.model');
 const BankMatchRule = require('../models/bankMatchRule.model');
@@ -88,7 +89,8 @@ const createReconciliation = asyncHandler(async (req, res) => {
     const populatedReconciliation = await BankReconciliation.findById(reconciliation._id)
         .populate('accountId', 'name bankName accountNumber');
 
-    await BillingActivity.logActivity({
+    // Fire-and-forget: Queue the billing activity log
+    QueueService.logBillingActivity({
         activityType: 'bank_reconciliation_started',
         userId: lawyerId,
         relatedModel: 'BankReconciliation',
@@ -317,7 +319,8 @@ const completeReconciliation = asyncHandler(async (req, res) => {
     try {
         const completedReconciliation = await BankReconciliation.completeReconciliation(sanitizedId, lawyerId, { session });
 
-        await BillingActivity.logActivity({
+        // Fire-and-forget: Queue the billing activity log
+        QueueService.logBillingActivity({
             activityType: 'bank_reconciliation_completed',
             userId: lawyerId,
             relatedModel: 'BankReconciliation',
@@ -371,7 +374,8 @@ const cancelReconciliation = asyncHandler(async (req, res) => {
     try {
         const cancelledReconciliation = await BankReconciliation.cancelReconciliation(sanitizedId, lawyerId, { session });
 
-        await BillingActivity.logActivity({
+        // Fire-and-forget: Queue the billing activity log
+        QueueService.logBillingActivity({
             activityType: 'bank_reconciliation_cancelled',
             userId: lawyerId,
             relatedModel: 'BankReconciliation',
@@ -465,7 +469,8 @@ const importCSV = asyncHandler(async (req, res) => {
         lawyerId
     );
 
-    await BillingActivity.logActivity({
+    // Fire-and-forget: Queue the billing activity log
+    QueueService.logBillingActivity({
         activityType: 'bank_transactions_imported',
         userId: lawyerId,
         description: `Imported ${result.imported} transactions from CSV`,
@@ -525,7 +530,8 @@ const importOFX = asyncHandler(async (req, res) => {
         lawyerId
     );
 
-    await BillingActivity.logActivity({
+    // Fire-and-forget: Queue the billing activity log
+    QueueService.logBillingActivity({
         activityType: 'bank_transactions_imported',
         userId: lawyerId,
         description: `Imported ${result.imported} transactions from OFX`,
@@ -630,7 +636,8 @@ const autoMatch = asyncHandler(async (req, res) => {
 
     const result = await bankReconciliationService.autoMatchTransactions(sanitizedAccountId, options);
 
-    await BillingActivity.logActivity({
+    // Fire-and-forget: Queue the billing activity log
+    QueueService.logBillingActivity({
         activityType: 'bank_auto_match',
         userId: lawyerId,
         description: `Auto-matched ${result.matched} transactions`,
@@ -1162,7 +1169,8 @@ const setManualRate = asyncHandler(async (req, res) => {
         notes
     );
 
-    await BillingActivity.logActivity({
+    // Fire-and-forget: Queue the billing activity log
+    QueueService.logBillingActivity({
         activityType: 'exchange_rate_set',
         userId: lawyerId,
         description: `Set exchange rate ${fromCurrency}/${toCurrency} = ${parsedRate}`,

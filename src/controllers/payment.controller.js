@@ -1,9 +1,10 @@
-const { Payment, Invoice, Retainer, Client, BillingActivity } = require('../models');
+const { Payment, Invoice, Retainer, Client } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
 const webhookService = require('../services/webhook.service');
 const mongoose = require('mongoose');
 const { pickAllowedFields } = require('../utils/securityUtils');
+const QueueService = require('../services/queue.service');
 
 // ═══════════════════════════════════════════════════════════════
 // ALLOWED FIELDS FOR MASS ASSIGNMENT PROTECTION
@@ -287,8 +288,8 @@ const createPayment = asyncHandler(async (req, res) => {
 
         const paymentDoc = payment[0];
 
-        // Log activity
-        await BillingActivity.logActivity({
+        // Fire-and-forget: Queue the billing activity log
+        QueueService.logBillingActivity({
             activityType: 'payment_received',
             userId: lawyerId,
             clientId: actualCustomerId,
@@ -614,8 +615,8 @@ const updatePayment = asyncHandler(async (req, res) => {
             .populate('customerId', 'firstName lastName companyName email')
             .populate('invoiceId', 'invoiceNumber totalAmount');
 
-        // Log activity
-        await BillingActivity.logActivity({
+        // Fire-and-forget: Queue the billing activity log
+        QueueService.logBillingActivity({
             activityType: 'payment_updated',
             userId: lawyerId,
             relatedModel: 'Payment',
@@ -698,8 +699,8 @@ const deletePayment = asyncHandler(async (req, res) => {
     try {
         await Payment.findOneAndDelete(accessQuery, { session });
 
-        // Log activity
-        await BillingActivity.logActivity({
+        // Fire-and-forget: Queue the billing activity log
+        QueueService.logBillingActivity({
             activityType: 'payment_deleted',
             userId: lawyerId,
             relatedModel: 'Payment',
@@ -824,8 +825,8 @@ const completePayment = asyncHandler(async (req, res) => {
             }
         }
 
-        // Log activity
-        await BillingActivity.logActivity({
+        // Fire-and-forget: Queue the billing activity log
+        QueueService.logBillingActivity({
             activityType: 'payment_completed',
             userId: lawyerId,
             clientId: paymentDoc.customerId || paymentDoc.clientId,
@@ -928,8 +929,8 @@ const failPayment = asyncHandler(async (req, res) => {
         throw CustomException('Payment cannot be marked as failed in current status', 400);
     }
 
-    // Log activity
-    await BillingActivity.logActivity({
+    // Fire-and-forget: Queue the billing activity log
+    QueueService.logBillingActivity({
         activityType: 'payment_failed',
         userId: lawyerId,
         clientId: payment.customerId || payment.clientId,
@@ -1051,8 +1052,8 @@ const createRefund = asyncHandler(async (req, res) => {
             }
         }
 
-        // Log activity
-        await BillingActivity.logActivity({
+        // Fire-and-forget: Queue the billing activity log
+        QueueService.logBillingActivity({
             activityType: 'payment_refunded',
             userId: lawyerId,
             clientId: originalPayment.customerId || originalPayment.clientId,
@@ -1127,8 +1128,8 @@ const reconcilePayment = asyncHandler(async (req, res) => {
     // Use the model method
     await payment.reconcile(lawyerId, bankStatementRef);
 
-    // Log activity
-    await BillingActivity.logActivity({
+    // Fire-and-forget: Queue the billing activity log
+    QueueService.logBillingActivity({
         activityType: 'payment_reconciled',
         userId: lawyerId,
         relatedModel: 'Payment',
@@ -1201,8 +1202,8 @@ const applyPaymentToInvoices = asyncHandler(async (req, res) => {
         // Use the model method
         await payment.applyToInvoices(invoiceApplications, { session });
 
-        // Log activity
-        await BillingActivity.logActivity({
+        // Fire-and-forget: Queue the billing activity log
+        QueueService.logBillingActivity({
             activityType: 'payment_applied',
             userId: lawyerId,
             relatedModel: 'Payment',
@@ -1282,8 +1283,8 @@ const unapplyPaymentFromInvoice = asyncHandler(async (req, res) => {
         // Use the model method
         await payment.unapplyFromInvoice(invoiceId, { session });
 
-        // Log activity
-        await BillingActivity.logActivity({
+        // Fire-and-forget: Queue the billing activity log
+        QueueService.logBillingActivity({
             activityType: 'payment_unapplied',
             userId: lawyerId,
             relatedModel: 'Payment',
@@ -1359,8 +1360,8 @@ const updateCheckStatus = asyncHandler(async (req, res) => {
     // Use the model method
     await payment.updateCheckStatus(status, { bounceReason, depositDate, clearanceDate });
 
-    // Log activity
-    await BillingActivity.logActivity({
+    // Fire-and-forget: Queue the billing activity log
+    QueueService.logBillingActivity({
         activityType: 'check_status_updated',
         userId: lawyerId,
         relatedModel: 'Payment',
@@ -1427,8 +1428,8 @@ const sendReceipt = asyncHandler(async (req, res) => {
     payment.emailTemplate = template;
     await payment.save();
 
-    // Log activity
-    await BillingActivity.logActivity({
+    // Fire-and-forget: Queue the billing activity log
+    QueueService.logBillingActivity({
         activityType: 'receipt_sent',
         userId: lawyerId,
         relatedModel: 'Payment',
@@ -1837,8 +1838,8 @@ const recordInvoicePayment = asyncHandler(async (req, res) => {
 
         await invoice.save({ session });
 
-        // Log activity
-        await BillingActivity.logActivity({
+        // Fire-and-forget: Queue the billing activity log
+        QueueService.logBillingActivity({
             activityType: 'payment_received',
             userId: lawyerId,
             clientId: invoice.clientId,

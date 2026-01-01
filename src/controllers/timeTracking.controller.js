@@ -1,7 +1,8 @@
-const { TimeEntry, BillingRate, BillingActivity, Case, Client } = require('../models');
+const { TimeEntry, BillingRate, Case, Client } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+const QueueService = require('../services/queue.service');
 
 // In-memory timer state (in production, use Redis or database)
 const activeTimers = new Map();
@@ -295,19 +296,17 @@ const stopTimer = asyncHandler(async (req, res) => {
         }]
     });
 
-    // Log activity
-    if (BillingActivity && BillingActivity.logActivity) {
-        await BillingActivity.logActivity({
-            activityType: 'time_entry_created',
-            userId,
-            clientId: timer.clientId,
-            relatedModel: 'TimeEntry',
-            relatedId: timeEntry._id,
-            description: `Time entry created via timer: ${timer.description}`,
-            ipAddress: req.ip,
-            userAgent: req.get('user-agent')
-        });
-    }
+    // Fire-and-forget: Queue the billing activity log
+    QueueService.logBillingActivity({
+        activityType: 'time_entry_created',
+        userId,
+        clientId: timer.clientId,
+        relatedModel: 'TimeEntry',
+        relatedId: timeEntry._id,
+        description: `Time entry created via timer: ${timer.description}`,
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+    });
 
     activeTimers.delete(userId);
 
@@ -483,19 +482,17 @@ const createTimeEntry = asyncHandler(async (req, res) => {
         await timeEntry.save();
     }
 
-    // Log activity
-    if (BillingActivity && BillingActivity.logActivity) {
-        await BillingActivity.logActivity({
-            activityType: 'time_entry_created',
-            userId,
-            clientId,
-            relatedModel: 'TimeEntry',
-            relatedId: timeEntry._id,
-            description: `Time entry created: ${description}`,
-            ipAddress: req.ip,
-            userAgent: req.get('user-agent')
-        });
-    }
+    // Fire-and-forget: Queue the billing activity log
+    QueueService.logBillingActivity({
+        activityType: 'time_entry_created',
+        userId,
+        clientId,
+        relatedModel: 'TimeEntry',
+        relatedId: timeEntry._id,
+        description: `Time entry created: ${description}`,
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+    });
 
     await timeEntry.populate([
         { path: 'assigneeId', select: 'name email' },
@@ -740,9 +737,9 @@ const updateTimeEntry = asyncHandler(async (req, res) => {
 
     await timeEntry.save();
 
-    // Log activity
-    if (BillingActivity && BillingActivity.logActivity && Object.keys(changes).length > 0) {
-        await BillingActivity.logActivity({
+    // Fire-and-forget: Queue the billing activity log
+    if (Object.keys(changes).length > 0) {
+        QueueService.logBillingActivity({
             activityType: 'time_entry_updated',
             userId,
             clientId: timeEntry.clientId,
@@ -836,19 +833,17 @@ const writeOffTimeEntry = asyncHandler(async (req, res) => {
 
     await timeEntry.writeOffEntry(reason, userId);
 
-    // Log activity
-    if (BillingActivity && BillingActivity.logActivity) {
-        await BillingActivity.logActivity({
-            activityType: 'time_entry_written_off',
-            userId,
-            clientId: timeEntry.clientId,
-            relatedModel: 'TimeEntry',
-            relatedId: timeEntry._id,
-            description: `Time entry written off: ${reason}`,
-            ipAddress: req.ip,
-            userAgent: req.get('user-agent')
-        });
-    }
+    // Fire-and-forget: Queue the billing activity log
+    QueueService.logBillingActivity({
+        activityType: 'time_entry_written_off',
+        userId,
+        clientId: timeEntry.clientId,
+        relatedModel: 'TimeEntry',
+        relatedId: timeEntry._id,
+        description: `Time entry written off: ${reason}`,
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+    });
 
     await timeEntry.populate([
         { path: 'assigneeId', select: 'name email' },
@@ -898,19 +893,17 @@ const writeDownTimeEntry = asyncHandler(async (req, res) => {
 
     await timeEntry.writeDownEntry(amount, reason, userId);
 
-    // Log activity
-    if (BillingActivity && BillingActivity.logActivity) {
-        await BillingActivity.logActivity({
-            activityType: 'time_entry_written_down',
-            userId,
-            clientId: timeEntry.clientId,
-            relatedModel: 'TimeEntry',
-            relatedId: timeEntry._id,
-            description: `Time entry written down by ${amount}: ${reason}`,
-            ipAddress: req.ip,
-            userAgent: req.get('user-agent')
-        });
-    }
+    // Fire-and-forget: Queue the billing activity log
+    QueueService.logBillingActivity({
+        activityType: 'time_entry_written_down',
+        userId,
+        clientId: timeEntry.clientId,
+        relatedModel: 'TimeEntry',
+        relatedId: timeEntry._id,
+        description: `Time entry written down by ${amount}: ${reason}`,
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+    });
 
     await timeEntry.populate([
         { path: 'assigneeId', select: 'name email' },
@@ -974,19 +967,17 @@ const approveTimeEntry = asyncHandler(async (req, res) => {
         throw new CustomException('Time entry not found, already approved, or cannot self-approve', 404);
     }
 
-    // Log activity
-    if (BillingActivity && BillingActivity.logActivity) {
-        await BillingActivity.logActivity({
-            activityType: 'time_entry_approved',
-            userId,
-            clientId: timeEntry.clientId,
-            relatedModel: 'TimeEntry',
-            relatedId: timeEntry._id,
-            description: `Time entry approved: ${timeEntry.description}`,
-            ipAddress: req.ip,
-            userAgent: req.get('user-agent')
-        });
-    }
+    // Fire-and-forget: Queue the billing activity log
+    QueueService.logBillingActivity({
+        activityType: 'time_entry_approved',
+        userId,
+        clientId: timeEntry.clientId,
+        relatedModel: 'TimeEntry',
+        relatedId: timeEntry._id,
+        description: `Time entry approved: ${timeEntry.description}`,
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+    });
 
     await timeEntry.populate([
         { path: 'assigneeId', select: 'name email' },
@@ -1032,19 +1023,17 @@ const rejectTimeEntry = asyncHandler(async (req, res) => {
 
     await timeEntry.reject(reason, userId);
 
-    // Log activity
-    if (BillingActivity && BillingActivity.logActivity) {
-        await BillingActivity.logActivity({
-            activityType: 'time_entry_rejected',
-            userId,
-            clientId: timeEntry.clientId,
-            relatedModel: 'TimeEntry',
-            relatedId: timeEntry._id,
-            description: `Time entry rejected: ${reason}`,
-            ipAddress: req.ip,
-            userAgent: req.get('user-agent')
-        });
-    }
+    // Fire-and-forget: Queue the billing activity log
+    QueueService.logBillingActivity({
+        activityType: 'time_entry_rejected',
+        userId,
+        clientId: timeEntry.clientId,
+        relatedModel: 'TimeEntry',
+        relatedId: timeEntry._id,
+        description: `Time entry rejected: ${reason}`,
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+    });
 
     await timeEntry.populate([
         { path: 'assigneeId', select: 'name email' },
@@ -1505,19 +1494,17 @@ const submitTimeEntry = asyncHandler(async (req, res) => {
 
     await timeEntry.save();
 
-    // Log activity
-    if (BillingActivity && BillingActivity.logActivity) {
-        await BillingActivity.logActivity({
-            activityType: 'time_entry_submitted',
-            userId,
-            clientId: timeEntry.clientId,
-            relatedModel: 'TimeEntry',
-            relatedId: timeEntry._id,
-            description: `Time entry submitted for approval: ${timeEntry.description}`,
-            ipAddress: req.ip,
-            userAgent: req.get('user-agent')
-        });
-    }
+    // Fire-and-forget: Queue the billing activity log
+    QueueService.logBillingActivity({
+        activityType: 'time_entry_submitted',
+        userId,
+        clientId: timeEntry.clientId,
+        relatedModel: 'TimeEntry',
+        relatedId: timeEntry._id,
+        description: `Time entry submitted for approval: ${timeEntry.description}`,
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+    });
 
     await timeEntry.populate([
         { path: 'assigneeId', select: 'name email' },
@@ -1633,19 +1620,17 @@ const requestChangesTimeEntry = asyncHandler(async (req, res) => {
 
     await timeEntry.save();
 
-    // Log activity
-    if (BillingActivity && BillingActivity.logActivity) {
-        await BillingActivity.logActivity({
-            activityType: 'time_entry_changes_requested',
-            userId,
-            clientId: timeEntry.clientId,
-            relatedModel: 'TimeEntry',
-            relatedId: timeEntry._id,
-            description: `Changes requested for time entry: ${reason}`,
-            ipAddress: req.ip,
-            userAgent: req.get('user-agent')
-        });
-    }
+    // Fire-and-forget: Queue the billing activity log
+    QueueService.logBillingActivity({
+        activityType: 'time_entry_changes_requested',
+        userId,
+        clientId: timeEntry.clientId,
+        relatedModel: 'TimeEntry',
+        relatedId: timeEntry._id,
+        description: `Changes requested for time entry: ${reason}`,
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+    });
 
     await timeEntry.populate([
         { path: 'assigneeId', select: 'name email' },

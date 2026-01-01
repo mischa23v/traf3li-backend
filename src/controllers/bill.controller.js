@@ -1,4 +1,5 @@
-const { Bill, Vendor, Case, BillingActivity } = require('../models');
+const { Bill, Vendor, Case } = require('../models');
+const QueueService = require('../services/queue.service');
 const { CustomException } = require('../utils');
 const asyncHandler = require('../utils/asyncHandler');
 const { pickAllowedFields } = require('../utils/securityUtils');
@@ -84,7 +85,8 @@ const createBill = asyncHandler(async (req, res) => {
         .populate('vendorId', 'name vendorId email')
         .populate('caseId', 'title caseNumber');
 
-    await BillingActivity.logActivity({
+    // Fire-and-forget: Queue the billing activity log
+    QueueService.logBillingActivity({
         activityType: 'bill_created',
         userId: lawyerId,
         relatedModel: 'Bill',
@@ -649,7 +651,8 @@ const approveBill = asyncHandler(async (req, res) => {
         .populate('vendorId', 'name vendorId email')
         .populate('caseId', 'title caseNumber');
 
-    await BillingActivity.logActivity({
+    // Fire-and-forget: Queue the billing activity log
+    QueueService.logBillingActivity({
         activityType: 'bill_approved',
         userId: lawyerId,
         relatedModel: 'Bill',
@@ -771,8 +774,8 @@ const payBill = asyncHandler(async (req, res) => {
 
         await lockedBill.save({ session });
 
-        // Log activity within transaction
-        await BillingActivity.logActivity({
+        // Fire-and-forget: Queue the billing activity log (after transaction)
+        QueueService.logBillingActivity({
             activityType: 'bill_payment',
             userId: lawyerId,
             relatedModel: 'Bill',
@@ -839,7 +842,8 @@ const postToGL = asyncHandler(async (req, res) => {
         .populate('vendorId', 'name vendorId email')
         .populate('caseId', 'title caseNumber');
 
-    await BillingActivity.logActivity({
+    // Fire-and-forget: Queue the billing activity log
+    QueueService.logBillingActivity({
         activityType: 'bill_posted_gl',
         userId: lawyerId,
         relatedModel: 'Bill',
