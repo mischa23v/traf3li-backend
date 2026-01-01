@@ -76,6 +76,7 @@ Every feature is complete. Every security vulnerability is fixed. Every bug is h
 | **Reliability** | Background token refresh job (24h ahead) | ✅ | Calendly/Cal.com |
 | **Reliability** | Retry with exponential backoff | ✅ | AWS SDK |
 | **Reliability** | Non-blocking calendar sync | ✅ | Calendly/Cal.com |
+| **Reliability** | Non-blocking activity logging (queue) | ✅ | AWS CloudWatch/SQS |
 | **Reliability** | Circuit breaker pattern | ✅ | Netflix Hystrix |
 | **Compliance** | RFC 5545 ICS (CREATED, LAST-MODIFIED, TRANSP, CLASS) | ✅ | Apple/Google |
 | **Compliance** | CN parameter quoting (special chars) | ✅ | RFC 5545 |
@@ -225,13 +226,14 @@ if (!req.hasPermission('cases', 'edit')) {
 
 ## What IS vs IS NOT Centralized
 
-### Centralized (Middleware handles automatically)
+### Centralized (Middleware/Services handle automatically)
 | What | Where | Notes |
 |------|-------|-------|
 | `req.firmQuery` | authenticatedApi.middleware.js | Set ONCE per request |
 | `req.hasPermission()` | authenticatedApi.middleware.js | Permission checker function |
 | `req.addFirmId()` | authenticatedApi.middleware.js | Helper for creating records |
 | Route validation | authenticatedApi.middleware.js | Path normalization for v1/v2 |
+| `QueueService.logActivity()` | queue.service.js + activity.queue.js | Fire-and-forget CRM activity logging |
 
 ### NOT Centralized (Must do in EVERY controller)
 | What | Why | Example |
@@ -622,4 +624,111 @@ async function runJob() {
 function scheduleJob() {
     cron.schedule('30 * * * *', runJob);  // Every hour at :30
 }
+```
+
+---
+
+## 📊 Activity Logging (Centralized Queue) - MANDATORY
+
+**All CRM activity logging MUST use `QueueService.logActivity()` - NEVER use `CrmActivity.logActivity()` directly.**
+
+### Why This Matters
+
+| Method | Response Time | Blocking? | Retry? | Can Fail Request? |
+|--------|---------------|-----------|--------|-------------------|
+| ❌ `CrmActivity.logActivity()` | 30ms | Yes | No | Yes - breaks user operation |
+| ✅ `QueueService.logActivity()` | 2ms | No | Yes (3x) | No - fire-and-forget |
+
+### Gold Standard Pattern
+
+**AWS CloudWatch, Google Pub/Sub, Microsoft Event Grid - auxiliary operations NEVER block primary operations.**
+
+```javascript
+// ✅ CORRECT - Fire-and-forget queue (no await needed)
+const QueueService = require('../services/queue.service');
+
+// After successful operation (create, update, delete, etc.)
+QueueService.logActivity({
+    lawyerId: req.userID,
+    firmId: req.firmId,                    // Optional for firm members
+    type: 'appointment_deleted',           // Must match CrmActivity enum
+    entityType: 'appointment',             // Must match CrmActivity enum
+    entityId: appointment._id,
+    entityName: appointment.appointmentNumber,
+    title: `Appointment deleted: ${appointment.appointmentNumber}`,
+    description: `Deleted appointment with ${appointment.customerName}`,
+    performedBy: req.userID
+});
+
+// ❌ WRONG - Blocking, can fail the entire request
+await CrmActivity.logActivity({...});  // If this fails, user sees 500 error
+```
+
+### Files That Use This Pattern (Reference)
+
+All these files use `QueueService.logActivity()`:
+- `appointment.controller.js` (8 calls)
+- `case.controller.js` (10 calls)
+- `salesPrioritization.service.js` (7 calls)
+- `lead.controller.js` (4 calls)
+- `client.controller.js` (4 calls)
+- `salesStage.controller.js` (4 calls)
+- `leadConversion.controller.js` (4 calls)
+- `leadSource.controller.js` (3 calls)
+- `salesPerson.controller.js` (3 calls)
+- `crmSettings.controller.js` (3 calls)
+- `whatsapp.service.js` (1 call)
+
+### Activity Types (CrmActivity Enum)
+
+When adding a new activity type, ensure it exists in `src/models/crmActivity.model.js`:
+
+```javascript
+// Leads
+'lead_created', 'lead_updated', 'lead_converted', 'lead_escalated', 'lead_reengaged'
+
+// Cases
+'case_created', 'case_updated', 'case_deleted', 'case_created_from_lead',
+'case_won', 'case_lost', 'stage_changed'
+
+// Appointments
+'appointment_created', 'appointment_updated', 'appointment_deleted',
+'appointment_cancelled', 'appointment_completed', 'appointment_confirmed',
+'appointment_rescheduled', 'appointment_no_show', 'appointment_synced'
+
+// Sales Stages
+'sales_stage_created', 'sales_stage_updated', 'sales_stage_deleted', 'sales_stages_reordered'
+
+// Lead Sources
+'lead_source_created', 'lead_source_updated', 'lead_source_deleted'
+
+// Sales Persons
+'sales_person_created', 'sales_person_updated', 'sales_person_deleted'
+
+// Settings
+'settings_updated', 'settings_reset'
+```
+
+### Entity Types (CrmActivity Enum)
+
+```javascript
+'lead', 'client', 'contact', 'case', 'organization',
+'appointment', 'sales_stage', 'lead_source', 'sales_person', 'settings'
+```
+
+### Queue Infrastructure
+
+| Component | Location | Purpose |
+|-----------|----------|---------|
+| Queue Processor | `src/queues/activity.queue.js` | Processes activity jobs |
+| Queue Service | `src/services/queue.service.js` | Provides `logActivity()` method |
+| Queue Config | `src/configs/queue.js` | Bull + Redis configuration |
+
+### Verification Command
+
+Before completing any task involving activity logging, verify no direct calls remain:
+
+```bash
+# Should return 0 matches (only imports and model definition allowed)
+grep -r "CrmActivity.logActivity" src/controllers/ src/services/
 ```
