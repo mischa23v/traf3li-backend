@@ -157,11 +157,15 @@ const crmActivitySchema = new mongoose.Schema({
             'case_deleted',   // حذف قضية
 
             // Appointments
-            'appointment_created',   // إنشاء موعد
-            'appointment_updated',   // تحديث موعد
-            'appointment_deleted',   // حذف موعد
-            'appointment_cancelled', // إلغاء موعد
-            'appointment_completed', // إكمال موعد
+            'appointment_created',     // إنشاء موعد
+            'appointment_updated',     // تحديث موعد
+            'appointment_deleted',     // حذف موعد
+            'appointment_cancelled',   // إلغاء موعد
+            'appointment_completed',   // إكمال موعد
+            'appointment_confirmed',   // تأكيد موعد
+            'appointment_rescheduled', // إعادة جدولة موعد
+            'appointment_no_show',     // عدم حضور
+            'appointment_synced',      // مزامنة موعد
 
             // Other
             'other'

@@ -992,6 +992,7 @@ exports.create = async (req, res) => {
         try {
             await CrmActivity.logActivity({
                 lawyerId: userId,
+                firmId: req.firmId,
                 type: 'appointment_created',
                 entityType: 'appointment',
                 entityId: appointment._id,
@@ -1303,16 +1304,21 @@ exports.update = async (req, res) => {
             { path: 'caseId', select: 'title caseNumber' }
         ]);
 
-        // Log activity
-        await CrmActivity.logActivity({
-            lawyerId: userId,
-            type: 'appointment_updated',
-            entityType: 'appointment',
-            entityId: appointment._id,
-            entityName: appointment.appointmentNumber,
-            title: `Appointment updated: ${appointment.appointmentNumber}`,
-            performedBy: userId
-        });
+        // Log activity (non-blocking - don't fail request if activity logging fails)
+        try {
+            await CrmActivity.logActivity({
+                lawyerId: userId,
+                firmId: req.firmId,
+                type: 'appointment_updated',
+                entityType: 'appointment',
+                entityId: appointment._id,
+                entityName: appointment.appointmentNumber,
+                title: `Appointment updated: ${appointment.appointmentNumber}`,
+                performedBy: userId
+            });
+        } catch (activityError) {
+            logger.warn('Activity logging failed (non-blocking):', activityError.message);
+        }
 
         // Gold Standard: Sync update to connected calendars
         let calendarSync = null;
@@ -1558,17 +1564,22 @@ exports.complete = async (req, res) => {
             logger.warn('Calendar complete sync failed (non-blocking):', syncError.message);
         }
 
-        // Log activity
-        await CrmActivity.logActivity({
-            lawyerId: userId,
-            type: 'appointment_completed',
-            entityType: 'appointment',
-            entityId: appointment._id,
-            entityName: appointment.appointmentNumber,
-            title: `Appointment completed: ${appointment.appointmentNumber}`,
-            description: safeData.outcome,
-            performedBy: userId
-        });
+        // Log activity (non-blocking - don't fail request if activity logging fails)
+        try {
+            await CrmActivity.logActivity({
+                lawyerId: userId,
+                firmId: req.firmId,
+                type: 'appointment_completed',
+                entityType: 'appointment',
+                entityId: appointment._id,
+                entityName: appointment.appointmentNumber,
+                title: `Appointment completed: ${appointment.appointmentNumber}`,
+                description: safeData.outcome,
+                performedBy: userId
+            });
+        } catch (activityError) {
+            logger.warn('Activity logging failed (non-blocking):', activityError.message);
+        }
 
         res.json({
             success: true,
@@ -1636,16 +1647,21 @@ exports.markNoShow = async (req, res) => {
             logger.warn('Calendar no-show sync failed (non-blocking):', syncError.message);
         }
 
-        // Log activity
-        await CrmActivity.logActivity({
-            lawyerId: userId,
-            type: 'appointment_no_show',
-            entityType: 'appointment',
-            entityId: appointment._id,
-            entityName: appointment.appointmentNumber,
-            title: `No-show: ${appointment.appointmentNumber}`,
-            performedBy: userId
-        });
+        // Log activity (non-blocking - don't fail request if activity logging fails)
+        try {
+            await CrmActivity.logActivity({
+                lawyerId: userId,
+                firmId: req.firmId,
+                type: 'appointment_no_show',
+                entityType: 'appointment',
+                entityId: appointment._id,
+                entityName: appointment.appointmentNumber,
+                title: `No-show: ${appointment.appointmentNumber}`,
+                performedBy: userId
+            });
+        } catch (activityError) {
+            logger.warn('Activity logging failed (non-blocking):', activityError.message);
+        }
 
         res.json({
             success: true,
@@ -1713,16 +1729,21 @@ exports.confirm = async (req, res) => {
             logger.warn('Calendar confirm sync failed (non-blocking):', syncError.message);
         }
 
-        // Log activity
-        await CrmActivity.logActivity({
-            lawyerId: userId,
-            type: 'appointment_confirmed',
-            entityType: 'appointment',
-            entityId: appointment._id,
-            entityName: appointment.appointmentNumber,
-            title: `Appointment confirmed: ${appointment.appointmentNumber}`,
-            performedBy: userId
-        });
+        // Log activity (non-blocking - don't fail request if activity logging fails)
+        try {
+            await CrmActivity.logActivity({
+                lawyerId: userId,
+                firmId: req.firmId,
+                type: 'appointment_confirmed',
+                entityType: 'appointment',
+                entityId: appointment._id,
+                entityName: appointment.appointmentNumber,
+                title: `Appointment confirmed: ${appointment.appointmentNumber}`,
+                performedBy: userId
+            });
+        } catch (activityError) {
+            logger.warn('Activity logging failed (non-blocking):', activityError.message);
+        }
 
         res.json({
             success: true,
@@ -2815,17 +2836,22 @@ exports.reschedule = async (req, res) => {
         appointment.scheduledTime = newScheduledTime;
         await appointment.save();
 
-        // Log activity
-        await CrmActivity.logActivity({
-            lawyerId: userId,
-            type: 'appointment_rescheduled',
-            entityType: 'appointment',
-            entityId: appointment._id,
-            entityName: appointment.appointmentNumber,
-            title: `Appointment rescheduled: ${appointment.appointmentNumber}`,
-            description: `Rescheduled to ${newScheduledTime.toISOString()}`,
-            performedBy: userId
-        });
+        // Log activity (non-blocking - don't fail request if activity logging fails)
+        try {
+            await CrmActivity.logActivity({
+                lawyerId: userId,
+                firmId: req.firmId,
+                type: 'appointment_rescheduled',
+                entityType: 'appointment',
+                entityId: appointment._id,
+                entityName: appointment.appointmentNumber,
+                title: `Appointment rescheduled: ${appointment.appointmentNumber}`,
+                description: `Rescheduled to ${newScheduledTime.toISOString()}`,
+                performedBy: userId
+            });
+        } catch (activityError) {
+            logger.warn('Activity logging failed (non-blocking):', activityError.message);
+        }
 
         // Gold Standard: Sync reschedule to connected calendars
         let calendarSync = null;
@@ -3093,16 +3119,21 @@ exports.syncToCalendar = async (req, res) => {
             );
         }
 
-        // Log activity
-        await CrmActivity.logActivity({
-            lawyerId: req.userID,
-            type: 'appointment_synced',
-            entityType: 'appointment',
-            entityId: appointment._id,
-            entityName: appointment.appointmentNumber,
-            title: `Appointment synced to calendar: ${appointment.appointmentNumber}`,
-            performedBy: req.userID
-        });
+        // Log activity (non-blocking - don't fail request if activity logging fails)
+        try {
+            await CrmActivity.logActivity({
+                lawyerId: req.userID,
+                firmId: req.firmId,
+                type: 'appointment_synced',
+                entityType: 'appointment',
+                entityId: appointment._id,
+                entityName: appointment.appointmentNumber,
+                title: `Appointment synced to calendar: ${appointment.appointmentNumber}`,
+                performedBy: req.userID
+            });
+        } catch (activityError) {
+            logger.warn('Activity logging failed (non-blocking):', activityError.message);
+        }
 
         res.json({
             success: true,
