@@ -344,6 +344,61 @@ app.get('/', userMiddleware, firmFilter, getItems);  // DON'T DO THIS
 
 ---
 
+## Activity Logging (Gold Standard - Non-Blocking Queue Pattern)
+
+**ALL activity logging MUST use QueueService - NEVER use model methods directly.**
+
+Activity logging is a non-critical operation that should never block or fail the primary business operation.
+
+### Available Queue Methods
+
+| Method | Model | Use For |
+|--------|-------|---------|
+| `QueueService.logActivity()` | CrmActivity | CRM-related activities (calls, emails, meetings) |
+| `QueueService.logBillingActivity()` | BillingActivity | Billing activities (invoices, payments, expenses) |
+| `QueueService.logTeamActivity()` | TeamActivityLog | Team/staff activities (approvals, permissions) |
+| `QueueService.logCaseAudit()` | CaseAuditLog | Case-specific audit trail |
+| `QueueService.logAudit()` | AuditLog | General audit logging |
+
+### Usage Pattern
+
+```javascript
+const QueueService = require('../services/queue.service');
+
+// ✅ CORRECT - Fire-and-forget (non-blocking)
+QueueService.logBillingActivity({
+    activityType: 'invoice_created',
+    userId: req.userID,
+    firmId: req.firmId,
+    relatedModel: 'Invoice',
+    relatedId: invoice._id,
+    description: `Invoice ${invoice.invoiceNumber} created`,
+    ipAddress: req.ip,
+    userAgent: req.get('user-agent')
+});
+
+// ❌ WRONG - Direct model call (blocking, can fail request)
+await BillingActivity.logActivity({...});
+
+// ❌ WRONG - Awaiting queue call (defeats non-blocking purpose)
+await QueueService.logBillingActivity({...});
+```
+
+### Benefits
+- **Non-blocking**: API responds immediately, logging happens in background
+- **Resilient**: Logging failures never break business operations
+- **Guaranteed delivery**: Queue retries failed jobs with exponential backoff
+- **Performance**: 2ms queue push vs 30ms+ DB write
+
+### Queue Files Location
+- `/src/queues/activity.queue.js` - CRM activities
+- `/src/queues/billingActivity.queue.js` - Billing activities
+- `/src/queues/teamActivity.queue.js` - Team activities
+- `/src/queues/caseAudit.queue.js` - Case audits
+- `/src/queues/audit.queue.js` - General audit
+
+---
+
 ## OAuth & External Integration Patterns (Critical)
 
 ### OAuth State Security (CSRF Protection)

@@ -19,7 +19,8 @@
  */
 
 const mongoose = require('mongoose');
-const { Invoice, Case, Order, User, Payment, Retainer, BillingActivity } = require('../models');
+const { Invoice, Case, Order, User, Payment, Retainer } = require('../models');
+const QueueService = require('./queue.service');
 const { CustomException } = require('../utils');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const logger = require('../utils/logger');
@@ -299,8 +300,8 @@ const createInvoice = async (data, firmId, userId, context = {}) => {
             }
         }
 
-        // Log activity
-        await BillingActivity.logActivity({
+        // Fire-and-forget: Queue the billing activity log
+        QueueService.logBillingActivity({
             activityType: 'invoice_created',
             userId,
             clientId,
@@ -478,8 +479,8 @@ const sendInvoice = async (invoiceId, firmId, userId, context = {}) => {
         // const emailService = require('./email.service');
         // await emailService.sendInvoice(invoice, invoice.clientId);
 
-        // Log activity
-        await BillingActivity.logActivity({
+        // Fire-and-forget: Queue the billing activity log
+        QueueService.logBillingActivity({
             activityType: 'invoice_sent',
             userId,
             clientId: invoice.clientId._id || invoice.clientId,
@@ -584,8 +585,8 @@ const voidInvoice = async (invoiceId, reason, firmId, userId, context = {}) => {
 
         await invoice.save();
 
-        // Log activity
-        await BillingActivity.logActivity({
+        // Fire-and-forget: Queue the billing activity log
+        QueueService.logBillingActivity({
             activityType: 'invoice_voided',
             userId,
             relatedModel: 'Invoice',
@@ -684,15 +685,14 @@ const applyPayment = async (invoiceId, paymentData, firmId, userId, context = {}
 
         await invoice.save();
 
-        // Log activity
-        await BillingActivity.logActivity({
+        // Fire-and-forget: Queue the billing activity log
+        QueueService.logBillingActivity({
             activityType: 'payment_received',
             userId,
             clientId: invoice.clientId,
             relatedModel: 'Payment',
             relatedId: payment._id,
             description: `Payment of ${fromHalalas(amount)} SAR received for invoice ${invoice.invoiceNumber}`,
-            amount,
             ipAddress: context.ipAddress,
             userAgent: context.userAgent
         });

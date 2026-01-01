@@ -1,4 +1,5 @@
-const { Vendor, BillingActivity } = require('../models');
+const { Vendor } = require('../models');
+const QueueService = require('../services/queue.service');
 const { CustomException } = require('../utils');
 const asyncHandler = require('../utils/asyncHandler');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
@@ -415,7 +416,8 @@ const createVendor = asyncHandler(async (req, res) => {
 
     const vendor = await Vendor.create(vendorData);
 
-    await BillingActivity.logActivity({
+    // Fire-and-forget: Queue the billing activity log
+    QueueService.logBillingActivity({
         activityType: 'vendor_created',
         userId: lawyerId,
         relatedModel: 'Vendor',

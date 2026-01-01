@@ -1,4 +1,5 @@
-const { BillingRate, BillingActivity } = require('../models');
+const { BillingRate } = require('../models');
+const QueueService = require('../services/queue.service');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
@@ -88,8 +89,8 @@ const createRate = asyncHandler(async (req, res) => {
         createdBy: lawyerId
     });
 
-    // Log activity
-    await BillingActivity.logActivity({
+    // Fire-and-forget: Queue the billing activity log
+    QueueService.logBillingActivity({
         activityType: 'billing_rate_created',
         userId: lawyerId,
         relatedModel: 'BillingRate',
@@ -252,9 +253,9 @@ const updateRate = asyncHandler(async (req, res) => {
 
     await billingRate.save();
 
-    // Log activity
+    // Fire-and-forget: Queue the billing activity log
     if (Object.keys(changes).length > 0) {
-        await BillingActivity.logActivity({
+        QueueService.logBillingActivity({
             activityType: 'billing_rate_updated',
             userId: lawyerId,
             relatedModel: 'BillingRate',

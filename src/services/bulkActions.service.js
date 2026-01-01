@@ -27,8 +27,7 @@ const {
   Client,
   Payment,
   Expense,
-  Case,
-  TeamActivityLog
+  Case
 } = require('../models');
 const TimeEntry = require('../models/timeEntry.model');
 const QueueService = require('./queue.service');
@@ -218,7 +217,7 @@ class BulkActionsService {
     }
 
     // Log activity
-    await TeamActivityLog.log({
+    QueueService.logTeamActivity({
       firmId,
       userId,
       action: `bulk_${actionType}`,
@@ -376,7 +375,7 @@ class BulkActionsService {
       );
 
       // Log activity
-      await TeamActivityLog.log({
+      QueueService.logTeamActivity({
         firmId,
         userId,
         action: `bulk_${actionType}_completed`,

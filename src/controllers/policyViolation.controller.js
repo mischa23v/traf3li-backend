@@ -12,7 +12,7 @@
  * Integrates with the policy enforcement service for centralized violation management.
  */
 
-const { TeamActivityLog } = require('../models');
+const QueueService = require('../services/queue.service');
 const PolicyEnforcementService = require('../services/policyEnforcement.service');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
@@ -272,7 +272,7 @@ const acknowledgeViolation = asyncHandler(async (req, res) => {
     }
 
     // Log activity
-    await TeamActivityLog.log({
+    QueueService.logTeamActivity({
         firmId,
         userId,
         action: 'acknowledge',
@@ -351,7 +351,7 @@ const requestOverride = asyncHandler(async (req, res) => {
     }
 
     // Log activity
-    await TeamActivityLog.log({
+    QueueService.logTeamActivity({
         firmId,
         userId,
         action: 'request_override',
@@ -422,7 +422,7 @@ const approveOverride = asyncHandler(async (req, res) => {
     }
 
     // Log activity
-    await TeamActivityLog.log({
+    QueueService.logTeamActivity({
         firmId,
         userId,
         action: 'approve_override',
@@ -500,7 +500,7 @@ const rejectOverride = asyncHandler(async (req, res) => {
     }
 
     // Log activity
-    await TeamActivityLog.log({
+    QueueService.logTeamActivity({
         firmId,
         userId,
         action: 'reject_override',
@@ -580,7 +580,7 @@ const resolveViolation = asyncHandler(async (req, res) => {
     }
 
     // Log activity
-    await TeamActivityLog.log({
+    QueueService.logTeamActivity({
         firmId,
         userId,
         action: 'resolve',
@@ -669,7 +669,7 @@ const escalateViolation = asyncHandler(async (req, res) => {
     }
 
     // Log activity
-    await TeamActivityLog.log({
+    QueueService.logTeamActivity({
         firmId,
         userId,
         action: 'escalate',
@@ -844,7 +844,7 @@ const bulkAcknowledge = asyncHandler(async (req, res) => {
     );
 
     // Log activity
-    await TeamActivityLog.log({
+    QueueService.logTeamActivity({
         firmId,
         userId,
         action: 'bulk_acknowledge',

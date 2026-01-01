@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
-const { BillPayment, Bill, Vendor, BankAccount, BillingActivity } = require('../models');
+const { BillPayment, Bill, Vendor, BankAccount } = require('../models');
+const QueueService = require('../services/queue.service');
 const { CustomException } = require('../utils');
 const asyncHandler = require('../utils/asyncHandler');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
@@ -231,8 +232,8 @@ const createPayment = asyncHandler(async (req, res) => {
         .populate('vendorId', 'name vendorId')
         .populate('bankAccountId', 'name bankName');
 
-    // Log activity (outside transaction for performance)
-    await BillingActivity.logActivity({
+    // Fire-and-forget: Queue the billing activity log
+    QueueService.logBillingActivity({
         activityType: 'bill_payment_created',
         userId: lawyerId,
         relatedModel: 'BillPayment',
@@ -394,7 +395,8 @@ const cancelPayment = asyncHandler(async (req, res) => {
             .populate('billId', 'billNumber totalAmount balanceDue status')
             .populate('vendorId', 'name vendorId');
 
-        await BillingActivity.logActivity({
+        // Fire-and-forget: Queue the billing activity log
+        QueueService.logBillingActivity({
             activityType: 'bill_payment_cancelled',
             userId: lawyerId,
             relatedModel: 'BillPayment',

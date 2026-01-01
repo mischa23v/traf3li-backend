@@ -1,4 +1,5 @@
-const { BankTransaction, BankAccount, BillingActivity } = require('../models');
+const { BankTransaction, BankAccount } = require('../models');
+const QueueService = require('../services/queue.service');
 const { CustomException } = require('../utils');
 const asyncHandler = require('../utils/asyncHandler');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
@@ -102,8 +103,8 @@ const createTransaction = asyncHandler(async (req, res) => {
         // Commit the transaction
         await session.commitTransaction();
 
-        // Log activity after successful transaction
-        await BillingActivity.logActivity({
+        // Fire-and-forget: Queue the billing activity log
+        QueueService.logBillingActivity({
             activityType: 'bank_transaction_created',
             userId: lawyerId,
             relatedModel: 'BankTransaction',
@@ -329,7 +330,8 @@ const importTransactions = asyncHandler(async (req, res) => {
         batchId
     );
 
-    await BillingActivity.logActivity({
+    // Fire-and-forget: Queue the billing activity log
+    QueueService.logBillingActivity({
         activityType: 'bank_transactions_imported',
         userId: lawyerId,
         relatedModel: 'BankAccount',

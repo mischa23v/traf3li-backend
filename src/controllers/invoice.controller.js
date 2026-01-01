@@ -8,7 +8,7 @@
 
 const mongoose = require('mongoose');
 const Joi = require('joi');
-const { Invoice, Case, Order, User, Payment, Retainer, BillingActivity } = require('../models');
+const { Invoice, Case, Order, User, Payment, Retainer } = require('../models');
 const { CustomException } = require('../utils');
 const asyncHandler = require('../utils/asyncHandler');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
@@ -16,6 +16,7 @@ const { sanitizeFilename } = require('../utils/sanitize');
 const webhookService = require('../services/webhook.service');
 const stripe = require('stripe')(process.env.STRIPE_SECRET);
 const logger = require('../utils/logger');
+const QueueService = require('../services/queue.service');
 const {
     generateQRCode,
     generateInvoiceHash,
@@ -365,8 +366,8 @@ const createInvoice = asyncHandler(async (req, res) => {
             }
         }
 
-        // Log activity
-        await BillingActivity.logActivity({
+        // Fire-and-forget: Queue the billing activity log
+        QueueService.logBillingActivity({
             activityType: 'invoice_created',
             userId: lawyerId,
             clientId,
@@ -375,7 +376,7 @@ const createInvoice = asyncHandler(async (req, res) => {
             description: `Invoice ${invoice.invoiceNumber} created for ${totalAmount} SAR`,
             ipAddress: req.ip,
             userAgent: req.get('user-agent')
-        }, { session });
+        });
 
         // Commit transaction
         await session.commitTransaction();
@@ -818,8 +819,8 @@ const deleteInvoice = asyncHandler(async (req, res) => {
         throw CustomException('Cannot delete paid invoices! Use void instead.', 400);
     }
 
-    // Log activity
-    await BillingActivity.logActivity({
+    // Fire-and-forget: Queue the billing activity log
+    QueueService.logBillingActivity({
         activityType: 'invoice_deleted',
         userId: req.userID,
         relatedModel: 'Invoice',
@@ -899,8 +900,8 @@ const sendInvoice = asyncHandler(async (req, res) => {
 
     // TODO: Send email notification to client
 
-    // Log activity
-    await BillingActivity.logActivity({
+    // Fire-and-forget: Queue the billing activity log
+    QueueService.logBillingActivity({
         activityType: 'invoice_sent',
         userId: req.userID,
         clientId: invoice.clientId._id || invoice.clientId,
@@ -1019,8 +1020,8 @@ const recordPayment = asyncHandler(async (req, res) => {
 
         await invoice.save({ session });
 
-        // Log activity
-        await BillingActivity.logActivity({
+        // Fire-and-forget: Queue the billing activity log
+        QueueService.logBillingActivity({
             activityType: 'payment_received',
             userId: req.userID,
             clientId: invoice.clientId,
@@ -1030,7 +1031,7 @@ const recordPayment = asyncHandler(async (req, res) => {
             amount,
             ipAddress: req.ip,
             userAgent: req.get('user-agent')
-        }, { session });
+        });
 
         // Commit transaction
         await session.commitTransaction();
@@ -1144,8 +1145,8 @@ const voidInvoice = asyncHandler(async (req, res) => {
 
         await invoice.save({ session });
 
-        // Log activity
-        await BillingActivity.logActivity({
+        // Fire-and-forget: Queue the billing activity log
+        QueueService.logBillingActivity({
             activityType: 'invoice_voided',
             userId: req.userID,
             relatedModel: 'Invoice',
@@ -1153,7 +1154,7 @@ const voidInvoice = asyncHandler(async (req, res) => {
             description: `Invoice ${invoice.invoiceNumber} voided. Reason: ${reason}`,
             ipAddress: req.ip,
             userAgent: req.get('user-agent')
-        }, { session });
+        });
 
         // Commit transaction
         await session.commitTransaction();
@@ -1313,8 +1314,8 @@ const sendReminder = asyncHandler(async (req, res) => {
 
     // TODO: Send email reminder
 
-    // Log activity
-    await BillingActivity.logActivity({
+    // Fire-and-forget: Queue the billing activity log
+    QueueService.logBillingActivity({
         activityType: 'invoice_reminder_sent',
         userId: req.userID,
         clientId: invoice.clientId._id || invoice.clientId,
@@ -2055,8 +2056,8 @@ const confirmPayment = asyncHandler(async (req, res) => {
             paymentDate: new Date()
         }], { session });
 
-        // Log activity
-        await BillingActivity.logActivity({
+        // Fire-and-forget: Queue the billing activity log
+        QueueService.logBillingActivity({
             activityType: 'invoice_paid',
             userId: invoice.clientId,
             clientId: invoice.clientId,
@@ -2066,7 +2067,7 @@ const confirmPayment = asyncHandler(async (req, res) => {
             amount: invoice.totalAmount,
             ipAddress: req.ip,
             userAgent: req.get('user-agent')
-        }, { session });
+        });
 
         // Commit transaction
         await session.commitTransaction();
@@ -2542,8 +2543,8 @@ const bulkDeleteInvoices = asyncHandler(async (req, res) => {
 
     const result = await Invoice.deleteMany(accessQuery);
 
-    // Log activity
-    await BillingActivity.logActivity({
+    // Fire-and-forget: Queue the billing activity log
+    QueueService.logBillingActivity({
         activityType: 'invoices_bulk_deleted',
         userId: lawyerId,
         relatedModel: 'Invoice',

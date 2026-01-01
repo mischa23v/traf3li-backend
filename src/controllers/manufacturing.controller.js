@@ -2,7 +2,7 @@ const manufacturingService = require('../services/manufacturing.service');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
-const { TeamActivityLog } = require('../models');
+const QueueService = require('../services/queue.service');
 
 /**
  * Manufacturing Controller
@@ -130,7 +130,7 @@ const createBOM = asyncHandler(async (req, res) => {
   }
 
   // Log activity
-  await TeamActivityLog.log({
+  QueueService.logTeamActivity({
     firmId,
     userId,
     action: 'create',
@@ -196,7 +196,7 @@ const updateBOM = asyncHandler(async (req, res) => {
   }
 
   // Log activity
-  await TeamActivityLog.log({
+  QueueService.logTeamActivity({
     firmId,
     userId,
     action: 'update',
@@ -248,7 +248,7 @@ const deleteBOM = asyncHandler(async (req, res) => {
   }
 
   // Log activity
-  await TeamActivityLog.log({
+  QueueService.logTeamActivity({
     firmId,
     userId,
     action: 'delete',
@@ -370,7 +370,7 @@ const createWorkstation = asyncHandler(async (req, res) => {
   }
 
   // Log activity
-  await TeamActivityLog.log({
+  QueueService.logTeamActivity({
     firmId,
     userId,
     action: 'create',
@@ -436,7 +436,7 @@ const updateWorkstation = asyncHandler(async (req, res) => {
   }
 
   // Log activity
-  await TeamActivityLog.log({
+  QueueService.logTeamActivity({
     firmId,
     userId,
     action: 'update',
@@ -488,7 +488,7 @@ const deleteWorkstation = asyncHandler(async (req, res) => {
   }
 
   // Log activity
-  await TeamActivityLog.log({
+  QueueService.logTeamActivity({
     firmId,
     userId,
     action: 'delete',
@@ -624,7 +624,7 @@ const createWorkOrder = asyncHandler(async (req, res) => {
   }
 
   // Log activity
-  await TeamActivityLog.log({
+  QueueService.logTeamActivity({
     firmId,
     userId,
     action: 'create',
@@ -685,7 +685,7 @@ const updateWorkOrder = asyncHandler(async (req, res) => {
   }
 
   // Log activity
-  await TeamActivityLog.log({
+  QueueService.logTeamActivity({
     firmId,
     userId,
     action: 'update',
@@ -732,7 +732,7 @@ const submitWorkOrder = asyncHandler(async (req, res) => {
   }
 
   // Log activity
-  await TeamActivityLog.log({
+  QueueService.logTeamActivity({
     firmId,
     userId,
     action: 'submit',
@@ -779,7 +779,7 @@ const startWorkOrder = asyncHandler(async (req, res) => {
   }
 
   // Log activity
-  await TeamActivityLog.log({
+  QueueService.logTeamActivity({
     firmId,
     userId,
     action: 'start',
@@ -826,7 +826,7 @@ const completeWorkOrder = asyncHandler(async (req, res) => {
   }
 
   // Log activity
-  await TeamActivityLog.log({
+  QueueService.logTeamActivity({
     firmId,
     userId,
     action: 'complete',
@@ -878,7 +878,7 @@ const cancelWorkOrder = asyncHandler(async (req, res) => {
   }
 
   // Log activity
-  await TeamActivityLog.log({
+  QueueService.logTeamActivity({
     firmId,
     userId,
     action: 'cancel',
@@ -930,7 +930,7 @@ const deleteWorkOrder = asyncHandler(async (req, res) => {
   }
 
   // Log activity
-  await TeamActivityLog.log({
+  QueueService.logTeamActivity({
     firmId,
     userId,
     action: 'delete',
@@ -1060,7 +1060,7 @@ const createJobCard = asyncHandler(async (req, res) => {
   }
 
   // Log activity
-  await TeamActivityLog.log({
+  QueueService.logTeamActivity({
     firmId,
     userId,
     action: 'create',
@@ -1120,7 +1120,7 @@ const updateJobCard = asyncHandler(async (req, res) => {
   }
 
   // Log activity
-  await TeamActivityLog.log({
+  QueueService.logTeamActivity({
     firmId,
     userId,
     action: 'update',
@@ -1167,7 +1167,7 @@ const startJobCard = asyncHandler(async (req, res) => {
   }
 
   // Log activity
-  await TeamActivityLog.log({
+  QueueService.logTeamActivity({
     firmId,
     userId,
     action: 'start',
@@ -1214,7 +1214,7 @@ const completeJobCard = asyncHandler(async (req, res) => {
   }
 
   // Log activity
-  await TeamActivityLog.log({
+  QueueService.logTeamActivity({
     firmId,
     userId,
     action: 'complete',
@@ -1331,7 +1331,7 @@ const updateSettings = asyncHandler(async (req, res) => {
   }
 
   // Log activity
-  await TeamActivityLog.log({
+  QueueService.logTeamActivity({
     firmId,
     userId,
     action: 'update',

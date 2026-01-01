@@ -1,4 +1,5 @@
-const { BankAccount, BillingActivity } = require('../models');
+const { BankAccount } = require('../models');
+const QueueService = require('../services/queue.service');
 const { CustomException } = require('../utils');
 const asyncHandler = require('../utils/asyncHandler');
 const { pickAllowedFields } = require('../utils/securityUtils');
@@ -143,7 +144,8 @@ const createBankAccount = asyncHandler(async (req, res) => {
         lawyerId
     });
 
-    await BillingActivity.logActivity({
+    // Fire-and-forget: Queue the billing activity log
+    QueueService.logBillingActivity({
         activityType: 'bank_account_created',
         userId: lawyerId,
         relatedModel: 'BankAccount',

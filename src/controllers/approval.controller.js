@@ -15,7 +15,8 @@
  * (ApprovalWorkflow/ApprovalInstance)
  */
 
-const { ApprovalRule, ApprovalRequest, TeamActivityLog } = require('../models');
+const { ApprovalRule, ApprovalRequest } = require('../models');
+const QueueService = require('../services/queue.service');
 const { ApprovalWorkflow, ApprovalInstance } = require('../models/approvalWorkflow.model');
 const ApprovalService = require('../services/approval.service');
 const asyncHandler = require('../utils/asyncHandler');
@@ -140,7 +141,7 @@ const createWorkflow = asyncHandler(async (req, res) => {
     });
 
     // Log activity
-    await TeamActivityLog.log({
+    QueueService.logTeamActivity({
         firmId,
         userId,
         action: 'create',
@@ -252,7 +253,7 @@ const updateWorkflow = asyncHandler(async (req, res) => {
     await workflow.save();
 
     // Log activity
-    await TeamActivityLog.log({
+    QueueService.logTeamActivity({
         firmId,
         userId,
         action: 'update',
@@ -322,7 +323,7 @@ const deleteWorkflow = asyncHandler(async (req, res) => {
     await workflow.deleteOne();
 
     // Log activity
-    await TeamActivityLog.log({
+    QueueService.logTeamActivity({
         firmId,
         userId,
         action: 'delete',
@@ -737,7 +738,7 @@ const updateApprovalRules = asyncHandler(async (req, res) => {
     const updated = await ApprovalRule.upsertRules(firmId, allowedData, userId);
 
     // Log activity
-    await TeamActivityLog.log({
+    QueueService.logTeamActivity({
         firmId,
         userId,
         action: 'update',
@@ -860,7 +861,7 @@ const approveRequest = asyncHandler(async (req, res) => {
     const approved = await ApprovalRequest.approve(sanitizedId, userId, comment);
 
     // Log activity
-    await TeamActivityLog.log({
+    QueueService.logTeamActivity({
         firmId,
         userId,
         action: 'approve',
@@ -945,7 +946,7 @@ const rejectRequest = asyncHandler(async (req, res) => {
     const rejected = await ApprovalRequest.reject(sanitizedId, userId, reason);
 
     // Log activity
-    await TeamActivityLog.log({
+    QueueService.logTeamActivity({
         firmId,
         userId,
         action: 'reject',

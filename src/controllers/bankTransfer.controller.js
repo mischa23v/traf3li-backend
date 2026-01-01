@@ -1,4 +1,5 @@
-const { BankTransfer, BankAccount, BillingActivity } = require('../models');
+const { BankTransfer, BankAccount } = require('../models');
+const QueueService = require('../services/queue.service');
 const { CustomException } = require('../utils');
 const asyncHandler = require('../utils/asyncHandler');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
@@ -187,8 +188,8 @@ const createTransfer = asyncHandler(async (req, res) => {
             .populate('fromAccountId', 'name bankName accountNumber')
             .populate('toAccountId', 'name bankName accountNumber');
 
-        // Log activity (outside transaction)
-        await BillingActivity.logActivity({
+        // Fire-and-forget: Queue the billing activity log
+        QueueService.logBillingActivity({
             activityType: 'bank_transfer_created',
             userId: lawyerId,
             relatedModel: 'BankTransfer',
@@ -401,7 +402,8 @@ const cancelTransfer = asyncHandler(async (req, res) => {
         .populate('fromAccountId', 'name bankName')
         .populate('toAccountId', 'name bankName');
 
-    await BillingActivity.logActivity({
+    // Fire-and-forget: Queue the billing activity log
+    QueueService.logBillingActivity({
         activityType: 'bank_transfer_cancelled',
         userId: lawyerId,
         relatedModel: 'BankTransfer',

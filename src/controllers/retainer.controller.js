@@ -1,4 +1,5 @@
-const { Retainer, Payment, Invoice, BillingActivity, Case } = require('../models');
+const { Retainer, Payment, Invoice, Case } = require('../models');
+const QueueService = require('../services/queue.service');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
 const { pickAllowedFields } = require('../utils/securityUtils');
@@ -200,8 +201,8 @@ const createRetainer = asyncHandler(async (req, res) => {
 
     await retainer.save();
 
-    // Log activity
-    await BillingActivity.logActivity({
+    // Fire-and-forget: Queue the billing activity log
+    QueueService.logBillingActivity({
         activityType: 'retainer_created',
         userId: lawyerId,
         clientId,
@@ -426,8 +427,8 @@ const consumeRetainer = asyncHandler(async (req, res) => {
             // Use the model method to consume (passes session for atomic operation)
             await retainer.consume(validatedAmount, invoiceId, description, session);
 
-            // Log activity within transaction
-            await BillingActivity.logActivity({
+            // Fire-and-forget: Queue the billing activity log (after transaction commits)
+            QueueService.logBillingActivity({
                 activityType: 'retainer_consumed',
                 userId: lawyerId,
                 clientId: retainer.clientId,
@@ -514,8 +515,8 @@ const replenishRetainer = asyncHandler(async (req, res) => {
             // Use the model method to replenish (passes session for atomic operation)
             await retainer.replenish(validatedAmount, paymentId, session);
 
-            // Log activity within transaction
-            await BillingActivity.logActivity({
+            // Fire-and-forget: Queue the billing activity log (after transaction commits)
+            QueueService.logBillingActivity({
                 activityType: 'retainer_replenished',
                 userId: lawyerId,
                 clientId: retainer.clientId,
@@ -580,8 +581,8 @@ const refundRetainer = asyncHandler(async (req, res) => {
             retainer.currentBalance = 0;
             await retainer.save({ session });
 
-            // Log activity within transaction
-            await BillingActivity.logActivity({
+            // Fire-and-forget: Queue the billing activity log (after transaction commits)
+            QueueService.logBillingActivity({
                 activityType: 'retainer_refunded',
                 userId: lawyerId,
                 clientId: retainer.clientId,

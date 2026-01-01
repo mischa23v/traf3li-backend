@@ -13,7 +13,8 @@
 
 const crypto = require('crypto');
 const mongoose = require('mongoose');
-const { Staff, User, Firm, TeamActivityLog, FirmInvitation } = require('../models');
+const { Staff, User, Firm, FirmInvitation } = require('../models');
+const QueueService = require('../services/queue.service');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
 const { ROLE_PERMISSIONS, getDefaultPermissions } = require('../config/permissions.config');
@@ -74,20 +75,16 @@ const ALLOWED_UPDATE_FIELDS = [
 /**
  * Log team activity
  */
-const logActivity = async (firmId, userId, action, targetType, targetId, details = {}) => {
-    try {
-        await TeamActivityLog.log({
-            firmId,
-            userId,
-            action,
-            targetType,
-            targetId,
-            details,
-            timestamp: new Date()
-        });
-    } catch (error) {
-        logger.error('Failed to log team activity:', error.message);
-    }
+const logActivity = (firmId, userId, action, targetType, targetId, details = {}) => {
+    QueueService.logTeamActivity({
+        firmId,
+        userId,
+        action,
+        targetType,
+        targetId,
+        details,
+        timestamp: new Date()
+    });
 };
 
 /**
