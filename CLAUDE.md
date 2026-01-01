@@ -2,22 +2,424 @@
 
 ---
 
+## 🚨 POST-REPLY CHECKLIST (RUN AFTER EVERY IMPLEMENTATION)
+
+**After EVERY code implementation, Claude MUST run through this checklist and show results to user.**
+
+### Format to Display:
+
+```
+## ✅ Post-Implementation Checklist
+
+### Feature Completeness (Did I implement ALL controls?)
+| Control | Status | Notes |
+|---------|--------|-------|
+| Create | ✅/❌/N/A | |
+| Read (single) | ✅/❌/N/A | |
+| Read (list with pagination) | ✅/❌/N/A | |
+| Update | ✅/❌/N/A | |
+| Delete | ✅/❌/N/A | |
+| Bulk delete | ✅/❌/N/A | |
+| Bulk update | ✅/❌/N/A | |
+| Search/filter | ✅/❌/N/A | |
+| Export (CSV/PDF) | ✅/❌/N/A | |
+| Import | ✅/❌/N/A | |
+
+### Security Checklist
+| Check | Status |
+|-------|--------|
+| Uses `...req.firmQuery` in ALL queries | ✅/❌ |
+| Uses `req.addFirmId()` for creates | ✅/❌ |
+| Uses `sanitizeObjectId()` for IDs | ✅/❌ |
+| Uses `pickAllowedFields()` for req.body | ✅/❌ |
+| Uses `escapeRegex()` for search | ✅/❌ |
+| Permission check with `req.hasPermission()` | ✅/❌ |
+| No `findById()` used (IDOR prevention) | ✅/❌ |
+| Activity logging via QueueService | ✅/❌ |
+
+### Error Handling
+| Check | Status |
+|-------|--------|
+| Returns proper HTTP status codes | ✅/❌ |
+| Uses `CustomException` for errors | ✅/❌ |
+| No sensitive data in error messages | ✅/❌ |
+| Validation errors are clear | ✅/❌ |
+
+### Code Quality
+| Check | Status |
+|-------|--------|
+| Follows existing patterns in codebase | ✅/❌ |
+| Route file updated | ✅/❌ |
+| Validator file created/updated | ✅/❌ |
+| No TODO/FIXME left behind | ✅/❌ |
+
+**Overall: X/Y checks passed**
+**Missing items: [list what's missing]**
+```
+
+---
+
 ## 📋 COMPLETION REQUIREMENTS
 
 **When completing ANY task, Claude MUST:**
 
-1. **Provide a Score out of 100** - Rate the work quality based on:
+1. **Run Post-Reply Checklist** (above) - Show the table with status
+
+2. **Provide a Score out of 100** - Rate the work quality based on:
    - Security compliance (25 points)
    - Code quality & patterns (25 points)
    - Completeness of implementation (25 points)
    - Documentation & standards (25 points)
 
-2. **Create a Pull Request** - Always push changes and provide PR details:
+3. **Create a Pull Request** - Always push changes and provide PR details:
    - Branch name
    - Title
    - Summary of changes
    - Files modified
    - Link to create PR
+
+---
+
+## 🎯 FEATURE COMPLETENESS MATRIX
+
+**When implementing ANY new feature/resource, ALL applicable controls MUST be implemented.**
+
+### CRUD Operations (Minimum Required)
+
+| Operation | Endpoint | Controller Method | Required? |
+|-----------|----------|-------------------|-----------|
+| **Create** | `POST /` | `create()` | ✅ Always |
+| **Read One** | `GET /:id` | `getById()` | ✅ Always |
+| **Read List** | `GET /` | `getAll()` | ✅ Always |
+| **Update** | `PUT /:id` or `PATCH /:id` | `update()` | ✅ Always |
+| **Delete** | `DELETE /:id` | `delete()` | ✅ Always |
+
+### Extended Operations (When Applicable)
+
+| Operation | Endpoint | When Required |
+|-----------|----------|---------------|
+| **Bulk Delete** | `DELETE /bulk` | If list view has multi-select |
+| **Bulk Update** | `PATCH /bulk` | If bulk status changes needed |
+| **Search** | `GET /?search=` | If list has search box |
+| **Filter** | `GET /?status=&type=` | If list has filters |
+| **Sort** | `GET /?sortBy=&order=` | If list has sortable columns |
+| **Pagination** | `GET /?page=&limit=` | ✅ Always for lists |
+| **Export CSV** | `GET /export/csv` | If "Export" button exists |
+| **Export PDF** | `GET /export/pdf` | If "Print" or PDF button exists |
+| **Import** | `POST /import` | If bulk data entry needed |
+| **Archive** | `PATCH /:id/archive` | If soft delete with restore |
+| **Restore** | `PATCH /:id/restore` | If archive exists |
+| **Clone/Duplicate** | `POST /:id/clone` | If "Duplicate" button exists |
+
+### Example: Reminder Feature
+
+If user asks "Add reminders feature", you MUST implement:
+
+```
+✅ POST   /api/reminders           - Create reminder
+✅ GET    /api/reminders           - List with pagination, search, filter
+✅ GET    /api/reminders/:id       - Get single reminder
+✅ PUT    /api/reminders/:id       - Update reminder
+✅ DELETE /api/reminders/:id       - Delete reminder
+✅ DELETE /api/reminders/bulk      - Bulk delete (for multi-select)
+✅ PATCH  /api/reminders/:id/snooze - Snooze (domain-specific)
+✅ PATCH  /api/reminders/:id/dismiss - Dismiss (domain-specific)
+✅ GET    /api/reminders/upcoming   - List upcoming (domain-specific)
+```
+
+### Domain-Specific Operations to Consider
+
+| Domain | Common Operations |
+|--------|-------------------|
+| **Appointments** | book, reschedule, confirm, cancel, complete, markNoShow |
+| **Invoices** | send, markPaid, void, clone, generatePDF |
+| **Cases** | open, close, archive, changeStatus, assignLawyer |
+| **Documents** | upload, download, share, revoke, version |
+| **Tasks** | assign, complete, reopen, prioritize |
+| **Reminders** | snooze, dismiss, setTime, recurring |
+| **Payments** | refund, void, retry |
+| **Clients** | merge, archive, export |
+
+---
+
+## 🔒 SECURITY CHECKLIST (Every Endpoint)
+
+### Pre-Implementation Security Requirements
+
+Before writing ANY controller code, verify:
+
+```
+□ 1. Model has firmId/lawyerId fields
+□ 2. Model uses globalFirmIsolation plugin
+□ 3. Route is under /api (gets authenticatedApi middleware)
+□ 4. Required imports are added
+```
+
+### Required Controller Imports
+
+```javascript
+const { CustomException } = require('../utils');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+const QueueService = require('../services/queue.service');
+const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+```
+
+### Per-Operation Security Checklist
+
+#### CREATE Operation
+```
+□ Uses pickAllowedFields() to whitelist fields
+□ Uses req.addFirmId() to add tenant context
+□ Logs activity via QueueService (non-blocking)
+□ Returns 201 status code
+□ Validates required fields exist
+```
+
+#### READ (Single) Operation
+```
+□ Uses sanitizeObjectId() on req.params.id
+□ Uses findOne({ _id, ...req.firmQuery }) NOT findById()
+□ Returns 404 if not found
+□ Does NOT expose internal fields (_id transformation optional)
+```
+
+#### READ (List) Operation
+```
+□ Uses ...req.firmQuery in query
+□ Supports pagination (page, limit with defaults)
+□ Uses escapeRegex() for search parameter
+□ Limits fields returned (projection)
+□ Has reasonable max limit (e.g., 100)
+```
+
+#### UPDATE Operation
+```
+□ Uses sanitizeObjectId() on req.params.id
+□ Uses findOne + .save() if pre-save hooks needed
+□ Uses pickAllowedFields() for update data
+□ Verifies record exists with ...req.firmQuery BEFORE update
+□ Logs activity via QueueService
+□ Returns updated record or 200 status
+```
+
+#### DELETE Operation
+```
+□ Uses sanitizeObjectId() on req.params.id
+□ Uses findOneAndDelete({ _id, ...req.firmQuery })
+□ Verifies record exists before delete
+□ Handles cascade deletes if needed
+□ Logs activity via QueueService
+□ Returns 200 or 204 status
+```
+
+#### BULK DELETE Operation
+```
+□ Validates array of IDs in request body
+□ Uses sanitizeObjectId() on each ID
+□ Uses deleteMany({ _id: { $in: ids }, ...req.firmQuery })
+□ Returns count of deleted items
+□ Logs activity via QueueService
+```
+
+#### SEARCH Operation
+```
+□ Uses escapeRegex() on search term (ReDoS prevention)
+□ Limits searchable fields (don't search everything)
+□ Uses ...req.firmQuery
+□ Has reasonable result limit
+```
+
+---
+
+## 📊 ERROR HANDLING STANDARDS
+
+### HTTP Status Codes
+
+| Status | When to Use |
+|--------|-------------|
+| 200 | Success (GET, PUT, PATCH, DELETE) |
+| 201 | Created (POST) |
+| 204 | No content (DELETE when nothing to return) |
+| 400 | Bad request (validation failed, invalid input) |
+| 401 | Unauthorized (no token, expired token) |
+| 403 | Forbidden (valid token but no permission) |
+| 404 | Not found (resource doesn't exist) |
+| 409 | Conflict (duplicate, already exists) |
+| 422 | Unprocessable (valid JSON but business logic failed) |
+| 500 | Server error (unexpected, log it!) |
+
+### Response Format
+
+```javascript
+// Success
+res.status(200).json({
+    error: false,
+    message: 'Operation successful',
+    data: result
+});
+
+// Success with pagination
+res.status(200).json({
+    error: false,
+    data: items,
+    pagination: {
+        page: 1,
+        limit: 20,
+        total: 100,
+        pages: 5
+    }
+});
+
+// Error
+res.status(400).json({
+    error: true,
+    message: 'Validation failed: email is required'
+});
+
+// Using CustomException
+throw CustomException('Invoice not found', 404);
+throw CustomException('Permission denied', 403);
+```
+
+### What NOT to Do
+
+```javascript
+// ❌ Don't expose internal errors
+res.status(500).json({ error: true, message: error.stack });
+
+// ❌ Don't use generic messages for specific errors
+res.status(400).json({ error: true, message: 'Error' });
+
+// ❌ Don't use wrong status codes
+res.status(200).json({ error: true, message: 'Not found' }); // Should be 404!
+```
+
+---
+
+## 📝 VALIDATOR FILE REQUIREMENTS
+
+For every new controller, create corresponding validator:
+
+**Location:** `src/validators/[resource].validator.js`
+
+**Template:**
+```javascript
+const { body, param, query } = require('express-validator');
+const { validate } = require('./validate');
+
+const validateCreate = [
+    body('name')
+        .trim()
+        .notEmpty().withMessage('Name is required')
+        .isLength({ max: 200 }).withMessage('Name too long'),
+    body('email')
+        .optional()
+        .isEmail().withMessage('Invalid email format'),
+    validate
+];
+
+const validateUpdate = [
+    param('id')
+        .isMongoId().withMessage('Invalid ID format'),
+    body('name')
+        .optional()
+        .trim()
+        .isLength({ max: 200 }).withMessage('Name too long'),
+    validate
+];
+
+const validateIdParam = [
+    param('id')
+        .isMongoId().withMessage('Invalid ID format'),
+    validate
+];
+
+const validateList = [
+    query('page')
+        .optional()
+        .isInt({ min: 1 }).withMessage('Page must be positive integer'),
+    query('limit')
+        .optional()
+        .isInt({ min: 1, max: 100 }).withMessage('Limit must be 1-100'),
+    query('search')
+        .optional()
+        .trim()
+        .isLength({ max: 100 }).withMessage('Search too long'),
+    validate
+];
+
+module.exports = {
+    validateCreate,
+    validateUpdate,
+    validateIdParam,
+    validateList
+};
+```
+
+---
+
+## 📁 ROUTE FILE REQUIREMENTS
+
+**Location:** `src/routes/[resource].route.js`
+
+**Template:**
+```javascript
+const express = require('express');
+const controller = require('../controllers/[resource].controller');
+const { validateCreate, validateUpdate, validateIdParam, validateList } = require('../validators/[resource].validator');
+
+const router = express.Router();
+
+// NO auth middleware here - authenticatedApi handles it globally!
+
+router.post('/', validateCreate, controller.create);
+router.get('/', validateList, controller.getAll);
+router.get('/:id', validateIdParam, controller.getById);
+router.put('/:id', validateUpdate, controller.update);
+router.delete('/:id', validateIdParam, controller.delete);
+
+// Bulk operations
+router.delete('/bulk', controller.bulkDelete);
+
+// Domain-specific
+router.patch('/:id/archive', validateIdParam, controller.archive);
+
+module.exports = router;
+```
+
+**Register in server.js:**
+```javascript
+app.use('/api/[resources]', require('./routes/[resource].route'));
+```
+
+---
+
+## 🔄 ACTIVITY LOGGING REQUIREMENTS
+
+**Every mutating operation MUST log activity using QueueService (non-blocking):**
+
+| Operation | Log Type | Required Fields |
+|-----------|----------|-----------------|
+| Create | `*_created` | userId, firmId, relatedModel, relatedId, description |
+| Update | `*_updated` | userId, firmId, relatedModel, relatedId, changes |
+| Delete | `*_deleted` | userId, firmId, relatedModel, relatedId, description |
+| Status change | `*_status_changed` | userId, firmId, oldStatus, newStatus |
+
+**Pattern:**
+```javascript
+// Fire-and-forget - DO NOT await
+QueueService.logActivity({
+    activityType: 'reminder_created',
+    userId: req.userID,
+    firmId: req.firmId,
+    relatedModel: 'Reminder',
+    relatedId: reminder._id,
+    description: `Created reminder: ${reminder.title}`,
+    metadata: { title: reminder.title },
+    ipAddress: req.ip,
+    userAgent: req.get('user-agent')
+});
+```
 
 ---
 
