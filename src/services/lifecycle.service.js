@@ -1024,8 +1024,8 @@ class LifecycleService {
         case 'notification':
           // Send in-app notification
           if (config.userId || task.assignedTo) {
-            const Notification = require('../models/notification.model');
-            await Notification.create({
+            const QueueService = require('./queue.service');
+            QueueService.createNotification({
               userId: config.userId || task.assignedTo,
               firmId: new mongoose.Types.ObjectId(firmId),
               type: 'task_assigned',
@@ -1125,9 +1125,9 @@ class LifecycleService {
                 }
               }
             } else if (channel === 'in_app') {
-              const Notification = require('../models/notification.model');
+              const QueueService = require('./queue.service');
               for (const recipientId of recipients) {
-                await Notification.create({
+                QueueService.createNotification({
                   userId: recipientId,
                   firmId: context.firmId ? new mongoose.Types.ObjectId(context.firmId) : instance.firmId,
                   type: 'lifecycle_event',

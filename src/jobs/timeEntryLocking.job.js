@@ -175,12 +175,12 @@ const checkPendingApprovals = async () => {
         if (staleEntries.length > 0) {
             logger.info(`[Time Entry Jobs] Found ${staleEntries.length} managers with stale approvals`);
 
-            const Notification = mongoose.model('Notification');
+            const QueueService = require('../services/queue.service');
 
             for (const item of staleEntries) {
                 if (item._id) {
                     try {
-                        await Notification.createNotification({
+                        QueueService.createNotification({
                             firmId: item.firmId,
                             userId: item._id,
                             type: 'reminder',

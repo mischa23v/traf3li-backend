@@ -1,5 +1,5 @@
 const TimeEntry = require('../models/timeEntry.model');
-const Notification = require('../models/notification.model');
+const QueueService = require('../services/queue.service');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
@@ -48,7 +48,7 @@ const submitTimeEntry = asyncHandler(async (req, res) => {
 
     // Notify manager
     if (managerId || entry.assignedManager) {
-        await Notification.createNotification({
+        QueueService.createNotification({
             firmId: req.firmId,
             userId: managerId || entry.assignedManager,
             type: 'time_entry_submitted',
@@ -116,7 +116,7 @@ const approveTimeEntry = asyncHandler(async (req, res) => {
     await entry.approve(req.userID);
 
     // Notify creator
-    await Notification.createNotification({
+    QueueService.createNotification({
         firmId: req.firmId,
         userId: entry.assigneeId || entry.userId,
         type: 'time_entry_approved',
@@ -204,7 +204,7 @@ const rejectTimeEntry = asyncHandler(async (req, res) => {
     await entry.reject(reason.trim(), req.userID);
 
     // Notify creator
-    await Notification.createNotification({
+    QueueService.createNotification({
         firmId: req.firmId,
         userId: entry.assigneeId || entry.userId,
         type: 'time_entry_rejected',
@@ -296,7 +296,7 @@ const bulkApproveTimeEntries = asyncHandler(async (req, res) => {
 
     for (const userId of userIds) {
         if (userId) {
-            await Notification.createNotification({
+            QueueService.createNotification({
                 firmId: req.firmId,
                 userId,
                 type: 'time_entry_approved',

@@ -892,8 +892,8 @@ class PolicyEnforcementService {
         }
 
         // Create in-app notification
-        const Notification = mongoose.model('Notification');
-        await Notification.create({
+        const QueueService = require('./queue.service');
+        QueueService.createNotification({
           userId: recipient._id,
           type: 'policy_violation',
           title: 'Policy Violation Detected',

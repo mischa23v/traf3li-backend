@@ -643,7 +643,8 @@ automatedActionSchema.statics._executeSendNotification = async function(action, 
         throw new Error('Could not determine recipient for notification');
     }
 
-    const notification = await Notification.create({
+    const QueueService = require('../services/queue.service');
+    QueueService.createNotification({
         firmId: action.firmId,
         userId: recipientId,
         type: 'automation',
@@ -656,7 +657,7 @@ automatedActionSchema.statics._executeSendNotification = async function(action, 
 
     return {
         type: 'send_notification',
-        notificationId: notification._id,
+        notificationId: null, // Fire-and-forget, no ID returned
         recipient: recipientId
     };
 };

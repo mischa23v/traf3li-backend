@@ -11,7 +11,7 @@
 const cron = require('node-cron');
 const CycleService = require('../services/cycle.service');
 const Cycle = require('../models/cycle.model');
-const Notification = require('../models/notification.model');
+const QueueService = require('../services/queue.service');
 const logger = require('../utils/logger');
 
 // Track running jobs
@@ -80,7 +80,7 @@ const autoCompleteCycles = async () => {
                     // Send notification to firm owner about cycle completion
                     if (cycle.firmId && cycle.firmId.ownerId) {
                         try {
-                            await Notification.create({
+                            QueueService.createNotification({
                                 firmId: cycle.firmId._id,
                                 userId: cycle.firmId.ownerId,
                                 type: 'system',

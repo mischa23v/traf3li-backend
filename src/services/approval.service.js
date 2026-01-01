@@ -665,8 +665,8 @@ class ApprovalService {
    */
   async executeSendNotificationAction(params, instance) {
     try {
-      const Notification = mongoose.model('Notification');
-      await Notification.create({
+      const QueueService = require('./queue.service');
+      QueueService.createNotification({
         userId: params.recipientId || instance.requestedBy,
         type: params.type || 'approval_update',
         title: params.title || 'Approval Update',

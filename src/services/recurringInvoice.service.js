@@ -18,7 +18,7 @@
 const mongoose = require('mongoose');
 const RecurringInvoice = require('../models/recurringInvoice.model');
 const Invoice = require('../models/invoice.model');
-const Notification = require('../models/notification.model');
+const QueueService = require('./queue.service');
 const AuditLog = require('../models/auditLog.model');
 const logger = require('../utils/logger');
 
@@ -377,7 +377,7 @@ const calculateDueDate = (paymentTerms) => {
  */
 const sendInvoiceGeneratedNotification = async (recurring, invoice) => {
     try {
-        await Notification.create({
+        QueueService.createNotification({
             firmId: recurring.firmId,
             userId: recurring.createdBy,
             type: 'invoice',
@@ -411,7 +411,7 @@ const sendInvoiceGeneratedNotification = async (recurring, invoice) => {
  */
 const sendFailureNotification = async (recurring, errorMessage, isPaused) => {
     try {
-        await Notification.create({
+        QueueService.createNotification({
             firmId: recurring.firmId,
             userId: recurring.createdBy,
             type: 'error',
@@ -454,7 +454,7 @@ const sendCompletionNotification = async (recurring, reason) => {
             ? 'تم الوصول إلى تاريخ الانتهاء'
             : `تم إنشاء جميع الفواتير (${recurring.schedule.maxOccurrences})`;
 
-        await Notification.create({
+        QueueService.createNotification({
             firmId: recurring.firmId,
             userId: recurring.createdBy,
             type: 'info',
@@ -515,7 +515,7 @@ const sendUpcomingNotifications = async (daysAhead = 3) => {
                     (recurring.nextGenerationDate - now) / (1000 * 60 * 60 * 24)
                 );
 
-                await Notification.create({
+                QueueService.createNotification({
                     firmId: recurring.firmId,
                     userId: recurring.createdBy,
                     type: 'invoice',
@@ -862,7 +862,7 @@ const pauseRecurringInvoice = async (recurringInvoiceId, reason, userId, firmId 
         logger.info(`Recurring invoice ${recurring.name} (${recurring._id}) paused by user ${userId}: ${reason}`);
 
         // Send notification
-        await Notification.create({
+        QueueService.createNotification({
             firmId: recurring.firmId,
             userId: recurring.createdBy,
             type: 'info',
@@ -920,7 +920,7 @@ const resumeRecurringInvoice = async (recurringInvoiceId, userId, firmId = null)
         logger.info(`Recurring invoice ${recurring.name} (${recurring._id}) resumed by user ${userId}`);
 
         // Send notification
-        await Notification.create({
+        QueueService.createNotification({
             firmId: recurring.firmId,
             userId: recurring.createdBy,
             type: 'info',
@@ -1271,7 +1271,7 @@ const sendGenerationNotification = async (invoiceId, type, context = {}) => {
         }
 
         if (notification) {
-            await Notification.create(notification);
+            QueueService.createNotification(notification);
             logger.info(`Notification sent for recurring invoice ${recurringInvoiceId}: ${type}`);
         }
 

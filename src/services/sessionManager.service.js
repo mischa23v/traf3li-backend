@@ -12,7 +12,7 @@
  */
 
 const Session = require('../models/session.model');
-const Notification = require('../models/notification.model');
+const QueueService = require('./queue.service');
 const Firm = require('../models/firm.model');
 const UAParser = require('ua-parser-js');
 const logger = require('../utils/logger');
@@ -446,7 +446,7 @@ class SessionManagerService {
                 ? `${locationInfo.city}, ${locationInfo.country}`
                 : locationInfo.country || 'Unknown location';
 
-            await Notification.createNotification({
+            QueueService.createNotification({
                 userId,
                 type: 'alert',
                 title: 'New Device Login',
@@ -485,7 +485,7 @@ class SessionManagerService {
             const reasonText = reason === 'security' ? 'security reasons' : 'administrator action';
             const reasonTextAr = reason === 'security' ? 'أسباب أمنية' : 'إجراء من المسؤول';
 
-            await Notification.createNotification({
+            QueueService.createNotification({
                 userId,
                 type: 'alert',
                 title: 'Session Terminated',
@@ -516,7 +516,7 @@ class SessionManagerService {
                 return;
             }
 
-            await Notification.createNotification({
+            QueueService.createNotification({
                 userId,
                 type: 'system',
                 title: 'Sessions Terminated',
@@ -552,7 +552,7 @@ class SessionManagerService {
                     ? 'أسباب أمنية'
                     : reason;
 
-            await Notification.createNotification({
+            QueueService.createNotification({
                 userId,
                 type: 'alert',
                 title: 'All Sessions Terminated',

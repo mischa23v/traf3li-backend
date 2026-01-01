@@ -10,7 +10,7 @@
 const cron = require('node-cron');
 const DealHealthService = require('../services/dealHealth.service');
 const Firm = require('../models/firm.model');
-const Notification = require('../models/notification.model');
+const QueueService = require('../services/queue.service');
 const logger = require('../utils/logger');
 
 // Track running jobs
@@ -79,7 +79,7 @@ const detectStuckDeals = async () => {
                                 if (daysSinceStuck <= 1) {
                                     // Notify assigned user
                                     if (deal.assignedTo) {
-                                        await Notification.create({
+                                        QueueService.createNotification({
                                             firmId: firm._id,
                                             userId: deal.assignedTo._id,
                                             type: 'alert',

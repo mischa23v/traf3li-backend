@@ -47,6 +47,9 @@ notificationQueue.process(async (job) => {
       case 'in-app':
         return await sendInAppNotification(data, job);
 
+      case 'create':
+        return await createNotification(data, job);
+
       case 'sms':
         return await sendSMSNotification(data, job);
 
@@ -124,22 +127,10 @@ async function sendPushNotification(data, job) {
 }
 
 /**
- * Send in-app notification
+ * Send in-app notification (simple format)
  */
 async function sendInAppNotification(data, job) {
   const { userId, title, message, type, link, metadata, firmId } = data;
-
-  // If firmId is provided, verify the user belongs to that firm
-  if (firmId) {
-    await job.progress(20);
-
-    const User = require('../models/user.model');
-    const user = await User.findOne({ _id: userId, firmId });
-
-    if (!user) {
-      throw new Error('User not found in the specified firm - access denied');
-    }
-  }
 
   await job.progress(30);
 
@@ -153,27 +144,31 @@ async function sendInAppNotification(data, job) {
     userId,
     title,
     message,
-    type: type || 'info',
+    type: type || 'system',
     link,
-    metadata,
-    ...(firmId && { firmId }), // Include firmId if provided
-    isRead: false,
-    createdAt: new Date()
+    data: metadata,
+    ...(firmId && { firmId }),
+    read: false
   });
 
   await job.progress(80);
 
   // Emit socket event if user is online (optional)
-  const io = require('../configs/socket').getIO();
-  if (io) {
-    io.to(`user_${userId}`).emit('notification', {
-      id: notification._id,
-      title,
-      message,
-      type,
-      link,
-      createdAt: notification.createdAt
-    });
+  try {
+    const io = require('../configs/socket').getIO();
+    if (io) {
+      io.to(`user_${userId}`).emit('notification', {
+        id: notification._id,
+        title,
+        message,
+        type,
+        link,
+        createdAt: notification.createdAt
+      });
+    }
+  } catch (socketError) {
+    // Socket errors are non-fatal
+    logger.warn('Socket emit failed (non-fatal):', socketError.message);
   }
 
   await job.progress(100);
@@ -182,6 +177,69 @@ async function sendInAppNotification(data, job) {
   return {
     success: true,
     userId,
+    notificationId: notification._id
+  };
+}
+
+/**
+ * Create notification (full format - mirrors Notification.createNotification)
+ * Gold Standard: Non-blocking notification creation
+ */
+async function createNotification(data, job) {
+  await job.progress(20);
+
+  // Import models dynamically to avoid circular dependencies
+  const Notification = require('../models/notification.model');
+
+  await job.progress(40);
+
+  // Create notification using the model's static method for consistency
+  const notification = await Notification.createNotification({
+    firmId: data.firmId,
+    userId: data.userId,
+    type: data.type,
+    title: data.title,
+    titleAr: data.titleAr,
+    message: data.message,
+    messageAr: data.messageAr,
+    entityType: data.entityType,
+    entityId: data.entityId,
+    link: data.link,
+    data: data.data,
+    priority: data.priority || 'normal',
+    channels: data.channels || ['in_app'],
+    actionRequired: data.actionRequired || false,
+    actionUrl: data.actionUrl,
+    actionLabel: data.actionLabel,
+    actionLabelAr: data.actionLabelAr,
+    expiresAt: data.expiresAt
+  });
+
+  await job.progress(80);
+
+  // Emit socket event if user is online
+  try {
+    const io = require('../configs/socket').getIO();
+    if (io) {
+      io.to(`user_${data.userId}`).emit('notification', {
+        id: notification._id,
+        title: data.title,
+        message: data.message,
+        type: data.type,
+        link: data.link,
+        createdAt: notification.createdAt
+      });
+    }
+  } catch (socketError) {
+    logger.warn('Socket emit failed (non-fatal):', socketError.message);
+  }
+
+  await job.progress(100);
+
+  logger.info(`✅ Notification created for user ${data.userId}`);
+  return {
+    success: true,
+    userId: data.userId,
     notificationId: notification._id
   };
 }

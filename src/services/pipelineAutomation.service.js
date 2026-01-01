@@ -16,6 +16,7 @@
 
 const mongoose = require('mongoose');
 const NotificationDeliveryService = require('./notificationDelivery.service');
+const QueueService = require('./queue.service');
 const logger = require('../utils/logger');
 
 /**
@@ -285,7 +286,7 @@ class PipelineAutomationService {
         );
 
         // Create notification
-        const notification = await Notification.create({
+        QueueService.createNotification({
             userId: recipientId,
             type: 'case_update', // Generic type for pipeline updates
             title,

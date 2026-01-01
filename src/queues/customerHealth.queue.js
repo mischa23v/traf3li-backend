@@ -336,7 +336,8 @@ async function sendInterventionEmail(data, job) {
   await job.progress(80);
 
   // Also create in-app notification
-  await Notification.create({
+  const QueueService = require('../services/queue.service');
+  QueueService.createNotification({
     userId: owner._id,
     firmId: firm._id,
     type: 'system',
@@ -346,7 +347,7 @@ async function sendInterventionEmail(data, job) {
     messageEn: 'We sent you some tips to help you get more value from TRAF3LI',
     priority: 'medium',
     link: '/settings/account'
-  }).catch(() => {});
+  });
 
   await job.progress(100);
 
@@ -511,7 +512,8 @@ async function sendHealthNotification(data, job) {
 
   await job.progress(50);
 
-  await Notification.create({
+  const QueueService = require('../services/queue.service');
+  QueueService.createNotification({
     userId,
     firmId,
     type: 'system',

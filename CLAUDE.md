@@ -37,6 +37,8 @@ When implementing a pattern (like centralized logging, middleware, utilities, et
 | Scenario | LAZY (❌ WRONG) | COMPLETE (✅ CORRECT) |
 |----------|-----------------|----------------------|
 | Add activity queue | Update 1 controller, leave 41 calls unchanged | Update all 50 calls across 10 files |
+| Add notification queue | Create queue, update 1 file | Migrate ALL 40+ Notification.create() calls |
+| Add audit queue | Create queue, update 1 file | Migrate ALL 35+ AuditLog.create() calls |
 | Add firmId validation | Fix 1 endpoint | Fix all endpoints using the pattern |
 | Centralize error handling | Add middleware, keep old try-catch | Remove all redundant try-catch blocks |
 
@@ -50,6 +52,66 @@ grep -r "OldPattern" src/
 ```
 
 **If you implement something in one file and leave identical code unchanged in other files, you are being lazy and wasting tokens. The user will have to ask you again to fix the remaining files, doubling the work and cost.**
+
+---
+
+## ⛔ VERIFICATION REQUIREMENTS - NO LIES
+
+**NEVER claim "Gold Standard" or "complete" without EXPLICIT verification.**
+
+### Before Claiming ANY Task Complete:
+
+1. **Search for ALL similar patterns** - Not just the one you're fixing
+   ```bash
+   # Example: If fixing CrmActivity.logActivity, also search for:
+   grep -r "AuditLog\.create\|AuditLog\.log" src/
+   grep -r "Notification\.create" src/
+   grep -r "\.logActivity\|\.create\(" src/models/
+   ```
+
+2. **Count ALL occurrences** - Report exact numbers
+   ```
+   Found: CrmActivity.logActivity (50 calls), AuditLog.create (35 calls), Notification.create (40+ calls)
+   Fixed: CrmActivity.logActivity (50 calls)
+   NOT fixed: AuditLog.create (35 calls), Notification.create (40+ calls)
+   ```
+
+3. **Be EXPLICIT about what was NOT checked**
+   - "I verified CrmActivity but did NOT check AuditLog or Notification patterns"
+   - "There may be similar patterns I haven't searched for"
+
+### What You MUST Report:
+
+| Item | Required | Example |
+|------|----------|---------|
+| What was searched | ✅ YES | `grep -r "CrmActivity.logActivity" src/` |
+| What was found | ✅ YES | "Found 50 calls across 10 files" |
+| What was fixed | ✅ YES | "Migrated all 50 calls" |
+| What was NOT searched | ✅ YES | "Did NOT search for AuditLog, Notification, or other logging patterns" |
+| Verification command | ✅ YES | `grep -r "CrmActivity.logActivity" src/` returns 0 matches |
+
+### Consequences of Lying:
+
+- User loses trust
+- User wastes time discovering the lie
+- More tokens spent fixing what should have been done right
+- Technical debt accumulates
+- Bugs appear in production
+
+### Gold Standard Verification Checklist:
+
+Before claiming "Gold Standard", you MUST:
+
+- [ ] Search for ALL variations of the pattern (create, log, insert, save, etc.)
+- [ ] Search for ALL similar models (if fixing Activity, check AuditLog, Notification, etc.)
+- [ ] Count exact occurrences found
+- [ ] Fix ALL occurrences, not just some
+- [ ] Run verification grep to confirm 0 remaining
+- [ ] Report what you DID check
+- [ ] Report what you DID NOT check
+- [ ] Be honest if the task is partially complete
+
+**If you cannot check everything, SAY SO. Partial honesty is better than a lie.**
 
 ---
 

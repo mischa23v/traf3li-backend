@@ -10,7 +10,8 @@
 
 const cron = require('node-cron');
 const mongoose = require('mongoose');
-const { Firm, User, Notification } = require('../models');
+const { Firm, User } = require('../models');
+const QueueService = require('../services/queue.service');
 const logger = require('../utils/logger');
 
 /**
@@ -41,7 +42,7 @@ const processExpiredTrials = async () => {
                 const owner = await User.findById(firm.ownerId)
                     .setOptions({ bypassFirmFilter: true });
                 if (owner) {
-                    await Notification.create({
+                    QueueService.createNotification({
                         userId: owner._id,
                         firmId: firm._id,
                         type: 'system',
@@ -51,7 +52,7 @@ const processExpiredTrials = async () => {
                         messageEn: 'Your free trial has ended. Your account has been downgraded to the free plan.',
                         priority: 'high',
                         link: '/settings/billing'
-                    }).catch(() => {});
+                    });
                 }
 
                 logger.info(`[Plan Job] Downgraded firm ${firm._id} from trial`);
@@ -92,7 +93,7 @@ const processExpiredPlans = async () => {
                 const owner = await User.findById(firm.ownerId)
                     .setOptions({ bypassFirmFilter: true });
                 if (owner) {
-                    await Notification.create({
+                    QueueService.createNotification({
                         userId: owner._id,
                         firmId: firm._id,
                         type: 'system',
@@ -102,7 +103,7 @@ const processExpiredPlans = async () => {
                         messageEn: 'Your subscription has expired. Please renew to continue using all features.',
                         priority: 'high',
                         link: '/settings/billing'
-                    }).catch(() => {});
+                    });
                 }
 
                 logger.info(`[Plan Job] Marked firm ${firm._id} as expired`);
@@ -204,7 +205,7 @@ const sendTrialWarnings = async () => {
                         (new Date(firm.subscription.trialEndsAt) - new Date()) / (1000 * 60 * 60 * 24)
                     );
 
-                    await Notification.create({
+                    QueueService.createNotification({
                         userId: owner._id,
                         firmId: firm._id,
                         type: 'system',
@@ -214,7 +215,7 @@ const sendTrialWarnings = async () => {
                         messageEn: 'Upgrade now to continue using all features without interruption.',
                         priority: 'medium',
                         link: '/settings/billing'
-                    }).catch(() => {});
+                    });
                 }
             } catch (error) {
                 logger.error(`[Plan Job] Error sending warning to firm ${firm._id}:`, error.message);
@@ -268,7 +269,7 @@ const sendUsageLimitWarnings = async () => {
                 if (warnings.length > 0) {
                     const owner = await User.findById(firm.ownerId);
                     if (owner) {
-                        await Notification.create({
+                        QueueService.createNotification({
                             userId: owner._id,
                             firmId: firm._id,
                             type: 'system',
@@ -278,7 +279,7 @@ const sendUsageLimitWarnings = async () => {
                             messageEn: `You are approaching the usage limit for: ${warnings.join(', ')}`,
                             priority: 'medium',
                             link: '/settings/billing'
-                        }).catch(() => {});
+                        });
                     }
                 }
             } catch (error) {

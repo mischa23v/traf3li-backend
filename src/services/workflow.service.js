@@ -901,8 +901,8 @@ class WorkflowService {
                         });
                         sentCount++;
                     } else if (step.config.notificationType === 'in_app') {
-                        const Notification = require('../models/notification.model');
-                        await Notification.create({
+                        const QueueService = require('./queue.service');
+                        QueueService.createNotification({
                             userId: recipientId,
                             type: 'workflow_notification',
                             title: subject,

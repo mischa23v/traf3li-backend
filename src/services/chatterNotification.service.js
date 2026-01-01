@@ -12,7 +12,7 @@
 
 const ChatterFollower = require('../models/chatterFollower.model');
 const ThreadMessage = require('../models/threadMessage.model');
-const Notification = require('../models/notification.model');
+const QueueService = require('./queue.service');
 const EmailService = require('./email.service');
 const { emitNotification } = require('../configs/socket');
 const logger = require('../utils/logger');
@@ -106,7 +106,7 @@ class ChatterNotificationService {
                 : 'Someone';
 
             // Create in-app notification
-            await Notification.create({
+            QueueService.createNotification({
                 userId: user._id,
                 firmId: message.firmId,
                 type: 'chatter',

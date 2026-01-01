@@ -401,6 +401,47 @@ class QueueService {
   }
 
   /**
+   * Create notification via queue (Gold Standard - fire-and-forget)
+   *
+   * This mirrors Notification.createNotification() but is non-blocking.
+   * Use this instead of Notification.create() or Notification.createNotification().
+   *
+   * @param {Object} notificationData - Notification data
+   * @param {string} notificationData.firmId - Firm ID (required for firm members)
+   * @param {string} notificationData.userId - User ID (required)
+   * @param {string} notificationData.type - Notification type (e.g., 'system', 'alert')
+   * @param {string} notificationData.title - Notification title
+   * @param {string} notificationData.titleAr - Arabic title (optional)
+   * @param {string} notificationData.message - Notification message
+   * @param {string} notificationData.messageAr - Arabic message (optional)
+   * @param {string} notificationData.entityType - Entity type (optional)
+   * @param {string} notificationData.entityId - Entity ID (optional)
+   * @param {string} notificationData.link - Navigation link (optional)
+   * @param {Object} notificationData.data - Additional data (optional)
+   * @param {string} notificationData.priority - Priority level (optional)
+   * @param {Object} options - Job options (optional)
+   * @returns {Promise<Object>} Job info
+   *
+   * @example
+   * // Fire-and-forget notification
+   * QueueService.createNotification({
+   *   firmId: req.firmId,
+   *   userId: approver.userId,
+   *   type: 'invoice_approval_required',
+   *   title: 'Invoice Approval Required',
+   *   message: `Invoice ${invoice.number} requires your approval`,
+   *   entityType: 'invoice',
+   *   entityId: invoice._id
+   * });
+   */
+  static async createNotification(notificationData, options = {}) {
+    return this.addJob('notification', {
+      type: 'create',
+      data: notificationData
+    }, options);
+  }
+
+  /**
    * Generate report via queue
    */
   static async generateReport(reportData, reportType, options = {}) {

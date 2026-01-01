@@ -1,6 +1,6 @@
 const InvoiceApproval = require('../models/invoiceApproval.model');
 const Invoice = require('../models/invoice.model');
-const Notification = require('../models/notification.model');
+const QueueService = require('../services/queue.service');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
@@ -66,7 +66,7 @@ const submitForApproval = asyncHandler(async (req, res) => {
 
     // Notify first approver
     const firstApprover = approval.approvers[0];
-    await Notification.createNotification({
+    QueueService.createNotification({
         firmId: req.firmId,
         userId: firstApprover.userId,
         type: 'invoice_approval_required',
@@ -234,7 +234,7 @@ const approveInvoice = asyncHandler(async (req, res) => {
 
     // Notify submitter if fully approved
     if (approval.status === 'approved') {
-        await Notification.createNotification({
+        QueueService.createNotification({
             firmId: req.firmId,
             userId: approval.submittedBy,
             type: 'invoice_approved',
@@ -250,7 +250,7 @@ const approveInvoice = asyncHandler(async (req, res) => {
         // Notify next approver
         const nextApprover = approval.currentApprover;
         if (nextApprover) {
-            await Notification.createNotification({
+            QueueService.createNotification({
                 firmId: req.firmId,
                 userId: nextApprover.userId,
                 type: 'invoice_approval_required',
@@ -333,7 +333,7 @@ const rejectInvoice = asyncHandler(async (req, res) => {
     // Get invoice and notify submitter
     const invoice = await Invoice.findById(approval.invoiceId);
 
-    await Notification.createNotification({
+    QueueService.createNotification({
         firmId: req.firmId,
         userId: approval.submittedBy,
         type: 'invoice_rejected',
@@ -409,7 +409,7 @@ const escalateApproval = asyncHandler(async (req, res) => {
     // Notify escalation target
     const invoice = await Invoice.findById(approval.invoiceId);
 
-    await Notification.createNotification({
+    QueueService.createNotification({
         firmId: req.firmId,
         userId: sanitizedEscalateToUserId,
         type: 'invoice_approval_required',
