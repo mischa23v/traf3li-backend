@@ -102,11 +102,12 @@ async function syncToGoogleCalendar(appointment, userId, firmQuery, action) {
 
         if (action === 'create') {
             // Create new event
+            // Signature: createEvent(userId, calendarId, eventData, firmId)
             const event = await googleCalendarService.createEvent(
                 userId,
-                firmId,
                 calendarId,
-                eventData
+                eventData,
+                firmId
             );
             result.eventId = event.id;
             result.synced = true;
@@ -115,12 +116,13 @@ async function syncToGoogleCalendar(appointment, userId, firmQuery, action) {
 
         } else if (action === 'update' && appointment.calendarEventId) {
             // Update existing event
+            // Signature: updateEvent(userId, calendarId, eventId, eventData, firmId)
             await googleCalendarService.updateEvent(
                 userId,
-                firmId,
                 calendarId,
                 appointment.calendarEventId,
-                eventData
+                eventData,
+                firmId
             );
             result.eventId = appointment.calendarEventId;
             result.synced = true;
@@ -129,11 +131,12 @@ async function syncToGoogleCalendar(appointment, userId, firmQuery, action) {
 
         } else if (action === 'cancel' && appointment.calendarEventId) {
             // Delete event
+            // Signature: deleteEvent(userId, calendarId, eventId, firmId)
             await googleCalendarService.deleteEvent(
                 userId,
-                firmId,
                 calendarId,
-                appointment.calendarEventId
+                appointment.calendarEventId,
+                firmId
             );
             result.synced = true;
 
