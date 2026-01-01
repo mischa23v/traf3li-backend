@@ -71,6 +71,13 @@ const disconnect = asyncHandler(async (req, res) => {
 /**
  * Get integration status
  * GET /api/google-calendar/status
+ *
+ * Response format matches spec:
+ * - email: Connected Google account email
+ * - expiresAt: Token expiry time
+ * - scopes: Array of granted OAuth scopes
+ * - calendars: Full list of available calendars
+ * - selectedCalendars: User's selected calendars
  */
 const getStatus = asyncHandler(async (req, res) => {
     const userId = req.userID;
@@ -81,8 +88,23 @@ const getStatus = asyncHandler(async (req, res) => {
     if (!integration) {
         return res.status(200).json({
             success: true,
-            connected: false
+            connected: false,
+            data: null
         });
+    }
+
+    // Parse scopes from space-separated string to array
+    const scopes = integration.scope ? integration.scope.split(' ') : [];
+
+    // Fetch calendars from Google if connected (non-blocking)
+    let calendars = [];
+    if (integration.isConnected) {
+        try {
+            calendars = await googleCalendarService.getCalendars(userId, firmId);
+        } catch (error) {
+            // Non-blocking - return empty calendars if fetch fails
+            calendars = [];
+        }
     }
 
     res.status(200).json({
@@ -90,13 +112,18 @@ const getStatus = asyncHandler(async (req, res) => {
         connected: integration.isConnected,
         data: {
             isConnected: integration.isConnected,
-            connectedAt: integration.connectedAt,
-            lastSyncedAt: integration.lastSyncedAt,
-            autoSync: integration.autoSync,
+            email: integration.email || null,
+            displayName: integration.displayName || null,
+            expiresAt: integration.expiresAt,
+            scopes,
+            calendars,
             selectedCalendars: integration.selectedCalendars,
             primaryCalendarId: integration.primaryCalendarId,
+            showExternalEvents: integration.showExternalEvents !== false, // Default true
+            autoSync: integration.autoSync,
             syncStats: integration.syncStats,
-            showExternalEvents: integration.showExternalEvents !== false // Default true
+            connectedAt: integration.connectedAt,
+            lastSyncedAt: integration.lastSyncedAt
         }
     });
 });
@@ -361,11 +388,17 @@ const syncFromGoogle = asyncHandler(async (req, res) => {
 /**
  * Sync TRAF3LI event to Google
  * POST /api/google-calendar/sync/export/:eventId
+ * POST /api/google-calendar/export (eventId in body - spec compatibility)
  */
 const syncToGoogle = asyncHandler(async (req, res) => {
     const userId = req.userID;
     const firmId = req.firmId;
-    const { eventId } = req.params;
+    // Support eventId from params (original) or body (spec compatibility)
+    const eventId = req.params.eventId || req.body.eventId;
+
+    if (!eventId) {
+        throw CustomException('eventId is required', 400);
+    }
 
     const result = await googleCalendarService.syncToGoogle(userId, eventId, firmId);
 
