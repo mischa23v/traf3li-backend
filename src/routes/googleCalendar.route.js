@@ -81,9 +81,11 @@ router.delete('/watch/:channelId', userMiddleware, stopWatch);
 
 // Sync from Google to TRAF3LI (import)
 router.post('/sync/import', userMiddleware, syncFromGoogle);
+router.post('/import', userMiddleware, syncFromGoogle); // Alias for spec compatibility
 
 // Sync TRAF3LI event to Google (export)
 router.post('/sync/export/:eventId', userMiddleware, syncToGoogle);
+router.post('/export', userMiddleware, syncToGoogle); // Alias for spec compatibility (eventId in body)
 
 // Enable auto-sync
 router.post('/sync/auto/enable', userMiddleware, enableAutoSync);

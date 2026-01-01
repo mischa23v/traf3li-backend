@@ -38,7 +38,8 @@ const {
     syncFromMicrosoft,
     syncToMicrosoft,
     enableAutoSync,
-    disableAutoSync
+    disableAutoSync,
+    getSyncSettings
 } = require('../controllers/microsoftCalendar.controller');
 
 // ═══════════════════════════════════════════════════════════════
@@ -213,6 +214,7 @@ router.delete('/events/:eventId',
 
 /**
  * @route   POST /api/microsoft-calendar/sync/from-microsoft
+ * @route   POST /api/microsoft-calendar/import (alias for spec compatibility)
  * @desc    Sync events from Microsoft Calendar to TRAF3LI
  * @access  Private
  * @body    calendarId - Optional calendar ID
@@ -224,14 +226,25 @@ router.post('/sync/from-microsoft',
     syncRateLimiter,
     syncFromMicrosoft
 );
+router.post('/import',
+    userMiddleware,
+    syncRateLimiter,
+    syncFromMicrosoft
+);
 
 /**
  * @route   POST /api/microsoft-calendar/sync/to-microsoft/:eventId
+ * @route   POST /api/microsoft-calendar/export (alias for spec compatibility)
  * @desc    Sync TRAF3LI event to Microsoft Calendar
  * @access  Private
- * @param   eventId - TRAF3LI event ID
+ * @param   eventId - TRAF3LI event ID (or in body for /export route)
  */
 router.post('/sync/to-microsoft/:eventId',
+    userMiddleware,
+    syncRateLimiter,
+    syncToMicrosoft
+);
+router.post('/export',
     userMiddleware,
     syncRateLimiter,
     syncToMicrosoft
@@ -260,6 +273,16 @@ router.post('/sync/enable-auto-sync',
 router.post('/sync/disable-auto-sync',
     userMiddleware,
     disableAutoSync
+);
+
+/**
+ * @route   GET /api/microsoft-calendar/sync/settings
+ * @desc    Get sync settings and statistics
+ * @access  Private
+ */
+router.get('/sync/settings',
+    userMiddleware,
+    getSyncSettings
 );
 
 module.exports = router;

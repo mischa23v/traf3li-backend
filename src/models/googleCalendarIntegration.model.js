@@ -39,6 +39,19 @@ const googleCalendarIntegrationSchema = new mongoose.Schema({
         index: true
     },
     // ═══════════════════════════════════════════════════════════════
+    // GOOGLE ACCOUNT INFO
+    // ═══════════════════════════════════════════════════════════════
+    email: {
+        type: String,
+        // Connected Google account email
+    },
+
+    displayName: {
+        type: String,
+        // Connected Google account display name
+    },
+
+    // ═══════════════════════════════════════════════════════════════
     // OAUTH TOKENS (encrypted)
     // ═══════════════════════════════════════════════════════════════
     accessToken: {

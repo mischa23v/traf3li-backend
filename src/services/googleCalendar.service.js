@@ -276,9 +276,23 @@ class GoogleCalendarService {
         try {
             // Exchange code for tokens
             const { tokens } = await oauth2Client.getToken(code);
+            oauth2Client.setCredentials(tokens);
 
             // Calculate token expiry
             const expiresAt = new Date(Date.now() + (tokens.expiry_date ? tokens.expiry_date - Date.now() : 3600 * 1000));
+
+            // Fetch user info (email, name) from Google
+            let userEmail = null;
+            let userDisplayName = null;
+            try {
+                const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
+                const { data: userInfo } = await oauth2.userinfo.get();
+                userEmail = userInfo.email;
+                userDisplayName = userInfo.name;
+            } catch (userInfoError) {
+                // Non-blocking - continue without email if userinfo fails
+                logger.warn('Failed to fetch Google user info', { error: userInfoError.message, userId });
+            }
 
             // Find or create integration
             let integration = await GoogleCalendarIntegration.findOne({ userId, firmId });
@@ -295,12 +309,17 @@ class GoogleCalendarService {
                 integration.disconnectedAt = null;
                 integration.disconnectedBy = null;
                 integration.disconnectReason = null;
+                // Update user info if available
+                if (userEmail) integration.email = userEmail;
+                if (userDisplayName) integration.displayName = userDisplayName;
                 await integration.save();
             } else {
                 // Create new integration
                 integration = await GoogleCalendarIntegration.create({
                     userId,
                     firmId,
+                    email: userEmail,
+                    displayName: userDisplayName,
                     accessToken: tokens.access_token,
                     refreshToken: tokens.refresh_token,
                     tokenType: tokens.token_type || 'Bearer',
@@ -311,8 +330,7 @@ class GoogleCalendarService {
                 });
             }
 
-            // Fetch user's calendars
-            oauth2Client.setCredentials(tokens);
+            // Fetch user's calendars (credentials already set above)
             const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
 
             const { data } = await calendar.calendarList.list();

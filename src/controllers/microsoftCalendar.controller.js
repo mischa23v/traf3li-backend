@@ -354,11 +354,21 @@ const syncFromMicrosoft = async (req, res) => {
 /**
  * Sync TRAF3LI event to Microsoft Calendar
  * POST /api/microsoft-calendar/sync/to-microsoft/:eventId
+ * POST /api/microsoft-calendar/export (eventId in body - spec compatibility)
  */
 const syncToMicrosoft = async (req, res) => {
     try {
         const userId = req.user._id.toString();
-        const { eventId } = req.params;
+        // Support eventId from params (original) or body (spec compatibility)
+        const eventId = req.params.eventId || req.body.eventId;
+
+        if (!eventId) {
+            return res.status(400).json({
+                success: false,
+                error: 'معرف الحدث مطلوب',
+                error_en: 'eventId is required'
+            });
+        }
 
         const result = await microsoftCalendarService.syncToMicrosoft(userId, eventId);
 
@@ -434,6 +444,49 @@ const disableAutoSync = async (req, res) => {
     }
 };
 
+/**
+ * Get sync settings
+ * GET /api/microsoft-calendar/sync/settings
+ *
+ * Returns current auto-sync settings and statistics
+ */
+const getSyncSettings = async (req, res) => {
+    try {
+        const userId = req.user._id.toString();
+
+        const status = await microsoftCalendarService.getConnectionStatus(userId);
+
+        if (!status.connected) {
+            return res.status(404).json({
+                success: false,
+                error: 'Microsoft Calendar غير متصل',
+                error_en: 'Microsoft Calendar not connected'
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            data: {
+                autoSyncEnabled: status.syncSettings?.enabled || false,
+                syncDirection: status.syncSettings?.syncDirection || 'bidirectional',
+                syncInterval: status.syncSettings?.syncInterval || 'manual',
+                selectedCalendars: status.syncSettings?.defaultCalendarId ? [status.syncSettings.defaultCalendarId] : [],
+                syncPastDays: status.syncSettings?.syncPastDays || 30,
+                syncFutureDays: status.syncSettings?.syncFutureDays || 90,
+                lastSyncAt: status.syncSettings?.lastSync || status.lastSyncedAt
+            }
+        });
+    } catch (error) {
+        logger.error('Error getting Microsoft Calendar sync settings:', error);
+        return res.status(500).json({
+            success: false,
+            error: 'فشل الحصول على إعدادات المزامنة',
+            error_en: 'Failed to get sync settings',
+            details: error.message
+        });
+    }
+};
+
 // ═══════════════════════════════════════════════════════════════
 // EXPORTS
 // ═══════════════════════════════════════════════════════════════
@@ -457,5 +510,6 @@ module.exports = {
     syncFromMicrosoft,
     syncToMicrosoft,
     enableAutoSync,
-    disableAutoSync
+    disableAutoSync,
+    getSyncSettings
 };
