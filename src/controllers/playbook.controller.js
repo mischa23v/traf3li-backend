@@ -9,7 +9,7 @@
  */
 
 const PlaybookService = require('../services/playbook.service');
-const { TeamActivityLog } = require('../models');
+const QueueService = require('../services/queue.service');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
@@ -113,7 +113,7 @@ const createPlaybook = asyncHandler(async (req, res) => {
   }
 
   // Log activity
-  await TeamActivityLog.log({
+  QueueService.logTeamActivity({
     firmId,
     userId,
     action: 'create',
@@ -223,7 +223,7 @@ const updatePlaybook = asyncHandler(async (req, res) => {
   }
 
   // Log activity
-  await TeamActivityLog.log({
+  QueueService.logTeamActivity({
     firmId,
     userId,
     action: 'update',
@@ -285,7 +285,7 @@ const deletePlaybook = asyncHandler(async (req, res) => {
   }
 
   // Log activity
-  await TeamActivityLog.log({
+  QueueService.logTeamActivity({
     firmId,
     userId,
     action: 'delete',
@@ -353,7 +353,7 @@ const startExecution = asyncHandler(async (req, res) => {
   }
 
   // Log activity
-  await TeamActivityLog.log({
+  QueueService.logTeamActivity({
     firmId,
     userId,
     action: 'execute',
@@ -503,7 +503,7 @@ const abortExecution = asyncHandler(async (req, res) => {
   }
 
   // Log activity
-  await TeamActivityLog.log({
+  QueueService.logTeamActivity({
     firmId,
     userId,
     action: 'abort',

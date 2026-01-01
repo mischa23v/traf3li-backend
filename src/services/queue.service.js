@@ -24,6 +24,9 @@ require('../queues/cleanup.queue');
 require('../queues/sync.queue');
 require('../queues/bulkActions.queue');
 const activityQueue = require('../queues/activity.queue');
+const billingActivityQueue = require('../queues/billingActivity.queue');
+const teamActivityQueue = require('../queues/teamActivity.queue');
+const caseAuditQueue = require('../queues/caseAudit.queue');
 
 class QueueService {
   /**
@@ -479,6 +482,139 @@ class QueueService {
    */
   static async logBulkActivities(activities, options = {}) {
     return activityQueue.addBulkActivities(activities, options);
+  }
+
+  // ==================== BILLING ACTIVITY LOGGING ====================
+
+  /**
+   * Log billing activity via queue (Gold Standard - fire-and-forget)
+   * Use for invoice, payment, time entry, expense, and retainer activity logging.
+   *
+   * @param {Object} activityData - Billing activity data
+   * @param {string} activityData.activityType - Activity type (e.g., 'invoice_created')
+   * @param {string} activityData.userId - User who performed action
+   * @param {string} activityData.description - Activity description
+   * @param {string} activityData.firmId - Firm ID (optional)
+   * @param {string} activityData.lawyerId - Lawyer ID (optional)
+   * @param {string} activityData.clientId - Related client (optional)
+   * @param {string} activityData.relatedModel - Model type (Invoice, Payment, etc.)
+   * @param {string} activityData.relatedId - Related document ID
+   * @param {Object} activityData.changes - Change details (optional)
+   * @param {Object} options - Job options (optional)
+   * @returns {Promise<Object>} Job info
+   *
+   * @example
+   * await QueueService.logBillingActivity({
+   *   activityType: 'invoice_created',
+   *   userId: req.userID,
+   *   firmId: req.firmId,
+   *   clientId: invoice.clientId,
+   *   relatedModel: 'Invoice',
+   *   relatedId: invoice._id,
+   *   description: `Invoice ${invoice.invoiceNumber} created`
+   * });
+   */
+  static async logBillingActivity(activityData, options = {}) {
+    return billingActivityQueue.addActivity(activityData, options);
+  }
+
+  /**
+   * Log multiple billing activities via queue (for bulk operations)
+   *
+   * @param {Array} activities - Array of billing activity data objects
+   * @param {Object} options - Job options (optional)
+   * @returns {Promise<Object>} Job info
+   */
+  static async logBulkBillingActivities(activities, options = {}) {
+    return billingActivityQueue.addBulkActivities(activities, options);
+  }
+
+  // ==================== TEAM ACTIVITY LOGGING ====================
+
+  /**
+   * Log team activity via queue (Gold Standard - fire-and-forget)
+   * Use for team management, approvals, and user activity tracking.
+   *
+   * @param {Object} activityData - Team activity data
+   * @param {string} activityData.firmId - Firm ID (required)
+   * @param {string} activityData.userId - User who performed action
+   * @param {string} activityData.targetType - Target type (staff, setting, etc.)
+   * @param {string} activityData.action - Action performed
+   * @param {string} activityData.lawyerId - Lawyer ID (optional)
+   * @param {string} activityData.userEmail - User email (optional)
+   * @param {string} activityData.userName - User name (optional)
+   * @param {string} activityData.targetId - Target document ID (optional)
+   * @param {string} activityData.targetName - Target name (optional)
+   * @param {Array} activityData.changes - Change details (optional)
+   * @param {Object} activityData.details - Additional details (optional)
+   * @param {Object} options - Job options (optional)
+   * @returns {Promise<Object>} Job info
+   *
+   * @example
+   * await QueueService.logTeamActivity({
+   *   firmId: req.firmId,
+   *   userId: req.userID,
+   *   targetType: 'staff',
+   *   targetId: member._id,
+   *   targetName: member.email,
+   *   action: 'invite',
+   *   details: { role: 'member' }
+   * });
+   */
+  static async logTeamActivity(activityData, options = {}) {
+    return teamActivityQueue.addActivity(activityData, options);
+  }
+
+  /**
+   * Log multiple team activities via queue (for bulk operations)
+   *
+   * @param {Array} activities - Array of team activity data objects
+   * @param {Object} options - Job options (optional)
+   * @returns {Promise<Object>} Job info
+   */
+  static async logBulkTeamActivities(activities, options = {}) {
+    return teamActivityQueue.addBulkActivities(activities, options);
+  }
+
+  // ==================== CASE AUDIT LOGGING ====================
+
+  /**
+   * Log case audit entry via queue (Gold Standard - fire-and-forget)
+   * Use for case-specific audit trail logging.
+   *
+   * @param {Object} auditData - Case audit data
+   * @param {string} auditData.caseId - Case ID (required)
+   * @param {string} auditData.action - Action performed (required)
+   * @param {string} auditData.userId - User who performed action (required)
+   * @param {string} auditData.firmId - Firm ID (optional)
+   * @param {string} auditData.lawyerId - Lawyer ID (optional)
+   * @param {Object} auditData.changes - Change details (optional)
+   * @param {Object} auditData.details - Additional details (optional)
+   * @param {Object} options - Job options (optional)
+   * @returns {Promise<Object>} Job info
+   *
+   * @example
+   * await QueueService.logCaseAudit({
+   *   caseId: case._id,
+   *   action: 'status_changed',
+   *   userId: req.userID,
+   *   firmId: req.firmId,
+   *   changes: { oldStatus: 'open', newStatus: 'closed' }
+   * });
+   */
+  static async logCaseAudit(auditData, options = {}) {
+    return caseAuditQueue.addAudit(auditData, options);
+  }
+
+  /**
+   * Log multiple case audits via queue (for bulk operations)
+   *
+   * @param {Array} audits - Array of case audit data objects
+   * @param {Object} options - Job options (optional)
+   * @returns {Promise<Object>} Job info
+   */
+  static async logBulkCaseAudits(audits, options = {}) {
+    return caseAuditQueue.addBulkAudits(audits, options);
   }
 }
 

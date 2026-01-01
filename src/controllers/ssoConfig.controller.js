@@ -14,7 +14,8 @@
  * - Audit logs all configuration changes
  */
 
-const { Firm, TeamActivityLog } = require('../models');
+const { Firm } = require('../models');
+const QueueService = require('../services/queue.service');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
@@ -281,7 +282,7 @@ const updateSSOConfig = asyncHandler(async (req, res) => {
     }
 
     // Log configuration change
-    await TeamActivityLog.log({
+    QueueService.logTeamActivity({
         firmId,
         userId: req.userID,
         action: 'update',
@@ -391,7 +392,7 @@ const testSSOConnection = asyncHandler(async (req, res) => {
         await firm.save();
 
         // Log test
-        await TeamActivityLog.log({
+        QueueService.logTeamActivity({
             firmId,
             userId: req.userID,
             action: 'read',
@@ -424,7 +425,7 @@ const testSSOConnection = asyncHandler(async (req, res) => {
         testResults.errors.push(error.message);
 
         // Log failed test
-        await TeamActivityLog.log({
+        QueueService.logTeamActivity({
             firmId,
             userId: req.userID,
             action: 'read',
@@ -551,7 +552,7 @@ const uploadMetadata = asyncHandler(async (req, res) => {
     samlService.clearStrategyCache(firmId);
 
     // Log metadata upload
-    await TeamActivityLog.log({
+    QueueService.logTeamActivity({
         firmId,
         userId: req.userID,
         action: 'update',
@@ -620,7 +621,7 @@ const disableSSO = asyncHandler(async (req, res) => {
     samlService.clearStrategyCache(firmId);
 
     // Log SSO disable
-    await TeamActivityLog.log({
+    QueueService.logTeamActivity({
         firmId,
         userId: req.userID,
         action: 'update',

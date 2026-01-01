@@ -9,6 +9,7 @@
  */
 
 const { TeamActivityLog, AuditLog } = require('../models');
+const QueueService = require('../services/queue.service');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
@@ -230,7 +231,7 @@ const exportAuditLog = asyncHandler(async (req, res) => {
     });
 
     // Log this export action
-    await TeamActivityLog.log({
+    QueueService.logTeamActivity({
         firmId,
         userId: req.userID,
         action: 'export',

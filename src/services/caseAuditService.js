@@ -1,4 +1,5 @@
 const CaseAuditLog = require('../models/caseAuditLog.model');
+const QueueService = require('../services/queue.service');
 const logger = require('../utils/logger');
 
 /**
@@ -19,22 +20,17 @@ class CaseAuditService {
    * @returns {Promise<Object>} - The created audit entry
    */
   static async log({ userId, action, resource, resourceId, caseId, changes, metadata }) {
-    try {
-      const entry = await CaseAuditLog.log({
-        userId,
-        action,
-        resource,
-        resourceId,
-        caseId,
-        changes,
-        metadata
-      });
-      return entry;
-    } catch (error) {
-      logger.error('❌ CaseAuditService.log error:', error.message);
-      // Don't throw - audit logging shouldn't break main operations
-      return null;
-    }
+    // Fire-and-forget: Queue the audit log without awaiting
+    QueueService.logCaseAudit({
+      userId,
+      action,
+      resource,
+      resourceId,
+      caseId,
+      changes,
+      metadata
+    });
+    return null;
   }
 
   /**
