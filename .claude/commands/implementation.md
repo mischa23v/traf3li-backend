@@ -26,6 +26,52 @@ _Technical approach for implementing the requirements._
 
 ---
 
+## 📋 Impact Analysis
+
+### Files to CREATE (New)
+| File | Purpose | Est. Lines |
+|------|---------|------------|
+| `src/controllers/x.controller.js` | Request handlers | ~150 |
+| `src/services/x.service.js` | Business logic | ~80 |
+| `src/routes/x.route.js` | Express routes | ~30 |
+
+### Files to MODIFY (Existing)
+| File | What Changes | Lines Affected | Risk |
+|------|--------------|----------------|------|
+| `src/models/index.js` | Add model export | ~2 lines | Low |
+| `server.js` | Add route mounting | ~1 line | Low |
+
+### Files NOT Touched (Explicitly Safe)
+| File | Why Safe |
+|------|----------|
+| `task.controller.js` | Separate domain, no overlap |
+| `auth.middleware.js` | No changes needed |
+
+### Dependency Check
+| Dependency | Status | Notes |
+|------------|--------|-------|
+| Mongoose model exists | ❌ Create | New model needed |
+| Route path conflicts | ✅ Checked | No conflicts at `/api/x` |
+| Existing service reuse | ✅ Yes | Can use `QueueService` |
+
+---
+
+## ⚠️ Risk Assessment
+
+| Risk | Likelihood | Impact | Mitigation |
+|------|------------|--------|------------|
+| Query performance | Medium | Medium | Add indexes in schema |
+| Breaking existing routes | Low | High | Test all `/api/*` after changes |
+| Schema migration | Low | Medium | No breaking changes to existing data |
+
+### Rollback Plan
+If something breaks:
+1. All changes in separate commits
+2. Revert: `git revert <commit-hash>`
+3. Files to restore: `[list specific files]`
+
+---
+
 ## Architecture
 
 ### File Structure

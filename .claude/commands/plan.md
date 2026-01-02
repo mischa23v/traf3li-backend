@@ -6,6 +6,42 @@ Format: `WHEN [condition/event] THE SYSTEM SHALL [expected behavior]`
 
 ---
 
+## 📏 SCALE ASSESSMENT (Do This First)
+
+Before deep planning, determine the scope to avoid over-engineering simple tasks:
+
+| Scale | Criteria | Process |
+|-------|----------|---------|
+| **Quick Fix** | Bug fix, typo, < 3 files, < 30 min | Minimal spec → quick approval → implement |
+| **Standard** | Feature, 3-10 files, < 1 day | Full requirements → design → implement |
+| **Complex** | Major feature, 10+ files, multi-day | Full spec + risk analysis + phased delivery |
+
+### Quick Fix Template (Use for bug fixes, small changes)
+```markdown
+# Quick Fix: {Title}
+
+## Problem
+{One sentence describing the bug/issue}
+
+## Solution
+{One sentence describing the fix}
+
+## Files to Change
+- [ ] `src/controllers/x.controller.js` - {what changes}
+- [ ] `src/routes/x.route.js` - {what changes}
+
+## Verification
+- [ ] `node --check` passes
+- [ ] Original issue fixed
+- [ ] No regressions introduced
+
+**Approve? (yes/no)**
+```
+
+### Standard/Complex: Continue with full spec below ↓
+
+---
+
 ## 🏆 GOLD STANDARD COMPLIANCE (MANDATORY)
 
 **Every plan MUST meet enterprise standards from AWS, Google, Microsoft, Apple, SAP, Netflix.**
@@ -71,6 +107,30 @@ Before creating any requirements, verify the plan addresses ALL applicable categ
 
 ## Overview
 _One paragraph describing what this API/feature does and why it matters._
+
+---
+
+## 🧠 Reasoning (Thinking Out Loud)
+
+### What I Searched
+_Document what was explored before making decisions:_
+- Searched `src/controllers/*` → Found X existing controllers
+- Searched `existing-pattern` → Found usage in Y files
+- Checked `src/models/` → Model already exists / needs creation
+
+### Decisions Made
+| Decision | Why | Alternatives Considered |
+|----------|-----|------------------------|
+| Extend existing controller | Keeps related logic together | New controller (rejected: fragmentation) |
+| Use existing service | Pattern already established | Inline logic (rejected: no reuse) |
+| Add to existing model | Fields are related | New model (rejected: over-normalization) |
+
+### What Could Break
+| File | Risk | Likelihood | Mitigation |
+|------|------|------------|------------|
+| `existing.controller.js` | Adding new function | Low | Function is additive |
+| `existing.route.js` | Adding new route | Low | Check for path conflicts |
+| `Model.js` | Schema change | Medium | Test existing queries still work |
 
 ---
 
