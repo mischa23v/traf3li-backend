@@ -1876,27 +1876,97 @@ const getCalendarItemDetails = asyncHandler(async (req, res) => {
 
         case 'appointment':
             // SECURITY: Use req.firmQuery for multi-tenant isolation
-            item = await Appointment.findOne({ _id: sanitizedId, ...req.firmQuery })
+            // NOTE: Not using .lean() so that Mongoose virtuals (clientName, clientEmail, etc.) are included
+            const appointmentDoc = await Appointment.findOne({ _id: sanitizedId, ...req.firmQuery })
                 .populate('assignedTo', 'username firstName lastName image email phone')
                 .populate('partyId', 'firstName lastName companyName email phone')
                 .populate('caseId', 'title caseNumber category')
                 .populate('createdBy', 'firstName lastName')
-                .populate('cancelledBy', 'firstName lastName')
-                .lean();
+                .populate('cancelledBy', 'firstName lastName');
 
             // SECURITY: Return 404 (not 403) to prevent information leakage
-            if (!item) {
+            if (!appointmentDoc) {
                 throw CustomException('Appointment not found', 404);
             }
 
             // Enhanced IDOR protection - verify ownership/access
-            const hasAppointmentAccess = item.assignedTo?._id?.toString() === userId ||
-                item.createdBy?._id?.toString() === userId;
+            const hasAppointmentAccess = appointmentDoc.assignedTo?._id?.toString() === userId ||
+                appointmentDoc.createdBy?._id?.toString() === userId;
 
             // SECURITY: Return 404 (not 403) to prevent information leakage
             if (!hasAppointmentAccess) {
                 throw CustomException('Appointment not found', 404);
             }
+
+            // Transform appointment to include both calendar fields and appointment-specific fields
+            // Frontend expects full appointment data when type === 'appointment'
+            const appointmentObj = appointmentDoc.toObject({ virtuals: true });
+
+            // Format endTime as HH:mm (startTime virtual already exists in model)
+            const formattedEndTime = appointmentDoc.endTime
+                ? appointmentDoc.endTime.toTimeString().slice(0, 5)
+                : '';
+
+            item = {
+                // Standard calendar fields
+                id: appointmentObj._id,
+                type: 'appointment',
+                title: appointmentObj.subject || appointmentObj.customerName || 'Appointment',
+                startDate: appointmentObj.scheduledTime,
+                endDate: appointmentObj.endTime,
+                allDay: false,
+                eventType: appointmentObj.type,
+                status: appointmentObj.status,
+                color: getAppointmentColor(appointmentObj.status, appointmentObj.type),
+
+                // Appointment-specific fields (using virtuals and direct fields)
+                clientName: appointmentObj.clientName || appointmentObj.customerName,
+                clientEmail: appointmentObj.clientEmail || appointmentObj.customerEmail,
+                clientPhone: appointmentObj.clientPhone || appointmentObj.customerPhone,
+                startTime: appointmentObj.startTime, // Virtual from model
+                endTime: formattedEndTime,
+                appointmentType: appointmentObj.type,
+                appointmentStatus: appointmentObj.status,
+                locationType: appointmentObj.locationType,
+                location: appointmentObj.location || appointmentObj.meetingLink || '',
+                notes: appointmentObj.notes || appointmentObj.customerNotes || '',
+                subject: appointmentObj.subject || '',
+
+                // Additional useful fields
+                duration: appointmentObj.duration,
+                appointmentNumber: appointmentObj.appointmentNumber,
+                appointmentWith: appointmentObj.appointmentWith,
+                source: appointmentObj.source,
+                meetingLink: appointmentObj.meetingLink,
+
+                // Payment info
+                price: appointmentObj.price,
+                currency: appointmentObj.currency,
+                isPaid: appointmentObj.isPaid,
+
+                // Related entities (populated)
+                assignedTo: appointmentObj.assignedTo,
+                partyId: appointmentObj.partyId,
+                caseId: appointmentObj.caseId,
+                createdBy: appointmentObj.createdBy,
+
+                // Cancellation info (if applicable)
+                cancelledBy: appointmentObj.cancelledBy,
+                cancelledAt: appointmentObj.cancelledAt,
+                cancellationReason: appointmentObj.cancellationReason,
+
+                // Outcome and follow-up
+                outcome: appointmentObj.outcome,
+                followUpRequired: appointmentObj.followUpRequired,
+                followUpDate: appointmentObj.followUpDate,
+
+                // Calendar integration
+                calendarEventId: appointmentObj.calendarEventId,
+
+                // Timestamps
+                createdAt: appointmentObj.createdAt,
+                updatedAt: appointmentObj.updatedAt
+            };
             break;
     }
 
