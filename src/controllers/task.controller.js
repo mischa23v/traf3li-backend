@@ -10,6 +10,14 @@ const fs = require('fs');
 const path = require('path');
 const logger = require('../utils/logger');
 
+// Service layer - extracted helper functions
+const {
+    calculateNextDueDate,
+    hasCircularDependency,
+    evaluateWorkflowRules,
+    executeWorkflowAction
+} = require('../services/task.service');
+
 // =============================================================================
 // CONSTANTS - Centralized validation and allowed fields
 // =============================================================================
@@ -1492,37 +1500,6 @@ const getTasksDueToday = asyncHandler(async (req, res) => {
     });
 });
 
-// Helper function to calculate next due date
-function calculateNextDueDate(currentDueDate, recurring) {
-    const nextDate = new Date(currentDueDate);
-    const interval = recurring.interval || 1;
-
-    switch (recurring.frequency) {
-        case 'daily':
-            nextDate.setDate(nextDate.getDate() + interval);
-            break;
-        case 'weekly':
-            nextDate.setDate(nextDate.getDate() + (7 * interval));
-            break;
-        case 'biweekly':
-            nextDate.setDate(nextDate.getDate() + 14);
-            break;
-        case 'monthly':
-            nextDate.setMonth(nextDate.getMonth() + interval);
-            break;
-        case 'quarterly':
-            nextDate.setMonth(nextDate.getMonth() + 3);
-            break;
-        case 'yearly':
-            nextDate.setFullYear(nextDate.getFullYear() + interval);
-            break;
-        default:
-            nextDate.setDate(nextDate.getDate() + 1);
-    }
-
-    return nextDate;
-}
-
 // ============================================
 // TEMPLATE FUNCTIONS
 // ============================================
@@ -2097,34 +2074,6 @@ const deleteAttachment = asyncHandler(async (req, res) => {
 // ============================================
 
 /**
- * Check for circular dependencies
- */
-async function hasCircularDependency(taskId, dependsOnId, firmId, visited = new Set()) {
-    if (taskId.toString() === dependsOnId.toString()) {
-        return true;
-    }
-
-    if (visited.has(dependsOnId.toString())) {
-        return false;
-    }
-
-    visited.add(dependsOnId.toString());
-
-    const dependentTask = await Task.findOne({ _id: dependsOnId, firmId }).select('blockedBy');
-    if (!dependentTask || !dependentTask.blockedBy) {
-        return false;
-    }
-
-    for (const blockedById of dependentTask.blockedBy) {
-        if (await hasCircularDependency(taskId, blockedById, firmId, visited)) {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-/**
  * Add dependency to task
  * POST /api/tasks/:id/dependencies
  */
@@ -2418,97 +2367,6 @@ const updateProgress = asyncHandler(async (req, res) => {
 // ============================================
 // WORKFLOW FUNCTIONS
 // ============================================
-
-/**
- * Evaluate and execute workflow rules
- */
-async function evaluateWorkflowRules(task, triggerType, context) {
-    if (!task.workflowRules || task.workflowRules.length === 0) {
-        return;
-    }
-
-    const rules = task.workflowRules.filter(r =>
-        r.isActive && r.trigger.type === triggerType
-    );
-
-    for (const rule of rules) {
-        // Check conditions
-        const conditionsMet = rule.conditions.every(cond => {
-            const fieldValue = task[cond.field];
-            switch (cond.operator) {
-                case 'equals': return fieldValue === cond.value;
-                case 'not_equals': return fieldValue !== cond.value;
-                case 'contains': return fieldValue?.includes?.(cond.value);
-                case 'greater_than': return fieldValue > cond.value;
-                case 'less_than': return fieldValue < cond.value;
-                default: return false;
-            }
-        });
-
-        if (conditionsMet || rule.conditions.length === 0) {
-            for (const action of rule.actions) {
-                await executeWorkflowAction(task, action, { ...context, ruleName: rule.name });
-            }
-        }
-    }
-}
-
-/**
- * Execute a workflow action
- */
-async function executeWorkflowAction(task, action, context) {
-    switch (action.type) {
-        case 'create_task':
-            if (action.taskTemplate) {
-                const template = action.taskTemplate;
-                const dueDate = template.dueDateOffset
-                    ? new Date(Date.now() + template.dueDateOffset * 24 * 60 * 60 * 1000)
-                    : null;
-
-                // Interpolate template strings
-                const interpolate = (str) => {
-                    if (!str) return str;
-                    return str
-                        .replace(/\$\{caseNumber\}/g, task.caseId?.caseNumber || '')
-                        .replace(/\$\{caseTitle\}/g, task.caseId?.title || '')
-                        .replace(/\$\{taskTitle\}/g, task.title || '');
-                };
-
-                await Task.create({
-                    title: interpolate(template.title) || `متابعة: ${task.title}`,
-                    description: interpolate(template.description),
-                    taskType: template.taskType || 'general',
-                    priority: template.priority || task.priority,
-                    dueDate,
-                    caseId: task.caseId,
-                    clientId: task.clientId,
-                    assignedTo: template.assignedTo || task.assignedTo,
-                    createdBy: context.userId,
-                    parentTaskId: task._id,
-                    history: [{
-                        action: 'created',
-                        userId: context.userId,
-                        userName: context.userName,
-                        timestamp: new Date(),
-                        details: `تم إنشاء المهمة تلقائياً من قاعدة: ${context.ruleName}`
-                    }]
-                });
-            }
-            break;
-
-        case 'assign_user':
-            if (action.value) {
-                task.assignedTo = action.value;
-            }
-            break;
-
-        case 'update_field':
-            if (action.field && action.value !== undefined) {
-                task[action.field] = action.value;
-            }
-            break;
-    }
-}
 
 /**
  * Add workflow rule to task
