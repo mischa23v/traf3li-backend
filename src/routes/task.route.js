@@ -1,5 +1,7 @@
 const express = require('express');
 const taskUpload = require('../configs/taskUpload');
+
+// Core task controller
 const {
     createTask,
     getTasks,
@@ -37,20 +39,6 @@ const {
     deleteAttachment,
     getAttachmentDownloadUrl,
     getAttachmentVersions,
-    // Document functions
-    createDocument,
-    getDocuments,
-    updateDocument,
-    getDocument,
-    getDocumentVersions,
-    getDocumentVersion,
-    restoreDocumentVersion,
-    // Voice memo functions
-    addVoiceMemo,
-    updateVoiceMemoTranscription,
-    // Voice-to-task conversion functions
-    processVoiceToItem,
-    batchProcessVoiceMemos,
     // Dependency functions
     addDependency,
     removeDependency,
@@ -63,15 +51,33 @@ const {
     // Budget functions
     updateEstimate,
     getTimeTrackingSummary,
-    // NLP & AI functions
-    createTaskFromNaturalLanguage,
-    createTaskFromVoice,
-    getSmartScheduleSuggestions,
-    autoScheduleTasks,
     // Aggregated endpoints
     getTaskFull,
     getTasksOverview
 } = require('../controllers/task.controller');
+
+// Document controller (extracted for maintainability)
+const {
+    createDocument,
+    getDocuments,
+    updateDocument,
+    getDocument,
+    getDocumentVersions,
+    getDocumentVersion,
+    restoreDocumentVersion
+} = require('../controllers/taskDocument.controller');
+
+// Voice & NLP controller (extracted for maintainability)
+const {
+    addVoiceMemo,
+    updateVoiceMemoTranscription,
+    processVoiceToItem,
+    batchProcessVoiceMemos,
+    createTaskFromNaturalLanguage,
+    createTaskFromVoice,
+    getSmartScheduleSuggestions,
+    autoScheduleTasks
+} = require('../controllers/taskVoice.controller');
 
 const app = express.Router();
 
