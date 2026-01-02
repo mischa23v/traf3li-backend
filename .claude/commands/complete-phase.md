@@ -4,6 +4,46 @@ Create implementation tasks from approved design, then execute ONE task at a tim
 
 ---
 
+## 🛫 PRE-FLIGHT CHECKS (Before Starting)
+
+**Run these checks BEFORE writing any code:**
+
+### 1. Environment Verification
+```bash
+# Verify syntax on files you'll modify
+node --check src/controllers/[target].controller.js
+node --check src/routes/[target].route.js
+
+# Check current branch state
+git status  # Should be clean or have only spec files
+```
+
+### 2. Dependency Check
+| Check | Command | Expected |
+|-------|---------|----------|
+| Route conflicts | `grep -r "GET /api/v1/[path]" src/routes/` | No conflicts |
+| Model exists | `ls src/models/[model].model.js` | Exists or planned |
+| Service exists | `ls src/services/[service].service.js` | Exists or planned |
+| Import paths | Check relative paths in design.md | Valid paths |
+
+### 3. Baseline Snapshot
+```bash
+# Record current state for rollback
+git log -1 --oneline  # Note the commit hash
+git stash list        # Check for stashed changes
+
+# Run existing verification (if any)
+node scripts/verify-task-contract.js  # For task refactoring
+```
+
+### 4. Risk Acknowledgment
+Before proceeding, confirm:
+- [ ] I've read the Impact Analysis in design.md
+- [ ] I understand which files are safe vs risky
+- [ ] I have a rollback plan if something breaks
+
+---
+
 ## 🎯 INSTRUCTIONS
 
 1. **Read `requirements.md` and `design.md`** to understand what to build
@@ -80,6 +120,56 @@ Step-by-step implementation plan based on the approved design.
 
 **Current Task:** _Task 1.1_
 **Started:** _[Date]_
+**Baseline Commit:** _[hash]_
+```
+
+---
+
+## 🔙 ROLLBACK STRATEGY
+
+### Per-Task Commits
+**Each task = One atomic commit** for easy rollback.
+
+```bash
+# After each task completion:
+git add src/[modified-files]
+git commit -m "feat(resource): Task X.Y - [description]"
+```
+
+### If Something Breaks
+
+#### Option 1: Revert Last Task
+```bash
+git log --oneline -5  # Find the bad commit
+git revert <commit-hash>  # Create a revert commit
+```
+
+#### Option 2: Reset to Baseline
+```bash
+git reset --hard <baseline-commit>  # Nuclear option - loses all changes
+```
+
+#### Option 3: Selective File Restore
+```bash
+git checkout <baseline-commit> -- src/path/to/broken/file.js
+```
+
+### Recovery Checklist
+If rollback needed:
+1. [ ] Note the error message
+2. [ ] Identify which task caused the issue
+3. [ ] Check if it's a simple fix vs rollback
+4. [ ] If rollback: revert the specific commit
+5. [ ] Run verification: `node --check [file]`
+6. [ ] Update tasks.md with learnings
+
+### Files Changed Tracking
+Add to each task in tasks.md:
+```markdown
+- [x] **Task 2.1**: Create controller
+  - Files: `src/controllers/x.controller.js` (NEW)
+  - Commit: `abc1234`
+  - Rollback: `git revert abc1234`
 ```
 
 ---
@@ -265,6 +355,18 @@ Implementation plan for the Invoice API based on approved design.
 ## ✅ COMPLETION CHECKLIST
 
 Before marking a task complete, verify:
+
+### Syntax & Runtime
+```bash
+# MUST pass before committing
+node --check src/[modified-file].js
+
+# If routes changed
+node --check src/routes/[route-file].js
+
+# If contract verification exists
+node scripts/verify-task-contract.js
+```
 
 ### Security (from CLAUDE.md)
 - [ ] Uses `...req.firmQuery` in all queries
