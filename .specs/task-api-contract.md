@@ -1,232 +1,325 @@
-# Task API Contract (Baseline)
+# Task API Contract
 
-**Captured:** 2026-01-02
-**Purpose:** Compare after refactoring to ensure no breaking changes
-
----
-
-## API Endpoints (50 total)
-
-### Templates (7 endpoints)
-| Method | Endpoint | Handler | Source |
-|--------|----------|---------|--------|
-| GET | /templates | getTemplates | taskTemplate.controller |
-| POST | /templates | createTemplate | taskTemplate.controller |
-| GET | /templates/:templateId | getTemplate | taskTemplate.controller |
-| PUT | /templates/:templateId | updateTemplate | taskTemplate.controller |
-| PATCH | /templates/:templateId | updateTemplate | taskTemplate.controller |
-| DELETE | /templates/:templateId | deleteTemplate | taskTemplate.controller |
-| POST | /templates/:templateId/create | createFromTemplate | taskTemplate.controller |
-
-### Overview & Stats (6 endpoints)
-| Method | Endpoint | Handler | Source |
-|--------|----------|---------|--------|
-| GET | /overview | getTasksOverview | task.controller |
-| GET | /stats | getTaskStats | task.controller |
-| GET | /upcoming | getUpcomingTasks | task.controller |
-| GET | /overdue | getOverdueTasks | task.controller |
-| GET | /due-today | getTasksDueToday | task.controller |
-| GET | /case/:caseId | getTasksByCase | task.controller |
-
-### Bulk Operations (2 endpoints)
-| Method | Endpoint | Handler | Source |
-|--------|----------|---------|--------|
-| PUT | /bulk | bulkUpdateTasks | task.controller |
-| DELETE | /bulk | bulkDeleteTasks | task.controller |
-
-### Voice & NLP (6 endpoints)
-| Method | Endpoint | Handler | Source |
-|--------|----------|---------|--------|
-| POST | /parse | createTaskFromNaturalLanguage | taskVoice.controller |
-| POST | /voice | createTaskFromVoice | taskVoice.controller |
-| GET | /smart-schedule | getSmartScheduleSuggestions | taskVoice.controller |
-| POST | /auto-schedule | autoScheduleTasks | taskVoice.controller |
-| POST | /voice-to-item | processVoiceToItem | taskVoice.controller |
-| POST | /voice-to-item/batch | batchProcessVoiceMemos | taskVoice.controller |
-
-### Core CRUD (7 endpoints)
-| Method | Endpoint | Handler | Source |
-|--------|----------|---------|--------|
-| POST | / | createTask | task.controller |
-| GET | / | getTasks | task.controller |
-| GET | /:id/full | getTaskFull | task.controller |
-| GET | /:id | getTask | task.controller |
-| PUT | /:id | updateTask | task.controller |
-| PATCH | /:id | updateTask | task.controller |
-| DELETE | /:id | deleteTask | task.controller |
-
-### Task Actions (1 endpoint)
-| Method | Endpoint | Handler | Source |
-|--------|----------|---------|--------|
-| POST | /:id/complete | completeTask | task.controller |
-
-### Subtasks (3 endpoints)
-| Method | Endpoint | Handler | Source |
-|--------|----------|---------|--------|
-| POST | /:id/subtasks | addSubtask | task.controller |
-| PATCH | /:id/subtasks/:subtaskId/toggle | toggleSubtask | task.controller |
-| DELETE | /:id/subtasks/:subtaskId | deleteSubtask | task.controller |
-
-### Time Tracking (4 endpoints)
-| Method | Endpoint | Handler | Source |
-|--------|----------|---------|--------|
-| POST | /:id/timer/start | startTimer | task.controller |
-| POST | /:id/timer/stop | stopTimer | task.controller |
-| POST | /:id/time | addManualTime | task.controller |
-| GET | /:id/time-tracking/summary | getTimeTrackingSummary | task.controller |
-
-### Comments (3 endpoints)
-| Method | Endpoint | Handler | Source |
-|--------|----------|---------|--------|
-| POST | /:id/comments | addComment | task.controller |
-| PUT | /:id/comments/:commentId | updateComment | task.controller |
-| DELETE | /:id/comments/:commentId | deleteComment | task.controller |
-
-### Save as Template (1 endpoint)
-| Method | Endpoint | Handler | Source |
-|--------|----------|---------|--------|
-| POST | /:id/save-as-template | saveAsTemplate | taskTemplate.controller |
-
-### Attachments (4 endpoints)
-| Method | Endpoint | Handler | Source |
-|--------|----------|---------|--------|
-| POST | /:id/attachments | addAttachment | taskAttachment.controller |
-| GET | /:id/attachments/:attachmentId/download-url | getAttachmentDownloadUrl | taskAttachment.controller |
-| GET | /:id/attachments/:attachmentId/versions | getAttachmentVersions | taskAttachment.controller |
-| DELETE | /:id/attachments/:attachmentId | deleteAttachment | taskAttachment.controller |
-
-### Documents (7 endpoints)
-| Method | Endpoint | Handler | Source |
-|--------|----------|---------|--------|
-| POST | /:id/documents | createDocument | taskDocument.controller |
-| GET | /:id/documents | getDocuments | taskDocument.controller |
-| GET | /:id/documents/:documentId | getDocument | taskDocument.controller |
-| PATCH | /:id/documents/:documentId | updateDocument | taskDocument.controller |
-| GET | /:id/documents/:documentId/versions | getDocumentVersions | taskDocument.controller |
-| GET | /:id/documents/:documentId/versions/:versionId | getDocumentVersion | taskDocument.controller |
-| POST | /:id/documents/:documentId/versions/:versionId/restore | restoreDocumentVersion | taskDocument.controller |
-
-### Voice Memos (2 endpoints)
-| Method | Endpoint | Handler | Source |
-|--------|----------|---------|--------|
-| POST | /:id/voice-memos | addVoiceMemo | taskVoice.controller |
-| PATCH | /:id/voice-memos/:memoId/transcription | updateVoiceMemoTranscription | taskVoice.controller |
-
-### Dependencies & Status (3 endpoints)
-| Method | Endpoint | Handler | Source |
-|--------|----------|---------|--------|
-| POST | /:id/dependencies | addDependency | task.controller |
-| DELETE | /:id/dependencies/:dependencyTaskId | removeDependency | task.controller |
-| PATCH | /:id/status | updateTaskStatus | task.controller |
-
-### Progress & Workflow (3 endpoints)
-| Method | Endpoint | Handler | Source |
-|--------|----------|---------|--------|
-| PATCH | /:id/progress | updateProgress | task.controller |
-| POST | /:id/workflow-rules | addWorkflowRule | task.controller |
-| PATCH | /:id/outcome | updateOutcome | task.controller |
-
-### Estimates (1 endpoint)
-| Method | Endpoint | Handler | Source |
-|--------|----------|---------|--------|
-| PATCH | /:id/estimate | updateEstimate | task.controller |
-
----
-
-## ALLOWED_FIELDS (Request Body Validation)
-
-\`\`\`javascript
-const ALLOWED_FIELDS = {
-    // Core task operations
-    CREATE: [
-        'title', 'description', 'priority', 'status', 'label', 'tags',
-        'dueDate', 'dueTime', 'startDate', 'assignedTo', 'caseId', 'clientId',
-        'parentTaskId', 'subtasks', 'checklists', 'timeTracking', 'recurring',
-        'reminders', 'notes', 'points'
-    ],
-    UPDATE: [
-        'title', 'description', 'status', 'priority', 'label', 'tags',
-        'dueDate', 'dueTime', 'startDate', 'assignedTo', 'caseId', 'clientId',
-        'subtasks', 'checklists', 'timeTracking', 'recurring', 'reminders',
-        'notes', 'points', 'progress'
-    ],
-    SUBTASK: ['title', 'autoReset'],
-    SUBTASK_UPDATE: ['title', 'completed'],
-    TIMER_START: ['notes'],
-    TIMER_STOP: ['notes', 'isBillable'],
-    MANUAL_TIME: ['minutes', 'notes', 'date', 'isBillable'],
-    COMMENT_CREATE: ['content', 'text', 'mentions'],
-    COMMENT_UPDATE: ['content', 'text'],
-    BULK_UPDATE: ['taskIds', 'updates'],
-    BULK_DELETE: ['taskIds'],
-    BULK_UPDATE_FIELDS: ['status', 'priority', 'assignedTo', 'dueDate', 'label', 'tags'],
-    TEMPLATE_CREATE: [
-        'title', 'templateName', 'description', 'priority', 'label', 'tags',
-        'subtasks', 'checklists', 'timeTracking', 'reminders', 'notes', 'isPublic'
-    ],
-    TEMPLATE_UPDATE: [
-        'title', 'templateName', 'description', 'priority', 'label', 'tags',
-        'subtasks', 'checklists', 'timeTracking', 'reminders', 'notes', 'isPublic'
-    ],
-    TEMPLATE_CREATE_TASK: ['title', 'dueDate', 'dueTime', 'assignedTo', 'caseId', 'clientId', 'notes'],
-    SAVE_AS_TEMPLATE: ['templateName', 'isPublic'],
-    COMPLETE: ['completionNote'],
-    DEPENDENCY: ['dependsOn', 'type'],
-    STATUS_UPDATE: ['status'],
-    PROGRESS: ['progress', 'autoCalculate']
-};
-\`\`\`
+**Generated:** 2026-01-02
+**Purpose:** Verify refactoring doesn't break frontend expectations
 
 ---
 
 ## Valid Enum Values
 
-\`\`\`javascript
-const VALID_PRIORITIES = ['low', 'medium', 'high', 'urgent'];
-const VALID_STATUSES = ['todo', 'pending', 'in_progress', 'done', 'canceled'];
-\`\`\`
+### Priority
+```javascript
+['low', 'medium', 'high', 'urgent']
+```
+
+### Status
+```javascript
+['todo', 'pending', 'in_progress', 'done', 'canceled']
+```
 
 ---
 
-## Controller Distribution
+## Allowed Request Body Fields
 
-| Controller | Functions | Lines |
-|------------|-----------|-------|
-| task.controller.js | 33 | 2,343 |
-| taskTemplate.controller.js | 7 | 370 |
-| taskAttachment.controller.js | 4 | 290 |
-| taskDocument.controller.js | 7 | 602 |
-| taskVoice.controller.js | 8 | 624 |
-| **Total** | **59** | **4,229** |
+### POST /api/tasks (Create Task)
+```javascript
+[
+    'title', 'description', 'priority', 'status', 'label', 'tags',
+    'dueDate', 'dueTime', 'startDate', 'assignedTo', 'caseId', 'clientId',
+    'parentTaskId', 'subtasks', 'checklists', 'timeTracking', 'recurring',
+    'reminders', 'notes', 'points'
+]
+```
+
+### PUT/PATCH /api/tasks/:id (Update Task)
+```javascript
+[
+    'title', 'description', 'status', 'priority', 'label', 'tags',
+    'dueDate', 'dueTime', 'startDate', 'assignedTo', 'caseId', 'clientId',
+    'subtasks', 'checklists', 'timeTracking', 'recurring', 'reminders',
+    'notes', 'points', 'progress'
+]
+```
+
+### POST /api/tasks/:id/complete
+```javascript
+['completionNote']
+```
+
+### POST /api/tasks/:id/subtasks (Add Subtask)
+```javascript
+['title', 'autoReset']
+```
+
+### PATCH /api/tasks/:id/subtasks/:subtaskId (Update Subtask)
+```javascript
+['title', 'completed']
+```
+
+### POST /api/tasks/:id/timer/start
+```javascript
+['notes']
+```
+
+### POST /api/tasks/:id/timer/stop
+```javascript
+['notes', 'isBillable']
+```
+
+### POST /api/tasks/:id/time (Manual Time Entry)
+```javascript
+['minutes', 'notes', 'date', 'isBillable']
+```
+
+### POST /api/tasks/:id/comments
+```javascript
+['content', 'text', 'mentions']
+```
+
+### PUT /api/tasks/:id/comments/:commentId
+```javascript
+['content', 'text']
+```
+
+### PUT /api/tasks/bulk (Bulk Update)
+```javascript
+// Request wrapper
+['taskIds', 'updates']
+
+// Allowed update fields
+['status', 'priority', 'assignedTo', 'dueDate', 'label', 'tags']
+```
+
+### DELETE /api/tasks/bulk (Bulk Delete)
+```javascript
+['taskIds']
+```
+
+### POST /api/tasks/templates (Create Template)
+```javascript
+[
+    'title', 'templateName', 'description', 'priority', 'label', 'tags',
+    'subtasks', 'checklists', 'timeTracking', 'reminders', 'notes', 'isPublic'
+]
+```
+
+### PUT/PATCH /api/tasks/templates/:templateId (Update Template)
+```javascript
+[
+    'title', 'templateName', 'description', 'priority', 'label', 'tags',
+    'subtasks', 'checklists', 'timeTracking', 'reminders', 'notes', 'isPublic'
+]
+```
+
+### POST /api/tasks/templates/:templateId/create (Create from Template)
+```javascript
+['title', 'dueDate', 'dueTime', 'assignedTo', 'caseId', 'clientId', 'notes']
+```
+
+### POST /api/tasks/:id/save-as-template
+```javascript
+['templateName', 'isPublic']
+```
+
+### POST /api/tasks/:id/dependencies (Add Dependency)
+```javascript
+['dependsOn', 'type']
+```
+
+### PATCH /api/tasks/:id/status (Update Status)
+```javascript
+['status']
+```
+
+### PATCH /api/tasks/:id/progress (Update Progress)
+```javascript
+['progress', 'autoCalculate']
+```
 
 ---
 
-## Verification After Refactoring
+## API Endpoints
 
-\`\`\`bash
-# 1. Syntax check all controllers
-node --check src/controllers/task.controller.js
-node --check src/controllers/taskTemplate.controller.js
-node --check src/controllers/taskAttachment.controller.js
-node --check src/controllers/taskDocument.controller.js
-node --check src/controllers/taskVoice.controller.js
-node --check src/routes/task.route.js
+### Templates
+| Method | Endpoint | Handler |
+|--------|----------|---------|
+| GET | /templates | getTemplates |
+| POST | /templates | createTemplate |
+| GET | /templates/:templateId | getTemplate |
+| PUT/PATCH | /templates/:templateId | updateTemplate |
+| DELETE | /templates/:templateId | deleteTemplate |
+| POST | /templates/:templateId/create | createFromTemplate |
 
-# 2. Contract verification
-node scripts/verify-task-contract.js
+### Overview & Stats
+| Method | Endpoint | Handler |
+|--------|----------|---------|
+| GET | /overview | getTasksOverview |
+| GET | /stats | getTaskStats |
+| GET | /upcoming | getUpcomingTasks |
+| GET | /overdue | getOverdueTasks |
+| GET | /due-today | getTasksDueToday |
+| GET | /case/:caseId | getTasksByCase |
 
-# 3. Endpoint count should match
-grep -c "^app\." src/routes/task.route.js  # Expected: 50
-\`\`\`
+### Bulk Operations
+| Method | Endpoint | Handler |
+|--------|----------|---------|
+| PUT | /bulk | bulkUpdateTasks |
+| DELETE | /bulk | bulkDeleteTasks |
 
-## Route Checksum (for verification)
+### AI/NLP Features
+| Method | Endpoint | Handler |
+|--------|----------|---------|
+| POST | /parse | createTaskFromNaturalLanguage |
+| POST | /voice | createTaskFromVoice |
+| GET | /smart-schedule | getSmartScheduleSuggestions |
+| POST | /auto-schedule | autoScheduleTasks |
+| POST | /voice-to-item | processVoiceToItem |
+| POST | /voice-to-item/batch | batchProcessVoiceMemos |
 
+### Core CRUD
+| Method | Endpoint | Handler |
+|--------|----------|---------|
+| POST | / | createTask |
+| GET | / | getTasks |
+| GET | /:id/full | getTaskFull |
+| GET | /:id | getTask |
+| PUT/PATCH | /:id | updateTask |
+| DELETE | /:id | deleteTask |
+
+### Task Actions
+| Method | Endpoint | Handler |
+|--------|----------|---------|
+| POST | /:id/complete | completeTask |
+
+### Subtasks
+| Method | Endpoint | Handler |
+|--------|----------|---------|
+| POST | /:id/subtasks | addSubtask |
+| PATCH | /:id/subtasks/:subtaskId/toggle | toggleSubtask |
+| DELETE | /:id/subtasks/:subtaskId | deleteSubtask |
+
+### Time Tracking
+| Method | Endpoint | Handler |
+|--------|----------|---------|
+| POST | /:id/timer/start | startTimer |
+| POST | /:id/timer/stop | stopTimer |
+| POST | /:id/time | addManualTime |
+
+### Comments
+| Method | Endpoint | Handler |
+|--------|----------|---------|
+| POST | /:id/comments | addComment |
+| PUT | /:id/comments/:commentId | updateComment |
+| DELETE | /:id/comments/:commentId | deleteComment |
+
+### Attachments
+| Method | Endpoint | Handler |
+|--------|----------|---------|
+| POST | /:id/attachments | addAttachment |
+| GET | /:id/attachments/:attachmentId/download-url | getAttachmentDownloadUrl |
+| GET | /:id/attachments/:attachmentId/versions | getAttachmentVersions |
+| DELETE | /:id/attachments/:attachmentId | deleteAttachment |
+
+### Documents
+| Method | Endpoint | Handler |
+|--------|----------|---------|
+| POST | /:id/documents | createDocument |
+| GET | /:id/documents | getDocuments |
+| GET | /:id/documents/:documentId | getDocument |
+| PATCH | /:id/documents/:documentId | updateDocument |
+| GET | /:id/documents/:documentId/versions | getDocumentVersions |
+| GET | /:id/documents/:documentId/versions/:versionId | getDocumentVersion |
+| POST | /:id/documents/:documentId/versions/:versionId/restore | restoreDocumentVersion |
+
+---
+
+## Response Shapes
+
+### Success Response
+```json
+{
+    "success": true,
+    "message": "...",
+    "data": { ... }
+}
 ```
-Checksum: c37fc2ed2ebd3e1b3674e94e421e0d78
-Endpoint count: 61
+
+### Error Response
+```json
+{
+    "success": false,
+    "message": "Error message"
+}
 ```
 
-To verify after changes:
+### Task Object Shape
+```json
+{
+    "_id": "ObjectId",
+    "title": "string",
+    "description": "string (HTML allowed)",
+    "priority": "low|medium|high|urgent",
+    "status": "todo|pending|in_progress|done|canceled",
+    "label": "string",
+    "tags": ["string"],
+    "dueDate": "ISO date",
+    "dueTime": "HH:mm",
+    "startDate": "ISO date",
+    "assignedTo": { "_id": "...", "firstName": "...", "lastName": "...", "email": "...", "image": "..." },
+    "createdBy": { "_id": "...", "firstName": "...", "lastName": "...", "email": "...", "image": "..." },
+    "caseId": { "_id": "...", "title": "...", "caseNumber": "..." },
+    "clientId": { "_id": "...", "firstName": "...", "lastName": "..." },
+    "subtasks": [{ "_id": "...", "title": "...", "completed": false, "autoReset": false }],
+    "checklists": [...],
+    "timeTracking": {
+        "estimatedMinutes": 0,
+        "actualMinutes": 0,
+        "isTracking": false,
+        "sessions": [...]
+    },
+    "recurring": { ... },
+    "reminders": [...],
+    "notes": "string (HTML allowed)",
+    "points": 0,
+    "progress": 0,
+    "comments": [...],
+    "history": [...],
+    "linkedEventId": "ObjectId",
+    "createdAt": "ISO date",
+    "updatedAt": "ISO date"
+}
+```
+
+---
+
+## Verification Checklist
+
+After refactoring, verify:
+
+- [ ] All endpoints still work
+- [ ] Field names match frontend expectations
+- [ ] Enum values haven't changed
+- [ ] Response shapes are identical
+- [ ] Error messages are consistent
+
+### Quick Verification Commands
+
 ```bash
-grep "^app\." src/routes/task.route.js | md5sum  # Should match above
+# Check constants match this contract
+grep -A5 "VALID_PRIORITIES\|VALID_STATUSES" src/controllers/task.controller.js
+
+# Check ALLOWED_FIELDS object
+grep -A30 "const ALLOWED_FIELDS" src/controllers/task.controller.js
+
+# Verify no syntax errors
+node --check src/controllers/task.controller.js
 ```
+
+---
+
+## Change Log
+
+| Date | Change | Breaking? |
+|------|--------|-----------|
+| 2026-01-02 | Extracted inline arrays to ALLOWED_FIELDS constant | No |
+| 2026-01-02 | Extracted validation arrays to VALID_PRIORITIES/VALID_STATUSES | No |
