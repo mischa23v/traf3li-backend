@@ -10,6 +10,65 @@ const fs = require('fs');
 const path = require('path');
 const logger = require('../utils/logger');
 
+// =============================================================================
+// CONSTANTS - Centralized validation and allowed fields
+// =============================================================================
+
+// Valid enum values for validation
+const VALID_PRIORITIES = ['low', 'medium', 'high', 'urgent'];
+const VALID_STATUSES = ['todo', 'pending', 'in_progress', 'done', 'canceled'];
+
+// Allowed fields for mass assignment protection
+const ALLOWED_FIELDS = {
+    // Core task operations
+    CREATE: [
+        'title', 'description', 'priority', 'status', 'label', 'tags',
+        'dueDate', 'dueTime', 'startDate', 'assignedTo', 'caseId', 'clientId',
+        'parentTaskId', 'subtasks', 'checklists', 'timeTracking', 'recurring',
+        'reminders', 'notes', 'points'
+    ],
+    UPDATE: [
+        'title', 'description', 'status', 'priority', 'label', 'tags',
+        'dueDate', 'dueTime', 'startDate', 'assignedTo', 'caseId', 'clientId',
+        'subtasks', 'checklists', 'timeTracking', 'recurring', 'reminders',
+        'notes', 'points', 'progress'
+    ],
+    // Subtask operations
+    SUBTASK: ['title', 'autoReset'],
+    SUBTASK_UPDATE: ['title', 'completed'],
+    // Time tracking
+    TIMER_START: ['notes'],
+    TIMER_STOP: ['notes', 'isBillable'],
+    MANUAL_TIME: ['minutes', 'notes', 'date', 'isBillable'],
+    // Comments
+    COMMENT_CREATE: ['content', 'text', 'mentions'],
+    COMMENT_UPDATE: ['content', 'text'],
+    // Bulk operations
+    BULK_UPDATE: ['taskIds', 'updates'],
+    BULK_DELETE: ['taskIds'],
+    BULK_UPDATE_FIELDS: ['status', 'priority', 'assignedTo', 'dueDate', 'label', 'tags'],
+    // Template operations
+    TEMPLATE_CREATE: [
+        'title', 'templateName', 'description', 'priority', 'label', 'tags',
+        'subtasks', 'checklists', 'timeTracking', 'reminders', 'notes', 'isPublic'
+    ],
+    TEMPLATE_UPDATE: [
+        'title', 'templateName', 'description', 'priority', 'label', 'tags',
+        'subtasks', 'checklists', 'timeTracking', 'reminders', 'notes', 'isPublic'
+    ],
+    TEMPLATE_CREATE_TASK: ['title', 'dueDate', 'dueTime', 'assignedTo', 'caseId', 'clientId', 'notes'],
+    SAVE_AS_TEMPLATE: ['templateName', 'isPublic'],
+    // Other operations
+    COMPLETE: ['completionNote'],
+    DEPENDENCY: ['dependsOn', 'type'],
+    STATUS_UPDATE: ['status'],
+    PROGRESS: ['progress', 'autoCalculate']
+};
+
+// =============================================================================
+// CONTROLLER FUNCTIONS
+// =============================================================================
+
 // Create task
 const createTask = asyncHandler(async (req, res) => {
     // Centralized middleware handles tenant validation - req.firmQuery is guaranteed
@@ -23,13 +82,7 @@ const createTask = asyncHandler(async (req, res) => {
     }
 
     // Mass assignment protection
-    const allowedFields = [
-        'title', 'description', 'priority', 'status', 'label', 'tags',
-        'dueDate', 'dueTime', 'startDate', 'assignedTo', 'caseId', 'clientId',
-        'parentTaskId', 'subtasks', 'checklists', 'timeTracking', 'recurring',
-        'reminders', 'notes', 'points'
-    ];
-    const data = pickAllowedFields(req.body, allowedFields);
+    const data = pickAllowedFields(req.body, ALLOWED_FIELDS.CREATE);
 
     const {
         title,
@@ -59,11 +112,11 @@ const createTask = asyncHandler(async (req, res) => {
         throw CustomException('Task title is required', 400);
     }
 
-    if (priority && !['low', 'medium', 'high', 'urgent'].includes(priority)) {
+    if (priority && !VALID_PRIORITIES.includes(priority)) {
         throw CustomException('Invalid priority value', 400);
     }
 
-    if (status && !['todo', 'pending', 'in_progress', 'done', 'canceled'].includes(status)) {
+    if (status && !VALID_STATUSES.includes(status)) {
         throw CustomException('Invalid status value', 400);
     }
 
@@ -337,20 +390,14 @@ const updateTask = asyncHandler(async (req, res) => {
     }
 
     // Mass assignment protection
-    const allowedFields = [
-        'title', 'description', 'status', 'priority', 'label', 'tags',
-        'dueDate', 'dueTime', 'startDate', 'assignedTo', 'caseId', 'clientId',
-        'subtasks', 'checklists', 'timeTracking', 'recurring', 'reminders',
-        'notes', 'points', 'progress'
-    ];
-    const updates = pickAllowedFields(req.body, allowedFields);
+    const updates = pickAllowedFields(req.body, ALLOWED_FIELDS.UPDATE);
 
     // Input validation
-    if (updates.priority && !['low', 'medium', 'high', 'urgent'].includes(updates.priority)) {
+    if (updates.priority && !VALID_PRIORITIES.includes(updates.priority)) {
         throw CustomException('Invalid priority value', 400);
     }
 
-    if (updates.status && !['todo', 'pending', 'in_progress', 'done', 'canceled'].includes(updates.status)) {
+    if (updates.status && !VALID_STATUSES.includes(updates.status)) {
         throw CustomException('Invalid status value', 400);
     }
 
@@ -372,7 +419,7 @@ const updateTask = asyncHandler(async (req, res) => {
     // Track changes for history
     const changes = {};
 
-    allowedFields.forEach(field => {
+    ALLOWED_FIELDS.UPDATE.forEach(field => {
         if (updates[field] !== undefined && JSON.stringify(task[field]) !== JSON.stringify(updates[field])) {
             changes[field] = { from: task[field], to: updates[field] };
             task[field] = updates[field];
@@ -570,8 +617,7 @@ const completeTask = asyncHandler(async (req, res) => {
     const taskId = sanitizeObjectId(id);
 
     // Mass assignment protection
-    const allowedFields = ['completionNote'];
-    const data = pickAllowedFields(req.body, allowedFields);
+    const data = pickAllowedFields(req.body, ALLOWED_FIELDS.COMPLETE);
     const { completionNote } = data;
 
     // Build query with firmId to prevent IDOR
@@ -682,8 +728,7 @@ const addSubtask = asyncHandler(async (req, res) => {
     const taskId = sanitizeObjectId(id);
 
     // Mass assignment protection
-    const allowedFields = ['title', 'autoReset'];
-    const data = pickAllowedFields(req.body, allowedFields);
+    const data = pickAllowedFields(req.body, ALLOWED_FIELDS.SUBTASK);
     const { title, autoReset } = data;
 
     // Input validation
@@ -830,8 +875,7 @@ const startTimer = asyncHandler(async (req, res) => {
     const taskId = sanitizeObjectId(id);
 
     // Mass assignment protection
-    const allowedFields = ['notes'];
-    const data = pickAllowedFields(req.body, allowedFields);
+    const data = pickAllowedFields(req.body, ALLOWED_FIELDS.TIMER_START);
     const { notes } = data;
 
     // Build query with firmId to prevent IDOR
@@ -886,8 +930,7 @@ const stopTimer = asyncHandler(async (req, res) => {
     const taskId = sanitizeObjectId(id);
 
     // Mass assignment protection
-    const allowedFields = ['notes', 'isBillable'];
-    const data = pickAllowedFields(req.body, allowedFields);
+    const data = pickAllowedFields(req.body, ALLOWED_FIELDS.TIMER_STOP);
     const { notes, isBillable } = data;
 
     // Build query with firmId to prevent IDOR
@@ -959,8 +1002,7 @@ const addManualTime = asyncHandler(async (req, res) => {
     const taskId = sanitizeObjectId(id);
 
     // Mass assignment protection
-    const allowedFields = ['minutes', 'notes', 'date', 'isBillable'];
-    const data = pickAllowedFields(req.body, allowedFields);
+    const data = pickAllowedFields(req.body, ALLOWED_FIELDS.MANUAL_TIME);
     const { minutes, notes, date, isBillable = true } = data;
 
     // Input validation
@@ -1026,8 +1068,7 @@ const addComment = asyncHandler(async (req, res) => {
     const taskId = sanitizeObjectId(id);
 
     // Mass assignment protection
-    const allowedFields = ['content', 'text', 'mentions'];
-    const data = pickAllowedFields(req.body, allowedFields);
+    const data = pickAllowedFields(req.body, ALLOWED_FIELDS.COMMENT_CREATE);
     const { content, text, mentions } = data;
     const rawContent = content || text;
 
@@ -1091,8 +1132,7 @@ const updateComment = asyncHandler(async (req, res) => {
     const sanitizedCommentId = sanitizeObjectId(commentId);
 
     // Mass assignment protection
-    const allowedFields = ['content', 'text'];
-    const data = pickAllowedFields(req.body, allowedFields);
+    const data = pickAllowedFields(req.body, ALLOWED_FIELDS.COMMENT_UPDATE);
     const { content, text } = data;
     const rawContent = content || text;
 
@@ -1199,8 +1239,7 @@ const bulkUpdateTasks = asyncHandler(async (req, res) => {
     const firmId = req.firmId; // From firmFilter middleware
 
     // Mass assignment protection
-    const allowedFields = ['taskIds', 'updates'];
-    const data = pickAllowedFields(req.body, allowedFields);
+    const data = pickAllowedFields(req.body, ALLOWED_FIELDS.BULK_UPDATE);
     const { taskIds, updates } = data;
 
     // Input validation
@@ -1216,15 +1255,14 @@ const bulkUpdateTasks = asyncHandler(async (req, res) => {
     const sanitizedTaskIds = taskIds.map(id => sanitizeObjectId(id));
 
     // Mass assignment protection for updates
-    const allowedUpdates = ['status', 'priority', 'assignedTo', 'dueDate', 'label'];
-    const updateData = pickAllowedFields(updates || {}, allowedUpdates);
+    const updateData = pickAllowedFields(updates || {}, ALLOWED_FIELDS.BULK_UPDATE_FIELDS);
 
     // Input validation for update values
-    if (updateData.priority && !['low', 'medium', 'high', 'urgent'].includes(updateData.priority)) {
+    if (updateData.priority && !VALID_PRIORITIES.includes(updateData.priority)) {
         throw CustomException('Invalid priority value', 400);
     }
 
-    if (updateData.status && !['todo', 'pending', 'in_progress', 'done', 'canceled'].includes(updateData.status)) {
+    if (updateData.status && !VALID_STATUSES.includes(updateData.status)) {
         throw CustomException('Invalid status value', 400);
     }
 
@@ -1263,8 +1301,7 @@ const bulkDeleteTasks = asyncHandler(async (req, res) => {
     const firmId = req.firmId; // From firmFilter middleware
 
     // Mass assignment protection
-    const allowedFields = ['taskIds'];
-    const data = pickAllowedFields(req.body, allowedFields);
+    const data = pickAllowedFields(req.body, ALLOWED_FIELDS.BULK_DELETE);
     const { taskIds } = data;
 
     // Input validation
@@ -1556,11 +1593,7 @@ const createTemplate = asyncHandler(async (req, res) => {
     const userId = req.userID;
 
     // Mass assignment protection
-    const allowedFields = [
-        'title', 'templateName', 'description', 'priority', 'label', 'tags',
-        'subtasks', 'checklists', 'timeTracking', 'reminders', 'notes', 'isPublic'
-    ];
-    const data = pickAllowedFields(req.body, allowedFields);
+    const data = pickAllowedFields(req.body, ALLOWED_FIELDS.TEMPLATE_CREATE);
 
     const {
         title,
@@ -1582,7 +1615,7 @@ const createTemplate = asyncHandler(async (req, res) => {
         throw CustomException('Template title is required', 400);
     }
 
-    if (priority && !['low', 'medium', 'high', 'urgent'].includes(priority)) {
+    if (priority && !VALID_PRIORITIES.includes(priority)) {
         throw CustomException('Invalid priority value', 400);
     }
 
@@ -1634,14 +1667,10 @@ const updateTemplate = asyncHandler(async (req, res) => {
     const sanitizedTemplateId = sanitizeObjectId(templateId);
 
     // Mass assignment protection
-    const allowedFields = [
-        'title', 'templateName', 'description', 'priority', 'label', 'tags',
-        'subtasks', 'checklists', 'timeTracking', 'reminders', 'notes', 'isPublic'
-    ];
-    const updates = pickAllowedFields(req.body, allowedFields);
+    const updates = pickAllowedFields(req.body, ALLOWED_FIELDS.TEMPLATE_UPDATE);
 
     // Input validation
-    if (updates.priority && !['low', 'medium', 'high', 'urgent'].includes(updates.priority)) {
+    if (updates.priority && !VALID_PRIORITIES.includes(updates.priority)) {
         throw CustomException('Invalid priority value', 400);
     }
 
@@ -1709,8 +1738,7 @@ const createFromTemplate = asyncHandler(async (req, res) => {
     const sanitizedTemplateId = sanitizeObjectId(templateId);
 
     // Mass assignment protection
-    const allowedFields = ['title', 'dueDate', 'dueTime', 'assignedTo', 'caseId', 'clientId', 'notes'];
-    const data = pickAllowedFields(req.body, allowedFields);
+    const data = pickAllowedFields(req.body, ALLOWED_FIELDS.TEMPLATE_CREATE_TASK);
 
     const {
         title,
@@ -1835,8 +1863,7 @@ const saveAsTemplate = asyncHandler(async (req, res) => {
     const sanitizedTaskId = sanitizeObjectId(taskId);
 
     // Mass assignment protection
-    const allowedFields = ['templateName', 'isPublic'];
-    const data = pickAllowedFields(req.body, allowedFields);
+    const data = pickAllowedFields(req.body, ALLOWED_FIELDS.SAVE_AS_TEMPLATE);
     const { templateName, isPublic } = data;
 
     const task = await Task.findOne({
@@ -2110,8 +2137,7 @@ const addDependency = asyncHandler(async (req, res) => {
     const taskId = sanitizeObjectId(id);
 
     // Mass assignment protection
-    const allowedFields = ['dependsOn', 'type'];
-    const data = pickAllowedFields(req.body, allowedFields);
+    const data = pickAllowedFields(req.body, ALLOWED_FIELDS.DEPENDENCY);
     const { dependsOn, type = 'blocked_by' } = data;
 
     // Input validation
@@ -2240,8 +2266,7 @@ const updateTaskStatus = asyncHandler(async (req, res) => {
     const taskId = sanitizeObjectId(id);
 
     // Mass assignment protection
-    const allowedFields = ['status'];
-    const data = pickAllowedFields(req.body, allowedFields);
+    const data = pickAllowedFields(req.body, ALLOWED_FIELDS.STATUS_UPDATE);
     const { status } = data;
 
     // Input validation
@@ -2249,7 +2274,7 @@ const updateTaskStatus = asyncHandler(async (req, res) => {
         throw CustomException('Status is required', 400);
     }
 
-    if (!['todo', 'pending', 'in_progress', 'done', 'canceled'].includes(status)) {
+    if (!VALID_STATUSES.includes(status)) {
         throw CustomException('Invalid status value', 400);
     }
 
@@ -2328,8 +2353,7 @@ const updateProgress = asyncHandler(async (req, res) => {
     const taskId = sanitizeObjectId(id);
 
     // Mass assignment protection
-    const allowedFields = ['progress', 'autoCalculate'];
-    const data = pickAllowedFields(req.body, allowedFields);
+    const data = pickAllowedFields(req.body, ALLOWED_FIELDS.PROGRESS);
     const { progress, autoCalculate } = data;
 
     const task = await Task.findOne({ _id: taskId, firmId });
@@ -2733,8 +2757,7 @@ const updateSubtask = asyncHandler(async (req, res) => {
     const sanitizedSubtaskId = sanitizeObjectId(subtaskId);
 
     // Mass assignment protection
-    const allowedFields = ['title', 'completed'];
-    const data = pickAllowedFields(req.body, allowedFields);
+    const data = pickAllowedFields(req.body, ALLOWED_FIELDS.SUBTASK_UPDATE);
     const { title, completed } = data;
 
     const task = await Task.findOne({ _id: taskId, firmId });
