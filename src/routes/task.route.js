@@ -26,19 +26,6 @@ const {
     getOverdueTasks,
     getTasksByCase,
     getTasksDueToday,
-    // Template functions
-    getTemplates,
-    getTemplate,
-    createTemplate,
-    updateTemplate,
-    deleteTemplate,
-    createFromTemplate,
-    saveAsTemplate,
-    // Attachment functions
-    addAttachment,
-    deleteAttachment,
-    getAttachmentDownloadUrl,
-    getAttachmentVersions,
     // Dependency functions
     addDependency,
     removeDependency,
@@ -55,6 +42,25 @@ const {
     getTaskFull,
     getTasksOverview
 } = require('../controllers/task.controller');
+
+// Template controller (extracted for maintainability)
+const {
+    getTemplates,
+    getTemplate,
+    createTemplate,
+    updateTemplate,
+    deleteTemplate,
+    createFromTemplate,
+    saveAsTemplate
+} = require('../controllers/taskTemplate.controller');
+
+// Attachment controller (extracted for maintainability)
+const {
+    addAttachment,
+    deleteAttachment,
+    getAttachmentDownloadUrl,
+    getAttachmentVersions
+} = require('../controllers/taskAttachment.controller');
 
 // Document controller (extracted for maintainability)
 const {
