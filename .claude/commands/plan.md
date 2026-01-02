@@ -6,12 +6,61 @@ Format: `WHEN [condition/event] THE SYSTEM SHALL [expected behavior]`
 
 ---
 
+## 🏆 GOLD STANDARD COMPLIANCE (MANDATORY)
+
+**Every plan MUST meet enterprise standards from AWS, Google, Microsoft, Apple, SAP, Netflix.**
+
+Before creating any requirements, verify the plan addresses ALL applicable categories:
+
+### Security Checklist (AWS/Google/Microsoft)
+| Pattern | Requirement | When Applicable |
+|---------|-------------|-----------------|
+| Multi-tenant isolation | Use `req.firmQuery` in ALL queries | Always |
+| IDOR protection | Use `findOne({ _id, ...req.firmQuery })` never `findById()` | Always |
+| Mass assignment | Use `pickAllowedFields()` for ALL request bodies | Always |
+| ObjectId validation | Use `sanitizeObjectId()` for ALL ID parameters | Always |
+| Regex injection | Use `escapeRegex()` for ALL search/filter strings | Search features |
+| OAuth state | HMAC-SHA256 signed state with timing-safe verify | OAuth integrations |
+| Scope validation | Validate permissions BEFORE operations | External APIs |
+| Data redaction | Sanitize sensitive data (SSN, CC) in exports | Export features |
+| Permission checks | Use `req.hasPermission()` for restricted ops | Role-based features |
+
+### Reliability Checklist (AWS/Netflix/Calendly)
+| Pattern | Requirement | When Applicable |
+|---------|-------------|-----------------|
+| Non-blocking logging | Use `QueueService.log*()` - never await | Activity logging |
+| Retry with backoff | Use `wrapExternalCall()` with service config | External API calls |
+| Proactive refresh | Refresh tokens 5min BEFORE expiry | Token-based auth |
+| Background jobs | Schedule token refresh 24h ahead | OAuth integrations |
+| Circuit breaker | Fail fast after N consecutive failures | External services |
+| Graceful degradation | Core operation succeeds if sync fails | Calendar/email sync |
+
+### Data Integrity Checklist (SAP/Salesforce)
+| Pattern | Requirement | When Applicable |
+|---------|-------------|-----------------|
+| Pre-save hooks | Use `.save()` for calculated fields | Updates with derived values |
+| Audit trail | Log changes via QueueService | Data modifications |
+| Conflict detection | Check ALL relationships (organizer, attendees, creator) | Scheduling features |
+| Calculated fields | endTime, totals, etc. via model hooks | Derived values |
+
+### Compliance Checklist (Apple/Google/RFC)
+| Pattern | Requirement | When Applicable |
+|---------|-------------|-----------------|
+| RFC 5545 ICS | Include CREATED, LAST-MODIFIED, TRANSP, CLASS | Calendar exports |
+| ISO 8601 | Use ISO format for ALL dates in API | Always |
+| API contracts | Return `{ success, data/message }` shape | Always |
+| Error format | Return `{ success: false, message }` for errors | Always |
+
+---
+
 ## 🎯 INSTRUCTIONS
 
 1. **Read the user's feature request** and understand the scope
-2. **Create a `requirements.md`** file in the project root (or `.specs/{feature-name}/requirements.md` for feature-specific specs)
-3. **Use EARS format** for all acceptance criteria - this makes requirements testable and unambiguous
-4. **DO NOT proceed to design or implementation** until user approves the requirements
+2. **Review Gold Standard checklists above** - identify which patterns apply
+3. **Create a `requirements.md`** file in `.specs/{feature-name}/requirements.md`
+4. **Include Gold Standard section** with applicable patterns
+5. **Use EARS format** for all acceptance criteria
+6. **DO NOT proceed to design or implementation** until user approves
 
 ---
 
@@ -23,6 +72,27 @@ Format: `WHEN [condition/event] THE SYSTEM SHALL [expected behavior]`
 ## Overview
 _One paragraph describing what this API/feature does and why it matters._
 
+---
+
+## Gold Standard Compliance
+
+### Applicable Patterns
+| Category | Pattern | How It Applies |
+|----------|---------|----------------|
+| Security | Multi-tenant isolation | All queries use `...req.firmQuery` |
+| Security | IDOR protection | Use `findOne({ _id, ...req.firmQuery })` |
+| Security | Mass assignment | `pickAllowedFields(ALLOWED_FIELDS.X, req.body)` |
+| Reliability | Non-blocking logging | `QueueService.logActivity()` for all actions |
+| Data Integrity | Pre-save hooks | Use `.save()` for updates with calculated fields |
+
+### Not Applicable (with justification)
+| Pattern | Why N/A |
+|---------|---------|
+| OAuth state | No external OAuth in this feature |
+| RFC 5545 | No calendar export functionality |
+
+---
+
 ## User Stories
 
 ### 1. [Primary User Story Title]
@@ -32,6 +102,11 @@ As a [user type], I want to [action] so that [benefit].
 1. WHEN [trigger event] THE SYSTEM SHALL [expected behavior]
 2. WHEN [condition] THE SYSTEM SHALL [expected behavior]
 3. WHEN [error condition] THE SYSTEM SHALL [error handling behavior]
+
+**Gold Standard Requirements:**
+- THE SYSTEM SHALL use `...req.firmQuery` in the database query
+- THE SYSTEM SHALL validate IDs via `sanitizeObjectId()`
+- THE SYSTEM SHALL log activity via `QueueService` (non-blocking)
 
 ### 2. [Secondary User Story Title]
 As a [user type], I want to [action] so that [benefit].
@@ -45,34 +120,91 @@ As a [user type], I want to [action] so that [benefit].
 ## API Requirements
 
 ### Endpoints
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | /api/v1/resource | List resources |
-| POST | /api/v1/resource | Create resource |
-| GET | /api/v1/resource/:id | Get single resource |
-| PATCH | /api/v1/resource/:id | Update resource |
-| DELETE | /api/v1/resource/:id | Delete resource |
+| Method | Endpoint | Description | Permission |
+|--------|----------|-------------|------------|
+| GET | /api/v1/resource | List resources | module:view |
+| POST | /api/v1/resource | Create resource | module:edit |
+| GET | /api/v1/resource/:id | Get single resource | module:view |
+| PATCH | /api/v1/resource/:id | Update resource | module:edit |
+| DELETE | /api/v1/resource/:id | Delete resource | module:full |
 
 ### Request/Response Contracts
-_Define expected request bodies and response shapes._
+
+**Request Body Fields (allowlist - mass assignment protection):**
+```javascript
+const ALLOWED_FIELDS = {
+    CREATE: ['field1', 'field2', 'field3'],
+    UPDATE: ['field1', 'field2']
+};
+```
+
+**Response Shape:**
+```json
+{
+    "success": true,
+    "message": "Resource created",
+    "data": { ... }
+}
+```
+
+**Error Shape:**
+```json
+{
+    "success": false,
+    "message": "Validation error: field1 is required"
+}
+```
 
 ---
 
 ## Non-Functional Requirements
 
-### Security
+### Security (Gold Standard)
 - WHEN request lacks valid JWT THE SYSTEM SHALL return 401 Unauthorized
 - WHEN user lacks permission THE SYSTEM SHALL return 403 Forbidden
 - WHEN accessing other tenant's data THE SYSTEM SHALL return 404 Not Found (IDOR protection)
-- THE SYSTEM SHALL use `...req.firmQuery` for all database queries (multi-tenant isolation)
+- THE SYSTEM SHALL use `...req.firmQuery` for ALL database queries
+- THE SYSTEM SHALL use `req.addFirmId(data)` when creating records
+- THE SYSTEM SHALL use `pickAllowedFields()` for ALL request body processing
+- THE SYSTEM SHALL use `sanitizeObjectId()` for ALL ID parameters
+- THE SYSTEM SHALL NEVER use `findById()` - always `findOne({ _id, ...req.firmQuery })`
 
-### Performance
-- WHEN handling requests THE SYSTEM SHALL respond within 500ms (p95)
-- WHEN logging activities THE SYSTEM SHALL use QueueService (non-blocking)
+### Reliability (Gold Standard)
+- WHEN logging activities THE SYSTEM SHALL use QueueService (non-blocking, fire-and-forget)
+- WHEN calling external APIs THE SYSTEM SHALL use retry with exponential backoff
+- WHEN external service fails THE SYSTEM SHALL NOT fail the primary operation
+- THE SYSTEM SHALL respond within 500ms (p95) for standard operations
+
+### Data Integrity (Gold Standard)
+- WHEN updating records with calculated fields THE SYSTEM SHALL use `.save()` (triggers pre-save hooks)
+- WHEN modifying data THE SYSTEM SHALL log audit trail via QueueService
 
 ### Validation
-- WHEN ObjectId is invalid THE SYSTEM SHALL return 400 with clear message
+- WHEN ObjectId format is invalid THE SYSTEM SHALL return 400 with clear message
 - WHEN required fields are missing THE SYSTEM SHALL return 400 with field-specific errors
+- THE SYSTEM SHALL validate enum values against defined constants (e.g., VALID_STATUSES)
+
+---
+
+## External Integrations (if applicable)
+
+### OAuth Integrations (Gold Standard)
+- THE SYSTEM SHALL sign OAuth state with HMAC-SHA256
+- THE SYSTEM SHALL verify state with timing-safe comparison
+- THE SYSTEM SHALL validate scopes BEFORE performing operations
+- THE SYSTEM SHALL proactively refresh tokens 5 minutes before expiry
+- THE SYSTEM SHALL have background job to refresh tokens 24 hours ahead
+
+### Calendar Sync (Gold Standard)
+- THE SYSTEM SHALL sync to calendar in non-blocking manner
+- WHEN calendar sync fails THE SYSTEM SHALL log warning but complete primary operation
+- THE SYSTEM SHALL generate RFC 5545 compliant ICS with CREATED, LAST-MODIFIED, TRANSP, CLASS
+- THE SYSTEM SHALL sanitize sensitive data (SSN, CC patterns) before export
+
+### External API Calls (Gold Standard)
+- THE SYSTEM SHALL use `wrapExternalCall()` with appropriate service config
+- THE SYSTEM SHALL retry with exponential backoff (configurable per service)
+- THE SYSTEM SHALL implement circuit breaker for repeated failures
 
 ---
 
@@ -89,6 +221,20 @@ _List any ambiguities that need user clarification before proceeding._
 
 1. [Question about requirement X]
 2. [Question about edge case Y]
+
+---
+
+## Verification Plan
+
+After implementation, verify:
+- [ ] `node --check` passes on all modified files
+- [ ] All queries include `...req.firmQuery`
+- [ ] No `findById()` usage (use `findOne({ _id, ...req.firmQuery })`)
+- [ ] All request bodies use `pickAllowedFields()`
+- [ ] All IDs validated with `sanitizeObjectId()`
+- [ ] Activity logging uses QueueService (non-blocking)
+- [ ] External calls use retry with backoff
+- [ ] API contract matches expected response shape
 ```
 
 ---
@@ -120,130 +266,149 @@ WHEN external API call fails THE SYSTEM SHALL retry with exponential backoff (ma
 WHILE file upload is in progress THE SYSTEM SHALL track upload status in Redis
 ```
 
+### Gold Standard Specific
+```
+THE SYSTEM SHALL use `...req.firmQuery` in ALL database queries (multi-tenant isolation)
+THE SYSTEM SHALL NEVER use `findById()` - always `findOne({ _id, ...req.firmQuery })`
+THE SYSTEM SHALL log activity via QueueService (non-blocking, fire-and-forget)
+```
+
 ---
 
-## 💡 EXAMPLE: Invoice API Feature (Backend)
+## 💡 EXAMPLE: Payment Integration (Gold Standard Backend)
 
 ```markdown
-# Invoice API - Requirements
+# Payment Gateway Integration - Requirements
 
 ## Overview
-RESTful API for creating, managing, and tracking invoices in the legal practice management system. Supports multi-tenant isolation via firmId/lawyerId.
+Integrate Stripe payment gateway for invoice payments. Supports webhooks for async payment status updates. Multi-tenant isolated.
+
+---
+
+## Gold Standard Compliance
+
+### Applicable Patterns
+| Category | Pattern | How It Applies |
+|----------|---------|----------------|
+| Security | Multi-tenant isolation | All queries use `...req.firmQuery` |
+| Security | IDOR protection | Payment records validated against tenant |
+| Security | Webhook verification | HMAC signature validation |
+| Reliability | Retry with backoff | Stripe API calls via `wrapExternalCall('payment')` |
+| Reliability | Non-blocking logging | `QueueService.logBillingActivity()` |
+| Reliability | Idempotency | Use idempotency keys for payment creation |
+| Data Integrity | Audit trail | Log all payment state changes |
+
+### Not Applicable
+| Pattern | Why N/A |
+|---------|---------|
+| OAuth state | Using API keys, not OAuth |
+| RFC 5545 | No calendar functionality |
+| Pre-save hooks | No calculated fields in payment model |
+
+---
 
 ## User Stories
 
-### 1. Create Invoice
-As a lawyer, I want to create invoices for my clients so that I can bill for my services.
+### 1. Process Invoice Payment
+As a client, I want to pay my invoice online so that I can settle my account quickly.
 
 **Acceptance Criteria:**
-1. WHEN POST /api/v1/invoices is called with valid data THE SYSTEM SHALL create invoice with auto-generated invoiceNumber
-2. WHEN client does not exist THE SYSTEM SHALL return 404 with "Client not found"
-3. WHEN required fields (clientId, items, dueDate) are missing THE SYSTEM SHALL return 400 with validation errors
-4. WHEN invoice is created THE SYSTEM SHALL log activity via QueueService.logBillingActivity() (non-blocking)
-5. WHEN invoice is created THE SYSTEM SHALL set firmId/lawyerId from req.addFirmId()
+1. WHEN POST /api/v1/invoices/:id/pay is called THE SYSTEM SHALL create Stripe PaymentIntent
+2. WHEN payment succeeds THE SYSTEM SHALL update invoice status to 'paid'
+3. WHEN payment fails THE SYSTEM SHALL return error without changing invoice status
+4. WHEN invoice already paid THE SYSTEM SHALL return 400 "Invoice already paid"
+5. WHEN invoice belongs to different tenant THE SYSTEM SHALL return 404 (IDOR)
 
-### 2. List Invoices
-As a lawyer, I want to view all my invoices so that I can track billing status.
+**Gold Standard Requirements:**
+- THE SYSTEM SHALL use `wrapExternalCall('payment')` for Stripe API calls
+- THE SYSTEM SHALL use idempotency key to prevent duplicate charges
+- THE SYSTEM SHALL log payment attempt via `QueueService.logBillingActivity()` (non-blocking)
+- THE SYSTEM SHALL NOT fail if activity logging fails
 
-**Acceptance Criteria:**
-1. WHEN GET /api/v1/invoices is called THE SYSTEM SHALL return only invoices matching req.firmQuery
-2. WHEN status filter is provided THE SYSTEM SHALL filter by invoice status (draft, sent, paid, overdue)
-3. WHEN pagination params provided THE SYSTEM SHALL return paginated results with metadata
-4. WHEN no invoices exist THE SYSTEM SHALL return empty array with 200 status
-
-### 3. Update Invoice
-As a lawyer, I want to update draft invoices so that I can correct errors before sending.
+### 2. Handle Payment Webhook
+As the system, I want to receive Stripe webhooks so that I can update payment status asynchronously.
 
 **Acceptance Criteria:**
-1. WHEN PATCH /api/v1/invoices/:id is called THE SYSTEM SHALL update only allowed fields via pickAllowedFields()
-2. WHEN invoice is not 'draft' status THE SYSTEM SHALL return 400 "Cannot modify sent/paid invoice"
-3. WHEN invoice belongs to different tenant THE SYSTEM SHALL return 404 (IDOR protection)
-4. WHEN updating amounts THE SYSTEM SHALL use .save() to trigger pre-save hooks for recalculation
+1. WHEN webhook received THE SYSTEM SHALL verify HMAC signature (timing-safe)
+2. WHEN signature invalid THE SYSTEM SHALL return 401 and log security event
+3. WHEN payment.succeeded event THE SYSTEM SHALL update invoice and create Payment record
+4. WHEN payment.failed event THE SYSTEM SHALL log failure and notify user
+5. WHEN duplicate webhook received THE SYSTEM SHALL return 200 (idempotent)
 
-### 4. Delete Invoice
-As a lawyer, I want to delete draft invoices so that I can remove mistakes.
-
-**Acceptance Criteria:**
-1. WHEN DELETE /api/v1/invoices/:id is called on draft invoice THE SYSTEM SHALL soft-delete the record
-2. WHEN invoice is not 'draft' THE SYSTEM SHALL return 400 "Cannot delete sent/paid invoice"
-3. WHEN invoice has payments THE SYSTEM SHALL return 400 "Cannot delete invoice with payments"
+**Gold Standard Requirements:**
+- THE SYSTEM SHALL use `crypto.timingSafeEqual()` for signature comparison
+- THE SYSTEM SHALL process webhook idempotently (check eventId)
+- THE SYSTEM SHALL respond to webhook within 5 seconds (async processing)
 
 ---
 
 ## API Requirements
 
 ### Endpoints
-| Method | Endpoint | Description | Permission |
-|--------|----------|-------------|------------|
-| GET | /api/v1/invoices | List invoices | billing:view |
-| POST | /api/v1/invoices | Create invoice | billing:edit |
-| GET | /api/v1/invoices/:id | Get invoice | billing:view |
-| PATCH | /api/v1/invoices/:id | Update invoice | billing:edit |
-| DELETE | /api/v1/invoices/:id | Delete invoice | billing:full |
-| POST | /api/v1/invoices/:id/send | Send to client | billing:edit |
+| Method | Endpoint | Description | Auth |
+|--------|----------|-------------|------|
+| POST | /api/v1/invoices/:id/pay | Initiate payment | JWT |
+| POST | /api/v1/webhooks/stripe | Receive webhook | Signature |
+| GET | /api/v1/payments | List payments | JWT + billing:view |
+| GET | /api/v1/payments/:id | Get payment detail | JWT + billing:view |
 
-### Request Body (POST/PATCH)
-```json
-{
-  "clientId": "ObjectId",
-  "caseId": "ObjectId (optional)",
-  "items": [
-    { "description": "string", "quantity": "number", "rate": "number" }
-  ],
-  "dueDate": "ISO 8601 date",
-  "notes": "string (optional)"
-}
-```
-
-### Response Shape
-```json
-{
-  "success": true,
-  "data": {
-    "_id": "ObjectId",
-    "invoiceNumber": "INV-2024-0001",
-    "client": { "_id": "...", "name": "..." },
-    "items": [...],
-    "subtotal": 1000,
-    "tax": 150,
-    "total": 1150,
-    "status": "draft",
-    "createdAt": "...",
-    "updatedAt": "..."
-  }
-}
+### Request Body Fields
+```javascript
+const ALLOWED_FIELDS = {
+    PAY: ['paymentMethodId', 'saveCard'],
+    // Webhook body is validated by signature, not allowlist
+};
 ```
 
 ---
 
 ## Non-Functional Requirements
 
-### Security
-- WHEN storing invoice THE SYSTEM SHALL enforce firmId/lawyerId via globalFirmIsolation plugin
-- WHEN querying invoices THE SYSTEM SHALL always include ...req.firmQuery
-- THE SYSTEM SHALL validate all ObjectIds via sanitizeObjectId()
-- THE SYSTEM SHALL use pickAllowedFields() to prevent mass assignment
+### Security (Gold Standard)
+- THE SYSTEM SHALL verify Stripe webhook signatures with timing-safe comparison
+- THE SYSTEM SHALL store Stripe secret keys in environment variables only
+- THE SYSTEM SHALL NEVER log full card numbers or CVV
+- THE SYSTEM SHALL use `...req.firmQuery` for all payment queries
 
-### Performance
-- WHEN creating invoice THE SYSTEM SHALL respond within 500ms
-- WHEN listing invoices THE SYSTEM SHALL support cursor-based pagination for large datasets
-- THE SYSTEM SHALL use QueueService for all activity logging (non-blocking)
+### Reliability (Gold Standard)
+- WHEN Stripe API fails THE SYSTEM SHALL retry with exponential backoff (max 2 attempts)
+- THE SYSTEM SHALL use idempotency keys for all payment creation
+- THE SYSTEM SHALL process webhooks idempotently (dedupe by eventId)
+- THE SYSTEM SHALL respond to webhooks within 5 seconds
 
----
-
-## Out of Scope (Future Phases)
-- PDF generation (Phase 2)
-- Payment gateway integration (Phase 3)
-- Recurring invoices (Future)
-- Multi-currency support (Future)
+### Compliance
+- THE SYSTEM SHALL comply with PCI-DSS (no card data stored)
+- THE SYSTEM SHALL maintain audit log of all payment events
 
 ---
 
-## Open Questions
-1. Should invoice numbers be sequential per-firm or globally unique?
-2. What tax calculation rules apply (fixed rate vs. configurable)?
-3. Should we support partial payments?
+## Verification Plan
+
+- [ ] `node --check` passes
+- [ ] Stripe signature verification uses `timingSafeEqual()`
+- [ ] All Stripe calls use `wrapExternalCall('payment')`
+- [ ] Idempotency keys used for PaymentIntent creation
+- [ ] Webhook processing is idempotent (eventId check)
+- [ ] No card numbers in logs
+- [ ] All queries include `...req.firmQuery`
 ```
+
+---
+
+## 🔒 ANTI-PATTERNS TO FLAG IN REQUIREMENTS
+
+When reviewing requirements, explicitly call out these anti-patterns:
+
+| Anti-Pattern | Gold Standard Fix |
+|--------------|-------------------|
+| `Model.findById(id)` | `Model.findOne({ _id: id, ...req.firmQuery })` |
+| `await QueueService.log*()` | `QueueService.log*()` (no await, fire-and-forget) |
+| Direct `req.body` usage | `pickAllowedFields(ALLOWED_FIELDS.X, req.body)` |
+| String ID comparison | `sanitizeObjectId(id)` first |
+| `await externalApi.call()` | `await wrapExternalCall(() => api.call(), 'service')` |
+| `findOneAndUpdate` for calcs | `.save()` to trigger pre-save hooks |
+| Plain base64 OAuth state | HMAC-SHA256 signed state |
+| Sync calendar then respond | Non-blocking sync, respond immediately |
 
 ---
 
@@ -252,8 +417,9 @@ As a lawyer, I want to delete draft invoices so that I can remove mistakes.
 **After creating requirements.md:**
 
 1. Present the requirements to the user
-2. Ask: "Do these requirements capture what you need? Any changes or additions?"
-3. **DO NOT proceed to `/implementation` until user explicitly approves**
+2. Highlight the Gold Standard patterns being applied
+3. Ask: "Do these requirements meet your needs? I've included [X] Gold Standard patterns for [security/reliability/compliance]."
+4. **DO NOT proceed to `/implementation` until user explicitly approves**
 
 ---
 

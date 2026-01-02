@@ -2797,1178 +2797,11 @@ const getAttachmentVersions = asyncHandler(async (req, res) => {
         });
     }
 });
-
 // ============================================
-// DOCUMENT MANAGEMENT FUNCTIONS
+// DOCUMENT & VOICE FUNCTIONS - MOVED TO:
+// - taskDocument.controller.js
+// - taskVoice.controller.js
 // ============================================
-
-/**
- * Create a new text/rich-text document in a task
- * POST /api/tasks/:id/documents
- */
-const createDocument = asyncHandler(async (req, res) => {
-    const { id } = req.params;
-    const { title, content, contentJson, contentFormat = 'html' } = req.body;
-    const userId = req.userID;
-    const firmId = req.firmId;
-
-    if (!title) {
-        throw CustomException('Document title is required', 400);
-    }
-
-    // Build query with firmId to prevent IDOR
-    const query = { _id: id };
-    if (firmId) {
-        query.firmId = firmId;
-    } else {
-        // Solo lawyer - only their own tasks
-        query.$or = [
-            { assignedTo: userId },
-            { createdBy: userId }
-        ];
-    }
-
-    const task = await Task.findOne(query);
-    if (!task) {
-        throw CustomException('Task not found', 404);
-    }
-
-    const user = await User.findOne({ _id: userId, firmId }).select('firstName lastName');
-
-    // Handle different content formats (TipTap JSON or HTML)
-    let sanitizedContent = '';
-    let documentJson = null;
-
-    if (contentFormat === 'tiptap-json' && contentJson) {
-        // Store TipTap JSON directly (it's a structured format, not user HTML)
-        documentJson = contentJson;
-        // Also store HTML version for display/preview
-        sanitizedContent = content ? sanitizeRichText(content) : '';
-    } else {
-        // HTML format - sanitize it
-        sanitizedContent = sanitizeRichText(content || '');
-        if (hasDangerousContent(content)) {
-            throw CustomException('Invalid content detected', 400);
-        }
-    }
-
-    // Calculate size based on content
-    const contentSize = documentJson
-        ? Buffer.byteLength(JSON.stringify(documentJson), 'utf8')
-        : Buffer.byteLength(sanitizedContent, 'utf8');
-
-    // Create document as an attachment with editable content
-    const document = {
-        fileName: title.endsWith('.html') ? title : `${title}.html`,
-        fileUrl: null, // No file URL for in-app documents
-        fileType: 'text/html',
-        fileSize: contentSize,
-        uploadedBy: userId,
-        uploadedAt: new Date(),
-        storageType: 'local',
-        isEditable: true,
-        documentContent: sanitizedContent,
-        documentJson: documentJson,
-        contentFormat: contentFormat,
-        lastEditedBy: userId,
-        lastEditedAt: new Date()
-    };
-
-    task.attachments.push(document);
-
-    // Add history entry
-    task.history.push({
-        action: 'attachment_added',
-        userId,
-        userName: user ? `${user.firstName} ${user.lastName}` : undefined,
-        details: `Created document: ${title}`,
-        timestamp: new Date()
-    });
-
-    await task.save();
-
-    const newDocument = task.attachments[task.attachments.length - 1];
-
-    res.status(201).json({
-        success: true,
-        message: 'تم إنشاء المستند بنجاح',
-        document: newDocument
-    });
-});
-
-/**
- * Get all documents for a task
- * GET /api/tasks/:id/documents
- * Returns a list of all editable documents (TipTap documents) for a task
- */
-const getDocuments = asyncHandler(async (req, res) => {
-    const { id } = req.params;
-    const userId = req.userID;
-    const firmId = req.firmId;
-
-    // Build query with firmId to prevent IDOR
-    const query = { _id: id };
-    if (firmId) {
-        query.firmId = firmId;
-    } else {
-        // Solo lawyer - only their own tasks
-        query.$or = [
-            { assignedTo: userId },
-            { createdBy: userId }
-        ];
-    }
-
-    const task = await Task.findOne(query)
-        .populate('createdBy', '_id')
-        .populate('assignedTo', '_id')
-        .populate('attachments.uploadedBy', 'firstName lastName')
-        .populate('attachments.lastEditedBy', 'firstName lastName');
-
-    if (!task) {
-        throw CustomException('Task not found', 404);
-    }
-
-    // Filter to get only editable documents (TipTap documents)
-    const documents = task.attachments
-        .filter(attachment => attachment.isEditable === true)
-        .map(doc => ({
-            _id: doc._id,
-            fileName: doc.fileName,
-            fileType: doc.fileType,
-            fileSize: doc.fileSize,
-            contentFormat: doc.contentFormat || 'html',
-            isEditable: doc.isEditable,
-            uploadedBy: doc.uploadedBy,
-            uploadedAt: doc.uploadedAt,
-            lastEditedBy: doc.lastEditedBy,
-            lastEditedAt: doc.lastEditedAt
-        }));
-
-    res.status(200).json({
-        success: true,
-        documents,
-        count: documents.length
-    });
-});
-
-/**
- * Update a text/rich-text document in a task
- * PATCH /api/tasks/:id/documents/:documentId
- * Supports both HTML and TipTap JSON formats
- * Automatically saves version history before updating
- */
-const updateDocument = asyncHandler(async (req, res) => {
-    const { id, documentId } = req.params;
-    const { title, content, contentJson, contentFormat, changeNote } = req.body;
-    const userId = req.userID;
-    const firmId = req.firmId;
-
-    // Build query with firmId to prevent IDOR
-    const query = { _id: id };
-    if (firmId) {
-        query.firmId = firmId;
-    } else {
-        // Solo lawyer - only their own tasks
-        query.$or = [
-            { assignedTo: userId },
-            { createdBy: userId }
-        ];
-    }
-
-    const task = await Task.findOne(query);
-    if (!task) {
-        throw CustomException('Task not found', 404);
-    }
-
-    const document = task.attachments.id(documentId);
-    if (!document) {
-        throw CustomException('Document not found', 404);
-    }
-
-    if (!document.isEditable) {
-        throw CustomException('This document cannot be edited', 400);
-    }
-
-    const user = await User.findOne({ _id: userId, firmId }).select('firstName lastName');
-
-    // Save current version to history before updating
-    // Only save if there's actual content to preserve
-    if (document.documentContent || document.documentJson) {
-        try {
-            await TaskDocumentVersion.createSnapshot(
-                id,
-                documentId,
-                {
-                    title: document.fileName,
-                    documentContent: document.documentContent,
-                    documentJson: document.documentJson,
-                    contentFormat: document.contentFormat,
-                    fileSize: document.fileSize
-                },
-                document.lastEditedBy || document.uploadedBy || userId,
-                changeNote || 'Auto-saved before update'
-            );
-        } catch (err) {
-            logger.error('Error saving document version', { error: err.message });
-            // Continue with update even if version save fails
-        }
-    }
-
-    // Handle different content formats
-    if (contentFormat === 'tiptap-json' && contentJson !== undefined) {
-        // Update TipTap JSON content
-        document.documentJson = contentJson;
-        document.contentFormat = 'tiptap-json';
-        // Also update HTML version if provided
-        if (content !== undefined) {
-            document.documentContent = sanitizeRichText(content);
-        }
-        document.fileSize = Buffer.byteLength(JSON.stringify(contentJson), 'utf8');
-    } else if (content !== undefined) {
-        // HTML format - sanitize it
-        if (hasDangerousContent(content)) {
-            throw CustomException('Invalid content detected', 400);
-        }
-        document.documentContent = sanitizeRichText(content);
-        document.contentFormat = 'html';
-        document.fileSize = Buffer.byteLength(document.documentContent, 'utf8');
-    }
-
-    // Update title if provided
-    if (title) {
-        document.fileName = title.endsWith('.html') ? title : `${title}.html`;
-    }
-
-    document.lastEditedBy = userId;
-    document.lastEditedAt = new Date();
-
-    // Add history entry
-    task.history.push({
-        action: 'updated',
-        userId,
-        userName: user ? `${user.firstName} ${user.lastName}` : undefined,
-        details: `Updated document: ${document.fileName}`,
-        timestamp: new Date()
-    });
-
-    await task.save();
-
-    // Get current version number
-    const currentVersion = await TaskDocumentVersion.getLatestVersionNumber(id, documentId);
-
-    res.status(200).json({
-        success: true,
-        message: 'تم تحديث المستند بنجاح',
-        document,
-        version: currentVersion + 1 // Current document is one ahead of saved versions
-    });
-});
-
-/**
- * Get document content
- * GET /api/tasks/:id/documents/:documentId
- * Returns both HTML and TipTap JSON format for editable documents
- */
-const getDocument = asyncHandler(async (req, res) => {
-    const { id, documentId } = req.params;
-    const userId = req.userID;
-    const firmId = req.firmId;
-
-    // Build query with firmId to prevent IDOR
-    const query = { _id: id };
-    if (firmId) {
-        query.firmId = firmId;
-    } else {
-        // Solo lawyer - only their own tasks
-        query.$or = [
-            { assignedTo: userId },
-            { createdBy: userId }
-        ];
-    }
-
-    const task = await Task.findOne(query)
-        .populate('attachments.uploadedBy', 'firstName lastName')
-        .populate('attachments.lastEditedBy', 'firstName lastName');
-
-    if (!task) {
-        throw CustomException('Task not found', 404);
-    }
-
-    const document = task.attachments.id(documentId);
-    if (!document) {
-        throw CustomException('Document not found', 404);
-    }
-
-    // If it's an editable document, return the content directly
-    if (document.isEditable) {
-        return res.status(200).json({
-            success: true,
-            document: {
-                _id: document._id,
-                fileName: document.fileName,
-                fileType: document.fileType,
-                fileSize: document.fileSize,
-                content: document.documentContent || '',
-                contentJson: document.documentJson || null,
-                contentFormat: document.contentFormat || 'html',
-                isEditable: document.isEditable,
-                uploadedBy: document.uploadedBy,
-                uploadedAt: document.uploadedAt,
-                lastEditedBy: document.lastEditedBy,
-                lastEditedAt: document.lastEditedAt
-            }
-        });
-    }
-
-    // For uploaded files, return the download URL
-    let downloadUrl = document.fileUrl;
-    if (document.storageType === 's3' && document.fileKey) {
-        try {
-            downloadUrl = await getTaskFilePresignedUrl(document.fileKey, document.fileName);
-        } catch (err) {
-            logger.error('Error generating presigned URL', { error: err.message });
-        }
-    }
-
-    res.status(200).json({
-        success: true,
-        document: {
-            _id: document._id,
-            fileName: document.fileName,
-            fileType: document.fileType,
-            fileSize: document.fileSize,
-            downloadUrl,
-            isEditable: document.isEditable,
-            isVoiceMemo: document.isVoiceMemo,
-            duration: document.duration,
-            transcription: document.transcription,
-            uploadedBy: document.uploadedBy,
-            uploadedAt: document.uploadedAt
-        }
-    });
-});
-
-/**
- * Get version history for a TipTap document
- * GET /api/tasks/:id/documents/:documentId/versions
- */
-const getDocumentVersions = asyncHandler(async (req, res) => {
-    const { id, documentId } = req.params;
-    const userId = req.userID;
-    const firmId = req.firmId;
-
-    // Build query with firmId to prevent IDOR
-    const query = { _id: id };
-    if (firmId) {
-        query.firmId = firmId;
-    } else {
-        // Solo lawyer - only their own tasks
-        query.$or = [
-            { assignedTo: userId },
-            { createdBy: userId }
-        ];
-    }
-
-    const task = await Task.findOne(query)
-        .populate('createdBy', '_id')
-        .populate('assignedTo', '_id');
-
-    if (!task) {
-        throw CustomException('Task not found', 404);
-    }
-
-    const document = task.attachments.id(documentId);
-    if (!document) {
-        throw CustomException('Document not found', 404);
-    }
-
-    if (!document.isEditable) {
-        throw CustomException('This document does not support versioning', 400);
-    }
-
-    // Get version history from database
-    const versions = await TaskDocumentVersion.getVersionHistory(id, documentId);
-
-    // Get current version number
-    const latestVersionNum = versions.length > 0 ? versions[0].version : 0;
-
-    // Add current document as the latest version (not yet saved to history)
-    const currentVersion = {
-        _id: 'current',
-        version: latestVersionNum + 1,
-        title: document.fileName,
-        fileSize: document.fileSize,
-        contentFormat: document.contentFormat,
-        editedBy: document.lastEditedBy || document.uploadedBy,
-        createdAt: document.lastEditedAt || document.uploadedAt,
-        isCurrent: true
-    };
-
-    res.status(200).json({
-        success: true,
-        document: {
-            _id: document._id,
-            fileName: document.fileName,
-            isEditable: document.isEditable
-        },
-        versions: [currentVersion, ...versions]
-    });
-});
-
-/**
- * Restore a previous version of a TipTap document
- * POST /api/tasks/:id/documents/:documentId/versions/:versionId/restore
- */
-const restoreDocumentVersion = asyncHandler(async (req, res) => {
-    const { id, documentId, versionId } = req.params;
-    const userId = req.userID;
-    const firmId = req.firmId;
-
-    // Build query with firmId to prevent IDOR
-    const query = { _id: id };
-    if (firmId) {
-        query.firmId = firmId;
-    } else {
-        // Solo lawyer - only their own tasks
-        query.$or = [
-            { assignedTo: userId },
-            { createdBy: userId }
-        ];
-    }
-
-    const task = await Task.findOne(query)
-        .populate('createdBy', '_id')
-        .populate('assignedTo', '_id');
-
-    if (!task) {
-        throw CustomException('Task not found', 404);
-    }
-
-    const document = task.attachments.id(documentId);
-    if (!document) {
-        throw CustomException('Document not found', 404);
-    }
-
-    if (!document.isEditable) {
-        throw CustomException('This document does not support versioning', 400);
-    }
-
-    // Find the version to restore
-    const versionToRestore = await TaskDocumentVersion.findOne({ _id: versionId, firmId });
-    if (!versionToRestore || versionToRestore.documentId.toString() !== documentId) {
-        throw CustomException('Version not found', 404);
-    }
-
-    const user = await User.findOne({ _id: userId, firmId }).select('firstName lastName');
-
-    // Save current version to history before restoring
-    if (document.documentContent || document.documentJson) {
-        await TaskDocumentVersion.createSnapshot(
-            id,
-            documentId,
-            {
-                title: document.fileName,
-                documentContent: document.documentContent,
-                documentJson: document.documentJson,
-                contentFormat: document.contentFormat,
-                fileSize: document.fileSize
-            },
-            document.lastEditedBy || document.uploadedBy || userId,
-            `Replaced by restore of v${versionToRestore.version}`
-        );
-    }
-
-    // Restore the old version
-    document.documentContent = versionToRestore.documentContent;
-    document.documentJson = versionToRestore.documentJson;
-    document.contentFormat = versionToRestore.contentFormat;
-    document.fileSize = versionToRestore.fileSize;
-    document.fileName = versionToRestore.title;
-    document.lastEditedBy = userId;
-    document.lastEditedAt = new Date();
-
-    // Add history entry
-    task.history.push({
-        action: 'restored',
-        userId,
-        userName: user ? `${user.firstName} ${user.lastName}` : undefined,
-        details: `Restored document "${document.fileName}" to version ${versionToRestore.version}`,
-        timestamp: new Date()
-    });
-
-    await task.save();
-
-    // Get new version number
-    const currentVersion = await TaskDocumentVersion.getLatestVersionNumber(id, documentId);
-
-    res.status(200).json({
-        success: true,
-        message: `تم استعادة النسخة ${versionToRestore.version} بنجاح`,
-        document,
-        restoredFromVersion: versionToRestore.version,
-        currentVersion: currentVersion + 1
-    });
-});
-
-/**
- * Get a specific version content
- * GET /api/tasks/:id/documents/:documentId/versions/:versionId
- */
-const getDocumentVersion = asyncHandler(async (req, res) => {
-    const { id, documentId, versionId } = req.params;
-    const userId = req.userID;
-    const firmId = req.firmId;
-
-    // Build query with firmId to prevent IDOR
-    const query = { _id: id };
-    if (firmId) {
-        query.firmId = firmId;
-    } else {
-        // Solo lawyer - only their own tasks
-        query.$or = [
-            { assignedTo: userId },
-            { createdBy: userId }
-        ];
-    }
-
-    const task = await Task.findOne(query)
-        .populate('createdBy', '_id')
-        .populate('assignedTo', '_id');
-
-    if (!task) {
-        throw CustomException('Task not found', 404);
-    }
-
-    const document = task.attachments.id(documentId);
-    if (!document) {
-        throw CustomException('Document not found', 404);
-    }
-
-    // If requesting current version
-    if (versionId === 'current') {
-        return res.status(200).json({
-            success: true,
-            version: {
-                _id: 'current',
-                version: (await TaskDocumentVersion.getLatestVersionNumber(id, documentId)) + 1,
-                title: document.fileName,
-                documentContent: document.documentContent,
-                documentJson: document.documentJson,
-                contentFormat: document.contentFormat,
-                fileSize: document.fileSize,
-                editedBy: document.lastEditedBy || document.uploadedBy,
-                createdAt: document.lastEditedAt || document.uploadedAt,
-                isCurrent: true
-            }
-        });
-    }
-
-    // Get specific version
-    const version = await TaskDocumentVersion.findOne({ _id: versionId, firmId })
-        .populate('editedBy', 'firstName lastName fullName');
-
-    if (!version || version.documentId.toString() !== documentId) {
-        throw CustomException('Version not found', 404);
-    }
-
-    res.status(200).json({
-        success: true,
-        version
-    });
-});
-
-/**
- * Add voice memo to task
- * POST /api/tasks/:id/voice-memos
- * Note: This endpoint expects the file to be uploaded via the attachments endpoint
- * with additional voice memo metadata
- */
-const addVoiceMemo = asyncHandler(async (req, res) => {
-    const { id } = req.params;
-    const { duration, transcription } = req.body;
-    const userId = req.userID;
-    const firmId = req.firmId;
-
-    // Build query with firmId to prevent IDOR
-    const query = { _id: id };
-    if (firmId) {
-        query.firmId = firmId;
-    } else {
-        // Solo lawyer - only their own tasks
-        query.$or = [
-            { assignedTo: userId },
-            { createdBy: userId }
-        ];
-    }
-
-    const task = await Task.findOne(query);
-    if (!task) {
-        throw CustomException('Task not found', 404);
-    }
-
-    if (!req.file) {
-        throw CustomException('No audio file uploaded', 400);
-    }
-
-    const user = await User.findOne({ _id: userId, firmId }).select('firstName lastName');
-
-    let voiceMemo;
-
-    if (isS3Configured() && req.file.location) {
-        // S3 upload
-        voiceMemo = {
-            fileName: req.file.originalname || `voice-memo-${Date.now()}.webm`,
-            fileUrl: req.file.location,
-            fileKey: req.file.key,
-            fileType: req.file.mimetype,
-            fileSize: req.file.size,
-            uploadedBy: userId,
-            uploadedAt: new Date(),
-            storageType: 's3',
-            isVoiceMemo: true,
-            duration: duration || 0,
-            transcription: transcription ? sanitizeRichText(transcription) : null
-        };
-    } else {
-        // Local storage
-        voiceMemo = {
-            fileName: req.file.originalname || `voice-memo-${Date.now()}.webm`,
-            fileUrl: `/uploads/tasks/${req.file.filename}`,
-            fileType: req.file.mimetype,
-            fileSize: req.file.size,
-            uploadedBy: userId,
-            uploadedAt: new Date(),
-            storageType: 'local',
-            isVoiceMemo: true,
-            duration: duration || 0,
-            transcription: transcription ? sanitizeRichText(transcription) : null
-        };
-    }
-
-    task.attachments.push(voiceMemo);
-
-    // Add history entry
-    task.history.push({
-        action: 'attachment_added',
-        userId,
-        userName: user ? `${user.firstName} ${user.lastName}` : undefined,
-        details: `Voice memo (${duration || 0}s)`,
-        timestamp: new Date()
-    });
-
-    await task.save();
-
-    const newVoiceMemo = task.attachments[task.attachments.length - 1];
-
-    // Generate download URL if S3
-    let downloadUrl = newVoiceMemo.fileUrl;
-    if (newVoiceMemo.storageType === 's3' && newVoiceMemo.fileKey) {
-        try {
-            downloadUrl = await getTaskFilePresignedUrl(newVoiceMemo.fileKey, newVoiceMemo.fileName);
-        } catch (err) {
-            logger.error('Error generating presigned URL', { error: err.message });
-        }
-    }
-
-    res.status(201).json({
-        success: true,
-        message: 'تم إضافة المذكرة الصوتية بنجاح',
-        voiceMemo: {
-            ...newVoiceMemo.toObject(),
-            downloadUrl
-        }
-    });
-});
-
-/**
- * Update voice memo transcription
- * PATCH /api/tasks/:id/voice-memos/:memoId/transcription
- */
-const updateVoiceMemoTranscription = asyncHandler(async (req, res) => {
-    const { id, memoId } = req.params;
-    const { transcription } = req.body;
-    const userId = req.userID;
-    const firmId = req.firmId;
-
-    // Build query with firmId to prevent IDOR
-    const query = { _id: id };
-    if (firmId) {
-        query.firmId = firmId;
-    } else {
-        // Solo lawyer - only their own tasks
-        query.$or = [
-            { assignedTo: userId },
-            { createdBy: userId }
-        ];
-    }
-
-    const task = await Task.findOne(query);
-    if (!task) {
-        throw CustomException('Task not found', 404);
-    }
-
-    const voiceMemo = task.attachments.id(memoId);
-    if (!voiceMemo) {
-        throw CustomException('Voice memo not found', 404);
-    }
-
-    if (!voiceMemo.isVoiceMemo) {
-        throw CustomException('This attachment is not a voice memo', 400);
-    }
-
-    // Sanitize transcription
-    voiceMemo.transcription = transcription ? sanitizeRichText(transcription) : null;
-
-    await task.save();
-
-    res.status(200).json({
-        success: true,
-        message: 'تم تحديث النص',
-        voiceMemo
-    });
-});
-
-// ==============================================
-// VOICE-TO-TASK CONVERSION ENDPOINTS
-// ==============================================
-
-/**
- * Process voice transcription and create task/reminder/event
- * POST /api/tasks/voice-to-item
- */
-const processVoiceToItem = asyncHandler(async (req, res) => {
-    const { transcription, caseId, timezone, options } = req.body;
-    const userId = req.userID;
-    const firmId = req.firmId;
-
-    // Block departed users
-    if (req.isDeparted) {
-        throw CustomException('لم يعد لديك صلاحية إنشاء مهام جديدة', 403);
-    }
-
-    if (!transcription || typeof transcription !== 'string' || transcription.trim().length === 0) {
-        throw CustomException('Voice transcription is required', 400);
-    }
-
-    // Import voice-to-task service
-    const voiceToTaskService = require('../services/voiceToTask.service');
-
-    try {
-        // Process the voice transcription to determine type
-        const processOptions = {
-            timezone: timezone || 'Asia/Riyadh',
-            currentDateTime: new Date(),
-            caseId,
-            ...options
-        };
-
-        const processed = await voiceToTaskService.processVoiceTranscription(
-            transcription,
-            userId,
-            firmId,
-            processOptions
-        );
-
-        // Create the appropriate item based on detected type
-        let createdItem;
-        let itemType = processed.type;
-
-        switch (processed.type) {
-            case 'task':
-                createdItem = await voiceToTaskService.createTaskFromVoice(
-                    transcription,
-                    userId,
-                    firmId,
-                    caseId
-                );
-                break;
-
-            case 'reminder':
-                createdItem = await voiceToTaskService.createReminderFromVoice(
-                    transcription,
-                    userId,
-                    firmId
-                );
-                break;
-
-            case 'event':
-                createdItem = await voiceToTaskService.createEventFromVoice(
-                    transcription,
-                    userId,
-                    firmId
-                );
-                break;
-
-            default:
-                // Default to task if type is uncertain
-                createdItem = await voiceToTaskService.createTaskFromVoice(
-                    transcription,
-                    userId,
-                    firmId,
-                    caseId
-                );
-                itemType = 'task';
-        }
-
-        res.status(201).json({
-            success: true,
-            message: `${itemType === 'task' ? 'Task' : itemType === 'reminder' ? 'Reminder' : 'Event'} created successfully from voice`,
-            type: itemType,
-            data: createdItem,
-            confidence: processed.confidence,
-            metadata: processed.metadata
-        });
-    } catch (error) {
-        logger.error('Voice to item conversion error', { error: error.message });
-        throw CustomException(error.message || 'Failed to create item from voice', 500);
-    }
-});
-
-/**
- * Batch process voice memos into tasks/reminders/events
- * POST /api/tasks/voice-to-item/batch
- */
-const batchProcessVoiceMemos = asyncHandler(async (req, res) => {
-    const { memos } = req.body;
-    const userId = req.userID;
-    const firmId = req.firmId;
-
-    // Block departed users
-    if (req.isDeparted) {
-        throw CustomException('لم يعد لديك صلاحية إنشاء مهام جديدة', 403);
-    }
-
-    if (!Array.isArray(memos) || memos.length === 0) {
-        throw CustomException('Memos array is required and must not be empty', 400);
-    }
-
-    // Import voice-to-task service
-    const voiceToTaskService = require('../services/voiceToTask.service');
-
-    try {
-        const results = await voiceToTaskService.processVoiceMemos(memos, userId, firmId);
-
-        const summary = {
-            total: results.length,
-            successful: results.filter(r => r.success).length,
-            failed: results.filter(r => !r.success).length,
-            byType: {
-                task: results.filter(r => r.type === 'task').length,
-                reminder: results.filter(r => r.type === 'reminder').length,
-                event: results.filter(r => r.type === 'event').length
-            }
-        };
-
-        res.status(200).json({
-            success: true,
-            message: `Processed ${summary.successful} of ${summary.total} voice memos successfully`,
-            summary,
-            results
-        });
-    } catch (error) {
-        logger.error('Batch voice processing error', { error: error.message });
-        throw CustomException(error.message || 'Failed to process voice memos', 500);
-    }
-});
-
-// ==============================================
-// NLP & AI-POWERED TASK ENDPOINTS
-// ==============================================
-
-/**
- * Create task from natural language
- * POST /api/tasks/parse
- */
-const createTaskFromNaturalLanguage = asyncHandler(async (req, res) => {
-    const { text } = req.body;
-    const userId = req.userID;
-    const firmId = req.firmId;
-
-    // Block departed users
-    if (req.isDeparted) {
-        throw CustomException('لم يعد لديك صلاحية إنشاء مهام جديدة', 403);
-    }
-
-    if (!text || typeof text !== 'string' || text.trim().length === 0) {
-        throw CustomException('Natural language text is required', 400);
-    }
-
-    // Import NLP service
-    const nlpService = require('../services/nlp.service');
-
-    // Parse the natural language input
-    const context = {
-        timezone: 'Asia/Riyadh',
-        currentDateTime: new Date()
-    };
-
-    const parseResult = await nlpService.parseEventFromText(text, context);
-
-    if (!parseResult.success) {
-        throw CustomException('Failed to parse natural language input', 400);
-    }
-
-    const { eventData, confidence } = parseResult;
-
-    // Map event data to task data
-    const taskData = {
-        title: eventData.title || 'Untitled Task',
-        description: eventData.description || eventData.notes || '',
-        priority: eventData.priority || 'medium',
-        status: 'pending',
-        dueDate: eventData.startDateTime,
-        dueTime: eventData.startDateTime
-            ? `${String(new Date(eventData.startDateTime).getHours()).padStart(2, '0')}:${String(new Date(eventData.startDateTime).getMinutes()).padStart(2, '0')}`
-            : null,
-        tags: eventData.tags || [],
-        notes: eventData.notes || '',
-        createdBy: userId,
-        firmId,
-        metadata: {
-            nlpParsed: true,
-            originalText: text,
-            parsingConfidence: confidence,
-            parsedAt: new Date()
-        }
-    };
-
-    // Create the task
-    const task = await Task.create(taskData);
-
-    res.status(201).json({
-        success: true,
-        message: 'Task created from natural language',
-        task,
-        parsingDetails: {
-            confidence,
-            originalText: text,
-            tokensUsed: parseResult.tokensUsed || 0
-        }
-    });
-});
-
-/**
- * Create task from voice transcription
- * POST /api/tasks/voice
- */
-const createTaskFromVoice = asyncHandler(async (req, res) => {
-    const { transcription } = req.body;
-    const userId = req.userID;
-    const firmId = req.firmId;
-
-    // Block departed users
-    if (req.isDeparted) {
-        throw CustomException('لم يعد لديك صلاحية إنشاء مهام جديدة', 403);
-    }
-
-    if (!transcription || typeof transcription !== 'string' || transcription.trim().length === 0) {
-        throw CustomException('Voice transcription is required', 400);
-    }
-
-    // Import voice to task service
-    const voiceToTaskService = require('../services/voiceToTask.service');
-
-    // Process voice transcription
-    const context = {
-        timezone: 'Asia/Riyadh',
-        currentDateTime: new Date(),
-        userId
-    };
-
-    const result = await voiceToTaskService.processVoiceTranscription(transcription, context);
-
-    if (!result.success) {
-        throw CustomException('Failed to process voice transcription', 400);
-    }
-
-    const { eventData, confidence, metadata } = result;
-
-    // Map event data to task data
-    const taskData = {
-        title: eventData.title || 'Untitled Task',
-        description: eventData.description || eventData.notes || '',
-        priority: eventData.priority || 'medium',
-        status: 'pending',
-        dueDate: eventData.startDateTime,
-        dueTime: eventData.startDateTime
-            ? `${String(new Date(eventData.startDateTime).getHours()).padStart(2, '0')}:${String(new Date(eventData.startDateTime).getMinutes()).padStart(2, '0')}`
-            : null,
-        tags: eventData.tags || [],
-        notes: eventData.notes || '',
-        createdBy: userId,
-        firmId,
-        metadata: {
-            voiceCreated: true,
-            originalTranscription: metadata.originalTranscription,
-            cleanedTranscription: metadata.cleanedTranscription,
-            parsingConfidence: confidence,
-            processedAt: metadata.processedAt
-        }
-    };
-
-    // Create the task
-    const task = await Task.create(taskData);
-
-    res.status(201).json({
-        success: true,
-        message: 'Task created from voice transcription',
-        task,
-        processingDetails: {
-            confidence,
-            originalTranscription: metadata.originalTranscription,
-            cleanedTranscription: metadata.cleanedTranscription
-        }
-    });
-});
-
-/**
- * Get smart schedule suggestions
- * GET /api/tasks/smart-schedule
- */
-const getSmartScheduleSuggestions = asyncHandler(async (req, res) => {
-    const userId = req.userID;
-    const firmId = req.firmId;
-
-    // Import smart scheduling service
-    const SmartSchedulingService = require('../services/smartScheduling.service');
-
-    // Get query parameters
-    const {
-        timezone = 'Asia/Riyadh',
-        daysAhead = 7,
-        includeWorkloadAnalysis = 'true',
-        includeDailyNudges = 'true'
-    } = req.query;
-
-    // Get user patterns and suggestions
-    const patterns = await SmartSchedulingService.getUserPatterns(userId, firmId);
-
-    // Get workload analysis
-    const workloadAnalysis = includeWorkloadAnalysis === 'true'
-        ? await SmartSchedulingService.analyzeWorkload(userId, firmId, {
-            start: new Date(),
-            end: new Date(Date.now() + parseInt(daysAhead) * 24 * 60 * 60 * 1000)
-        })
-        : null;
-
-    // Get daily nudges
-    const dailyNudges = includeDailyNudges === 'true'
-        ? await SmartSchedulingService.getDailyNudges(userId, firmId)
-        : null;
-
-    // Get unscheduled tasks
-    const unscheduledTasks = await Task.find({
-        firmId,
-        createdBy: userId,
-        status: { $in: ['pending', 'in_progress'] },
-        $or: [
-            { dueDate: null },
-            { dueTime: null }
-        ],
-        isDeleted: false
-    })
-        .select('title priority tags timeTracking')
-        .limit(10)
-        .lean();
-
-    // Generate suggestions for unscheduled tasks
-    const taskSuggestions = [];
-    for (const task of unscheduledTasks.slice(0, 5)) {
-        const suggestion = await SmartSchedulingService.suggestBestTime(userId, firmId, {
-            priority: task.priority || 'medium',
-            estimatedMinutes: task.timeTracking?.estimatedMinutes || 60,
-            taskType: task.taskType || 'general',
-            dueDate: task.dueDate
-        });
-
-        taskSuggestions.push({
-            taskId: task._id,
-            taskTitle: task.title,
-            suggestion
-        });
-    }
-
-    res.status(200).json({
-        success: true,
-        patterns,
-        workloadAnalysis,
-        dailyNudges,
-        taskSuggestions,
-        unscheduledTasksCount: unscheduledTasks.length
-    });
-});
-
-/**
- * Auto-schedule multiple tasks
- * POST /api/tasks/auto-schedule
- */
-const autoScheduleTasks = asyncHandler(async (req, res) => {
-    const { taskIds } = req.body;
-    const userId = req.userID;
-    const firmId = req.firmId;
-
-    // Block departed users
-    if (req.isDeparted) {
-        throw CustomException('لم يعد لديك صلاحية تعديل المهام', 403);
-    }
-
-    if (!taskIds || !Array.isArray(taskIds) || taskIds.length === 0) {
-        throw CustomException('Array of task IDs is required', 400);
-    }
-
-    if (taskIds.length > 20) {
-        throw CustomException('Cannot auto-schedule more than 20 tasks at once', 400);
-    }
-
-    // Import smart scheduling service
-    const SmartSchedulingService = require('../services/smartScheduling.service');
-
-    // Fetch tasks
-    const tasks = await Task.find({
-        _id: { $in: taskIds },
-        createdBy: userId,
-        firmId,
-        isDeleted: false
-    });
-
-    if (tasks.length === 0) {
-        throw CustomException('No valid tasks found', 404);
-    }
-
-    // Auto-schedule tasks
-    const suggestions = await SmartSchedulingService.autoSchedule(userId, firmId, tasks);
-
-    // Apply scheduling suggestions
-    const updatedTasks = [];
-    for (const suggestion of suggestions) {
-        if (suggestion.suggestedDateTime) {
-            const task = tasks.find(t => t._id.toString() === suggestion.taskId.toString());
-            if (task) {
-                task.dueDate = suggestion.suggestedDateTime;
-                task.dueTime = suggestion.suggestedDueTime;
-
-                // Add metadata
-                if (!task.metadata) task.metadata = {};
-                task.metadata.aiScheduled = true;
-                task.metadata.scheduledAt = new Date();
-                task.metadata.schedulingConfidence = suggestion.confidence;
-                task.metadata.schedulingReason = suggestion.reason;
-
-                await task.save();
-                updatedTasks.push(task);
-            }
-        }
-    }
-
-    res.status(200).json({
-        success: true,
-        message: `Successfully auto-scheduled ${updatedTasks.length} task(s)`,
-        scheduledTasks: updatedTasks,
-        suggestions,
-        totalProcessed: tasks.length,
-        totalScheduled: updatedTasks.length
-    });
-});
 
 /**
  * Get task with all related data (GOLD STANDARD - single API call)
@@ -4029,172 +2862,134 @@ const getTaskFull = asyncHandler(async (req, res) => {
         }
     }
 
-    // Filter documents (TipTap editable documents)
-    const documents = (task.attachments || [])
-        .filter(attachment => attachment.isEditable === true)
-        .map(doc => ({
-            _id: doc._id,
-            fileName: doc.fileName,
-            fileType: doc.fileType,
-            fileSize: doc.fileSize,
-            contentFormat: doc.contentFormat || 'html',
-            createdAt: doc.uploadedAt,
-            updatedAt: doc.lastEditedAt,
-            uploadedBy: doc.uploadedBy,
-            lastEditedBy: doc.lastEditedBy
-        }));
+    // Get related tasks (subtasks and blocked tasks)
+    const relatedTaskIds = [
+        ...(task.subtasks?.map(s => s._id) || []),
+        ...(task.blockedBy || []),
+        ...(task.blocking || [])
+    ];
 
-    // Build response
+    // Build response with all data
+    const fullTask = {
+        ...task.toObject(),
+        timeTrackingSummary: {
+            estimatedMinutes,
+            actualMinutes,
+            remainingMinutes: Math.max(0, estimatedMinutes - actualMinutes),
+            percentComplete: estimatedMinutes > 0 ? Math.min(100, Math.round((actualMinutes / estimatedMinutes) * 100)) : 0,
+            isOvertime: actualMinutes > estimatedMinutes,
+            overtimeMinutes: Math.max(0, actualMinutes - estimatedMinutes),
+            timeByUser: Object.values(timeByUser),
+            sessionsCount: sessions.length,
+            billableSessions: sessions.filter(s => s.isBillable).length
+        },
+        attachmentsSummary: {
+            total: task.attachments?.length || 0,
+            documents: task.attachments?.filter(a => a.isEditable).length || 0,
+            voiceMemos: task.attachments?.filter(a => a.isVoiceMemo).length || 0,
+            files: task.attachments?.filter(a => !a.isEditable && !a.isVoiceMemo).length || 0
+        },
+        commentCount: task.comments?.length || 0,
+        historyCount: task.history?.length || 0
+    };
+
     res.status(200).json({
         success: true,
-        task: {
-            _id: task._id,
-            title: task.title,
-            description: task.description,
-            priority: task.priority,
-            status: task.status,
-            label: task.label,
-            tags: task.tags,
-            dueDate: task.dueDate,
-            dueTime: task.dueTime,
-            startDate: task.startDate,
-            assignedTo: task.assignedTo,
-            createdBy: task.createdBy,
-            caseId: task.caseId,
-            clientId: task.clientId,
-            subtasks: task.subtasks,
-            checklists: task.checklists,
-            recurring: task.recurring,
-            notes: task.notes,
-            progress: task.progress,
-            createdAt: task.createdAt,
-            updatedAt: task.updatedAt
-        },
-        timeTracking: {
-            totalHours: Math.round((actualMinutes / 60) * 100) / 100,
-            estimatedHours: Math.round((estimatedMinutes / 60) * 100) / 100,
-            remainingHours: Math.round((Math.max(0, estimatedMinutes - actualMinutes) / 60) * 100) / 100,
-            percentComplete: estimatedMinutes > 0
-                ? Math.round((actualMinutes / estimatedMinutes) * 100)
-                : 0,
-            isOverBudget: actualMinutes > estimatedMinutes,
-            entries: sessions.map(s => ({
-                _id: s._id,
-                userId: s.userId,
-                startedAt: s.startedAt,
-                endedAt: s.endedAt,
-                duration: s.duration,
-                description: s.description
-            })),
-            byUser: Object.values(timeByUser)
-        },
-        documents
+        task: fullTask
     });
 });
 
 /**
+ * Get tasks overview with aggregated data
  * GET /api/tasks/overview
- * Consolidated endpoint - replaces 4 separate API calls
- * Returns: tasks list, summary stats, priorities, upcoming tasks
  */
 const getTasksOverview = asyncHandler(async (req, res) => {
     const userId = req.userID;
     const firmId = req.firmId;
-    const isSoloLawyer = req.isSoloLawyer;
-    const { page = 1, limit = 20, status, priority, caseId } = req.query;
 
-    // Build filter - use req.firmQuery for proper tenant isolation
-    const filter = { ...req.firmQuery };
-    if (status) filter.status = status;
-    if (priority) filter.priority = priority;
-    if (caseId) filter.caseId = caseId;
-
-    const mongoose = require('mongoose');
-    // Convert firmQuery to ObjectIds for aggregation
-    const matchFilter = {};
-    if (req.firmQuery.firmId) {
-        matchFilter.firmId = new mongoose.Types.ObjectId(req.firmQuery.firmId);
-    }
-    if (req.firmQuery.lawyerId) {
-        matchFilter.lawyerId = new mongoose.Types.ObjectId(req.firmQuery.lawyerId);
+    // Build base query
+    const baseQuery = { isDeleted: { $ne: true } };
+    if (firmId) {
+        baseQuery.firmId = firmId;
+    } else {
+        baseQuery.$or = [
+            { assignedTo: userId },
+            { createdBy: userId }
+        ];
     }
 
-    // Get date for upcoming tasks
-    const now = new Date();
-    const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-
-    const [tasks, totalCount, summary, priorityStats, upcomingTasks] = await Promise.all([
-        // Paginated tasks list
-        Task.find(filter)
-            .populate('assignedTo', 'firstName lastName email image')
-            .populate('caseId', 'title caseNumber')
-            .sort({ dueDate: 1, priority: -1 })
-            .skip((page - 1) * limit)
-            .limit(parseInt(limit))
-            .lean(),
-
-        // Total count for pagination
-        Task.countDocuments(filter),
-
-        // Summary by status
-        Task.aggregate([
-            { $match: matchFilter },
-            {
-                $group: {
-                    _id: null,
-                    total: { $sum: 1 },
-                    pending: { $sum: { $cond: [{ $in: ['$status', ['todo', 'pending', 'not_started']] }, 1, 0] } },
-                    inProgress: { $sum: { $cond: [{ $eq: ['$status', 'in_progress'] }, 1, 0] } },
-                    completed: { $sum: { $cond: [{ $in: ['$status', ['completed', 'done']] }, 1, 0] } },
-                    overdue: { $sum: { $cond: [{ $and: [{ $lt: ['$dueDate', now] }, { $nin: ['$status', ['completed', 'done', 'cancelled']] }] }, 1, 0] } }
-                }
-            }
-        ]),
-
-        // Stats by priority
-        Task.aggregate([
-            { $match: matchFilter },
-            {
-                $group: {
-                    _id: '$priority',
-                    count: { $sum: 1 }
-                }
-            }
-        ]),
-
-        // Upcoming tasks (due in next 7 days)
-        Task.find({
-            ...filter,
-            dueDate: { $gte: now, $lte: nextWeek },
-            status: { $nin: ['completed', 'done', 'cancelled'] }
-        })
-            .populate('assignedTo', 'firstName lastName')
-            .sort({ dueDate: 1 })
-            .limit(10)
-            .lean()
+    // Get counts by status
+    const statusCounts = await Task.aggregate([
+        { $match: baseQuery },
+        { $group: { _id: '$status', count: { $sum: 1 } } }
     ]);
 
-    const stats = summary[0] || { total: 0, pending: 0, inProgress: 0, completed: 0, overdue: 0 };
-    const byPriority = Object.fromEntries(priorityStats.map(p => [p._id || 'none', p.count]));
+    const byStatus = {};
+    statusCounts.forEach(s => {
+        byStatus[s._id] = s.count;
+    });
 
-    res.json({
+    // Get counts by priority
+    const priorityCounts = await Task.aggregate([
+        { $match: baseQuery },
+        { $group: { _id: '$priority', count: { $sum: 1 } } }
+    ]);
+
+    const byPriority = {};
+    priorityCounts.forEach(p => {
+        byPriority[p._id] = p.count;
+    });
+
+    // Get overdue count
+    const now = new Date();
+    const overdueCount = await Task.countDocuments({
+        ...baseQuery,
+        dueDate: { $lt: now },
+        status: { $nin: ['done', 'canceled'] }
+    });
+
+    // Get due today count
+    const startOfDay = new Date(now);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(now);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const dueTodayCount = await Task.countDocuments({
+        ...baseQuery,
+        dueDate: { $gte: startOfDay, $lte: endOfDay },
+        status: { $nin: ['done', 'canceled'] }
+    });
+
+    // Get upcoming tasks (next 7 days)
+    const next7Days = new Date(now);
+    next7Days.setDate(next7Days.getDate() + 7);
+
+    const upcomingTasks = await Task.find({
+        ...baseQuery,
+        dueDate: { $gte: now, $lte: next7Days },
+        status: { $nin: ['done', 'canceled'] }
+    })
+        .select('title dueDate dueTime priority status assignedTo')
+        .populate('assignedTo', 'firstName lastName image')
+        .sort({ dueDate: 1 })
+        .limit(10)
+        .lean();
+
+    res.status(200).json({
         success: true,
-        data: {
-            tasks,
-            pagination: {
-                page: parseInt(page),
-                limit: parseInt(limit),
-                total: totalCount,
-                pages: Math.ceil(totalCount / limit)
+        overview: {
+            total: Object.values(byStatus).reduce((a, b) => a + b, 0),
+            overdue: overdueCount,
+            dueToday: dueTodayCount,
+            byStatus: {
+                todo: byStatus.todo || 0,
+                pending: byStatus.pending || 0,
+                in_progress: byStatus.in_progress || 0,
+                done: byStatus.done || 0,
+                canceled: byStatus.canceled || 0
             },
-            summary: {
-                total: stats.total,
-                pending: stats.pending,
-                inProgress: stats.inProgress,
-                completed: stats.completed,
-                overdue: stats.overdue
-            },
-            priorities: {
+            byPriority: {
+                urgent: byPriority.urgent || 0,
                 high: byPriority.high || 0,
                 medium: byPriority.medium || 0,
                 low: byPriority.low || 0
@@ -4241,20 +3036,6 @@ module.exports = {
     deleteAttachment,
     getAttachmentDownloadUrl,
     getAttachmentVersions,
-    // Document functions
-    createDocument,
-    getDocuments,
-    updateDocument,
-    getDocument,
-    getDocumentVersions,
-    getDocumentVersion,
-    restoreDocumentVersion,
-    // Voice memo functions
-    addVoiceMemo,
-    updateVoiceMemoTranscription,
-    // Voice-to-task conversion functions
-    processVoiceToItem,
-    batchProcessVoiceMemos,
     // Dependency functions
     addDependency,
     removeDependency,
@@ -4267,12 +3048,8 @@ module.exports = {
     // Budget functions
     updateEstimate,
     getTimeTrackingSummary,
-    // NLP & AI functions
-    createTaskFromNaturalLanguage,
-    createTaskFromVoice,
-    getSmartScheduleSuggestions,
-    autoScheduleTasks,
     // Aggregated endpoints (GOLD STANDARD)
     getTaskFull,
     getTasksOverview
 };
+
