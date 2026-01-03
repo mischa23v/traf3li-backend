@@ -551,7 +551,8 @@ const updateTask = asyncHandler(async (req, res) => {
         // Don't fail task update if event sync fails
     }
 
-    const populatedTask = await Task.findOne({ _id: task._id, firmId: task.firmId })
+    // Use req.firmQuery for proper tenant isolation (solo lawyers + firm members)
+    const populatedTask = await Task.findOne({ _id: task._id, ...req.firmQuery })
         .populate('assignedTo', 'firstName lastName username email image')
         .populate('createdBy', 'firstName lastName username email image')
         .populate('caseId', 'title caseNumber')
@@ -713,7 +714,8 @@ const completeTask = asyncHandler(async (req, res) => {
         }
     }
 
-    const populatedTask = await Task.findOne({ _id: task._id, firmId: task.firmId })
+    // Use req.firmQuery for proper tenant isolation (solo lawyers + firm members)
+    const populatedTask = await Task.findOne({ _id: task._id, ...req.firmQuery })
         .populate('assignedTo', 'firstName lastName username email image')
         .populate('createdBy', 'firstName lastName username email image')
         .populate('completedBy', 'firstName lastName');
@@ -1119,7 +1121,8 @@ const addComment = asyncHandler(async (req, res) => {
 
     await task.save();
 
-    const populatedTask = await Task.findOne({ _id: taskId, firmId: task.firmId })
+    // Use req.firmQuery for proper tenant isolation (solo lawyers + firm members)
+    const populatedTask = await Task.findOne({ _id: taskId, ...req.firmQuery })
         .populate('comments.userId', 'firstName lastName image')
         .lean();
 
@@ -1726,7 +1729,8 @@ const updateTaskStatus = asyncHandler(async (req, res) => {
 
     await task.save();
 
-    const populatedTask = await Task.findOne({ _id: taskId, firmId: task.firmId })
+    // Use req.firmQuery for proper tenant isolation (solo lawyers + firm members)
+    const populatedTask = await Task.findOne({ _id: taskId, ...req.firmQuery })
         .populate('assignedTo', 'firstName lastName email image')
         .populate('blockedBy', 'title status');
 
@@ -1800,7 +1804,8 @@ const updateProgress = asyncHandler(async (req, res) => {
 
     await task.save();
 
-    const populatedTask = await Task.findOne({ _id: taskId, firmId: task.firmId })
+    // Use req.firmQuery for proper tenant isolation (solo lawyers + firm members)
+    const populatedTask = await Task.findOne({ _id: taskId, ...req.firmQuery })
         .populate('assignedTo', 'firstName lastName email image')
         .populate('createdBy', 'firstName lastName email image');
 
