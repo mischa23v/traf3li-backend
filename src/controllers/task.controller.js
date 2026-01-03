@@ -1539,12 +1539,13 @@ const addDependency = asyncHandler(async (req, res) => {
     // IDOR protection
     const sanitizedDependsOn = sanitizeObjectId(dependsOn);
 
-    const task = await Task.findOne({ _id: taskId, firmId });
+    // Use req.firmQuery for proper tenant isolation (solo lawyers + firm members)
+    const task = await Task.findOne({ _id: taskId, ...req.firmQuery });
     if (!task) {
         throw CustomException('Task not found', 404);
     }
 
-    const dependentTask = await Task.findOne({ _id: sanitizedDependsOn, firmId });
+    const dependentTask = await Task.findOne({ _id: sanitizedDependsOn, ...req.firmQuery });
     if (!dependentTask) {
         throw CustomException('المهمة المحددة غير موجودة', 404);
     }
@@ -1559,12 +1560,13 @@ const addDependency = asyncHandler(async (req, res) => {
         throw CustomException('هذه التبعية موجودة بالفعل', 400);
     }
 
-    // Check for circular dependency
-    if (await hasCircularDependency(taskId, sanitizedDependsOn, firmId)) {
+    // Check for circular dependency - pass firmQuery for proper isolation
+    if (await hasCircularDependency(taskId, sanitizedDependsOn, req.firmQuery)) {
         throw CustomException('لا يمكن إنشاء تبعية دائرية', 400);
     }
 
-    const user = await User.findOne({ _id: userId, firmId }).select('firstName lastName');
+    // Get user name for history (bypass firm filter - user lookup by ID is safe)
+    const user = await User.findById(userId).select('firstName lastName');
 
     // Add to blockedBy array
     task.blockedBy.push(sanitizedDependsOn);
@@ -1602,18 +1604,18 @@ const addDependency = asyncHandler(async (req, res) => {
 const removeDependency = asyncHandler(async (req, res) => {
     const { id, dependencyTaskId } = req.params;
     const userId = req.userID;
-    const firmId = req.firmId;
 
     // IDOR protection
     const taskId = sanitizeObjectId(id);
     const sanitizedDependencyTaskId = sanitizeObjectId(dependencyTaskId);
 
-    const task = await Task.findOne({ _id: taskId, firmId });
+    // Use req.firmQuery for proper tenant isolation (solo lawyers + firm members)
+    const task = await Task.findOne({ _id: taskId, ...req.firmQuery });
     if (!task) {
         throw CustomException('Task not found', 404);
     }
 
-    const dependentTask = await Task.findOne({ _id: sanitizedDependencyTaskId, firmId });
+    const dependentTask = await Task.findOne({ _id: sanitizedDependencyTaskId, ...req.firmQuery });
 
     // Remove from blockedBy
     task.blockedBy = task.blockedBy.filter(t => t.toString() !== sanitizedDependencyTaskId.toString());
@@ -1625,7 +1627,8 @@ const removeDependency = asyncHandler(async (req, res) => {
         await dependentTask.save();
     }
 
-    const user = await User.findOne({ _id: userId, firmId }).select('firstName lastName');
+    // Get user name for history (user lookup by ID is safe)
+    const user = await User.findById(userId).select('firstName lastName');
 
     task.history.push({
         action: 'dependency_removed',
@@ -1651,7 +1654,6 @@ const removeDependency = asyncHandler(async (req, res) => {
 const updateTaskStatus = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
-    const firmId = req.firmId;
 
     // IDOR protection
     const taskId = sanitizeObjectId(id);
@@ -1669,7 +1671,8 @@ const updateTaskStatus = asyncHandler(async (req, res) => {
         throw CustomException('Invalid status value', 400);
     }
 
-    const task = await Task.findOne({ _id: taskId, firmId }).populate('blockedBy', 'title status');
+    // Use req.firmQuery for proper tenant isolation (solo lawyers + firm members)
+    const task = await Task.findOne({ _id: taskId, ...req.firmQuery }).populate('blockedBy', 'title status');
 
     if (!task) {
         throw CustomException('Task not found', 404);
@@ -1696,7 +1699,8 @@ const updateTaskStatus = asyncHandler(async (req, res) => {
     const oldStatus = task.status;
     task.status = status;
 
-    const user = await User.findOne({ _id: userId, firmId }).select('firstName lastName');
+    // Get user name for history (user lookup by ID is safe)
+    const user = await User.findById(userId).select('firstName lastName');
 
     // Add history entry
     task.history.push({
@@ -1738,7 +1742,6 @@ const updateTaskStatus = asyncHandler(async (req, res) => {
 const updateProgress = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
-    const firmId = req.firmId;
 
     // IDOR protection
     const taskId = sanitizeObjectId(id);
@@ -1747,7 +1750,8 @@ const updateProgress = asyncHandler(async (req, res) => {
     const data = pickAllowedFields(req.body, ALLOWED_FIELDS.PROGRESS);
     const { progress, autoCalculate } = data;
 
-    const task = await Task.findOne({ _id: taskId, firmId });
+    // Use req.firmQuery for proper tenant isolation (solo lawyers + firm members)
+    const task = await Task.findOne({ _id: taskId, ...req.firmQuery });
 
     if (!task) {
         throw CustomException('Task not found', 404);
@@ -2050,7 +2054,6 @@ const getTimeTrackingSummary = asyncHandler(async (req, res) => {
  */
 const updateSubtask = asyncHandler(async (req, res) => {
     const { id, subtaskId } = req.params;
-    const firmId = req.firmId;
 
     // IDOR protection
     const taskId = sanitizeObjectId(id);
@@ -2060,7 +2063,8 @@ const updateSubtask = asyncHandler(async (req, res) => {
     const data = pickAllowedFields(req.body, ALLOWED_FIELDS.SUBTASK_UPDATE);
     const { title, completed } = data;
 
-    const task = await Task.findOne({ _id: taskId, firmId });
+    // Use req.firmQuery for proper tenant isolation (solo lawyers + firm members)
+    const task = await Task.findOne({ _id: taskId, ...req.firmQuery });
     if (!task) {
         throw CustomException('Task not found', 404);
     }

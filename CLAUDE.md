@@ -134,6 +134,44 @@ This is a **multi-tenant legal SaaS** handling sensitive client data. Incorrect 
 5. **NEVER** add bandaid validation - the Mongoose plugin catches issues
 6. **PASS** `req.firmQuery` to services, not `req.firmId`
 
+### ⛔ Critical Anti-Pattern: Direct firmId in Queries
+
+**This breaks solo lawyer isolation and is a CRITICAL bug.**
+
+```javascript
+// ❌ WRONG - Breaks for solo lawyers (firmId is null)
+const task = await Task.findOne({ _id: id, firmId });
+const task = await Task.findOne({ _id: id, firmId: req.firmId });
+
+// ❌ WRONG - Conditional firmId check
+const query = { _id: id };
+if (firmId) { query.firmId = firmId; }
+const task = await Task.findOne(query);
+
+// ❌ WRONG - Direct firmId in create
+const task = await Task.create({ title, firmId, createdBy: userId });
+
+// ✅ CORRECT - Always use req.firmQuery spread
+const task = await Task.findOne({ _id: id, ...req.firmQuery });
+
+// ✅ CORRECT - Use req.addFirmId for creates
+const task = await Task.create(req.addFirmId({ title, createdBy: userId }));
+```
+
+**Why this matters:**
+- Solo lawyers have `req.firmId = null` and `req.firmQuery = { lawyerId: X }`
+- Using `{ firmId }` directly means `{ firmId: null }` for solo lawyers
+- This query returns NOTHING because tasks don't have `firmId: null`
+- The feature is completely broken for solo lawyers
+
+**User lookups are the exception:**
+```javascript
+// ✅ OK - User lookups by ID are safe (users are global)
+const user = await User.findById(userId).select('firstName lastName');
+```
+
+**Run `/fix-isolation` to scan and fix all violations.**
+
 ## Project Overview
 
 This is a multi-tenant legal practice management SaaS application. Every database operation MUST enforce tenant isolation.

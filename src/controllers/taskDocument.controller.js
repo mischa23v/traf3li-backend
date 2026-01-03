@@ -24,30 +24,19 @@ const createDocument = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { title, content, contentJson, contentFormat = 'html' } = req.body;
     const userId = req.userID;
-    const firmId = req.firmId;
 
     if (!title) {
         throw CustomException('Document title is required', 400);
     }
 
-    // Build query with firmId to prevent IDOR
-    const query = { _id: id };
-    if (firmId) {
-        query.firmId = firmId;
-    } else {
-        // Solo lawyer - only their own tasks
-        query.$or = [
-            { assignedTo: userId },
-            { createdBy: userId }
-        ];
-    }
-
-    const task = await Task.findOne(query);
+    // Use req.firmQuery for proper tenant isolation (solo lawyers + firm members)
+    const task = await Task.findOne({ _id: id, ...req.firmQuery });
     if (!task) {
         throw CustomException('Task not found', 404);
     }
 
-    const user = await User.findOne({ _id: userId, firmId }).select('firstName lastName');
+    // Get user name for history (user lookup by ID is safe)
+    const user = await User.findById(userId).select('firstName lastName');
 
     // Handle different content formats (TipTap JSON or HTML)
     let sanitizedContent = '';
@@ -117,22 +106,9 @@ const createDocument = asyncHandler(async (req, res) => {
  */
 const getDocuments = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const userId = req.userID;
-    const firmId = req.firmId;
 
-    // Build query with firmId to prevent IDOR
-    const query = { _id: id };
-    if (firmId) {
-        query.firmId = firmId;
-    } else {
-        // Solo lawyer - only their own tasks
-        query.$or = [
-            { assignedTo: userId },
-            { createdBy: userId }
-        ];
-    }
-
-    const task = await Task.findOne(query)
+    // Use req.firmQuery for proper tenant isolation (solo lawyers + firm members)
+    const task = await Task.findOne({ _id: id, ...req.firmQuery })
         .populate('createdBy', '_id')
         .populate('assignedTo', '_id')
         .populate('attachments.uploadedBy', 'firstName lastName')
@@ -175,21 +151,9 @@ const updateDocument = asyncHandler(async (req, res) => {
     const { id, documentId } = req.params;
     const { title, content, contentJson, contentFormat, changeNote } = req.body;
     const userId = req.userID;
-    const firmId = req.firmId;
 
-    // Build query with firmId to prevent IDOR
-    const query = { _id: id };
-    if (firmId) {
-        query.firmId = firmId;
-    } else {
-        // Solo lawyer - only their own tasks
-        query.$or = [
-            { assignedTo: userId },
-            { createdBy: userId }
-        ];
-    }
-
-    const task = await Task.findOne(query);
+    // Use req.firmQuery for proper tenant isolation (solo lawyers + firm members)
+    const task = await Task.findOne({ _id: id, ...req.firmQuery });
     if (!task) {
         throw CustomException('Task not found', 404);
     }
@@ -203,7 +167,8 @@ const updateDocument = asyncHandler(async (req, res) => {
         throw CustomException('This document cannot be edited', 400);
     }
 
-    const user = await User.findOne({ _id: userId, firmId }).select('firstName lastName');
+    // Get user name for history (user lookup by ID is safe)
+    const user = await User.findById(userId).select('firstName lastName');
 
     // Save current version to history before updating
     // Only save if there's actual content to preserve
@@ -285,22 +250,9 @@ const updateDocument = asyncHandler(async (req, res) => {
  */
 const getDocument = asyncHandler(async (req, res) => {
     const { id, documentId } = req.params;
-    const userId = req.userID;
-    const firmId = req.firmId;
 
-    // Build query with firmId to prevent IDOR
-    const query = { _id: id };
-    if (firmId) {
-        query.firmId = firmId;
-    } else {
-        // Solo lawyer - only their own tasks
-        query.$or = [
-            { assignedTo: userId },
-            { createdBy: userId }
-        ];
-    }
-
-    const task = await Task.findOne(query)
+    // Use req.firmQuery for proper tenant isolation (solo lawyers + firm members)
+    const task = await Task.findOne({ _id: id, ...req.firmQuery })
         .populate('attachments.uploadedBy', 'firstName lastName')
         .populate('attachments.lastEditedBy', 'firstName lastName');
 
@@ -368,22 +320,9 @@ const getDocument = asyncHandler(async (req, res) => {
  */
 const getDocumentVersions = asyncHandler(async (req, res) => {
     const { id, documentId } = req.params;
-    const userId = req.userID;
-    const firmId = req.firmId;
 
-    // Build query with firmId to prevent IDOR
-    const query = { _id: id };
-    if (firmId) {
-        query.firmId = firmId;
-    } else {
-        // Solo lawyer - only their own tasks
-        query.$or = [
-            { assignedTo: userId },
-            { createdBy: userId }
-        ];
-    }
-
-    const task = await Task.findOne(query)
+    // Use req.firmQuery for proper tenant isolation (solo lawyers + firm members)
+    const task = await Task.findOne({ _id: id, ...req.firmQuery })
         .populate('createdBy', '_id')
         .populate('assignedTo', '_id');
 
@@ -435,22 +374,9 @@ const getDocumentVersions = asyncHandler(async (req, res) => {
  */
 const getDocumentVersion = asyncHandler(async (req, res) => {
     const { id, documentId, versionId } = req.params;
-    const userId = req.userID;
-    const firmId = req.firmId;
 
-    // Build query with firmId to prevent IDOR
-    const query = { _id: id };
-    if (firmId) {
-        query.firmId = firmId;
-    } else {
-        // Solo lawyer - only their own tasks
-        query.$or = [
-            { assignedTo: userId },
-            { createdBy: userId }
-        ];
-    }
-
-    const task = await Task.findOne(query)
+    // Use req.firmQuery for proper tenant isolation (solo lawyers + firm members)
+    const task = await Task.findOne({ _id: id, ...req.firmQuery })
         .populate('createdBy', '_id')
         .populate('assignedTo', '_id');
 
@@ -482,8 +408,8 @@ const getDocumentVersion = asyncHandler(async (req, res) => {
         });
     }
 
-    // Get specific version
-    const version = await TaskDocumentVersion.findOne({ _id: versionId, firmId })
+    // Get specific version - use req.firmQuery for proper tenant isolation
+    const version = await TaskDocumentVersion.findOne({ _id: versionId, ...req.firmQuery })
         .populate('editedBy', 'firstName lastName fullName');
 
     if (!version || version.documentId.toString() !== documentId) {
@@ -503,21 +429,9 @@ const getDocumentVersion = asyncHandler(async (req, res) => {
 const restoreDocumentVersion = asyncHandler(async (req, res) => {
     const { id, documentId, versionId } = req.params;
     const userId = req.userID;
-    const firmId = req.firmId;
 
-    // Build query with firmId to prevent IDOR
-    const query = { _id: id };
-    if (firmId) {
-        query.firmId = firmId;
-    } else {
-        // Solo lawyer - only their own tasks
-        query.$or = [
-            { assignedTo: userId },
-            { createdBy: userId }
-        ];
-    }
-
-    const task = await Task.findOne(query)
+    // Use req.firmQuery for proper tenant isolation (solo lawyers + firm members)
+    const task = await Task.findOne({ _id: id, ...req.firmQuery })
         .populate('createdBy', '_id')
         .populate('assignedTo', '_id');
 
@@ -534,13 +448,14 @@ const restoreDocumentVersion = asyncHandler(async (req, res) => {
         throw CustomException('This document does not support versioning', 400);
     }
 
-    // Find the version to restore
-    const versionToRestore = await TaskDocumentVersion.findOne({ _id: versionId, firmId });
+    // Find the version to restore - use req.firmQuery for proper tenant isolation
+    const versionToRestore = await TaskDocumentVersion.findOne({ _id: versionId, ...req.firmQuery });
     if (!versionToRestore || versionToRestore.documentId.toString() !== documentId) {
         throw CustomException('Version not found', 404);
     }
 
-    const user = await User.findOne({ _id: userId, firmId }).select('firstName lastName');
+    // Get user name for history (user lookup by ID is safe)
+    const user = await User.findById(userId).select('firstName lastName');
 
     // Save current version to history before restoring
     if (document.documentContent || document.documentJson) {

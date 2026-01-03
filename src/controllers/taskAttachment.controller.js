@@ -26,12 +26,12 @@ const logger = require('../utils/logger');
 const addAttachment = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
-    const firmId = req.firmId;
 
     // IDOR protection
     const taskId = sanitizeObjectId(id);
 
-    const task = await Task.findOne({ _id: taskId, firmId });
+    // Use req.firmQuery for proper tenant isolation (solo lawyers + firm members)
+    const task = await Task.findOne({ _id: taskId, ...req.firmQuery });
     if (!task) {
         throw CustomException('Task not found', 404);
     }
@@ -40,7 +40,8 @@ const addAttachment = asyncHandler(async (req, res) => {
         throw CustomException('No file uploaded', 400);
     }
 
-    const user = await User.findOne({ _id: userId, firmId }).select('firstName lastName');
+    // Get user name for history (user lookup by ID is safe)
+    const user = await User.findById(userId).select('firstName lastName');
 
     let attachment;
 
@@ -112,13 +113,13 @@ const addAttachment = asyncHandler(async (req, res) => {
 const deleteAttachment = asyncHandler(async (req, res) => {
     const { id, attachmentId } = req.params;
     const userId = req.userID;
-    const firmId = req.firmId;
 
     // IDOR protection
     const taskId = sanitizeObjectId(id);
     const sanitizedAttachmentId = sanitizeObjectId(attachmentId);
 
-    const task = await Task.findOne({ _id: taskId, firmId });
+    // Use req.firmQuery for proper tenant isolation (solo lawyers + firm members)
+    const task = await Task.findOne({ _id: taskId, ...req.firmQuery });
     if (!task) {
         throw CustomException('Task not found', 404);
     }
@@ -157,7 +158,8 @@ const deleteAttachment = asyncHandler(async (req, res) => {
 
     task.attachments.pull(sanitizedAttachmentId);
 
-    const user = await User.findOne({ _id: userId, firmId }).select('firstName lastName');
+    // Get user name for history (user lookup by ID is safe)
+    const user = await User.findById(userId).select('firstName lastName');
 
     // Add history entry
     task.history.push({
@@ -186,21 +188,9 @@ const getAttachmentDownloadUrl = asyncHandler(async (req, res) => {
     const { id, attachmentId } = req.params;
     const { versionId, disposition = 'attachment' } = req.query;
     const userId = req.userID;
-    const firmId = req.firmId;
 
-    // Build query with firmId to prevent IDOR
-    const query = { _id: id };
-    if (firmId) {
-        query.firmId = firmId;
-    } else {
-        // Solo lawyer - only their own tasks
-        query.$or = [
-            { assignedTo: userId },
-            { createdBy: userId }
-        ];
-    }
-
-    const task = await Task.findOne(query);
+    // Use req.firmQuery for proper tenant isolation (solo lawyers + firm members)
+    const task = await Task.findOne({ _id: id, ...req.firmQuery });
     if (!task) {
         throw CustomException('Task not found', 404);
     }
@@ -266,22 +256,9 @@ const getAttachmentDownloadUrl = asyncHandler(async (req, res) => {
  */
 const getAttachmentVersions = asyncHandler(async (req, res) => {
     const { id, attachmentId } = req.params;
-    const userId = req.userID;
-    const firmId = req.firmId;
 
-    // Build query with firmId to prevent IDOR
-    const query = { _id: id };
-    if (firmId) {
-        query.firmId = firmId;
-    } else {
-        // Solo lawyer - only their own tasks
-        query.$or = [
-            { assignedTo: userId },
-            { createdBy: userId }
-        ];
-    }
-
-    const task = await Task.findOne(query);
+    // Use req.firmQuery for proper tenant isolation (solo lawyers + firm members)
+    const task = await Task.findOne({ _id: id, ...req.firmQuery });
     if (!task) {
         throw CustomException('Task not found', 404);
     }
