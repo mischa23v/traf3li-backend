@@ -6,6 +6,24 @@ Format: `WHEN [condition/event] THE SYSTEM SHALL [expected behavior]`
 
 ---
 
+## 🔬 RESEARCH FIRST (For Standard/Complex Features)
+
+Before planning major features, run `/research {topic}` to gather:
+
+| Source | What It Provides |
+|--------|------------------|
+| Enterprise APIs | AWS, Google, Microsoft, Salesforce patterns |
+| GitHub | Open source implementations, data models |
+| Standards | RFCs, OWASP, compliance requirements |
+| Legal Tech | Clio, PracticePanther competitor patterns |
+| Kaggle/ML | Data science approaches (if applicable) |
+
+**Research is stored in `.research/{topic}/` and informs this plan.**
+
+Check existing research: `ls .research/`
+
+---
+
 ## 📏 SCALE ASSESSMENT (Do This First)
 
 Before deep planning, determine the scope to avoid over-engineering simple tasks:
