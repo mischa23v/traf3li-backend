@@ -82,7 +82,7 @@ const createTask = asyncHandler(async (req, res) => {
     // Centralized middleware handles tenant validation - req.firmQuery is guaranteed
 
     const userId = req.userID;
-    const firmId = req.firmId; // From firmFilter middleware
+    // Note: Use req.firmQuery for queries, req.addFirmId() for creates
 
     // Block departed users from creating tasks
     if (req.isDeparted) {
@@ -154,26 +154,24 @@ const createTask = asyncHandler(async (req, res) => {
     const sanitizedClientId = clientId ? sanitizeObjectId(clientId) : null;
     const sanitizedParentTaskId = parentTaskId ? sanitizeObjectId(parentTaskId) : null;
 
-    // Convert firmId to ObjectId for proper MongoDB matching
-    const firmObjectId = firmId ? new mongoose.Types.ObjectId(firmId) : null;
-
-    // Validate assignedTo user if provided
+    // Validate assignedTo user if provided (User lookups by ID are safe per CLAUDE.md)
     if (sanitizedAssignedTo) {
-        const assignedUser = await User.findOne({ _id: sanitizedAssignedTo, firmId: firmObjectId });
+        const assignedUser = await User.findById(sanitizedAssignedTo);
         if (!assignedUser) {
             throw CustomException('Assigned user not found', 404);
         }
     }
 
-    // If caseId provided, validate it exists and belongs to firm
+    // If caseId provided, validate it exists and belongs to tenant
     if (sanitizedCaseId) {
-        const caseDoc = await Case.findOne({ _id: sanitizedCaseId, firmId: firmObjectId });
+        const caseDoc = await Case.findOne({ _id: sanitizedCaseId, ...req.firmQuery });
         if (!caseDoc) {
             throw CustomException('Case not found', 404);
         }
     }
 
-    const task = await Task.create({
+    // Use req.addFirmId() for proper tenant isolation (sets firmId OR lawyerId)
+    const task = await Task.create(req.addFirmId({
         title: sanitizedTitle,
         description: sanitizedDescription,
         priority: priority || 'medium',
@@ -185,7 +183,6 @@ const createTask = asyncHandler(async (req, res) => {
         startDate,
         assignedTo: sanitizedAssignedTo || userId,
         createdBy: userId,
-        firmId, // Add firmId for multi-tenancy
         caseId: sanitizedCaseId,
         clientId: sanitizedClientId,
         parentTaskId: sanitizedParentTaskId,
@@ -196,7 +193,7 @@ const createTask = asyncHandler(async (req, res) => {
         reminders: reminders || [],
         notes: sanitizedNotes,
         points: points || 0
-    });
+    }));
 
     // Add history entry
     task.history.push({
@@ -220,7 +217,7 @@ const createTask = asyncHandler(async (req, res) => {
                 isAllDay = false;
             }
 
-            const linkedEvent = await Event.create({
+            const linkedEvent = await Event.create(req.addFirmId({
                 title: task.title,
                 type: 'task',
                 description: task.description,
@@ -231,13 +228,12 @@ const createTask = asyncHandler(async (req, res) => {
                 caseId: task.caseId,
                 clientId: task.clientId,
                 organizer: userId,
-                firmId,
                 createdBy: userId,
                 attendees: task.assignedTo ? [{ userId: task.assignedTo, status: 'confirmed', role: 'required' }] : [],
                 priority: task.priority,
                 color: '#10b981', // Green color for task events
                 tags: task.tags
-            });
+            }));
 
             // Link the event back to the task
             task.linkedEventId = linkedEvent._id;
@@ -706,7 +702,8 @@ const completeTask = asyncHandler(async (req, res) => {
                 nextAssignee = task.recurring.assigneePool[randomIndex];
             }
 
-            const nextTask = await Task.create({
+            // Use req.addFirmId() for proper tenant isolation
+            const nextTask = await Task.create(req.addFirmId({
                 title: task.title,
                 description: task.description,
                 priority: task.priority,
@@ -723,7 +720,7 @@ const completeTask = asyncHandler(async (req, res) => {
                 reminders: task.reminders,
                 notes: task.notes,
                 points: task.points
-            });
+            }));
 
             return res.status(200).json({
                 success: true,

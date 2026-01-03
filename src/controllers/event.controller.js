@@ -191,14 +191,14 @@ const createEvent = asyncHandler(async (req, res) => {
                 ? attendees[0].userId
                 : userId;
 
-            const linkedTask = await Task.create({
+            // Use req.addFirmId() for proper tenant isolation
+            const linkedTask = await Task.create(req.addFirmId({
                 title,
                 description,
                 dueDate: parsedStartDateTime,
                 dueTime,
                 assignedTo: assignedUserId,
                 createdBy: userId,
-                firmId,
                 caseId,
                 clientId,
                 priority,
@@ -206,7 +206,7 @@ const createEvent = asyncHandler(async (req, res) => {
                 tags,
                 notes,
                 linkedEventId: event._id
-            });
+            }));
 
             // Link the task back to the event
             event.taskId = linkedTask._id;
