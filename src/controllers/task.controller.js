@@ -238,7 +238,8 @@ const createTask = asyncHandler(async (req, res) => {
         }
     }
 
-    const populatedTask = await Task.findOne({ _id: task._id, firmId: task.firmId })
+    // Use req.firmQuery for proper tenant isolation (solo lawyers + firm members)
+    const populatedTask = await Task.findOne({ _id: task._id, ...req.firmQuery })
         .populate('assignedTo', 'firstName lastName username email image')
         .populate('createdBy', 'firstName lastName username email image')
         .populate('caseId', 'title caseNumber')
