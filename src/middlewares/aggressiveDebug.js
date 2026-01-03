@@ -32,9 +32,15 @@ const colors = {
 // Track request timing
 const requestTimings = new Map();
 
+// Track MongoDB query timing per request
+const requestDbTimings = new Map();
+
 // Track all errors for summary
 const errorLog = [];
 const MAX_ERROR_LOG = 100;
+
+// Global DB timing for current request (thread-local simulation using async hooks would be better, but this works for logging)
+let currentRequestId = null;
 
 /**
  * Parse stack trace to get exact file locations
@@ -268,7 +274,7 @@ function trackError(error, req) {
 }
 
 /**
- * Request logging middleware
+ * Request logging middleware with detailed performance breakdown
  */
 function requestLogger(req, res, next) {
     const startTime = process.hrtime.bigint();
@@ -281,6 +287,17 @@ function requestLogger(req, res, next) {
         url: req.originalUrl
     });
 
+    // Initialize DB timing for this request
+    requestDbTimings.set(requestId, {
+        queries: [],
+        totalDbTime: 0,
+        queryCount: 0
+    });
+
+    // Set current request ID for MongoDB tracking
+    req._debugRequestId = requestId;
+    currentRequestId = requestId;
+
     // Log incoming request
     console.log(`${colors.green}→ ${req.method} ${req.originalUrl}${colors.reset} ${colors.white}[${requestId}]${colors.reset}`);
 
@@ -288,17 +305,47 @@ function requestLogger(req, res, next) {
     const originalJson = res.json.bind(res);
     res.json = function(body) {
         const timing = requestTimings.get(requestId);
+        const dbTiming = requestDbTimings.get(requestId);
         const endTime = process.hrtime.bigint();
-        const durationMs = Number(endTime - timing.startTime) / 1_000_000;
+        const totalMs = Number(endTime - timing.startTime) / 1_000_000;
 
+        // Calculate time breakdown
+        const dbTimeMs = dbTiming ? dbTiming.totalDbTime : 0;
+        const processingMs = totalMs - dbTimeMs;
+        const queryCount = dbTiming ? dbTiming.queryCount : 0;
+
+        // Cleanup
         requestTimings.delete(requestId);
+        requestDbTimings.delete(requestId);
 
-        // Log response
+        // Log response with performance breakdown
         const statusColor = res.statusCode >= 500 ? colors.red
             : res.statusCode >= 400 ? colors.yellow
             : colors.green;
 
-        console.log(`${statusColor}← ${res.statusCode} ${req.method} ${req.originalUrl}${colors.reset} ${colors.white}(${durationMs.toFixed(2)}ms)${colors.reset}`);
+        // Performance rating
+        const perfColor = totalMs > 1000 ? colors.red
+            : totalMs > 300 ? colors.yellow
+            : colors.green;
+
+        console.log(`${statusColor}← ${res.statusCode} ${req.method} ${req.originalUrl}${colors.reset}`);
+        console.log(`  ${perfColor}⏱  TOTAL: ${totalMs.toFixed(2)}ms${colors.reset} | ${colors.magenta}MongoDB: ${dbTimeMs.toFixed(2)}ms (${queryCount} queries)${colors.reset} | ${colors.cyan}Processing: ${processingMs.toFixed(2)}ms${colors.reset}`);
+
+        // Log slow queries for this request
+        if (dbTiming && dbTiming.queries.length > 0) {
+            const slowQueries = dbTiming.queries.filter(q => q.duration > 50);
+            if (slowQueries.length > 0) {
+                console.log(`  ${colors.yellow}⚠ Slow queries:${colors.reset}`);
+                slowQueries.forEach(q => {
+                    console.log(`    ${colors.red}${q.duration.toFixed(2)}ms${colors.reset} ${q.collection}.${q.method}(${q.query.substring(0, 100)}...)`);
+                });
+            }
+        }
+
+        // Warn if request is slow
+        if (totalMs > 1000) {
+            console.log(`  ${colors.bgRed}${colors.white} SLOW REQUEST: ${totalMs.toFixed(0)}ms > 1000ms threshold ${colors.reset}`);
+        }
 
         // Log error responses with more detail
         if (res.statusCode >= 400 && body?.error) {
@@ -441,15 +488,87 @@ function printErrorSummary() {
 }
 
 /**
- * Middleware to log MongoDB queries (use with mongoose debug)
+ * Middleware to log MongoDB queries with timing
  */
 function enableMongooseDebug(mongoose) {
-    mongoose.set('debug', (collectionName, methodName, ...args) => {
-        const query = args[0] || {};
-        console.log(`${colors.magenta}[MongoDB]${colors.reset} ${collectionName}.${methodName}(${JSON.stringify(query).substring(0, 200)})`);
+    // Use mongoose middleware for timing instead of debug mode
+    // This gives us actual query execution time
+
+    const schemas = mongoose.modelNames();
+
+    // Enable debug with timing
+    mongoose.set('debug', function(collectionName, methodName, ...args) {
+        const queryStr = JSON.stringify(args[0] || {}).substring(0, 150);
+        console.log(`  ${colors.magenta}[DB]${colors.reset} ${collectionName}.${methodName}(${queryStr})`);
     });
 
-    console.log(`${colors.green}✓ Aggressive debug mode: Mongoose query logging enabled${colors.reset}`);
+    // Add timing hooks to all models
+    mongoose.plugin((schema) => {
+        // Pre hooks to start timing
+        ['find', 'findOne', 'findOneAndUpdate', 'findOneAndDelete', 'updateOne', 'updateMany', 'deleteOne', 'deleteMany', 'aggregate', 'countDocuments', 'estimatedDocumentCount'].forEach(method => {
+            schema.pre(method, function() {
+                this._startTime = process.hrtime.bigint();
+            });
+
+            schema.post(method, function(result) {
+                if (this._startTime) {
+                    const endTime = process.hrtime.bigint();
+                    const durationMs = Number(endTime - this._startTime) / 1_000_000;
+
+                    // Get collection name
+                    const collectionName = this.mongooseCollection?.name || this._collection?.name || 'unknown';
+                    const queryStr = JSON.stringify(this.getQuery ? this.getQuery() : {}).substring(0, 100);
+
+                    // Track in current request
+                    if (currentRequestId && requestDbTimings.has(currentRequestId)) {
+                        const dbTiming = requestDbTimings.get(currentRequestId);
+                        dbTiming.queries.push({
+                            collection: collectionName,
+                            method: method,
+                            query: queryStr,
+                            duration: durationMs
+                        });
+                        dbTiming.totalDbTime += durationMs;
+                        dbTiming.queryCount++;
+                    }
+
+                    // Log individual query with timing
+                    const timeColor = durationMs > 100 ? colors.red : durationMs > 50 ? colors.yellow : colors.white;
+                    console.log(`  ${colors.magenta}[DB ${timeColor}${durationMs.toFixed(2)}ms${colors.reset}${colors.magenta}]${colors.reset} ${collectionName}.${method}`);
+                }
+            });
+        });
+
+        // Special handling for save
+        schema.pre('save', function() {
+            this._startTime = process.hrtime.bigint();
+        });
+
+        schema.post('save', function() {
+            if (this._startTime) {
+                const endTime = process.hrtime.bigint();
+                const durationMs = Number(endTime - this._startTime) / 1_000_000;
+                const collectionName = this.constructor.collection?.name || 'unknown';
+
+                if (currentRequestId && requestDbTimings.has(currentRequestId)) {
+                    const dbTiming = requestDbTimings.get(currentRequestId);
+                    dbTiming.queries.push({
+                        collection: collectionName,
+                        method: 'save',
+                        query: `{_id: "${this._id}"}`,
+                        duration: durationMs
+                    });
+                    dbTiming.totalDbTime += durationMs;
+                    dbTiming.queryCount++;
+                }
+
+                const timeColor = durationMs > 100 ? colors.red : durationMs > 50 ? colors.yellow : colors.white;
+                console.log(`  ${colors.magenta}[DB ${timeColor}${durationMs.toFixed(2)}ms${colors.reset}${colors.magenta}]${colors.reset} ${collectionName}.save`);
+            }
+        });
+    });
+
+    console.log(`${colors.green}✓ Aggressive debug mode: MongoDB query timing enabled${colors.reset}`);
 }
 
 /**
