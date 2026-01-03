@@ -26,21 +26,9 @@ const addVoiceMemo = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { duration, transcription } = req.body;
     const userId = req.userID;
-    const firmId = req.firmId;
 
-    // Build query with firmId to prevent IDOR
-    const query = { _id: id };
-    if (firmId) {
-        query.firmId = firmId;
-    } else {
-        // Solo lawyer - only their own tasks
-        query.$or = [
-            { assignedTo: userId },
-            { createdBy: userId }
-        ];
-    }
-
-    const task = await Task.findOne(query);
+    // Use req.firmQuery for proper tenant isolation (solo lawyers + firm members)
+    const task = await Task.findOne({ _id: id, ...req.firmQuery });
     if (!task) {
         throw CustomException('Task not found', 404);
     }
@@ -49,7 +37,8 @@ const addVoiceMemo = asyncHandler(async (req, res) => {
         throw CustomException('No audio file uploaded', 400);
     }
 
-    const user = await User.findOne({ _id: userId, firmId }).select('firstName lastName');
+    // Get user name for history (user lookup by ID is safe)
+    const user = await User.findById(userId).select('firstName lastName');
 
     let voiceMemo;
 
@@ -126,22 +115,9 @@ const addVoiceMemo = asyncHandler(async (req, res) => {
 const updateVoiceMemoTranscription = asyncHandler(async (req, res) => {
     const { id, memoId } = req.params;
     const { transcription } = req.body;
-    const userId = req.userID;
-    const firmId = req.firmId;
 
-    // Build query with firmId to prevent IDOR
-    const query = { _id: id };
-    if (firmId) {
-        query.firmId = firmId;
-    } else {
-        // Solo lawyer - only their own tasks
-        query.$or = [
-            { assignedTo: userId },
-            { createdBy: userId }
-        ];
-    }
-
-    const task = await Task.findOne(query);
+    // Use req.firmQuery for proper tenant isolation (solo lawyers + firm members)
+    const task = await Task.findOne({ _id: id, ...req.firmQuery });
     if (!task) {
         throw CustomException('Task not found', 404);
     }

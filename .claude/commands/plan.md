@@ -6,6 +6,24 @@ Format: `WHEN [condition/event] THE SYSTEM SHALL [expected behavior]`
 
 ---
 
+## 🔬 RESEARCH FIRST (For Standard/Complex Features)
+
+Before planning major features, run `/research {topic}` to gather:
+
+| Source | What It Provides |
+|--------|------------------|
+| Enterprise APIs | AWS, Google, Microsoft, Salesforce patterns |
+| GitHub | Open source implementations, data models |
+| Standards | RFCs, OWASP, compliance requirements |
+| Legal Tech | Clio, PracticePanther competitor patterns |
+| Kaggle/ML | Data science approaches (if applicable) |
+
+**Research is stored in `.research/{topic}/` and informs this plan.**
+
+Check existing research: `ls .research/`
+
+---
+
 ## 📏 SCALE ASSESSMENT (Do This First)
 
 Before deep planning, determine the scope to avoid over-engineering simple tasks:
@@ -60,6 +78,16 @@ Before creating any requirements, verify the plan addresses ALL applicable categ
 | Scope validation | Validate permissions BEFORE operations | External APIs |
 | Data redaction | Sanitize sensitive data (SSN, CC) in exports | Export features |
 | Permission checks | Use `req.hasPermission()` for restricted ops | Role-based features |
+
+### ⛔ Critical Anti-Patterns (NEVER DO)
+| Anti-Pattern | Why It Breaks | Correct Pattern |
+|--------------|---------------|-----------------|
+| `{ _id: id, firmId }` | Solo lawyers have firmId=null | `{ _id: id, ...req.firmQuery }` |
+| `if (firmId) query.firmId = firmId` | Skips solo lawyers entirely | Always spread `...req.firmQuery` |
+| `{ firmId: req.firmId }` in create | Missing lawyerId for solo lawyers | Use `req.addFirmId(data)` |
+| `User.findOne({ _id, firmId })` | Users are global, not tenant-scoped | Use `User.findById(id)` |
+
+**Run `/fix-isolation` after implementation to verify no violations.**
 
 ### Reliability Checklist (AWS/Netflix/Calendly)
 | Pattern | Requirement | When Applicable |
@@ -288,6 +316,7 @@ _List any ambiguities that need user clarification before proceeding._
 
 After implementation, verify:
 - [ ] `node --check` passes on all modified files
+- [ ] **Run `/fix-isolation`** - confirms no tenant isolation violations
 - [ ] All queries include `...req.firmQuery`
 - [ ] No `findById()` usage (use `findOne({ _id, ...req.firmQuery })`)
 - [ ] All request bodies use `pickAllowedFields()`
@@ -295,6 +324,7 @@ After implementation, verify:
 - [ ] Activity logging uses QueueService (non-blocking)
 - [ ] External calls use retry with backoff
 - [ ] API contract matches expected response shape
+- [ ] **Run `/security-audit`** for full Gold Standard compliance check
 ```
 
 ---

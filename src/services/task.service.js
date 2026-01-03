@@ -68,15 +68,15 @@ function calculateNextDueDate(currentDueDate, recurring) {
  *
  * @param {ObjectId|string} taskId - Task being checked
  * @param {ObjectId|string} dependsOnId - Potential dependency
- * @param {ObjectId|string} firmId - Firm ID for tenant isolation
+ * @param {Object} firmQuery - Tenant isolation query ({ firmId: X } or { lawyerId: Y })
  * @param {Set} [visited=new Set()] - Visited nodes (internal use)
  * @returns {Promise<boolean>} True if circular dependency exists
  *
  * @example
- * const hasCycle = await hasCircularDependency(taskA._id, taskB._id, firmId);
+ * const hasCycle = await hasCircularDependency(taskA._id, taskB._id, req.firmQuery);
  * if (hasCycle) throw new Error('Circular dependency detected');
  */
-async function hasCircularDependency(taskId, dependsOnId, firmId, visited = new Set()) {
+async function hasCircularDependency(taskId, dependsOnId, firmQuery, visited = new Set()) {
     // Self-reference is always circular
     if (taskId.toString() === dependsOnId.toString()) {
         return true;
@@ -89,15 +89,15 @@ async function hasCircularDependency(taskId, dependsOnId, firmId, visited = new 
 
     visited.add(dependsOnId.toString());
 
-    // Get the dependent task's dependencies
-    const dependentTask = await Task.findOne({ _id: dependsOnId, firmId }).select('blockedBy');
+    // Get the dependent task's dependencies - use firmQuery for proper tenant isolation
+    const dependentTask = await Task.findOne({ _id: dependsOnId, ...firmQuery }).select('blockedBy');
     if (!dependentTask || !dependentTask.blockedBy) {
         return false;
     }
 
     // Recursively check each dependency
     for (const blockedById of dependentTask.blockedBy) {
-        if (await hasCircularDependency(taskId, blockedById, firmId, visited)) {
+        if (await hasCircularDependency(taskId, blockedById, firmQuery, visited)) {
             return true;
         }
     }

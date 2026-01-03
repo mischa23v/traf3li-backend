@@ -237,7 +237,6 @@ const deleteTemplate = asyncHandler(async (req, res) => {
 const createFromTemplate = asyncHandler(async (req, res) => {
     const { templateId } = req.params;
     const userId = req.userID;
-    const firmId = req.firmId;
 
     // IDOR protection
     const sanitizedTemplateId = sanitizeObjectId(templateId);
@@ -273,24 +272,24 @@ const createFromTemplate = asyncHandler(async (req, res) => {
         throw CustomException('Template not found', 404);
     }
 
-    // Validate assignedTo if provided
+    // Validate assignedTo if provided (user lookup by ID is safe)
     if (sanitizedAssignedTo) {
-        const assignedUser = await User.findOne({ _id: sanitizedAssignedTo, firmId });
+        const assignedUser = await User.findById(sanitizedAssignedTo);
         if (!assignedUser) {
             throw CustomException('Assigned user not found', 404);
         }
     }
 
-    // Validate caseId if provided
+    // Validate caseId if provided - use req.firmQuery for proper tenant isolation
     if (sanitizedCaseId) {
-        const caseDoc = await Case.findOne({ _id: sanitizedCaseId, firmId });
+        const caseDoc = await Case.findOne({ _id: sanitizedCaseId, ...req.firmQuery });
         if (!caseDoc) {
             throw CustomException('Case not found', 404);
         }
     }
 
-    // Create new task from template
-    const taskData = {
+    // Create new task from template - use req.addFirmId for proper tenant isolation
+    const taskData = req.addFirmId({
         title: title || template.title,
         description: template.description,
         priority: template.priority,
@@ -303,7 +302,6 @@ const createFromTemplate = asyncHandler(async (req, res) => {
         caseId: sanitizedCaseId,
         clientId: sanitizedClientId,
         createdBy: userId,
-        firmId,
         isTemplate: false,
         templateId: sanitizedTemplateId,
         notes: notes || template.notes,
@@ -337,7 +335,7 @@ const createFromTemplate = asyncHandler(async (req, res) => {
             changes: { templateId: sanitizedTemplateId, templateName: template.templateName || template.title },
             timestamp: new Date()
         }]
-    };
+    });
 
     const newTask = await Task.create(taskData);
 
@@ -362,7 +360,6 @@ const createFromTemplate = asyncHandler(async (req, res) => {
 const saveAsTemplate = asyncHandler(async (req, res) => {
     const { taskId } = req.params;
     const userId = req.userID;
-    const firmId = req.firmId;
 
     // IDOR protection
     const sanitizedTaskId = sanitizeObjectId(taskId);
@@ -371,9 +368,10 @@ const saveAsTemplate = asyncHandler(async (req, res) => {
     const data = pickAllowedFields(req.body, ALLOWED_FIELDS.SAVE_AS_TEMPLATE);
     const { templateName, isPublic } = data;
 
+    // Use req.firmQuery for proper tenant isolation (solo lawyers + firm members)
     const task = await Task.findOne({
         _id: sanitizedTaskId,
-        firmId,
+        ...req.firmQuery,
         $or: [
             { createdBy: userId },
             { assignedTo: userId }
