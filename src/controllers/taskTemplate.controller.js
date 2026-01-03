@@ -124,7 +124,8 @@ const createTemplate = asyncHandler(async (req, res) => {
         throw CustomException('Invalid priority value', 400);
     }
 
-    const template = await Task.create({
+    // Use req.addFirmId() for proper tenant isolation
+    const template = await Task.create(req.addFirmId({
         title,
         templateName: templateName || title,
         description,
@@ -148,7 +149,7 @@ const createTemplate = asyncHandler(async (req, res) => {
         isTemplate: true,
         isPublic: isPublic || false,
         createdBy: userId
-    });
+    }));
 
     await template.populate('createdBy', 'firstName lastName email image');
 
@@ -382,8 +383,8 @@ const saveAsTemplate = asyncHandler(async (req, res) => {
         throw CustomException('Task not found', 404);
     }
 
-    // Create template from task
-    const templateData = {
+    // Create template from task - use req.addFirmId for proper tenant isolation
+    const templateData = req.addFirmId({
         title: task.title,
         templateName: templateName || `${task.title} (Template)`,
         description: task.description,
@@ -419,7 +420,7 @@ const saveAsTemplate = asyncHandler(async (req, res) => {
             beforeMinutes: r.beforeMinutes,
             sent: false
         }))
-    };
+    });
 
     const template = await Task.create(templateData);
 

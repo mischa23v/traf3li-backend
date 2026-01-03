@@ -1869,7 +1869,8 @@ exports.createTaskFromBlock = async (req, res) => {
 
         const blockContent = block.content?.map(c => c.plainText || c.text?.content || '').join('') || '';
 
-        const taskData = {
+        // Use req.addFirmId() for proper tenant isolation (handles both firm members and solo lawyers)
+        const taskData = req.addFirmId({
             caseId,
             title: title || blockContent.substring(0, 100),
             description: blockContent,
@@ -1878,13 +1879,7 @@ exports.createTaskFromBlock = async (req, res) => {
             priority: priority || 'medium',
             status: 'pending',
             createdBy: req.user._id
-        };
-
-        if (req.user.firmId) {
-            taskData.firmId = req.user.firmId;
-        } else {
-            taskData.lawyerId = req.user._id;
-        }
+        });
 
         const task = await Task.create(taskData);
 

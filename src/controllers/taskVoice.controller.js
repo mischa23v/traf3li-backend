@@ -297,7 +297,6 @@ const batchProcessVoiceMemos = asyncHandler(async (req, res) => {
 const createTaskFromNaturalLanguage = asyncHandler(async (req, res) => {
     const { text } = req.body;
     const userId = req.userID;
-    const firmId = req.firmId;
 
     // Block departed users
     if (req.isDeparted) {
@@ -325,8 +324,8 @@ const createTaskFromNaturalLanguage = asyncHandler(async (req, res) => {
 
     const { eventData, confidence } = parseResult;
 
-    // Map event data to task data
-    const taskData = {
+    // Map event data to task data - use req.addFirmId for proper tenant isolation
+    const taskData = req.addFirmId({
         title: eventData.title || 'Untitled Task',
         description: eventData.description || eventData.notes || '',
         priority: eventData.priority || 'medium',
@@ -338,14 +337,13 @@ const createTaskFromNaturalLanguage = asyncHandler(async (req, res) => {
         tags: eventData.tags || [],
         notes: eventData.notes || '',
         createdBy: userId,
-        firmId,
         metadata: {
             nlpParsed: true,
             originalText: text,
             parsingConfidence: confidence,
             parsedAt: new Date()
         }
-    };
+    });
 
     // Create the task
     const task = await Task.create(taskData);
@@ -369,7 +367,6 @@ const createTaskFromNaturalLanguage = asyncHandler(async (req, res) => {
 const createTaskFromVoice = asyncHandler(async (req, res) => {
     const { transcription } = req.body;
     const userId = req.userID;
-    const firmId = req.firmId;
 
     // Block departed users
     if (req.isDeparted) {
@@ -398,8 +395,8 @@ const createTaskFromVoice = asyncHandler(async (req, res) => {
 
     const { eventData, confidence, metadata } = result;
 
-    // Map event data to task data
-    const taskData = {
+    // Map event data to task data - use req.addFirmId for proper tenant isolation
+    const taskData = req.addFirmId({
         title: eventData.title || 'Untitled Task',
         description: eventData.description || eventData.notes || '',
         priority: eventData.priority || 'medium',
@@ -411,7 +408,6 @@ const createTaskFromVoice = asyncHandler(async (req, res) => {
         tags: eventData.tags || [],
         notes: eventData.notes || '',
         createdBy: userId,
-        firmId,
         metadata: {
             voiceCreated: true,
             originalTranscription: metadata.originalTranscription,
@@ -419,7 +415,7 @@ const createTaskFromVoice = asyncHandler(async (req, res) => {
             parsingConfidence: confidence,
             processedAt: metadata.processedAt
         }
-    };
+    });
 
     // Create the task
     const task = await Task.create(taskData);
