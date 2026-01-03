@@ -511,12 +511,10 @@ app.use(getTracingHandler());
 // - Source code context for errors
 // - Request/response logging with timing
 // - MongoDB query logging
-// Enable by setting DEBUG_MODE=aggressive in environment
+// ALWAYS ENABLED - Aggressive debug mode for all environments
 let debugMiddleware = null;
-if (process.env.DEBUG_MODE === 'aggressive' || process.env.NODE_ENV === 'development') {
-    debugMiddleware = initAggressiveDebug(app, mongoose);
-    logger.info('🔍 Aggressive debug mode enabled - all errors will show detailed traces');
-}
+debugMiddleware = initAggressiveDebug(app, mongoose);
+logger.info('🔍 Aggressive debug mode enabled - all errors will show detailed traces');
 
 // Initialize Socket.io
 initSocket(server);
@@ -1418,9 +1416,8 @@ app.use(getErrorHandler());
 // AGGRESSIVE DEBUG ERROR HANDLER - Logs detailed error info
 // ============================================
 // Logs full stack traces, source context, and request details
-if (process.env.DEBUG_MODE === 'aggressive' || process.env.NODE_ENV === 'development') {
-    app.use(aggressiveErrorHandler);
-}
+// ALWAYS ENABLED - for all environments including production
+app.use(aggressiveErrorHandler);
 
 // ============================================
 // CUSTOM ERROR HANDLER - Must be last
