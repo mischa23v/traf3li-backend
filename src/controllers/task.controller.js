@@ -22,9 +22,9 @@ const {
 // CONSTANTS - Centralized validation and allowed fields
 // =============================================================================
 
-// Valid enum values for validation
-const VALID_PRIORITIES = ['low', 'medium', 'high', 'urgent'];
-const VALID_STATUSES = ['todo', 'pending', 'in_progress', 'done', 'canceled'];
+// Valid enum values for validation (must match Task model schema)
+const VALID_PRIORITIES = ['none', 'low', 'medium', 'high', 'critical'];
+const VALID_STATUSES = ['backlog', 'todo', 'in_progress', 'done', 'canceled'];
 
 // Allowed fields for mass assignment protection
 const ALLOWED_FIELDS = {

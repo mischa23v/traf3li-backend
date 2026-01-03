@@ -13,7 +13,8 @@ const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils'
 // CONSTANTS - Template-specific validation and allowed fields
 // =============================================================================
 
-const VALID_PRIORITIES = ['low', 'medium', 'high', 'urgent'];
+// Must match Task model schema
+const VALID_PRIORITIES = ['none', 'low', 'medium', 'high', 'critical'];
 
 const ALLOWED_FIELDS = {
     TEMPLATE_CREATE: [
