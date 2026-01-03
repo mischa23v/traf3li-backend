@@ -61,6 +61,16 @@ Before creating any requirements, verify the plan addresses ALL applicable categ
 | Data redaction | Sanitize sensitive data (SSN, CC) in exports | Export features |
 | Permission checks | Use `req.hasPermission()` for restricted ops | Role-based features |
 
+### ⛔ Critical Anti-Patterns (NEVER DO)
+| Anti-Pattern | Why It Breaks | Correct Pattern |
+|--------------|---------------|-----------------|
+| `{ _id: id, firmId }` | Solo lawyers have firmId=null | `{ _id: id, ...req.firmQuery }` |
+| `if (firmId) query.firmId = firmId` | Skips solo lawyers entirely | Always spread `...req.firmQuery` |
+| `{ firmId: req.firmId }` in create | Missing lawyerId for solo lawyers | Use `req.addFirmId(data)` |
+| `User.findOne({ _id, firmId })` | Users are global, not tenant-scoped | Use `User.findById(id)` |
+
+**Run `/fix-isolation` after implementation to verify no violations.**
+
 ### Reliability Checklist (AWS/Netflix/Calendly)
 | Pattern | Requirement | When Applicable |
 |---------|-------------|-----------------|
@@ -288,6 +298,7 @@ _List any ambiguities that need user clarification before proceeding._
 
 After implementation, verify:
 - [ ] `node --check` passes on all modified files
+- [ ] **Run `/fix-isolation`** - confirms no tenant isolation violations
 - [ ] All queries include `...req.firmQuery`
 - [ ] No `findById()` usage (use `findOne({ _id, ...req.firmQuery })`)
 - [ ] All request bodies use `pickAllowedFields()`
@@ -295,6 +306,7 @@ After implementation, verify:
 - [ ] Activity logging uses QueueService (non-blocking)
 - [ ] External calls use retry with backoff
 - [ ] API contract matches expected response shape
+- [ ] **Run `/security-audit`** for full Gold Standard compliance check
 ```
 
 ---
