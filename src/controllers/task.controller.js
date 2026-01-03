@@ -128,6 +128,16 @@ const createTask = asyncHandler(async (req, res) => {
         throw CustomException('Invalid status value', 400);
     }
 
+    // Validate timeTracking.estimatedMinutes - must be non-negative
+    if (timeTracking?.estimatedMinutes !== undefined) {
+        if (typeof timeTracking.estimatedMinutes !== 'number' || timeTracking.estimatedMinutes < 0) {
+            throw CustomException('Estimated minutes must be a non-negative number', 400);
+        }
+        if (timeTracking.estimatedMinutes > 525600) { // Max 1 year in minutes
+            throw CustomException('Estimated minutes cannot exceed 525600 (1 year)', 400);
+        }
+    }
+
     // Sanitize user input to prevent XSS
     const sanitizedTitle = title ? stripHtml(title) : '';
     const sanitizedDescription = description ? sanitizeRichText(description) : '';
@@ -410,6 +420,16 @@ const updateTask = asyncHandler(async (req, res) => {
         throw CustomException('Invalid status value', 400);
     }
 
+    // Validate timeTracking.estimatedMinutes - must be non-negative
+    if (updates.timeTracking?.estimatedMinutes !== undefined) {
+        if (typeof updates.timeTracking.estimatedMinutes !== 'number' || updates.timeTracking.estimatedMinutes < 0) {
+            throw CustomException('Estimated minutes must be a non-negative number', 400);
+        }
+        if (updates.timeTracking.estimatedMinutes > 525600) { // Max 1 year in minutes
+            throw CustomException('Estimated minutes cannot exceed 525600 (1 year)', 400);
+        }
+    }
+
     // Sanitize text fields
     if (updates.title) updates.title = stripHtml(updates.title);
     if (updates.description) updates.description = sanitizeRichText(updates.description);
@@ -551,7 +571,8 @@ const updateTask = asyncHandler(async (req, res) => {
         // Don't fail task update if event sync fails
     }
 
-    const populatedTask = await Task.findOne({ _id: task._id, firmId: task.firmId })
+    // Use req.firmQuery for proper tenant isolation (solo lawyers + firm members)
+    const populatedTask = await Task.findOne({ _id: task._id, ...req.firmQuery })
         .populate('assignedTo', 'firstName lastName username email image')
         .populate('createdBy', 'firstName lastName username email image')
         .populate('caseId', 'title caseNumber')
@@ -713,7 +734,8 @@ const completeTask = asyncHandler(async (req, res) => {
         }
     }
 
-    const populatedTask = await Task.findOne({ _id: task._id, firmId: task.firmId })
+    // Use req.firmQuery for proper tenant isolation (solo lawyers + firm members)
+    const populatedTask = await Task.findOne({ _id: task._id, ...req.firmQuery })
         .populate('assignedTo', 'firstName lastName username email image')
         .populate('createdBy', 'firstName lastName username email image')
         .populate('completedBy', 'firstName lastName');
@@ -1119,7 +1141,8 @@ const addComment = asyncHandler(async (req, res) => {
 
     await task.save();
 
-    const populatedTask = await Task.findOne({ _id: taskId, firmId: task.firmId })
+    // Use req.firmQuery for proper tenant isolation (solo lawyers + firm members)
+    const populatedTask = await Task.findOne({ _id: taskId, ...req.firmQuery })
         .populate('comments.userId', 'firstName lastName image')
         .lean();
 
@@ -1726,7 +1749,8 @@ const updateTaskStatus = asyncHandler(async (req, res) => {
 
     await task.save();
 
-    const populatedTask = await Task.findOne({ _id: taskId, firmId: task.firmId })
+    // Use req.firmQuery for proper tenant isolation (solo lawyers + firm members)
+    const populatedTask = await Task.findOne({ _id: taskId, ...req.firmQuery })
         .populate('assignedTo', 'firstName lastName email image')
         .populate('blockedBy', 'title status');
 
@@ -1800,7 +1824,8 @@ const updateProgress = asyncHandler(async (req, res) => {
 
     await task.save();
 
-    const populatedTask = await Task.findOne({ _id: taskId, firmId: task.firmId })
+    // Use req.firmQuery for proper tenant isolation (solo lawyers + firm members)
+    const populatedTask = await Task.findOne({ _id: taskId, ...req.firmQuery })
         .populate('assignedTo', 'firstName lastName email image')
         .populate('createdBy', 'firstName lastName email image');
 
@@ -1931,22 +1956,29 @@ const updateOutcome = asyncHandler(async (req, res) => {
 const updateEstimate = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { estimatedMinutes, hourlyRate } = req.body;
-    const userId = req.userID;
-    const firmId = req.firmId;
 
-    // Build query with firmId to prevent IDOR
-    const query = { _id: id };
-    if (firmId) {
-        query.firmId = firmId;
-    } else {
-        // Solo lawyer - only their own tasks
-        query.$or = [
-            { assignedTo: userId },
-            { createdBy: userId }
-        ];
+    // IDOR protection
+    const taskId = sanitizeObjectId(id);
+
+    // Validate estimatedMinutes - must be non-negative number
+    if (estimatedMinutes !== undefined) {
+        if (typeof estimatedMinutes !== 'number' || estimatedMinutes < 0) {
+            throw CustomException('Estimated minutes must be a non-negative number', 400);
+        }
+        if (estimatedMinutes > 525600) { // Max 1 year in minutes
+            throw CustomException('Estimated minutes cannot exceed 525600 (1 year)', 400);
+        }
     }
 
-    const task = await Task.findOne(query);
+    // Validate hourlyRate - must be non-negative number
+    if (hourlyRate !== undefined) {
+        if (typeof hourlyRate !== 'number' || hourlyRate < 0) {
+            throw CustomException('Hourly rate must be a non-negative number', 400);
+        }
+    }
+
+    // Use req.firmQuery for proper tenant isolation (solo lawyers + firm members)
+    const task = await Task.findOne({ _id: taskId, ...req.firmQuery });
     if (!task) {
         throw CustomException('Task not found', 404);
     }
