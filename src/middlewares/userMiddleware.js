@@ -20,7 +20,8 @@ const userMiddleware = (request, response, next) => {
 
         const verification = jwt.verify(token, process.env.JWT_SECRET);
         if(verification) {
-            request.userID = verification._id;
+            // Handle both _id and id formats in JWT tokens (gold standard: jwt.js pattern)
+            request.userID = verification._id || verification.id;
             request.isSeller = verification.isSeller;
             return next();
         }
