@@ -2860,6 +2860,171 @@ const bulkCreateTasks = asyncHandler(async (req, res) => {
     });
 });
 
+/**
+ * Reschedule task with reason
+ * POST /api/tasks/:id/reschedule
+ * Gold Standard: Same pattern as rescheduleReminder/rescheduleEvent
+ */
+const rescheduleTask = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const userId = req.userID;
+
+    // IDOR protection
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid task ID format', 400);
+    }
+
+    // Mass assignment protection
+    const safeData = pickAllowedFields(req.body, ['newDueDate', 'newDueTime', 'reason']);
+    const { newDueDate, newDueTime, reason } = safeData;
+
+    if (!newDueDate) {
+        throw CustomException('newDueDate is required', 400);
+    }
+
+    const parsedDate = new Date(newDueDate);
+    if (isNaN(parsedDate.getTime())) {
+        throw CustomException('Invalid newDueDate format', 400);
+    }
+
+    // Use req.firmQuery for proper tenant isolation
+    const task = await Task.findOne({ _id: sanitizedId, ...req.firmQuery });
+    if (!task) {
+        throw CustomException('Task not found', 404);
+    }
+
+    // Store previous date for history
+    const previousDueDate = task.dueDate;
+    const previousDueTime = task.dueTime;
+
+    // Update task
+    task.dueDate = parsedDate;
+    if (newDueTime) {
+        task.dueTime = newDueTime;
+    }
+
+    // Track reschedule in history
+    if (!task.history) {
+        task.history = [];
+    }
+    task.history.push({
+        action: 'rescheduled',
+        userId,
+        timestamp: new Date(),
+        previousValue: { dueDate: previousDueDate, dueTime: previousDueTime },
+        newValue: { dueDate: parsedDate, dueTime: newDueTime || task.dueTime },
+        reason
+    });
+
+    await task.save();
+
+    await task.populate([
+        { path: 'assignedTo', select: 'firstName lastName image' },
+        { path: 'caseId', select: 'title caseNumber' },
+        { path: 'clientId', select: 'firstName lastName' }
+    ]);
+
+    res.status(200).json({
+        success: true,
+        message: 'Task rescheduled successfully',
+        data: task,
+        previousDueDate,
+        previousDueTime
+    });
+});
+
+/**
+ * Get task conflicts (overlapping due dates for same assignee)
+ * GET /api/tasks/conflicts
+ * Gold Standard: Same pattern as getConflicts for events
+ */
+const getTaskConflicts = asyncHandler(async (req, res) => {
+    const { userIds, dueDate, dueDateStart, dueDateEnd } = req.query;
+
+    // Parse userIds
+    const userIdArray = userIds ? (Array.isArray(userIds) ? userIds : userIds.split(',')) : [req.userID];
+
+    // Validate users belong to same tenant
+    if (userIdArray.length > 0) {
+        const validUsers = await User.countDocuments({
+            _id: { $in: userIdArray },
+            ...req.firmQuery
+        });
+        if (validUsers !== userIdArray.length) {
+            throw CustomException('Cannot check conflicts for users outside your organization', 403);
+        }
+    }
+
+    // Build query with tenant isolation
+    const query = {
+        ...req.firmQuery,
+        assignedTo: { $in: userIdArray },
+        status: { $nin: ['done', 'canceled'] }
+    };
+
+    // Date filter
+    if (dueDate) {
+        const date = new Date(dueDate);
+        const startOfDay = new Date(date);
+        startOfDay.setHours(0, 0, 0, 0);
+        const endOfDay = new Date(date);
+        endOfDay.setHours(23, 59, 59, 999);
+        query.dueDate = { $gte: startOfDay, $lte: endOfDay };
+    } else if (dueDateStart || dueDateEnd) {
+        query.dueDate = {};
+        if (dueDateStart) query.dueDate.$gte = new Date(dueDateStart);
+        if (dueDateEnd) query.dueDate.$lte = new Date(dueDateEnd);
+    }
+
+    const tasks = await Task.find(query)
+        .populate('assignedTo', 'firstName lastName image')
+        .populate('caseId', 'title caseNumber')
+        .sort({ dueDate: 1, priority: -1 })
+        .lean();
+
+    // Group by assignee and date to find conflicts
+    const conflictsByUser = {};
+    userIdArray.forEach(uid => { conflictsByUser[uid] = []; });
+
+    tasks.forEach(task => {
+        const assigneeId = task.assignedTo?._id?.toString();
+        if (assigneeId && conflictsByUser[assigneeId]) {
+            conflictsByUser[assigneeId].push(task);
+        }
+    });
+
+    // Find dates with multiple high-priority tasks
+    const overloadedDates = {};
+    Object.entries(conflictsByUser).forEach(([uid, userTasks]) => {
+        const byDate = {};
+        userTasks.forEach(t => {
+            if (t.dueDate) {
+                const dateKey = t.dueDate.toISOString().split('T')[0];
+                if (!byDate[dateKey]) byDate[dateKey] = [];
+                byDate[dateKey].push(t);
+            }
+        });
+        Object.entries(byDate).forEach(([date, dateTasks]) => {
+            if (dateTasks.length > 3 || dateTasks.filter(t => t.priority === 'critical' || t.priority === 'high').length > 2) {
+                if (!overloadedDates[date]) overloadedDates[date] = {};
+                overloadedDates[date][uid] = dateTasks;
+            }
+        });
+    });
+
+    res.status(200).json({
+        success: true,
+        data: {
+            hasConflicts: Object.keys(overloadedDates).length > 0,
+            totalTasks: tasks.length,
+            tasksByUser: conflictsByUser,
+            overloadedDates,
+            filters: { userIds: userIdArray, dueDate, dueDateStart, dueDateEnd }
+        }
+    });
+});
+
 module.exports = {
     createTask,
     getTasks,
@@ -2908,6 +3073,8 @@ module.exports = {
     getTasksByClient,
     convertTaskToEvent,
     searchTasks,
-    bulkCreateTasks
+    bulkCreateTasks,
+    rescheduleTask,
+    getTaskConflicts
 };
 

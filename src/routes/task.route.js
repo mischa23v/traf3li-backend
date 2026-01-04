@@ -50,7 +50,9 @@ const {
     getTasksByClient,
     convertTaskToEvent,
     searchTasks,
-    bulkCreateTasks
+    bulkCreateTasks,
+    rescheduleTask,
+    getTaskConflicts
 } = require('../controllers/task.controller');
 
 // Template controller (extracted for maintainability)
@@ -109,9 +111,10 @@ app.post('/templates/:templateId/create', createFromTemplate);
 // Batch endpoint: Tasks Overview
 app.get('/overview', getTasksOverview);
 
-// NEW: Active timers & search (must be before parameterized routes)
+// NEW: Active timers, search, conflicts (must be before parameterized routes)
 app.get('/timers/active', getActiveTimers);
 app.get('/search', searchTasks);
+app.get('/conflicts', getTaskConflicts);
 app.get('/client/:clientId', getTasksByClient);
 
 // Static routes (must be before parameterized routes)
@@ -151,6 +154,7 @@ app.delete('/:id', deleteTask);
 // Task actions
 app.post('/:id/complete', completeTask);
 app.post('/:id/clone', cloneTask);
+app.post('/:id/reschedule', rescheduleTask);
 app.get('/:id/activity', getTaskActivity);
 app.post('/:id/convert-to-event', convertTaskToEvent);
 

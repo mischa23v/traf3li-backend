@@ -560,3 +560,62 @@ node --check src/models/event.model.js
 | Date | Change | Breaking? |
 |------|--------|-----------|
 | 2026-01-04 | Initial contract documentation | No |
+| 2026-01-04 | Added missing endpoints for feature parity | No |
+
+---
+
+## NEW: Additional Endpoints (2026-01-04)
+
+### GET /api/events/search
+```
+Query params:
+- q: search query
+- type, status, priority, visibility: filters
+- caseId, clientId, organizer: entity filters
+- startDate, endDate: date range
+- allDay: "true"/"false"
+- page, limit, sortBy, sortOrder: pagination
+```
+
+**Response:**
+```json
+{
+    "success": true,
+    "data": [...],
+    "query": "search term",
+    "filters": { ... },
+    "pagination": { ... }
+}
+```
+
+### GET /api/events/:id/activity
+```
+Query params: page, limit
+```
+
+**Response:**
+```json
+{
+    "success": true,
+    "data": [{ "activityType": "rescheduled", "user": {...}, "timestamp": "..." }],
+    "pagination": { ... }
+}
+```
+
+### POST /api/events/:id/clone
+```javascript
+['title', 'startDateTime', 'includeAttendees', 'includeAgenda']
+```
+
+### POST /api/events/:id/reschedule
+```javascript
+['newStartDateTime', 'newEndDateTime', 'reason', 'notifyAttendees']
+```
+
+### GET /api/events/client/:clientId
+```
+Query params: page, limit, status, type
+```
+
+### DELETE /api/events/:id/action-items/:itemId
+Removes an action item from an event.

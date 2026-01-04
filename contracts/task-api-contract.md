@@ -323,3 +323,123 @@ node --check src/controllers/task.controller.js
 |------|--------|-----------|
 | 2026-01-02 | Extracted inline arrays to ALLOWED_FIELDS constant | No |
 | 2026-01-02 | Extracted validation arrays to VALID_PRIORITIES/VALID_STATUSES | No |
+| 2026-01-04 | Added missing endpoints for feature parity | No |
+
+---
+
+## NEW: Additional Endpoints (2026-01-04)
+
+### POST /api/tasks/bulk (Bulk Create)
+```javascript
+// Request body
+{ "tasks": [...] }
+
+// Each task in array follows same fields as POST /api/tasks
+// Max 50 tasks per request
+```
+
+**Response:**
+```json
+{
+    "success": true,
+    "message": "X task(s) created successfully",
+    "data": {
+        "created": 10,
+        "failed": 2,
+        "tasks": [...],
+        "errors": [{ "index": 3, "title": "...", "error": "..." }]
+    }
+}
+```
+
+### POST /api/tasks/:id/reschedule
+```javascript
+['newDueDate', 'newDueTime', 'reason']
+```
+
+**Response:**
+```json
+{
+    "success": true,
+    "message": "Task rescheduled successfully",
+    "data": { /* task */ },
+    "previousDueDate": "ISO date",
+    "previousDueTime": "HH:mm"
+}
+```
+
+### GET /api/tasks/conflicts
+```
+Query params:
+- userIds (optional): comma-separated list of user IDs
+- dueDate (optional): specific date
+- dueDateStart (optional): range start
+- dueDateEnd (optional): range end
+```
+
+**Response:**
+```json
+{
+    "success": true,
+    "data": {
+        "hasConflicts": true,
+        "totalTasks": 15,
+        "tasksByUser": { "userId1": [...], "userId2": [...] },
+        "overloadedDates": { "2026-01-05": { "userId1": [...] } },
+        "filters": { ... }
+    }
+}
+```
+
+### GET /api/tasks/search
+```
+Query params:
+- q: search query
+- status, priority, assignedTo, caseId, clientId: filters
+- startDate, endDate: date range
+- overdue: "true"/"false"
+- hasAttachments, hasComments: "true"/"false"
+- page, limit, sortBy, sortOrder: pagination
+```
+
+### POST /api/tasks/:id/clone
+```javascript
+['title', 'resetDueDate', 'includeSubtasks', 'includeChecklists', 'includeAttachments']
+```
+
+### GET /api/tasks/:id/activity
+```
+Query params: page, limit
+```
+
+**Response:**
+```json
+{
+    "success": true,
+    "data": [{ "action": "...", "userId": "...", "timestamp": "...", "user": {...} }],
+    "pagination": { ... }
+}
+```
+
+### POST /api/tasks/:id/convert-to-event
+```javascript
+['eventType', 'duration', 'attendees', 'location']
+```
+
+### GET /api/tasks/client/:clientId
+```
+Query params: page, limit, status, priority
+```
+
+### PATCH /api/tasks/:id/timer/pause
+```javascript
+['reason']
+```
+
+### PATCH /api/tasks/:id/timer/resume
+```javascript
+['notes']
+```
+
+### GET /api/tasks/timers/active
+Returns all tasks with active timers for current user.

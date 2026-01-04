@@ -2697,6 +2697,71 @@ const searchEvents = asyncHandler(async (req, res) => {
     });
 });
 
+/**
+ * Get event activity/history
+ * GET /api/events/:id/activity
+ * Gold Standard: Same pattern as getTaskActivity
+ */
+const getEventActivity = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { page = 1, limit = 50 } = req.query;
+
+    // IDOR protection
+    const { sanitizeObjectId } = require('../utils/securityUtils');
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid event ID format', 400);
+    }
+
+    // Use req.firmQuery for proper tenant isolation
+    const event = await Event.findOne({ _id: sanitizedId, ...req.firmQuery })
+        .select('history rescheduleHistory title organizer')
+        .lean();
+
+    if (!event) {
+        throw CustomException('Event not found', 404);
+    }
+
+    // Combine all history into one timeline
+    const allActivity = [
+        ...(event.history || []).map(h => ({ ...h, activityType: h.action || 'updated' })),
+        ...(event.rescheduleHistory || []).map(h => ({ ...h, activityType: 'rescheduled', timestamp: h.rescheduledAt }))
+    ];
+
+    // Sort by timestamp descending
+    allActivity.sort((a, b) => new Date(b.timestamp || b.rescheduledAt || 0) - new Date(a.timestamp || a.rescheduledAt || 0));
+
+    const total = allActivity.length;
+    const startIndex = (parseInt(page) - 1) * parseInt(limit);
+    const paginatedActivity = allActivity.slice(startIndex, startIndex + parseInt(limit));
+
+    // Get unique user IDs for population
+    const userIds = [...new Set(
+        paginatedActivity
+            .map(h => h.userId || h.rescheduledBy)
+            .filter(Boolean)
+    )];
+    const users = await User.find({ _id: { $in: userIds } }).select('firstName lastName image').lean();
+    const userMap = {};
+    users.forEach(u => { userMap[u._id.toString()] = u; });
+
+    const enrichedActivity = paginatedActivity.map(h => ({
+        ...h,
+        user: userMap[(h.userId || h.rescheduledBy)?.toString()] || null
+    }));
+
+    res.status(200).json({
+        success: true,
+        data: enrichedActivity,
+        pagination: {
+            page: parseInt(page),
+            limit: parseInt(limit),
+            total,
+            pages: Math.ceil(total / parseInt(limit))
+        }
+    });
+});
+
 module.exports = {
     createEvent,
     getEvents,
@@ -2734,5 +2799,6 @@ module.exports = {
     bulkUpdateEvents,
     bulkDeleteEvents,
     getEventsByClient,
-    searchEvents
+    searchEvents,
+    getEventActivity
 };

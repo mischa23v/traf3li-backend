@@ -1928,6 +1928,180 @@ const searchReminders = asyncHandler(async (req, res) => {
     });
 });
 
+/**
+ * Get reminder activity/history
+ * GET /api/reminders/:id/activity
+ * Gold Standard: Same pattern as getTaskActivity
+ */
+const getReminderActivity = asyncHandler(async (req, res) => {
+    validateTenantContext(req);
+
+    const { id } = req.params;
+    const { page = 1, limit = 50 } = req.query;
+    const userId = req.userID;
+
+    // IDOR protection
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid reminder ID format', 400);
+    }
+
+    // Use req.firmQuery for proper tenant isolation
+    const reminder = await Reminder.findOne({ _id: sanitizedId, ...req.firmQuery })
+        .select('rescheduleHistory snoozeHistory delegatedHistory title userId')
+        .lean();
+
+    if (!reminder) {
+        throw CustomException('Reminder not found', 404);
+    }
+
+    // IDOR - only owner or delegatee can view activity
+    if (reminder.userId.toString() !== userId) {
+        throw CustomException('You cannot view this reminder activity', 403);
+    }
+
+    // Combine all history into one timeline
+    const allActivity = [
+        ...(reminder.rescheduleHistory || []).map(h => ({ ...h, activityType: 'rescheduled' })),
+        ...(reminder.snoozeHistory || []).map(h => ({ ...h, activityType: 'snoozed' })),
+        ...(reminder.delegatedHistory || []).map(h => ({ ...h, activityType: 'delegated' }))
+    ];
+
+    // Sort by timestamp descending
+    allActivity.sort((a, b) => new Date(b.rescheduledAt || b.snoozedAt || b.delegatedAt || 0) - new Date(a.rescheduledAt || a.snoozedAt || a.delegatedAt || 0));
+
+    const total = allActivity.length;
+    const startIndex = (parseInt(page) - 1) * parseInt(limit);
+    const paginatedActivity = allActivity.slice(startIndex, startIndex + parseInt(limit));
+
+    // Get unique user IDs for population
+    const userIds = [...new Set(
+        paginatedActivity
+            .map(h => h.rescheduledBy || h.snoozedBy || h.delegatedBy || h.delegatedTo)
+            .filter(Boolean)
+    )];
+    const users = await User.find({ _id: { $in: userIds } }).select('firstName lastName image').lean();
+    const userMap = {};
+    users.forEach(u => { userMap[u._id.toString()] = u; });
+
+    const enrichedActivity = paginatedActivity.map(h => ({
+        ...h,
+        user: userMap[(h.rescheduledBy || h.snoozedBy || h.delegatedBy)?.toString()] || null,
+        delegatedToUser: h.delegatedTo ? userMap[h.delegatedTo.toString()] : null
+    }));
+
+    res.status(200).json({
+        success: true,
+        data: enrichedActivity,
+        pagination: {
+            page: parseInt(page),
+            limit: parseInt(limit),
+            total,
+            pages: Math.ceil(total / parseInt(limit))
+        }
+    });
+});
+
+/**
+ * Get conflicting reminders (overlapping times for same user)
+ * GET /api/reminders/conflicts
+ * Gold Standard: Same pattern as getConflicts for events
+ */
+const getReminderConflicts = asyncHandler(async (req, res) => {
+    validateTenantContext(req);
+
+    const { userIds, startDateTime, endDateTime, reminderDate } = req.query;
+    const userId = req.userID;
+
+    // Parse userIds
+    const userIdArray = userIds ? (Array.isArray(userIds) ? userIds : userIds.split(',')) : [userId];
+
+    // Validate users belong to same tenant
+    if (userIdArray.length > 0) {
+        const validUsers = await User.countDocuments({
+            _id: { $in: userIdArray },
+            ...req.firmQuery
+        });
+        if (validUsers !== userIdArray.length) {
+            throw CustomException('Cannot check conflicts for users outside your organization', 403);
+        }
+    }
+
+    // Build query with tenant isolation
+    const query = {
+        ...req.firmQuery,
+        userId: { $in: userIdArray },
+        status: { $nin: ['completed', 'dismissed'] }
+    };
+
+    // Date filter
+    if (startDateTime && endDateTime) {
+        query.reminderDateTime = {
+            $gte: new Date(startDateTime),
+            $lte: new Date(endDateTime)
+        };
+    } else if (reminderDate) {
+        const date = new Date(reminderDate);
+        const startOfDay = new Date(date);
+        startOfDay.setHours(0, 0, 0, 0);
+        const endOfDay = new Date(date);
+        endOfDay.setHours(23, 59, 59, 999);
+        query.reminderDateTime = { $gte: startOfDay, $lte: endOfDay };
+    }
+
+    const reminders = await Reminder.find(query)
+        .populate('relatedCase', 'title caseNumber')
+        .populate('relatedTask', 'title')
+        .sort({ reminderDateTime: 1 })
+        .lean();
+
+    // Group by user
+    const remindersByUser = {};
+    userIdArray.forEach(uid => { remindersByUser[uid] = []; });
+
+    reminders.forEach(reminder => {
+        const uid = reminder.userId.toString();
+        if (remindersByUser[uid]) {
+            remindersByUser[uid].push(reminder);
+        }
+    });
+
+    // Find time slots with multiple reminders (potential conflicts)
+    const conflictTimeSlots = {};
+    Object.entries(remindersByUser).forEach(([uid, userReminders]) => {
+        // Group by 30-minute time slots
+        const bySlot = {};
+        userReminders.forEach(r => {
+            if (r.reminderDateTime) {
+                const slotKey = new Date(r.reminderDateTime);
+                slotKey.setMinutes(Math.floor(slotKey.getMinutes() / 30) * 30);
+                slotKey.setSeconds(0);
+                const key = slotKey.toISOString();
+                if (!bySlot[key]) bySlot[key] = [];
+                bySlot[key].push(r);
+            }
+        });
+        // Find slots with >1 reminder
+        Object.entries(bySlot).forEach(([slot, slotReminders]) => {
+            if (slotReminders.length > 1) {
+                if (!conflictTimeSlots[slot]) conflictTimeSlots[slot] = {};
+                conflictTimeSlots[slot][uid] = slotReminders;
+            }
+        });
+    });
+
+    res.status(200).json({
+        success: true,
+        data: {
+            hasConflicts: Object.keys(conflictTimeSlots).length > 0,
+            totalReminders: reminders.length,
+            remindersByUser,
+            conflictTimeSlots,
+            filters: { userIds: userIdArray, startDateTime, endDateTime, reminderDate }
+        }
+    });
+});
+
 module.exports = {
     createReminder,
     getReminders,
@@ -1955,5 +2129,7 @@ module.exports = {
     createReminderFromTask,
     createReminderFromEvent,
     bulkCreateReminders,
-    searchReminders
+    searchReminders,
+    getReminderActivity,
+    getReminderConflicts
 };

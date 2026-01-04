@@ -26,7 +26,9 @@ const {
     createReminderFromTask,
     createReminderFromEvent,
     bulkCreateReminders,
-    searchReminders
+    searchReminders,
+    getReminderActivity,
+    getReminderConflicts
 } = require('../controllers/reminder.controller');
 
 const {
@@ -80,8 +82,9 @@ app.post('/bulk', bulkCreateReminders);
 app.put('/bulk', bulkUpdateReminders);
 app.delete('/bulk', bulkDeleteReminders);
 
-// Search
+// Search and conflicts
 app.get('/search', searchReminders);
+app.get('/conflicts', getReminderConflicts);
 
 // Reminder CRUD
 app.post('/', createReminder);
@@ -97,8 +100,9 @@ app.post('/:id/dismiss', dismissReminder);
 app.post('/:id/snooze', snoozeReminder);
 app.post('/:id/delegate', delegateReminder);
 
-// NEW: Clone and reschedule
+// NEW: Clone, reschedule, and activity
 app.post('/:id/clone', cloneReminder);
 app.post('/:id/reschedule', rescheduleReminder);
+app.get('/:id/activity', getReminderActivity);
 
 module.exports = app;

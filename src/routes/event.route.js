@@ -37,7 +37,8 @@ const {
     bulkUpdateEvents,
     bulkDeleteEvents,
     getEventsByClient,
-    searchEvents
+    searchEvents,
+    getEventActivity
 } = require('../controllers/event.controller');
 
 const app = express.Router();
@@ -94,6 +95,7 @@ app.post('/:id/cancel', userMiddleware, cancelEvent);
 app.post('/:id/postpone', userMiddleware, postponeEvent);
 app.post('/:id/clone', userMiddleware, cloneEvent);
 app.post('/:id/reschedule', userMiddleware, rescheduleEvent);
+app.get('/:id/activity', userMiddleware, getEventActivity);
 
 // Attendee management
 app.post('/:id/attendees', userMiddleware, addAttendee);

@@ -483,3 +483,121 @@ node --check src/controllers/locationReminder.controller.js
 | Date | Change | Breaking? |
 |------|--------|-----------|
 | 2026-01-04 | Initial contract documentation | No |
+| 2026-01-04 | Added missing endpoints for feature parity | No |
+
+---
+
+## NEW: Additional Endpoints (2026-01-04)
+
+### POST /api/reminders/bulk (Bulk Create)
+```javascript
+// Request body
+{ "reminders": [...] }
+
+// Each reminder in array follows same fields as POST /api/reminders
+// Max 50 reminders per request
+```
+
+**Response:**
+```json
+{
+    "success": true,
+    "message": "X reminder(s) created successfully",
+    "data": {
+        "created": 10,
+        "failed": 2,
+        "reminders": [...],
+        "errors": [{ "index": 3, "title": "...", "error": "..." }]
+    }
+}
+```
+
+### GET /api/reminders/search
+```
+Query params:
+- q: search query
+- status, priority, type: filters
+- relatedCase, clientId: entity filters
+- startDate, endDate: date range
+- overdue: "true"/"false"
+- page, limit, sortBy, sortOrder: pagination
+```
+
+**Response:**
+```json
+{
+    "success": true,
+    "data": [...],
+    "query": "search term",
+    "filters": { ... },
+    "pagination": { ... }
+}
+```
+
+### GET /api/reminders/conflicts
+```
+Query params:
+- userIds (optional): comma-separated list of user IDs
+- startDateTime, endDateTime (optional): time range
+- reminderDate (optional): specific date
+```
+
+**Response:**
+```json
+{
+    "success": true,
+    "data": {
+        "hasConflicts": true,
+        "totalReminders": 15,
+        "remindersByUser": { "userId1": [...], "userId2": [...] },
+        "conflictTimeSlots": { "2026-01-05T10:00:00Z": { "userId1": [...] } },
+        "filters": { ... }
+    }
+}
+```
+
+### POST /api/reminders/:id/clone
+```javascript
+['title', 'reminderDateTime']
+```
+
+### POST /api/reminders/:id/reschedule
+```javascript
+['newDateTime', 'reason']
+```
+
+### GET /api/reminders/:id/activity
+```
+Query params: page, limit
+```
+
+**Response:**
+```json
+{
+    "success": true,
+    "data": [{ "activityType": "rescheduled", "user": {...}, ... }],
+    "pagination": { ... }
+}
+```
+
+### GET /api/reminders/client/:clientId
+```
+Query params: page, limit, status, priority
+```
+
+### GET /api/reminders/case/:caseId
+```
+Query params: page, limit, status, priority
+```
+
+### POST /api/reminders/from-task/:taskId
+```javascript
+['beforeMinutes', 'priority', 'notification']
+```
+Creates a reminder linked to a task, set to trigger before task due date.
+
+### POST /api/reminders/from-event/:eventId
+```javascript
+['beforeMinutes', 'priority', 'notification']
+```
+Creates a reminder linked to an event, set to trigger before event start.
