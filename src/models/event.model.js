@@ -392,13 +392,28 @@ eventSchema.pre('save', async function(next) {
         if (this.firmId) tenantQuery.firmId = this.firmId;
         else if (this.lawyerId) tenantQuery.lawyerId = this.lawyerId;
 
-        const count = await this.constructor.countDocuments({
-            ...tenantQuery,
-            createdAt: {
-                $gte: new Date(year, date.getMonth(), 1),
-                $lt: new Date(year, date.getMonth() + 1, 1)
-            }
-        });
+        // If no tenant context, use bypass (system-generated events or edge cases)
+        // This prevents FIRM_ISOLATION_VIOLATION while still counting correctly
+        const hasTenantContext = !!(this.firmId || this.lawyerId);
+
+        let count;
+        if (hasTenantContext) {
+            count = await this.constructor.countDocuments({
+                ...tenantQuery,
+                createdAt: {
+                    $gte: new Date(year, date.getMonth(), 1),
+                    $lt: new Date(year, date.getMonth() + 1, 1)
+                }
+            });
+        } else {
+            // Bypass firm filter for system-generated events (fallback to global count)
+            count = await this.constructor.countDocuments({
+                createdAt: {
+                    $gte: new Date(year, date.getMonth(), 1),
+                    $lt: new Date(year, date.getMonth() + 1, 1)
+                }
+            }).setOptions({ bypassFirmFilter: true });
+        }
         this.eventId = `EVT-${year}${month}-${String(count + 1).padStart(4, '0')}`;
     }
 
