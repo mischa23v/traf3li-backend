@@ -331,25 +331,113 @@ const getTasks = asyncHandler(async (req, res) => {
         query.status = { $nin: ['done', 'canceled'] };
     }
 
-    // Text search
-    if (search) {
-        query.$text = { $search: search };
+    // Gold Standard: MongoDB $text search with indexed performance (Elasticsearch/Algolia pattern)
+    // Uses idx_task_textsearch: { title: 'text', description: 'text', notes: 'text' }
+    // Graceful fallback to regex if text index doesn't exist
+    let useTextSearch = false;
+    if (search && search.trim()) {
+        const searchTerm = search.trim();
+
+        // MongoDB $text cannot coexist with $or at top level
+        // Solution: Use $and to wrap existing $or (e.g., for departed users)
+        if (query.$or) {
+            query.$and = [
+                { $or: query.$or },
+                { $text: { $search: searchTerm } }
+            ];
+            delete query.$or;
+        } else {
+            query.$text = { $search: searchTerm };
+        }
+        useTextSearch = true;
     }
 
     const sortOptions = {};
     sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
 
-    const tasks = await Task.find(query)
-        .populate('assignedTo', 'firstName lastName username email image')
-        .populate('createdBy', 'firstName lastName username email image')
-        .populate('caseId', 'title caseNumber')
-        .populate('clientId', 'firstName lastName')
-        .sort(sortOptions)
-        .limit(parseInt(limit))
-        .skip((parseInt(page) - 1) * parseInt(limit))
-        .lean();
+    // Gold Standard: Try $text search first, fallback to regex if index missing
+    let tasks;
+    let total;
+    try {
+        tasks = await Task.find(query)
+            .populate('assignedTo', 'firstName lastName username email image')
+            .populate('createdBy', 'firstName lastName username email image')
+            .populate('caseId', 'title caseNumber')
+            .populate('clientId', 'firstName lastName')
+            .sort(sortOptions)
+            .limit(parseInt(limit))
+            .skip((parseInt(page) - 1) * parseInt(limit))
+            .lean();
 
-    const total = await Task.countDocuments(query);
+        total = await Task.countDocuments(query);
+    } catch (textSearchError) {
+        // Graceful degradation: Fall back to regex if text index missing
+        // Error code 27 = IndexNotFound, 17007 = text index required
+        if (useTextSearch && (textSearchError.code === 27 || textSearchError.code === 17007 ||
+            textSearchError.message?.includes('text index'))) {
+            // Remove $text from query and use regex fallback
+            const fallbackQuery = { ...req.firmQuery };
+
+            // Rebuild non-search filters
+            if (isDeparted) {
+                fallbackQuery.$or = [
+                    { assignedTo: userId },
+                    { createdBy: userId }
+                ];
+            }
+            if (status) fallbackQuery.status = Array.isArray(status) ? { $in: status } : status;
+            if (priority) fallbackQuery.priority = Array.isArray(priority) ? { $in: priority } : priority;
+            if (label) fallbackQuery.label = Array.isArray(label) ? { $in: label } : label;
+            if (sanitizedAssignedTo) fallbackQuery.assignedTo = sanitizedAssignedTo;
+            if (sanitizedCaseId) fallbackQuery.caseId = sanitizedCaseId;
+            if (sanitizedClientId) fallbackQuery.clientId = sanitizedClientId;
+            if (startDate || endDate) {
+                fallbackQuery.dueDate = {};
+                if (startDate) fallbackQuery.dueDate.$gte = new Date(startDate);
+                if (endDate) fallbackQuery.dueDate.$lte = new Date(endDate);
+            }
+            if (overdue === 'true') {
+                fallbackQuery.dueDate = { $lt: new Date() };
+                fallbackQuery.status = { $nin: ['done', 'canceled'] };
+            }
+
+            // Add regex search
+            const searchRegex = new RegExp(escapeRegex(search.trim()), 'i');
+            if (fallbackQuery.$or) {
+                fallbackQuery.$and = [
+                    { $or: fallbackQuery.$or },
+                    { $or: [
+                        { title: searchRegex },
+                        { description: searchRegex },
+                        { notes: searchRegex },
+                        { tags: searchRegex }
+                    ]}
+                ];
+                delete fallbackQuery.$or;
+            } else {
+                fallbackQuery.$or = [
+                    { title: searchRegex },
+                    { description: searchRegex },
+                    { notes: searchRegex },
+                    { tags: searchRegex }
+                ];
+            }
+
+            tasks = await Task.find(fallbackQuery)
+                .populate('assignedTo', 'firstName lastName username email image')
+                .populate('createdBy', 'firstName lastName username email image')
+                .populate('caseId', 'title caseNumber')
+                .populate('clientId', 'firstName lastName')
+                .sort(sortOptions)
+                .limit(parseInt(limit))
+                .skip((parseInt(page) - 1) * parseInt(limit))
+                .lean();
+
+            total = await Task.countDocuments(fallbackQuery);
+        } else {
+            throw textSearchError;
+        }
+    }
 
     res.status(200).json({
         success: true,

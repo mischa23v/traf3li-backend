@@ -8,6 +8,13 @@ const { db: dbLogger } = contextLogger;
 
 mongoose.set('strictQuery', true);
 
+// Gold Standard: Disable autoIndex in production (AWS/Google/Microsoft pattern)
+// Indexes should be created via migrations (npm run db:indexes) not on app startup
+// This prevents slow startup times and race conditions in clustered environments
+if (process.env.NODE_ENV === 'production') {
+  mongoose.set('autoIndex', false);
+}
+
 // Slow query threshold in milliseconds
 const SLOW_QUERY_THRESHOLD_MS = parseInt(process.env.SLOW_QUERY_THRESHOLD_MS) || 100;
 

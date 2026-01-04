@@ -404,7 +404,15 @@ const indexDefinitions = [
 ];
 
 /**
+ * Check if index is a text index
+ */
+const isTextIndex = (keys) => {
+    return Object.values(keys).includes('text');
+};
+
+/**
  * Create indexes for a collection
+ * Gold Standard: Handles text index replacement (MongoDB allows only ONE text index per collection)
  */
 const createIndexesForCollection = async (collectionName, indexes) => {
     try {
@@ -413,6 +421,7 @@ const createIndexesForCollection = async (collectionName, indexes) => {
         // Get existing indexes
         const existingIndexes = await collection.indexes();
         const existingIndexNames = new Set(existingIndexes.map(idx => idx.name));
+        const existingTextIndex = existingIndexes.find(idx => idx.textIndexVersion);
 
         logger.info(`\n${'='.repeat(70)}`);
         logger.info(`Collection: ${collectionName}`);
@@ -421,16 +430,65 @@ const createIndexesForCollection = async (collectionName, indexes) => {
 
         let created = 0;
         let skipped = 0;
+        let updated = 0;
 
         for (const { keys, options } of indexes) {
             const indexName = options.name;
 
+            // Gold Standard: Handle text index updates
+            // MongoDB only allows ONE text index per collection
+            // If we're creating a text index and one already exists with different name, replace it
+            if (isTextIndex(keys)) {
+                if (existingTextIndex) {
+                    if (existingTextIndex.name === indexName) {
+                        // Same name - check if keys match
+                        const existingKeys = Object.keys(existingTextIndex.weights || {}).sort().join(',');
+                        const newKeys = Object.keys(keys).sort().join(',');
+
+                        if (existingKeys === newKeys) {
+                            logger.info(`  ✓ ${indexName} - text index already exists with same fields`);
+                            skipped++;
+                            continue;
+                        } else {
+                            // Different fields - need to replace
+                            logger.info(`  ↻ ${indexName} - updating text index (fields changed: ${existingKeys} → ${newKeys})`);
+                            try {
+                                await collection.dropIndex(existingTextIndex.name);
+                                logger.info(`    Dropped old text index: ${existingTextIndex.name}`);
+                            } catch (dropError) {
+                                logger.warn(`    Could not drop old text index: ${dropError.message}`);
+                            }
+                        }
+                    } else {
+                        // Different text index exists - drop it first
+                        logger.info(`  ↻ Replacing text index: ${existingTextIndex.name} → ${indexName}`);
+                        try {
+                            await collection.dropIndex(existingTextIndex.name);
+                            logger.info(`    Dropped old text index: ${existingTextIndex.name}`);
+                        } catch (dropError) {
+                            logger.warn(`    Could not drop old text index: ${dropError.message}`);
+                        }
+                    }
+                }
+
+                // Create new text index
+                try {
+                    await collection.createIndex(keys, { ...options, background: true });
+                    logger.info(`  + ${indexName} - text index created`);
+                    updated++;
+                } catch (error) {
+                    logger.error(`  ✗ ${indexName} - error: ${error.message}`);
+                }
+                continue;
+            }
+
+            // Regular index handling
             if (existingIndexNames.has(indexName)) {
                 logger.info(`  ✓ ${indexName} - already exists`);
                 skipped++;
             } else {
                 try {
-                    await collection.createIndex(keys, options);
+                    await collection.createIndex(keys, { ...options, background: true });
                     logger.info(`  + ${indexName} - created`);
                     created++;
                 } catch (error) {
@@ -439,13 +497,13 @@ const createIndexesForCollection = async (collectionName, indexes) => {
             }
         }
 
-        logger.info(`\nSummary: ${created} created, ${skipped} skipped`);
+        logger.info(`\nSummary: ${created} created, ${updated} updated, ${skipped} skipped`);
 
-        return { created, skipped };
+        return { created, skipped, updated };
 
     } catch (error) {
         logger.error(`Error processing collection ${collectionName}:`, error.message);
-        return { created: 0, skipped: 0 };
+        return { created: 0, skipped: 0, updated: 0 };
     }
 };
 
@@ -459,17 +517,20 @@ const main = async () => {
         logger.info('\n');
         logger.info('╔' + '═'.repeat(68) + '╗');
         logger.info('║' + ' MongoDB Index Optimization Script'.padEnd(68) + '║');
+        logger.info('║' + ' Gold Standard: Handles text index replacement'.padEnd(68) + '║');
         logger.info('╚' + '═'.repeat(68) + '╝');
         logger.info('\n');
 
         let totalCreated = 0;
         let totalSkipped = 0;
+        let totalUpdated = 0;
 
         // Process each collection
         for (const { collection, indexes } of indexDefinitions) {
-            const { created, skipped } = await createIndexesForCollection(collection, indexes);
+            const { created, skipped, updated = 0 } = await createIndexesForCollection(collection, indexes);
             totalCreated += created;
             totalSkipped += skipped;
+            totalUpdated += updated;
         }
 
         // Final summary
@@ -478,8 +539,9 @@ const main = async () => {
         logger.info('║' + ' Final Summary'.padEnd(68) + '║');
         logger.info('╚' + '═'.repeat(68) + '╝');
         logger.info(`\nTotal indexes created: ${totalCreated}`);
+        logger.info(`Total indexes updated (text indexes): ${totalUpdated}`);
         logger.info(`Total indexes skipped (already exist): ${totalSkipped}`);
-        logger.info(`Total indexes processed: ${totalCreated + totalSkipped}`);
+        logger.info(`Total indexes processed: ${totalCreated + totalUpdated + totalSkipped}`);
         logger.info('\n✅ Index optimization completed successfully!\n');
 
         process.exit(0);
