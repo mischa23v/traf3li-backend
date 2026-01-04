@@ -259,12 +259,24 @@ reminderSchema.index({ 'locationTrigger.enabled': 1, 'locationTrigger.triggered'
 reminderSchema.index({ firmId: 1, createdAt: -1 });
 
 // Generate reminder ID before saving
+// Gold Standard: Scope ID sequence to tenant (each firm/lawyer has own sequence)
 reminderSchema.pre('save', async function(next) {
     if (!this.reminderId) {
         const date = new Date();
         const year = date.getFullYear();
         const month = String(date.getMonth() + 1).padStart(2, '0');
+
+        // Build tenant-scoped query using document's own firmId/lawyerId
+        // This is set by req.addFirmId() in the controller before create
+        const tenantQuery = {};
+        if (this.firmId) {
+            tenantQuery.firmId = this.firmId;
+        } else if (this.lawyerId) {
+            tenantQuery.lawyerId = this.lawyerId;
+        }
+
         const count = await this.constructor.countDocuments({
+            ...tenantQuery,
             createdAt: {
                 $gte: new Date(year, date.getMonth(), 1),
                 $lt: new Date(year, date.getMonth() + 1, 1)
