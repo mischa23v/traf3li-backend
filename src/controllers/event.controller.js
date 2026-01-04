@@ -2589,6 +2589,114 @@ const createEventFromVoice = asyncHandler(async (req, res) => {
     });
 });
 
+/**
+ * Search events
+ * GET /api/events/search
+ * Gold Standard: Same pattern as searchTasks
+ */
+const searchEvents = asyncHandler(async (req, res) => {
+    const {
+        q,           // Search query
+        type,
+        status,
+        priority,
+        visibility,
+        caseId,
+        clientId,
+        organizer,
+        startDate,
+        endDate,
+        allDay,
+        page = 1,
+        limit = 50,
+        sortBy = 'startDateTime',
+        sortOrder = 'asc'
+    } = req.query;
+
+    // Build query with tenant isolation
+    const query = { ...req.firmQuery };
+
+    // Text search - escape regex for security
+    if (q && q.trim()) {
+        const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const searchRegex = new RegExp(escapeRegex(q.trim()), 'i');
+        query.$or = [
+            { title: searchRegex },
+            { description: searchRegex },
+            { notes: searchRegex },
+            { tags: searchRegex },
+            { 'location.name': searchRegex }
+        ];
+    }
+
+    // Filters
+    if (type) {
+        query.type = Array.isArray(type) ? { $in: type } : type;
+    }
+    if (status) {
+        query.status = Array.isArray(status) ? { $in: status } : status;
+    }
+    if (priority) {
+        query.priority = Array.isArray(priority) ? { $in: priority } : priority;
+    }
+    if (visibility) {
+        query.visibility = visibility;
+    }
+    if (caseId) {
+        const { sanitizeObjectId } = require('../utils/securityUtils');
+        query.caseId = sanitizeObjectId(caseId);
+    }
+    if (clientId) {
+        const { sanitizeObjectId } = require('../utils/securityUtils');
+        query.clientId = sanitizeObjectId(clientId);
+    }
+    if (organizer) {
+        const { sanitizeObjectId } = require('../utils/securityUtils');
+        query.organizer = sanitizeObjectId(organizer);
+    }
+
+    // Date range filter
+    if (startDate || endDate) {
+        query.startDateTime = {};
+        if (startDate) query.startDateTime.$gte = new Date(startDate);
+        if (endDate) query.startDateTime.$lte = new Date(endDate);
+    }
+
+    // All day filter
+    if (allDay === 'true' || allDay === 'false') {
+        query.allDay = allDay === 'true';
+    }
+
+    // Build sort
+    const sortOptions = {};
+    sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
+
+    const events = await Event.find(query)
+        .populate('organizer', 'firstName lastName image')
+        .populate('caseId', 'title caseNumber')
+        .populate('clientId', 'firstName lastName')
+        .populate('attendees.userId', 'firstName lastName image')
+        .sort(sortOptions)
+        .limit(parseInt(limit))
+        .skip((parseInt(page) - 1) * parseInt(limit))
+        .lean();
+
+    const total = await Event.countDocuments(query);
+
+    res.status(200).json({
+        success: true,
+        data: events,
+        query: q,
+        filters: { type, status, priority, visibility, caseId, clientId, organizer, startDate, endDate, allDay },
+        pagination: {
+            page: parseInt(page),
+            limit: parseInt(limit),
+            total,
+            pages: Math.ceil(total / parseInt(limit))
+        }
+    });
+});
+
 module.exports = {
     createEvent,
     getEvents,
@@ -2625,5 +2733,6 @@ module.exports = {
     bulkCreateEvents,
     bulkUpdateEvents,
     bulkDeleteEvents,
-    getEventsByClient
+    getEventsByClient,
+    searchEvents
 };

@@ -49,7 +49,8 @@ const {
     getTaskActivity,
     getTasksByClient,
     convertTaskToEvent,
-    searchTasks
+    searchTasks,
+    bulkCreateTasks
 } = require('../controllers/task.controller');
 
 // Template controller (extracted for maintainability)
@@ -121,6 +122,7 @@ app.get('/due-today', getTasksDueToday);
 app.get('/case/:caseId', getTasksByCase);
 
 // Bulk operations
+app.post('/bulk', bulkCreateTasks);
 app.put('/bulk', bulkUpdateTasks);
 app.delete('/bulk', bulkDeleteTasks);
 

@@ -2737,6 +2737,129 @@ const searchTasks = asyncHandler(async (req, res) => {
     });
 });
 
+/**
+ * Bulk create tasks
+ * POST /api/tasks/bulk
+ * Gold Standard: Netflix pattern - max 50 items, per-item error handling
+ */
+const bulkCreateTasks = asyncHandler(async (req, res) => {
+    const userId = req.userID;
+
+    // Block departed users
+    if (req.isDeparted) {
+        throw CustomException('لم يعد لديك صلاحية إنشاء مهام جديدة', 403);
+    }
+
+    // Mass assignment protection
+    const safeData = pickAllowedFields(req.body, ['tasks']);
+    const { tasks } = safeData;
+
+    if (!tasks || !Array.isArray(tasks) || tasks.length === 0) {
+        throw CustomException('Tasks array is required', 400);
+    }
+
+    if (tasks.length > 50) {
+        throw CustomException('Maximum 50 tasks can be created at once', 400);
+    }
+
+    const createdTasks = [];
+    const errors = [];
+
+    for (let i = 0; i < tasks.length; i++) {
+        try {
+            // Mass assignment protection per task
+            const taskData = pickAllowedFields(tasks[i], ALLOWED_FIELDS.CREATE);
+
+            // Validate required field
+            if (!taskData.title || typeof taskData.title !== 'string' || taskData.title.trim().length === 0) {
+                throw new Error('Task title is required');
+            }
+
+            // Validate enums
+            if (taskData.priority && !VALID_PRIORITIES.includes(taskData.priority)) {
+                throw new Error('Invalid priority value');
+            }
+            if (taskData.status && !VALID_STATUSES.includes(taskData.status)) {
+                throw new Error('Invalid status value');
+            }
+
+            // Sanitize input
+            const sanitizedTitle = stripHtml(taskData.title);
+            const sanitizedDescription = taskData.description ? sanitizeRichText(taskData.description) : '';
+            const sanitizedNotes = taskData.notes ? sanitizeRichText(taskData.notes) : '';
+
+            // Dangerous content check
+            if (hasDangerousContent(taskData.description) || hasDangerousContent(taskData.notes)) {
+                throw new Error('Invalid content detected');
+            }
+
+            // IDOR protection - sanitize IDs
+            const sanitizedAssignedTo = taskData.assignedTo ? sanitizeObjectId(taskData.assignedTo) : null;
+            const sanitizedCaseId = taskData.caseId ? sanitizeObjectId(taskData.caseId) : null;
+            const sanitizedClientId = taskData.clientId ? sanitizeObjectId(taskData.clientId) : null;
+
+            // Validate case access if provided
+            if (sanitizedCaseId) {
+                const caseDoc = await Case.findOne({ _id: sanitizedCaseId, ...req.firmQuery });
+                if (!caseDoc) {
+                    throw new Error('Case not found or access denied');
+                }
+            }
+
+            // Validate assignedTo if provided (User lookups are safe per CLAUDE.md)
+            if (sanitizedAssignedTo) {
+                const assignedUser = await User.findById(sanitizedAssignedTo);
+                if (!assignedUser) {
+                    throw new Error('Assigned user not found');
+                }
+            }
+
+            // Use req.addFirmId() for proper tenant isolation
+            const task = await Task.create(req.addFirmId({
+                title: sanitizedTitle,
+                description: sanitizedDescription,
+                priority: taskData.priority || 'medium',
+                status: taskData.status || 'todo',
+                label: taskData.label,
+                tags: taskData.tags,
+                dueDate: taskData.dueDate,
+                dueTime: taskData.dueTime,
+                startDate: taskData.startDate,
+                assignedTo: sanitizedAssignedTo || userId,
+                createdBy: userId,
+                caseId: sanitizedCaseId,
+                clientId: sanitizedClientId,
+                subtasks: taskData.subtasks || [],
+                checklists: taskData.checklists || [],
+                timeTracking: taskData.timeTracking || { estimatedMinutes: 0, actualMinutes: 0, sessions: [] },
+                recurring: taskData.recurring,
+                reminders: taskData.reminders || [],
+                notes: sanitizedNotes,
+                points: taskData.points || 0
+            }));
+
+            createdTasks.push(task);
+        } catch (error) {
+            errors.push({
+                index: i,
+                title: tasks[i].title,
+                error: error.message
+            });
+        }
+    }
+
+    res.status(201).json({
+        success: true,
+        message: `${createdTasks.length} task(s) created successfully`,
+        data: {
+            created: createdTasks.length,
+            failed: errors.length,
+            tasks: createdTasks,
+            errors: errors.length > 0 ? errors : undefined
+        }
+    });
+});
+
 module.exports = {
     createTask,
     getTasks,
@@ -2784,6 +2907,7 @@ module.exports = {
     getTaskActivity,
     getTasksByClient,
     convertTaskToEvent,
-    searchTasks
+    searchTasks,
+    bulkCreateTasks
 };
 

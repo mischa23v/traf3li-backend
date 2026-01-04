@@ -24,7 +24,9 @@ const {
     getRemindersByCase,
     rescheduleReminder,
     createReminderFromTask,
-    createReminderFromEvent
+    createReminderFromEvent,
+    bulkCreateReminders,
+    searchReminders
 } = require('../controllers/reminder.controller');
 
 const {
@@ -74,8 +76,12 @@ app.post('/parse', createReminderFromNaturalLanguage);
 app.post('/voice', createReminderFromVoice);
 
 // Bulk operations
+app.post('/bulk', bulkCreateReminders);
 app.put('/bulk', bulkUpdateReminders);
 app.delete('/bulk', bulkDeleteReminders);
+
+// Search
+app.get('/search', searchReminders);
 
 // Reminder CRUD
 app.post('/', createReminder);

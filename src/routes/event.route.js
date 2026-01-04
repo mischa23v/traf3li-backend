@@ -36,7 +36,8 @@ const {
     bulkCreateEvents,
     bulkUpdateEvents,
     bulkDeleteEvents,
-    getEventsByClient
+    getEventsByClient,
+    searchEvents
 } = require('../controllers/event.controller');
 
 const app = express.Router();
@@ -64,8 +65,9 @@ app.get('/date/:date', userMiddleware, getEventsByDate);
 app.post('/availability', userMiddleware, checkAvailability);
 app.post('/import/ics', userMiddleware, icsUpload.single('file'), importEventsFromICS);
 
-// NEW: Conflicts and client filter (must be before parameterized routes)
+// NEW: Conflicts, search, and client filter (must be before parameterized routes)
 app.get('/conflicts', userMiddleware, getConflicts);
+app.get('/search', userMiddleware, searchEvents);
 app.get('/client/:clientId', userMiddleware, getEventsByClient);
 
 // NEW: Bulk operations
