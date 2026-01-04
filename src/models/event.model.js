@@ -380,13 +380,20 @@ eventSchema.index({ 'attendees.userId': 1, startDateTime: 1 });
 eventSchema.index({ 'recurrence.enabled': 1, 'recurrence.nextOccurrence': 1 });
 eventSchema.index({ title: 'text', description: 'text' });
 
-// Generate event ID before saving
+// Generate event ID before saving (tenant-scoped)
 eventSchema.pre('save', async function(next) {
     if (!this.eventId) {
         const date = new Date();
         const year = date.getFullYear();
         const month = String(date.getMonth() + 1).padStart(2, '0');
+
+        // Build tenant-scoped query for per-tenant ID generation (gold standard)
+        const tenantQuery = {};
+        if (this.firmId) tenantQuery.firmId = this.firmId;
+        else if (this.lawyerId) tenantQuery.lawyerId = this.lawyerId;
+
         const count = await this.constructor.countDocuments({
+            ...tenantQuery,
             createdAt: {
                 $gte: new Date(year, date.getMonth(), 1),
                 $lt: new Date(year, date.getMonth() + 1, 1)
@@ -489,9 +496,22 @@ eventSchema.methods.postpone = function(newDateTime, reason) {
     return this.save();
 };
 
-// Static method: Get events for calendar view
+// Static method: Get events for calendar view (with tenant isolation)
 eventSchema.statics.getCalendarEvents = async function(userId, startDate, endDate, filters = {}) {
+    // Build tenant-scoped query from filters (gold standard pattern)
+    const tenantFilter = {};
+    if (filters.firmId) {
+        tenantFilter.firmId = typeof filters.firmId === 'string'
+            ? new mongoose.Types.ObjectId(filters.firmId)
+            : filters.firmId;
+    } else if (filters.lawyerId) {
+        tenantFilter.lawyerId = typeof filters.lawyerId === 'string'
+            ? new mongoose.Types.ObjectId(filters.lawyerId)
+            : filters.lawyerId;
+    }
+
     const query = {
+        ...tenantFilter, // Tenant isolation FIRST
         $and: [
             // User access check
             {
@@ -525,13 +545,26 @@ eventSchema.statics.getCalendarEvents = async function(userId, startDate, endDat
         .sort({ startDateTime: 1 });
 };
 
-// Static method: Get upcoming events
-eventSchema.statics.getUpcoming = async function(userId, days = 7) {
+// Static method: Get upcoming events (with tenant isolation)
+eventSchema.statics.getUpcoming = async function(userId, days = 7, firmQuery = {}) {
     const now = new Date();
     const future = new Date();
     future.setDate(future.getDate() + days);
 
-    return await this.find({
+    // Build tenant-scoped query from firmQuery (gold standard pattern)
+    const tenantFilter = {};
+    if (firmQuery.firmId) {
+        tenantFilter.firmId = typeof firmQuery.firmId === 'string'
+            ? new mongoose.Types.ObjectId(firmQuery.firmId)
+            : firmQuery.firmId;
+    } else if (firmQuery.lawyerId) {
+        tenantFilter.lawyerId = typeof firmQuery.lawyerId === 'string'
+            ? new mongoose.Types.ObjectId(firmQuery.lawyerId)
+            : firmQuery.lawyerId;
+    }
+
+    const query = {
+        ...tenantFilter, // Tenant isolation FIRST
         $or: [
             { createdBy: new mongoose.Types.ObjectId(userId) },
             { organizer: new mongoose.Types.ObjectId(userId) },
@@ -539,7 +572,9 @@ eventSchema.statics.getUpcoming = async function(userId, days = 7) {
         ],
         startDateTime: { $gte: now, $lte: future },
         status: { $in: ['scheduled', 'confirmed'] }
-    })
+    };
+
+    return await this.find(query)
     .populate('caseId', 'title caseNumber')
     .populate('clientId', 'firstName lastName')
     .sort({ startDateTime: 1 });
@@ -626,20 +661,41 @@ eventSchema.statics.getStats = async function(userId, filters = {}) {
     };
 };
 
-// Static method: Check availability
-eventSchema.statics.checkAvailability = async function(userIds, startDateTime, endDateTime, excludeEventId = null) {
+// Static method: Check availability (with tenant isolation)
+eventSchema.statics.checkAvailability = async function(userIds, startDateTime, endDateTime, excludeEventId = null, firmQuery = {}) {
+    // Build tenant-scoped query from firmQuery (gold standard pattern)
+    const tenantFilter = {};
+    if (firmQuery.firmId) {
+        tenantFilter.firmId = typeof firmQuery.firmId === 'string'
+            ? new mongoose.Types.ObjectId(firmQuery.firmId)
+            : firmQuery.firmId;
+    } else if (firmQuery.lawyerId) {
+        tenantFilter.lawyerId = typeof firmQuery.lawyerId === 'string'
+            ? new mongoose.Types.ObjectId(firmQuery.lawyerId)
+            : firmQuery.lawyerId;
+    }
+
     const query = {
-        $or: userIds.map(id => ({
-            $or: [
-                { organizer: new mongoose.Types.ObjectId(id) },
-                { 'attendees.userId': new mongoose.Types.ObjectId(id) }
-            ]
-        })),
+        ...tenantFilter, // Tenant isolation FIRST
         status: { $in: ['scheduled', 'confirmed'] },
-        $or: [
-            { startDateTime: { $lt: endDateTime, $gte: startDateTime } },
-            { endDateTime: { $gt: startDateTime, $lte: endDateTime } },
-            { startDateTime: { $lte: startDateTime }, endDateTime: { $gte: endDateTime } }
+        $and: [
+            // User filter
+            {
+                $or: userIds.map(id => ({
+                    $or: [
+                        { organizer: new mongoose.Types.ObjectId(id) },
+                        { 'attendees.userId': new mongoose.Types.ObjectId(id) }
+                    ]
+                }))
+            },
+            // Time overlap filter
+            {
+                $or: [
+                    { startDateTime: { $lt: endDateTime, $gte: startDateTime } },
+                    { endDateTime: { $gt: startDateTime, $lte: endDateTime } },
+                    { startDateTime: { $lte: startDateTime }, endDateTime: { $gte: endDateTime } }
+                ]
+            }
         ]
     };
 
