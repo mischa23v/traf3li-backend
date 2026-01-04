@@ -98,7 +98,7 @@ const createReminder = asyncHandler(async (req, res) => {
 
     // Note: Required field validation removed for testing flexibility
     // Fields will use defaults if not provided
-    const dateTime = reminderDateTime || (reminderDate && reminderTime ? new Date(`${reminderDate}T${reminderTime}`) : new Date());
+    const dateTime = reminderDateTime ? new Date(reminderDateTime) : (reminderDate && reminderTime ? new Date(`${reminderDate}T${reminderTime}`) : new Date());
 
     // Input validation for dates and times
     if (reminderDateTime) {
