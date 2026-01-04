@@ -282,19 +282,26 @@ const isSearchOperation = (req) => {
   // Filter params that indicate list filtering (tasks, reminders, events, etc.)
   const filterParams = [
     'filter',
-    'status',      // Task/reminder/event status filtering
-    'priority',    // Task/reminder priority filtering
-    'type',        // Event/reminder type filtering
-    'eventType',   // Event type
-    'relatedTo',   // Reminder related entity
-    'caseId',      // Filter by case
-    'clientId',    // Filter by client
-    'assignedTo',  // Filter by assignee
-    'createdBy',   // Filter by creator
-    'lawyerId',    // Filter by lawyer
-    'tags',        // Tag filtering
-    'category',    // Category filtering
-    'dateRange',   // Date range filtering
+    'status',       // Task/reminder/event status filtering
+    'priority',     // Task/reminder priority filtering
+    'type',         // Event/reminder type filtering
+    'eventType',    // Event type
+    'relatedTo',    // Reminder related entity (legacy)
+    'relatedCase',  // Reminder related case (current)
+    'caseId',       // Filter by case
+    'clientId',     // Filter by client
+    'assignedTo',   // Filter by assignee (tasks)
+    'assignee',     // Filter by assignee (events)
+    'organizer',    // Event organizer
+    'createdBy',    // Filter by creator
+    'lawyerId',     // Filter by lawyer
+    'tags',         // Tag filtering
+    'category',     // Category filtering
+    'dateRange',    // Date range filtering
+    'startDate',    // Date range start (reminders, events)
+    'endDate',      // Date range end (reminders, events)
+    'dueDate',      // Task due date
+    'reminderDate', // Reminder date
   ];
 
   // Check if any search/filter param is present
