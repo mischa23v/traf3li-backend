@@ -34,7 +34,8 @@ const validateCoordinates = (latitude, longitude) => {
  */
 const createLocationReminder = asyncHandler(async (req, res) => {
   const userId = req.userID;
-  const firmId = req.firmID || null;
+  // Gold standard: Pass req.firmQuery for proper tenant isolation (supports solo lawyers)
+  const firmQuery = req.firmQuery;
 
   // Mass assignment protection
   const allowedFields = [
@@ -102,11 +103,13 @@ const createLocationReminder = asyncHandler(async (req, res) => {
   };
 
   // Create location-based reminder
+  // Gold standard: Pass req for addFirmId helper
   const result = await locationRemindersService.createLocationReminder(
     userId,
-    firmId,
+    firmQuery,
     reminderData,
-    locationTrigger
+    locationTrigger,
+    req.addFirmId.bind(req)
   );
 
   res.status(201).json(result);
@@ -120,7 +123,8 @@ const checkLocationTriggers = asyncHandler(async (req, res) => {
   const { latitude, longitude, accuracy } = req.body;
 
   const userId = req.userID;
-  const firmId = req.firmID || null;
+  // Gold standard: Pass req.firmQuery for proper tenant isolation
+  const firmQuery = req.firmQuery;
 
   // Validate required fields
   if (!latitude || !longitude) {
@@ -138,7 +142,7 @@ const checkLocationTriggers = asyncHandler(async (req, res) => {
 
   const result = await locationRemindersService.checkLocationTriggers(
     userId,
-    firmId,
+    firmQuery,
     currentLocation
   );
 
@@ -153,7 +157,8 @@ const getNearbyReminders = asyncHandler(async (req, res) => {
   const { latitude, longitude, radius = 500 } = req.body;
 
   const userId = req.userID;
-  const firmId = req.firmID || null;
+  // Gold standard: Pass req.firmQuery for proper tenant isolation
+  const firmQuery = req.firmQuery;
 
   // Validate required fields
   if (!latitude || !longitude) {
@@ -170,7 +175,7 @@ const getNearbyReminders = asyncHandler(async (req, res) => {
 
   const result = await locationRemindersService.getNearbyReminders(
     userId,
-    firmId,
+    firmQuery,
     location,
     radius
   );
@@ -184,7 +189,8 @@ const getNearbyReminders = asyncHandler(async (req, res) => {
  */
 const saveUserLocation = asyncHandler(async (req, res) => {
   const userId = req.userID;
-  const firmId = req.firmID || null;
+  // Gold standard: Pass req.firmQuery for proper tenant isolation
+  const firmQuery = req.firmQuery;
 
   // Mass assignment protection
   const allowedFields = [
@@ -233,8 +239,9 @@ const saveUserLocation = asyncHandler(async (req, res) => {
 
   const result = await locationRemindersService.saveUserLocation(
     userId,
-    firmId,
-    locationData
+    firmQuery,
+    locationData,
+    req.addFirmId.bind(req)
   );
 
   res.status(201).json(result);
@@ -248,7 +255,8 @@ const getUserLocations = asyncHandler(async (req, res) => {
   const { type, activeOnly = 'true', groupByType = 'false' } = req.query;
 
   const userId = req.userID;
-  const firmId = req.firmID || null;
+  // Gold standard: Pass req.firmQuery for proper tenant isolation
+  const firmQuery = req.firmQuery;
 
   const options = {
     type,
@@ -258,7 +266,7 @@ const getUserLocations = asyncHandler(async (req, res) => {
 
   const result = await locationRemindersService.getUserLocations(
     userId,
-    firmId,
+    firmQuery,
     options
   );
 
@@ -271,6 +279,8 @@ const getUserLocations = asyncHandler(async (req, res) => {
  */
 const updateUserLocation = asyncHandler(async (req, res) => {
   const userId = req.userID;
+  // Gold standard: Pass req.firmQuery for proper tenant isolation
+  const firmQuery = req.firmQuery;
 
   // IDOR protection - sanitize locationId
   const locationId = sanitizeObjectId(req.params.locationId);
@@ -305,7 +315,8 @@ const updateUserLocation = asyncHandler(async (req, res) => {
   const result = await locationRemindersService.updateUserLocation(
     userId,
     locationId,
-    sanitizedData
+    sanitizedData,
+    firmQuery
   );
 
   res.status(200).json(result);
@@ -317,6 +328,8 @@ const updateUserLocation = asyncHandler(async (req, res) => {
  */
 const deleteUserLocation = asyncHandler(async (req, res) => {
   const userId = req.userID;
+  // Gold standard: Pass req.firmQuery for proper tenant isolation
+  const firmQuery = req.firmQuery;
 
   // IDOR protection - sanitize locationId
   const locationId = sanitizeObjectId(req.params.locationId);
@@ -327,7 +340,8 @@ const deleteUserLocation = asyncHandler(async (req, res) => {
 
   const result = await locationRemindersService.deleteUserLocation(
     userId,
-    locationId
+    locationId,
+    firmQuery
   );
 
   res.status(200).json(result);
@@ -339,11 +353,12 @@ const deleteUserLocation = asyncHandler(async (req, res) => {
  */
 const getLocationRemindersSummary = asyncHandler(async (req, res) => {
   const userId = req.userID;
-  const firmId = req.firmID || null;
+  // Gold standard: Pass req.firmQuery for proper tenant isolation
+  const firmQuery = req.firmQuery;
 
   const result = await locationRemindersService.getLocationRemindersSummary(
     userId,
-    firmId
+    firmQuery
   );
 
   res.status(200).json(result);
@@ -355,6 +370,8 @@ const getLocationRemindersSummary = asyncHandler(async (req, res) => {
  */
 const resetLocationTrigger = asyncHandler(async (req, res) => {
   const userId = req.userID;
+  // Gold standard: Pass req.firmQuery for proper tenant isolation
+  const firmQuery = req.firmQuery;
 
   // IDOR protection - sanitize reminderId
   const reminderId = sanitizeObjectId(req.params.reminderId);
@@ -365,7 +382,8 @@ const resetLocationTrigger = asyncHandler(async (req, res) => {
 
   const result = await locationRemindersService.resetLocationTrigger(
     userId,
-    reminderId
+    reminderId,
+    firmQuery
   );
 
   res.status(200).json(result);

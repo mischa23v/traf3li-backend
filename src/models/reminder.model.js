@@ -363,20 +363,44 @@ reminderSchema.statics.getSnoozedDue = async function(userId, firmQuery = null) 
 };
 
 // Static method: Get delegated reminders
-// Accepts firmQuery object (from req.firmQuery) for proper multi-tenant isolation
-reminderSchema.statics.getDelegated = async function(userId, firmQuery = null) {
-    // Build base filter with proper isolation + delegatedTo for delegated reminders
-    const baseFilter = firmQuery
-        ? { ...firmQuery, delegatedTo: new mongoose.Types.ObjectId(userId) }
-        : { lawyerId: new mongoose.Types.ObjectId(userId), delegatedTo: new mongoose.Types.ObjectId(userId) };
+// Shows reminders delegated TO the current user (may be from different tenant)
+// Gold standard: Use $or to match either own tenant OR delegated to user
+reminderSchema.statics.getDelegated = async function(userId, firmQuery = {}) {
+    const userObjectId = new mongoose.Types.ObjectId(userId);
 
-    return await this.find({
-        ...baseFilter,
-        status: 'delegated'
-    })
-    .populate('userId', 'firstName lastName')
-    .populate('relatedCase', 'title caseNumber')
-    .sort({ reminderDateTime: 1 });
+    // Build tenant filter from firmQuery
+    const tenantFilter = {};
+    if (firmQuery.firmId) {
+        tenantFilter.firmId = typeof firmQuery.firmId === 'string'
+            ? new mongoose.Types.ObjectId(firmQuery.firmId)
+            : firmQuery.firmId;
+    } else if (firmQuery.lawyerId) {
+        tenantFilter.lawyerId = typeof firmQuery.lawyerId === 'string'
+            ? new mongoose.Types.ObjectId(firmQuery.lawyerId)
+            : firmQuery.lawyerId;
+    }
+
+    // Query for reminders delegated TO this user
+    // Either from own tenant OR delegated to this user specifically
+    const query = {
+        status: 'delegated',
+        delegatedTo: userObjectId
+    };
+
+    // Add tenant filter if available (for reminders user created and delegated)
+    // OR reminders delegated TO the user (even from other tenants)
+    if (Object.keys(tenantFilter).length > 0) {
+        query.$or = [
+            tenantFilter,  // Reminders from own tenant
+            { delegatedTo: userObjectId }  // Reminders delegated TO user
+        ];
+    }
+
+    return await this.find(query)
+        .setOptions({ bypassFirmFilter: true })  // Bypass for cross-tenant delegation
+        .populate('userId', 'firstName lastName')
+        .populate('relatedCase', 'title caseNumber')
+        .sort({ reminderDateTime: 1 });
 };
 
 // Static method: Get reminder stats

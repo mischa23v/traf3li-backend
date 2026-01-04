@@ -350,17 +350,31 @@ userLocationSchema.statics.getDefaultLocation = async function(userId) {
 /**
  * Get all locations for a user grouped by type
  * @param {ObjectId} userId - User ID
+ * @param {Object} firmQuery - Tenant filter from req.firmQuery (supports solo lawyers)
  * @returns {Promise<Object>} Locations grouped by type
  */
-userLocationSchema.statics.getLocationsByType = async function(userId) {
+userLocationSchema.statics.getLocationsByType = async function(userId, firmQuery = {}) {
   try {
     if (!userId) {
       throw new Error('User ID is required');
     }
 
+    // Gold standard: Build tenant filter from firmQuery
+    const tenantFilter = {};
+    if (firmQuery.firmId) {
+      tenantFilter.firmId = typeof firmQuery.firmId === 'string'
+        ? new mongoose.Types.ObjectId(firmQuery.firmId)
+        : firmQuery.firmId;
+    } else if (firmQuery.lawyerId) {
+      tenantFilter.lawyerId = typeof firmQuery.lawyerId === 'string'
+        ? new mongoose.Types.ObjectId(firmQuery.lawyerId)
+        : firmQuery.lawyerId;
+    }
+
     const locations = await this.aggregate([
       {
         $match: {
+          ...tenantFilter,
           userId: new mongoose.Types.ObjectId(userId),
           isActive: true
         }
