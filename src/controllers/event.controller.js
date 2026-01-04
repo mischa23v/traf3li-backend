@@ -452,8 +452,8 @@ const updateEvent = asyncHandler(async (req, res) => {
         throw CustomException('Event not found', 404);
     }
 
-    // IDOR Protection: Check access - organizer/creator
-    const canUpdate = event.organizer.toString() === userId || event.createdBy.toString() === userId;
+    // IDOR Protection: Check access - organizer/creator (use optional chaining for organizer which may be undefined)
+    const canUpdate = event.organizer?.toString() === userId || event.createdBy?.toString() === userId;
 
     if (!canUpdate) {
         throw CustomException('Only the organizer can update this event', 403);
@@ -592,7 +592,7 @@ const deleteEvent = asyncHandler(async (req, res) => {
     }
 
     // Check access - organizer/creator
-    const canDelete = event.organizer.toString() === userId || event.createdBy.toString() === userId;
+    const canDelete = event.organizer?.toString() === userId || event.createdBy?.toString() === userId;
 
     if (!canDelete) {
         throw CustomException('Only the organizer can delete this event', 403);
@@ -639,7 +639,7 @@ const cancelEvent = asyncHandler(async (req, res) => {
     }
 
     // IDOR Protection: Check access
-    const canUpdate = event.organizer.toString() === userId || event.createdBy.toString() === userId;
+    const canUpdate = event.organizer?.toString() === userId || event.createdBy?.toString() === userId;
 
     if (!canUpdate) {
         throw CustomException('Only the organizer can cancel this event', 403);
@@ -680,7 +680,7 @@ const postponeEvent = asyncHandler(async (req, res) => {
     }
 
     // IDOR Protection: Check access
-    const canUpdate = event.organizer.toString() === userId || event.createdBy.toString() === userId;
+    const canUpdate = event.organizer?.toString() === userId || event.createdBy?.toString() === userId;
 
     if (!canUpdate) {
         throw CustomException('Only the organizer can postpone this event', 403);
@@ -721,8 +721,8 @@ const completeEvent = asyncHandler(async (req, res) => {
         throw CustomException('Event not found', 404);
     }
 
-    const hasAccess = event.organizer.toString() === userId ||
-                      event.createdBy.toString() === userId ||
+    const hasAccess = event.organizer?.toString() === userId ||
+                      event.createdBy?.toString() === userId ||
                       event.isUserAttendee(userId);
 
     if (!hasAccess) {
@@ -766,7 +766,7 @@ const addAttendee = asyncHandler(async (req, res) => {
         throw CustomException('Event not found', 404);
     }
 
-    if (event.organizer.toString() !== userId && event.createdBy.toString() !== userId) {
+    if (event.organizer?.toString() !== userId && event.createdBy?.toString() !== userId) {
         throw CustomException('Only the organizer can add attendees', 403);
     }
 
@@ -813,7 +813,7 @@ const removeAttendee = asyncHandler(async (req, res) => {
         throw CustomException('Event not found', 404);
     }
 
-    if (event.organizer.toString() !== userId && event.createdBy.toString() !== userId) {
+    if (event.organizer?.toString() !== userId && event.createdBy?.toString() !== userId) {
         throw CustomException('Only the organizer can remove attendees', 403);
     }
 
@@ -884,7 +884,7 @@ const addAgendaItem = asyncHandler(async (req, res) => {
         throw CustomException('Event not found', 404);
     }
 
-    if (event.organizer.toString() !== userId && event.createdBy.toString() !== userId) {
+    if (event.organizer?.toString() !== userId && event.createdBy?.toString() !== userId) {
         throw CustomException('Only the organizer can manage agenda', 403);
     }
 
@@ -923,7 +923,7 @@ const updateAgendaItem = asyncHandler(async (req, res) => {
         throw CustomException('Event not found', 404);
     }
 
-    if (event.organizer.toString() !== userId && event.createdBy.toString() !== userId) {
+    if (event.organizer?.toString() !== userId && event.createdBy?.toString() !== userId) {
         throw CustomException('Only the organizer can manage agenda', 403);
     }
 
@@ -963,7 +963,7 @@ const deleteAgendaItem = asyncHandler(async (req, res) => {
         throw CustomException('Event not found', 404);
     }
 
-    if (event.organizer.toString() !== userId && event.createdBy.toString() !== userId) {
+    if (event.organizer?.toString() !== userId && event.createdBy?.toString() !== userId) {
         throw CustomException('Only the organizer can manage agenda', 403);
     }
 
@@ -995,8 +995,8 @@ const addActionItem = asyncHandler(async (req, res) => {
     }
 
     // IDOR Protection: Check access
-    const hasAccess = event.organizer.toString() === userId ||
-                      event.createdBy.toString() === userId ||
+    const hasAccess = event.organizer?.toString() === userId ||
+                      event.createdBy?.toString() === userId ||
                       event.isUserAttendee(userId);
 
     if (!hasAccess) {
@@ -1047,8 +1047,8 @@ const updateActionItem = asyncHandler(async (req, res) => {
     }
 
     // IDOR Protection: Check access
-    const hasAccess = event.organizer.toString() === userId ||
-                      event.createdBy.toString() === userId ||
+    const hasAccess = event.organizer?.toString() === userId ||
+                      event.createdBy?.toString() === userId ||
                       event.isUserAttendee(userId);
 
     if (!hasAccess) {
@@ -1337,8 +1337,8 @@ const exportEventToICS = asyncHandler(async (req, res) => {
     }
 
     // Check access
-    const hasAccess = event.createdBy.toString() === userId ||
-                      event.organizer._id.toString() === userId ||
+    const hasAccess = event.createdBy?.toString() === userId ||
+                      event.organizer?._id?.toString() === userId ||
                       event.isUserAttendee(userId);
 
     if (!hasAccess) {
