@@ -331,9 +331,30 @@ const getTasks = asyncHandler(async (req, res) => {
         query.status = { $nin: ['done', 'canceled'] };
     }
 
-    // Text search
-    if (search) {
-        query.$text = { $search: search };
+    // Text search - use regex instead of $text for reliability
+    // $text requires text index and has compound query restrictions
+    if (search && search.trim()) {
+        const searchRegex = new RegExp(escapeRegex(search.trim()), 'i');
+        // If we already have $or (e.g., for departed users), use $and
+        if (query.$or) {
+            query.$and = [
+                { $or: query.$or },
+                { $or: [
+                    { title: searchRegex },
+                    { description: searchRegex },
+                    { notes: searchRegex },
+                    { tags: searchRegex }
+                ]}
+            ];
+            delete query.$or;
+        } else {
+            query.$or = [
+                { title: searchRegex },
+                { description: searchRegex },
+                { notes: searchRegex },
+                { tags: searchRegex }
+            ];
+        }
     }
 
     const sortOptions = {};
