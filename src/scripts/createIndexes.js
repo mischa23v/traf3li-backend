@@ -14,7 +14,7 @@ const logger = require('../utils/logger');
 // Database connection
 const connectDB = async () => {
     try {
-        await mongoose.connect(process.env.MONGO_URI, {
+        await mongoose.connect(process.env.MONGODB_URI, {
             maxPoolSize: 10,
             minPoolSize: 2
         });
