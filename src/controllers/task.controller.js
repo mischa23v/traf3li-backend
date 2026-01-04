@@ -304,9 +304,16 @@ const getTasks = asyncHandler(async (req, res) => {
         ];
     }
 
-    if (status) query.status = status;
-    if (priority) query.priority = priority;
-    if (label) query.label = label;
+    // Handle array filters (frontend may send status[]=todo&status[]=pending)
+    if (status) {
+        query.status = Array.isArray(status) ? { $in: status } : status;
+    }
+    if (priority) {
+        query.priority = Array.isArray(priority) ? { $in: priority } : priority;
+    }
+    if (label) {
+        query.label = Array.isArray(label) ? { $in: label } : label;
+    }
     if (sanitizedAssignedTo) query.assignedTo = sanitizedAssignedTo;
     if (sanitizedCaseId) query.caseId = sanitizedCaseId;
     if (sanitizedClientId) query.clientId = sanitizedClientId;
