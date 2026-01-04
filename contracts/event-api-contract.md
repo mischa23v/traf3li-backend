@@ -619,3 +619,81 @@ Query params: page, limit, status, type
 
 ### DELETE /api/events/:id/action-items/:itemId
 Removes an action item from an event.
+
+---
+
+## Rate Limiting (Gold Standard - 2026-01-04)
+
+### Overview
+
+Rate limiting follows the **AWS/Algolia/Elastic pattern** with operation-type-aware throttling:
+- **Search/Filter operations**: Higher burst limits (read-only, expected to be bursty)
+- **General API operations**: Standard limits
+- **Authenticated vs Unauthenticated**: Different quotas
+
+### Rate Limits
+
+| User Type | Operation Type | Limit | Window |
+|-----------|---------------|-------|--------|
+| Authenticated | Search/Filter (GET with params) | 120 req/min | 1 minute |
+| Authenticated | General API | 400 req/min | 1 minute |
+| Unauthenticated | Search/Filter | 20 req/min | 1 minute |
+| Unauthenticated | General API | 30 req/min | 1 minute |
+
+### Search/Filter Detection
+
+Requests are classified as **search/filter operations** when:
+1. Method is `GET`
+2. Request includes any of these query parameters:
+
+**Text Search:**
+```
+search, q, query, keyword, text
+```
+
+**Filter Parameters:**
+```
+status, type, eventType, caseId, clientId, assignee, organizer,
+createdBy, lawyerId, tags, category, startDate, endDate
+```
+
+### Examples
+
+| Request | Classification | Rate Limit |
+|---------|---------------|------------|
+| `GET /events` | General | 400/min |
+| `GET /events?status=scheduled` | Search/Filter | 120/min |
+| `GET /events?search=meeting` | Search/Filter | 120/min |
+| `GET /events?type=hearing&status=confirmed` | Search/Filter | 120/min |
+| `GET /events?startDate=2026-01-01&endDate=2026-12-31` | Search/Filter | 120/min |
+| `GET /events/calendar?startDate=...&endDate=...` | Search/Filter | 120/min |
+| `POST /events` | General (write) | 400/min |
+| `PUT /events/:id` | General (write) | 400/min |
+
+### Response Headers
+
+When rate limited, response includes:
+```
+HTTP/1.1 429 Too Many Requests
+X-RateLimit-Limit: 120
+X-RateLimit-Remaining: 0
+X-RateLimit-Reset: 1704412800
+Retry-After: 45
+```
+
+### Error Response (429)
+```json
+{
+    "success": false,
+    "error": "بحث كثير جداً - أبطئ قليلاً",
+    "error_en": "Too many search requests - Slow down",
+    "code": "SEARCH_RATE_LIMIT_EXCEEDED"
+}
+```
+
+### Why This Matters
+
+1. **Search is bursty**: Users typing in search boxes generate many requests rapidly
+2. **Read operations are safe**: Higher limits for reads don't risk data corruption
+3. **Separate buckets**: Search limits don't consume general API quota
+4. **Gold standard compliance**: Follows AWS API Gateway, Algolia, Elasticsearch patterns
