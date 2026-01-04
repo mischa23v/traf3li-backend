@@ -443,3 +443,93 @@ Query params: page, limit, status, priority
 
 ### GET /api/tasks/timers/active
 Returns all tasks with active timers for current user.
+
+---
+
+## Rate Limiting (Gold Standard - 2026-01-04)
+
+### Overview
+
+Rate limiting follows the **AWS/Algolia/Elastic pattern** with operation-type-aware throttling:
+- **Search/Filter operations**: Higher burst limits (read-only, expected to be bursty)
+- **General API operations**: Standard limits
+- **Authenticated vs Unauthenticated**: Different quotas
+
+### Rate Limits
+
+| User Type | Operation Type | Limit | Window |
+|-----------|---------------|-------|--------|
+| Authenticated | Search/Filter (GET with params) | 120 req/min | 1 minute |
+| Authenticated | General API | 400 req/min | 1 minute |
+| Unauthenticated | Search/Filter | 20 req/min | 1 minute |
+| Unauthenticated | General API | 30 req/min | 1 minute |
+
+### Search/Filter Detection
+
+Requests are classified as **search/filter operations** when:
+1. Method is `GET`
+2. Request includes any of these query parameters:
+
+**Text Search:**
+```
+search, q, query, keyword, text
+```
+
+**Filter Parameters:**
+```
+status, priority, type, caseId, clientId, assignedTo,
+createdBy, lawyerId, tags, category, dueDate, dateRange
+```
+
+### Examples
+
+| Request | Classification | Rate Limit |
+|---------|---------------|------------|
+| `GET /tasks` | General | 400/min |
+| `GET /tasks?status=todo` | Search/Filter | 120/min |
+| `GET /tasks?search=contract` | Search/Filter | 120/min |
+| `GET /tasks?priority=high&status=in_progress` | Search/Filter | 120/min |
+| `POST /tasks` | General (write) | 400/min |
+| `PUT /tasks/:id` | General (write) | 400/min |
+
+### Response Headers (Gold Standard - AWS/Stripe Pattern)
+
+**On ALL API responses:**
+```
+X-RateLimit-Limit: 400          # Max requests per window
+X-RateLimit-Remaining: 385      # Requests remaining in current window
+X-RateLimit-Reset: 1704412800   # Unix timestamp when window resets
+RateLimit-Limit: 400            # Draft standard format
+RateLimit-Remaining: 385        # Draft standard format
+RateLimit-Reset: 60             # Seconds until reset
+```
+
+**On 429 responses (rate limited):**
+```
+HTTP/1.1 429 Too Many Requests
+Retry-After: 60                 # Seconds to wait before retry (RFC 7231)
+X-RateLimit-Limit: 400
+X-RateLimit-Remaining: 0
+X-RateLimit-Reset: 1704412800
+```
+
+### Error Response (429)
+```json
+{
+    "success": false,
+    "error": "بحث كثير جداً - أبطئ قليلاً",
+    "error_en": "Too many search requests - Slow down",
+    "code": "SEARCH_RATE_LIMIT_EXCEEDED",
+    "retryAfter": 60,
+    "resetAt": "2026-01-04T12:00:00.000Z",
+    "message": "Rate limit exceeded. Try again in 60 seconds.",
+    "message_ar": "تم تجاوز الحد الأقصى. حاول مرة أخرى بعد 60 ثانية."
+}
+```
+
+### Why This Matters
+
+1. **Search is bursty**: Users typing in search boxes generate many requests rapidly
+2. **Read operations are safe**: Higher limits for reads don't risk data corruption
+3. **Separate buckets**: Search limits don't consume general API quota
+4. **Gold standard compliance**: Follows AWS API Gateway, Algolia, Elasticsearch patterns
