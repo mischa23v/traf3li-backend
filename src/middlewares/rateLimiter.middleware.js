@@ -51,7 +51,9 @@ const extractUserIdFromToken = (req) => {
 
     // Verify and decode the token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    return decoded?._id || null;
+    // Token stores user ID in 'id' field (see generateToken.js line 128)
+    // Also check 'user_id' from custom claims and '_id' for backward compatibility
+    return decoded?.id || decoded?.user_id || decoded?._id || null;
   } catch (error) {
     // Token is invalid or expired - treat as unauthenticated for rate limiting
     return null;
