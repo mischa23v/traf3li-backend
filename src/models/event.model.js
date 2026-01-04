@@ -496,9 +496,22 @@ eventSchema.methods.postpone = function(newDateTime, reason) {
     return this.save();
 };
 
-// Static method: Get events for calendar view
+// Static method: Get events for calendar view (with tenant isolation)
 eventSchema.statics.getCalendarEvents = async function(userId, startDate, endDate, filters = {}) {
+    // Build tenant-scoped query from filters (gold standard pattern)
+    const tenantFilter = {};
+    if (filters.firmId) {
+        tenantFilter.firmId = typeof filters.firmId === 'string'
+            ? new mongoose.Types.ObjectId(filters.firmId)
+            : filters.firmId;
+    } else if (filters.lawyerId) {
+        tenantFilter.lawyerId = typeof filters.lawyerId === 'string'
+            ? new mongoose.Types.ObjectId(filters.lawyerId)
+            : filters.lawyerId;
+    }
+
     const query = {
+        ...tenantFilter, // Tenant isolation FIRST
         $and: [
             // User access check
             {
@@ -538,9 +551,20 @@ eventSchema.statics.getUpcoming = async function(userId, days = 7, firmQuery = {
     const future = new Date();
     future.setDate(future.getDate() + days);
 
-    // Build tenant-scoped query
+    // Build tenant-scoped query from firmQuery (gold standard pattern)
+    const tenantFilter = {};
+    if (firmQuery.firmId) {
+        tenantFilter.firmId = typeof firmQuery.firmId === 'string'
+            ? new mongoose.Types.ObjectId(firmQuery.firmId)
+            : firmQuery.firmId;
+    } else if (firmQuery.lawyerId) {
+        tenantFilter.lawyerId = typeof firmQuery.lawyerId === 'string'
+            ? new mongoose.Types.ObjectId(firmQuery.lawyerId)
+            : firmQuery.lawyerId;
+    }
+
     const query = {
-        ...firmQuery,
+        ...tenantFilter, // Tenant isolation FIRST
         $or: [
             { createdBy: new mongoose.Types.ObjectId(userId) },
             { organizer: new mongoose.Types.ObjectId(userId) },
@@ -639,9 +663,20 @@ eventSchema.statics.getStats = async function(userId, filters = {}) {
 
 // Static method: Check availability (with tenant isolation)
 eventSchema.statics.checkAvailability = async function(userIds, startDateTime, endDateTime, excludeEventId = null, firmQuery = {}) {
-    // Build tenant-scoped query
+    // Build tenant-scoped query from firmQuery (gold standard pattern)
+    const tenantFilter = {};
+    if (firmQuery.firmId) {
+        tenantFilter.firmId = typeof firmQuery.firmId === 'string'
+            ? new mongoose.Types.ObjectId(firmQuery.firmId)
+            : firmQuery.firmId;
+    } else if (firmQuery.lawyerId) {
+        tenantFilter.lawyerId = typeof firmQuery.lawyerId === 'string'
+            ? new mongoose.Types.ObjectId(firmQuery.lawyerId)
+            : firmQuery.lawyerId;
+    }
+
     const query = {
-        ...firmQuery,
+        ...tenantFilter, // Tenant isolation FIRST
         status: { $in: ['scheduled', 'confirmed'] },
         $and: [
             // User filter
