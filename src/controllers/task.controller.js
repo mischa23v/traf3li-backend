@@ -2702,14 +2702,10 @@ const searchTasks = asyncHandler(async (req, res) => {
         query['comments.0'] = { $exists: true };
     }
 
-    // Build sort
+    // Build sort - use updatedAt for relevance since we use regex (not $text index)
     let sortOptions = {};
-    if (sortBy === 'relevance' && q) {
-        // MongoDB text search score (if using text index)
-        sortOptions = { score: { $meta: 'textScore' } };
-    } else {
-        sortOptions[sortBy === 'relevance' ? 'updatedAt' : sortBy] = sortOrder === 'desc' ? -1 : 1;
-    }
+    const effectiveSortBy = sortBy === 'relevance' ? 'updatedAt' : sortBy;
+    sortOptions[effectiveSortBy] = sortOrder === 'desc' ? -1 : 1;
 
     const tasks = await Task.find(query)
         .populate('assignedTo', 'firstName lastName image')
@@ -2904,17 +2900,19 @@ const rescheduleTask = asyncHandler(async (req, res) => {
         task.dueTime = newDueTime;
     }
 
-    // Track reschedule in history
+    // Track reschedule in history (use 'updated' action which is valid enum)
     if (!task.history) {
         task.history = [];
     }
     task.history.push({
-        action: 'rescheduled',
+        action: 'updated',
         userId,
         timestamp: new Date(),
-        previousValue: { dueDate: previousDueDate, dueTime: previousDueTime },
-        newValue: { dueDate: parsedDate, dueTime: newDueTime || task.dueTime },
-        reason
+        changes: {
+            dueDate: { from: previousDueDate, to: parsedDate },
+            dueTime: newDueTime ? { from: previousDueTime, to: newDueTime } : undefined,
+            rescheduleReason: reason
+        }
     });
 
     await task.save();
