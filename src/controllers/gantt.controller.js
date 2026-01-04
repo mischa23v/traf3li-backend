@@ -22,7 +22,6 @@ const Case = require('../models/case.model');
  * GET /api/gantt/data
  */
 const getGanttData = asyncHandler(async (req, res) => {
-  const firmId = req.firmId;
   const filters = {
     caseId: req.query.caseId,
     assigneeId: req.query.assigneeId,
@@ -33,7 +32,8 @@ const getGanttData = asyncHandler(async (req, res) => {
     } : null
   };
 
-  const ganttData = await ganttService.getGanttData(firmId, filters);
+  // Gold standard: Pass firmQuery for proper tenant isolation (solo lawyers + firms)
+  const ganttData = await ganttService.getGanttData(req.firmQuery, filters);
 
   res.status(200).json({
     success: true,
@@ -46,7 +46,6 @@ const getGanttData = asyncHandler(async (req, res) => {
  * GET /api/gantt/data/:caseId
  */
 const getGanttDataForCase = asyncHandler(async (req, res) => {
-  const firmId = req.firmId;
   const { caseId } = req.params;
 
   // Sanitize and validate caseId
@@ -66,7 +65,8 @@ const getGanttDataForCase = asyncHandler(async (req, res) => {
     status: req.query.status ? req.query.status.split(',') : null
   };
 
-  const ganttData = await ganttService.getGanttData(firmId, filters);
+  // Gold standard: Pass firmQuery for proper tenant isolation
+  const ganttData = await ganttService.getGanttData(req.firmQuery, filters);
 
   res.status(200).json({
     success: true,
@@ -79,7 +79,6 @@ const getGanttDataForCase = asyncHandler(async (req, res) => {
  * GET /api/gantt/data/assigned/:userId
  */
 const getGanttDataByAssignee = asyncHandler(async (req, res) => {
-  const firmId = req.firmId;
   const { userId } = req.params;
 
   const filters = {
@@ -91,7 +90,8 @@ const getGanttDataByAssignee = asyncHandler(async (req, res) => {
     } : null
   };
 
-  const ganttData = await ganttService.getGanttData(firmId, filters);
+  // Gold standard: Pass firmQuery for proper tenant isolation
+  const ganttData = await ganttService.getGanttData(req.firmQuery, filters);
 
   res.status(200).json({
     success: true,
@@ -104,8 +104,6 @@ const getGanttDataByAssignee = asyncHandler(async (req, res) => {
  * POST /api/gantt/data/filter
  */
 const filterGanttData = asyncHandler(async (req, res) => {
-  const firmId = req.firmId;
-
   // Mass assignment protection: Only allow specific filter fields
   const filters = pickAllowedFields(req.body, [
     'caseId',
@@ -131,7 +129,8 @@ const filterGanttData = asyncHandler(async (req, res) => {
     }
   }
 
-  const ganttData = await ganttService.getGanttData(firmId, filters);
+  // Gold standard: Pass firmQuery for proper tenant isolation
+  const ganttData = await ganttService.getGanttData(req.firmQuery, filters);
 
   res.status(200).json({
     success: true,
@@ -145,7 +144,6 @@ const filterGanttData = asyncHandler(async (req, res) => {
  */
 const getTaskHierarchy = asyncHandler(async (req, res) => {
   const { taskId } = req.params;
-  const firmId = req.firmId;
 
   // Sanitize task ID
   const sanitizedTaskId = sanitizeObjectId(taskId);
@@ -153,13 +151,13 @@ const getTaskHierarchy = asyncHandler(async (req, res) => {
     throw CustomException('Invalid task ID format', 400);
   }
 
-  // IDOR Protection: Verify task belongs to user's firm
-  const task = await Task.findOne({ _id: sanitizedTaskId, firmId });
+  // IDOR Protection: Verify task belongs to user's firm/lawyer (gold standard)
+  const task = await Task.findOne({ _id: sanitizedTaskId, ...req.firmQuery });
   if (!task) {
     throw CustomException('Resource not found', 404);
   }
 
-  const hierarchy = await ganttService.getTaskHierarchy(sanitizedTaskId);
+  const hierarchy = await ganttService.getTaskHierarchy(sanitizedTaskId, req.firmQuery);
 
   res.status(200).json({
     success: true,
@@ -184,7 +182,6 @@ const getTaskHierarchy = asyncHandler(async (req, res) => {
  */
 const getProductivityData = asyncHandler(async (req, res) => {
   const userId = req.userID;
-  const firmId = req.firmId;
   const { startDate, endDate } = req.query;
 
   // Build date filters
@@ -461,7 +458,6 @@ const getProductivityData = asyncHandler(async (req, res) => {
 const updateTaskDates = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const userId = req.userID;
-  const firmId = req.firmId;
 
   // Sanitize task ID
   const sanitizedTaskId = sanitizeObjectId(id);
@@ -492,13 +488,13 @@ const updateTaskDates = asyncHandler(async (req, res) => {
     throw CustomException('End date must be after start date', 400);
   }
 
-  // IDOR Protection: Verify task belongs to user's firm
-  const task = await Task.findOne({ _id: sanitizedTaskId, firmId });
+  // IDOR Protection: Verify task belongs to user's firm/lawyer (gold standard)
+  const task = await Task.findOne({ _id: sanitizedTaskId, ...req.firmQuery });
   if (!task) {
     throw CustomException('Resource not found', 404);
   }
 
-  const updatedTask = await ganttService.updateTaskDates(sanitizedTaskId, startDate, endDate);
+  const updatedTask = await ganttService.updateTaskDates(sanitizedTaskId, startDate, endDate, req.firmQuery);
 
   // Broadcast update to collaborators
   await collaborationService.broadcastGanttUpdate(
@@ -526,7 +522,6 @@ const updateTaskDates = asyncHandler(async (req, res) => {
 const updateTaskDuration = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const userId = req.userID;
-  const firmId = req.firmId;
 
   // Sanitize task ID
   const sanitizedTaskId = sanitizeObjectId(id);
@@ -549,13 +544,13 @@ const updateTaskDuration = asyncHandler(async (req, res) => {
     throw CustomException('Duration must be a valid positive number', 400);
   }
 
-  // IDOR Protection: Verify task belongs to user's firm
-  const task = await Task.findOne({ _id: sanitizedTaskId, firmId });
+  // IDOR Protection: Verify task belongs to user's firm/lawyer (gold standard)
+  const task = await Task.findOne({ _id: sanitizedTaskId, ...req.firmQuery });
   if (!task) {
     throw CustomException('Resource not found', 404);
   }
 
-  const updatedTask = await ganttService.updateTaskDuration(sanitizedTaskId, durationNum);
+  const updatedTask = await ganttService.updateTaskDuration(sanitizedTaskId, durationNum, req.firmQuery);
 
   // Broadcast update
   await collaborationService.broadcastGanttUpdate(
@@ -582,7 +577,6 @@ const updateTaskDuration = asyncHandler(async (req, res) => {
 const updateTaskProgress = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const userId = req.userID;
-  const firmId = req.firmId;
 
   // Sanitize task ID
   const sanitizedTaskId = sanitizeObjectId(id);
@@ -604,13 +598,13 @@ const updateTaskProgress = asyncHandler(async (req, res) => {
     throw CustomException('Progress must be a number between 0 and 100', 400);
   }
 
-  // IDOR Protection: Verify task belongs to user's firm
-  const task = await Task.findOne({ _id: sanitizedTaskId, firmId });
+  // IDOR Protection: Verify task belongs to user's firm/lawyer (gold standard)
+  const task = await Task.findOne({ _id: sanitizedTaskId, ...req.firmQuery });
   if (!task) {
     throw CustomException('Resource not found', 404);
   }
 
-  const updatedTask = await ganttService.updateTaskProgress(sanitizedTaskId, progressNum);
+  const updatedTask = await ganttService.updateTaskProgress(sanitizedTaskId, progressNum, req.firmQuery);
 
   // Broadcast update
   await collaborationService.broadcastGanttUpdate(
@@ -637,7 +631,6 @@ const updateTaskProgress = asyncHandler(async (req, res) => {
 const updateTaskParent = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const userId = req.userID;
-  const firmId = req.firmId;
 
   // Sanitize task ID
   const sanitizedTaskId = sanitizeObjectId(id);
@@ -657,15 +650,15 @@ const updateTaskParent = asyncHandler(async (req, res) => {
     }
   }
 
-  // IDOR Protection: Verify task belongs to user's firm
-  const task = await Task.findOne({ _id: sanitizedTaskId, firmId });
+  // IDOR Protection: Verify task belongs to user's firm/lawyer (gold standard)
+  const task = await Task.findOne({ _id: sanitizedTaskId, ...req.firmQuery });
   if (!task) {
     throw CustomException('Resource not found', 404);
   }
 
-  // If parentId is provided, verify it belongs to the same firm
+  // If parentId is provided, verify it belongs to the same firm/lawyer
   if (parentId) {
-    const parentTask = await Task.findOne({ _id: parentId, firmId });
+    const parentTask = await Task.findOne({ _id: parentId, ...req.firmQuery });
     if (!parentTask) {
       throw CustomException('Resource not found', 404);
     }
@@ -675,7 +668,7 @@ const updateTaskParent = asyncHandler(async (req, res) => {
     }
   }
 
-  const updatedTask = await ganttService.updateTaskParent(sanitizedTaskId, parentId);
+  const updatedTask = await ganttService.updateTaskParent(sanitizedTaskId, parentId, req.firmQuery);
 
   // Broadcast update
   await collaborationService.broadcastGanttUpdate(
@@ -700,8 +693,6 @@ const updateTaskParent = asyncHandler(async (req, res) => {
  * POST /api/gantt/task/:id/reorder
  */
 const reorderTasks = asyncHandler(async (req, res) => {
-  const firmId = req.firmId;
-
   // Mass assignment protection: Only allow taskIds field
   const safeData = pickAllowedFields(req.body, ['taskIds']);
   const { taskIds } = safeData;
@@ -722,8 +713,8 @@ const reorderTasks = asyncHandler(async (req, res) => {
     throw CustomException('One or more task IDs have invalid format', 400);
   }
 
-  // IDOR Protection: Verify all tasks belong to user's firm
-  const tasks = await Task.find({ _id: { $in: sanitizedTaskIds }, firmId });
+  // IDOR Protection: Verify all tasks belong to user's firm/lawyer (gold standard)
+  const tasks = await Task.find({ _id: { $in: sanitizedTaskIds }, ...req.firmQuery });
 
   if (tasks.length !== sanitizedTaskIds.length) {
     throw CustomException('Resource not found', 404);
@@ -748,7 +739,6 @@ const reorderTasks = asyncHandler(async (req, res) => {
  */
 const createLink = asyncHandler(async (req, res) => {
   const userId = req.userID;
-  const firmId = req.firmId;
 
   // Mass assignment protection: Only allow specific fields
   const safeData = pickAllowedFields(req.body, ['source', 'target', 'type']);
@@ -781,13 +771,13 @@ const createLink = asyncHandler(async (req, res) => {
     throw CustomException('Invalid dependency type. Must be 0, 1, 2, or 3', 400);
   }
 
-  // IDOR Protection: Verify both tasks belong to user's firm
-  const sourceTask = await Task.findOne({ _id: source, firmId });
+  // IDOR Protection: Verify both tasks belong to user's firm/lawyer (gold standard)
+  const sourceTask = await Task.findOne({ _id: source, ...req.firmQuery });
   if (!sourceTask) {
     throw CustomException('Resource not found', 404);
   }
 
-  const targetTask = await Task.findOne({ _id: target, firmId });
+  const targetTask = await Task.findOne({ _id: target, ...req.firmQuery });
   if (!targetTask) {
     throw CustomException('Resource not found', 404);
   }
@@ -797,7 +787,7 @@ const createLink = asyncHandler(async (req, res) => {
     throw CustomException('Source and target tasks must belong to the same case', 400);
   }
 
-  const result = await ganttService.createDependency(source, target, type);
+  const result = await ganttService.createDependency(source, target, type, req.firmQuery);
 
   // Broadcast update
   await collaborationService.broadcastGanttUpdate(
@@ -825,7 +815,6 @@ const createLink = asyncHandler(async (req, res) => {
 const deleteLink = asyncHandler(async (req, res) => {
   let { source, target } = req.params;
   const userId = req.userID;
-  const firmId = req.firmId;
 
   // Sanitize task IDs
   source = sanitizeObjectId(source);
@@ -838,18 +827,18 @@ const deleteLink = asyncHandler(async (req, res) => {
     throw CustomException('Invalid target task ID format', 400);
   }
 
-  // IDOR Protection: Verify both tasks belong to user's firm
-  const sourceTask = await Task.findOne({ _id: source, firmId });
+  // IDOR Protection: Verify both tasks belong to user's firm/lawyer (gold standard)
+  const sourceTask = await Task.findOne({ _id: source, ...req.firmQuery });
   if (!sourceTask) {
     throw CustomException('Resource not found', 404);
   }
 
-  const targetTask = await Task.findOne({ _id: target, firmId });
+  const targetTask = await Task.findOne({ _id: target, ...req.firmQuery });
   if (!targetTask) {
     throw CustomException('Resource not found', 404);
   }
 
-  const result = await ganttService.removeDependency(source, target);
+  const result = await ganttService.removeDependency(source, target, req.firmQuery);
 
   // Broadcast update
   await collaborationService.broadcastGanttUpdate(
@@ -874,7 +863,6 @@ const deleteLink = asyncHandler(async (req, res) => {
  */
 const getDependencyChain = asyncHandler(async (req, res) => {
   const { taskId } = req.params;
-  const firmId = req.firmId;
 
   // Sanitize task ID
   const sanitizedTaskId = sanitizeObjectId(taskId);
@@ -882,13 +870,13 @@ const getDependencyChain = asyncHandler(async (req, res) => {
     throw CustomException('Invalid task ID format', 400);
   }
 
-  // IDOR Protection: Verify task belongs to user's firm
-  const task = await Task.findOne({ _id: sanitizedTaskId, firmId });
+  // IDOR Protection: Verify task belongs to user's firm/lawyer (gold standard)
+  const task = await Task.findOne({ _id: sanitizedTaskId, ...req.firmQuery });
   if (!task) {
     throw CustomException('Resource not found', 404);
   }
 
-  const chain = await ganttService.getDependencyChain(sanitizedTaskId);
+  const chain = await ganttService.getDependencyChain(sanitizedTaskId, req.firmQuery);
 
   res.status(200).json({
     success: true,
@@ -975,14 +963,13 @@ const getProjectTimeline = asyncHandler(async (req, res) => {
  * GET /api/gantt/resources
  */
 const getResourceAllocation = asyncHandler(async (req, res) => {
-  const firmId = req.firmId;
-
   const dateRange = req.query.startDate && req.query.endDate ? {
     start: req.query.startDate,
     end: req.query.endDate
   } : null;
 
-  const resources = await ganttService.getResourceAllocation(firmId, dateRange);
+  // Gold standard: Pass firmQuery for proper tenant isolation
+  const resources = await ganttService.getResourceAllocation(req.firmQuery, dateRange);
 
   res.status(200).json({
     success: true,
@@ -1113,7 +1100,6 @@ const compareToBaseline = asyncHandler(async (req, res) => {
 const autoSchedule = asyncHandler(async (req, res) => {
   const { projectId } = req.params;
   const userId = req.userID;
-  const firmId = req.firmId;
 
   // Sanitize project/case ID
   const sanitizedProjectId = sanitizeObjectId(projectId);
@@ -1136,13 +1122,13 @@ const autoSchedule = asyncHandler(async (req, res) => {
     throw CustomException('Invalid start date format', 400);
   }
 
-  // IDOR Protection: Verify project/case belongs to user's firm
-  const caseExists = await Case.findOne({ _id: sanitizedProjectId, firmId });
+  // IDOR Protection: Verify project/case belongs to user's firm/lawyer (gold standard)
+  const caseExists = await Case.findOne({ _id: sanitizedProjectId, ...req.firmQuery });
   if (!caseExists) {
     throw CustomException('Project not found or access denied', 404);
   }
 
-  const scheduledTasks = await ganttService.autoSchedule(sanitizedProjectId, startDate);
+  const scheduledTasks = await ganttService.autoSchedule(sanitizedProjectId, startDate, req.firmQuery);
 
   // Broadcast update
   await collaborationService.broadcastGanttUpdate(
@@ -1170,7 +1156,11 @@ const levelResources = asyncHandler(async (req, res) => {
   const { projectId } = req.params;
   const userId = req.userID;
 
-  const leveledTasks = await ganttService.levelResources(projectId);
+  // Sanitize project ID
+  const sanitizedProjectId = sanitizeObjectId(projectId, 'projectId');
+
+  // Gold standard: pass req.firmQuery for tenant isolation
+  const leveledTasks = await ganttService.levelResources(sanitizedProjectId, req.firmQuery);
 
   // Broadcast update
   await collaborationService.broadcastGanttUpdate(
@@ -1199,7 +1189,6 @@ const levelResources = asyncHandler(async (req, res) => {
  */
 const createMilestone = asyncHandler(async (req, res) => {
   const userId = req.userID;
-  const firmId = req.firmId;
 
   // Mass assignment protection: Only allow specific milestone fields
   const safeData = pickAllowedFields(req.body, [
@@ -1221,8 +1210,8 @@ const createMilestone = asyncHandler(async (req, res) => {
       throw CustomException('Invalid case ID format', 400);
     }
 
-    // IDOR Protection: Verify case belongs to user's firm
-    const caseExists = await Case.findOne({ _id: safeData.caseId, firmId });
+    // IDOR Protection: Verify case belongs to user's firm/lawyer (gold standard)
+    const caseExists = await Case.findOne({ _id: safeData.caseId, ...req.firmQuery });
     if (!caseExists) {
       throw CustomException('Case not found or access denied', 404);
     }
@@ -1244,11 +1233,11 @@ const createMilestone = asyncHandler(async (req, res) => {
     }
   }
 
-  const milestoneData = {
+  // Gold standard: Use req.addFirmId() for creating records with proper tenant context
+  const milestoneData = req.addFirmId({
     ...safeData,
-    createdBy: userId,
-    firmId
-  };
+    createdBy: userId
+  });
 
   const milestone = await ganttService.createMilestone(milestoneData);
 
