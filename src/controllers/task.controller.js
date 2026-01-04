@@ -484,7 +484,8 @@ const updateTask = asyncHandler(async (req, res) => {
                 isAllDay = false;
             }
 
-            const linkedEvent = await Event.create({
+            // Use req.addFirmId for proper tenant context when creating Event
+            const linkedEvent = await Event.create(req.addFirmId({
                 title: task.title,
                 type: 'task',
                 description: task.description,
@@ -495,27 +496,26 @@ const updateTask = asyncHandler(async (req, res) => {
                 caseId: task.caseId,
                 clientId: task.clientId,
                 organizer: task.createdBy,
-                firmId,
                 createdBy: task.createdBy,
                 attendees: task.assignedTo ? [{ userId: task.assignedTo, status: 'confirmed', role: 'required' }] : [],
                 priority: task.priority,
                 color: '#10b981',
                 tags: task.tags,
                 status: task.status === 'done' ? 'completed' : 'scheduled'
-            });
+            }));
 
             task.linkedEventId = linkedEvent._id;
             await task.save();
 
         } else if (!hasDueDate && task.linkedEventId) {
             // Task no longer has due date → delete linked event
-            await Event.findOneAndDelete({ _id: task.linkedEventId, firmId });
+            await Event.findOneAndDelete({ _id: task.linkedEventId, ...req.firmQuery });
             task.linkedEventId = null;
             await task.save();
 
         } else if (hasDueDate && task.linkedEventId) {
             // Task still has due date and linked event → update event
-            const linkedEvent = await Event.findOne({ _id: task.linkedEventId, firmId });
+            const linkedEvent = await Event.findOne({ _id: task.linkedEventId, ...req.firmQuery });
 
             if (linkedEvent) {
                 // Update event fields
@@ -587,22 +587,12 @@ const deleteTask = asyncHandler(async (req, res) => {
     // Centralized middleware handles tenant validation
 
     const { id } = req.params;
-    const userId = req.userID;
-    const firmId = req.firmId; // From firmFilter middleware
 
     // IDOR protection
     const taskId = sanitizeObjectId(id);
 
-    // Build query with firmId to prevent IDOR
-    const query = { _id: taskId };
-    if (firmId) {
-        query.firmId = firmId;
-    } else {
-        // Solo lawyer - only tasks they created
-        query.createdBy = userId;
-    }
-
-    const task = await Task.findOne(query);
+    // Build query with req.firmQuery for proper tenant isolation (solo + firm)
+    const task = await Task.findOne({ _id: taskId, ...req.firmQuery });
 
     if (!task) {
         throw CustomException('Task not found', 404);
@@ -611,21 +601,15 @@ const deleteTask = asyncHandler(async (req, res) => {
     // Delete linked calendar event if exists
     if (task.linkedEventId) {
         try {
-            // IDOR protection: Include firmId/userId in delete query
-            const eventQuery = { _id: task.linkedEventId };
-            if (firmId) {
-                eventQuery.firmId = firmId;
-            } else {
-                eventQuery.createdBy = userId;
-            }
-            await Event.findOneAndDelete(eventQuery);
+            // IDOR protection: Include req.firmQuery in delete query
+            await Event.findOneAndDelete({ _id: task.linkedEventId, ...req.firmQuery });
         } catch (error) {
             logger.error('Error deleting linked calendar event', { error: error.message });
             // Continue with task deletion even if event deletion fails
         }
     }
 
-    await Task.findOneAndDelete(query);
+    await Task.findOneAndDelete({ _id: taskId, ...req.firmQuery });
 
     res.status(200).json({
         success: true,
@@ -637,7 +621,6 @@ const deleteTask = asyncHandler(async (req, res) => {
 const completeTask = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
-    const firmId = req.firmId;
 
     // IDOR protection
     const taskId = sanitizeObjectId(id);
@@ -646,19 +629,8 @@ const completeTask = asyncHandler(async (req, res) => {
     const data = pickAllowedFields(req.body, ALLOWED_FIELDS.COMPLETE);
     const { completionNote } = data;
 
-    // Build query with firmId to prevent IDOR
-    const query = { _id: taskId };
-    if (firmId) {
-        query.firmId = firmId;
-    } else {
-        // Solo lawyer - only their own tasks
-        query.$or = [
-            { assignedTo: userId },
-            { createdBy: userId }
-        ];
-    }
-
-    const task = await Task.findOne(query);
+    // Use req.firmQuery for proper tenant isolation (solo + firm)
+    const task = await Task.findOne({ _id: taskId, ...req.firmQuery });
 
     if (!task) {
         throw CustomException('Task not found', 404);
@@ -750,7 +722,6 @@ const completeTask = asyncHandler(async (req, res) => {
 const addSubtask = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
-    const firmId = req.firmId;
 
     // IDOR protection
     const taskId = sanitizeObjectId(id);
@@ -764,19 +735,8 @@ const addSubtask = asyncHandler(async (req, res) => {
         throw CustomException('Subtask title is required', 400);
     }
 
-    // Build query with firmId to prevent IDOR
-    const query = { _id: taskId };
-    if (firmId) {
-        query.firmId = firmId;
-    } else {
-        // Solo lawyer - only their own tasks
-        query.$or = [
-            { assignedTo: userId },
-            { createdBy: userId }
-        ];
-    }
-
-    const task = await Task.findOne(query);
+    // Use req.firmQuery for proper tenant isolation (solo + firm)
+    const task = await Task.findOne({ _id: taskId, ...req.firmQuery });
     if (!task) {
         throw CustomException('Task not found', 404);
     }
@@ -807,25 +767,13 @@ const addSubtask = asyncHandler(async (req, res) => {
 const toggleSubtask = asyncHandler(async (req, res) => {
     const { id, subtaskId } = req.params;
     const userId = req.userID;
-    const firmId = req.firmId;
 
     // IDOR protection
     const taskId = sanitizeObjectId(id);
     const sanitizedSubtaskId = sanitizeObjectId(subtaskId);
 
-    // Build query with firmId to prevent IDOR
-    const query = { _id: taskId };
-    if (firmId) {
-        query.firmId = firmId;
-    } else {
-        // Solo lawyer - only their own tasks
-        query.$or = [
-            { assignedTo: userId },
-            { createdBy: userId }
-        ];
-    }
-
-    const task = await Task.findOne(query);
+    // Use req.firmQuery for proper tenant isolation (solo + firm)
+    const task = await Task.findOne({ _id: taskId, ...req.firmQuery });
     if (!task) {
         throw CustomException('Task not found', 404);
     }
@@ -858,25 +806,13 @@ const toggleSubtask = asyncHandler(async (req, res) => {
 const deleteSubtask = asyncHandler(async (req, res) => {
     const { id, subtaskId } = req.params;
     const userId = req.userID;
-    const firmId = req.firmId;
 
     // IDOR protection
     const taskId = sanitizeObjectId(id);
     const sanitizedSubtaskId = sanitizeObjectId(subtaskId);
 
-    // Build query with firmId to prevent IDOR
-    const query = { _id: taskId };
-    if (firmId) {
-        query.firmId = firmId;
-    } else {
-        // Solo lawyer - only their own tasks
-        query.$or = [
-            { assignedTo: userId },
-            { createdBy: userId }
-        ];
-    }
-
-    const task = await Task.findOne(query);
+    // Use req.firmQuery for proper tenant isolation (solo + firm)
+    const task = await Task.findOne({ _id: taskId, ...req.firmQuery });
     if (!task) {
         throw CustomException('Task not found', 404);
     }
@@ -897,7 +833,6 @@ const deleteSubtask = asyncHandler(async (req, res) => {
 const startTimer = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
-    const firmId = req.firmId;
 
     // IDOR protection
     const taskId = sanitizeObjectId(id);
@@ -906,19 +841,8 @@ const startTimer = asyncHandler(async (req, res) => {
     const data = pickAllowedFields(req.body, ALLOWED_FIELDS.TIMER_START);
     const { notes } = data;
 
-    // Build query with firmId to prevent IDOR
-    const query = { _id: taskId };
-    if (firmId) {
-        query.firmId = firmId;
-    } else {
-        // Solo lawyer - only their own tasks
-        query.$or = [
-            { assignedTo: userId },
-            { createdBy: userId }
-        ];
-    }
-
-    const task = await Task.findOne(query);
+    // Use req.firmQuery for proper tenant isolation (solo + firm)
+    const task = await Task.findOne({ _id: taskId, ...req.firmQuery });
     if (!task) {
         throw CustomException('Task not found', 404);
     }
@@ -952,7 +876,6 @@ const startTimer = asyncHandler(async (req, res) => {
 const stopTimer = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
-    const firmId = req.firmId;
 
     // IDOR protection
     const taskId = sanitizeObjectId(id);
@@ -961,19 +884,8 @@ const stopTimer = asyncHandler(async (req, res) => {
     const data = pickAllowedFields(req.body, ALLOWED_FIELDS.TIMER_STOP);
     const { notes, isBillable } = data;
 
-    // Build query with firmId to prevent IDOR
-    const query = { _id: taskId };
-    if (firmId) {
-        query.firmId = firmId;
-    } else {
-        // Solo lawyer - only their own tasks
-        query.$or = [
-            { assignedTo: userId },
-            { createdBy: userId }
-        ];
-    }
-
-    const task = await Task.findOne(query);
+    // Use req.firmQuery for proper tenant isolation (solo + firm)
+    const task = await Task.findOne({ _id: taskId, ...req.firmQuery });
     if (!task) {
         throw CustomException('Task not found', 404);
     }
@@ -1024,7 +936,6 @@ const stopTimer = asyncHandler(async (req, res) => {
 const addManualTime = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
-    const firmId = req.firmId;
 
     // IDOR protection
     const taskId = sanitizeObjectId(id);
@@ -1042,19 +953,8 @@ const addManualTime = asyncHandler(async (req, res) => {
         throw CustomException('Minutes cannot exceed 1440 (24 hours)', 400);
     }
 
-    // Build query with firmId to prevent IDOR
-    const query = { _id: taskId };
-    if (firmId) {
-        query.firmId = firmId;
-    } else {
-        // Solo lawyer - only their own tasks
-        query.$or = [
-            { assignedTo: userId },
-            { createdBy: userId }
-        ];
-    }
-
-    const task = await Task.findOne(query);
+    // Use req.firmQuery for proper tenant isolation (solo + firm)
+    const task = await Task.findOne({ _id: taskId, ...req.firmQuery });
     if (!task) {
         throw CustomException('Task not found', 404);
     }
@@ -1090,7 +990,6 @@ const addManualTime = asyncHandler(async (req, res) => {
 const addComment = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
-    const firmId = req.firmId;
 
     // IDOR protection
     const taskId = sanitizeObjectId(id);
@@ -1112,19 +1011,8 @@ const addComment = asyncHandler(async (req, res) => {
         throw CustomException('Invalid content detected', 400);
     }
 
-    // Build query with firmId to prevent IDOR
-    const query = { _id: taskId };
-    if (firmId) {
-        query.firmId = firmId;
-    } else {
-        // Solo lawyer - only their own tasks
-        query.$or = [
-            { assignedTo: userId },
-            { createdBy: userId }
-        ];
-    }
-
-    const task = await Task.findOne(query);
+    // Use req.firmQuery for proper tenant isolation (solo + firm)
+    const task = await Task.findOne({ _id: taskId, ...req.firmQuery });
     if (!task) {
         throw CustomException('Task not found', 404);
     }
@@ -1154,7 +1042,6 @@ const addComment = asyncHandler(async (req, res) => {
 const updateComment = asyncHandler(async (req, res) => {
     const { id, commentId } = req.params;
     const userId = req.userID;
-    const firmId = req.firmId;
 
     // IDOR protection
     const taskId = sanitizeObjectId(id);
@@ -1177,19 +1064,8 @@ const updateComment = asyncHandler(async (req, res) => {
         throw CustomException('Invalid content detected', 400);
     }
 
-    // Build query with firmId to prevent IDOR
-    const query = { _id: taskId };
-    if (firmId) {
-        query.firmId = firmId;
-    } else {
-        // Solo lawyer - only their own tasks
-        query.$or = [
-            { assignedTo: userId },
-            { createdBy: userId }
-        ];
-    }
-
-    const task = await Task.findOne(query);
+    // Use req.firmQuery for proper tenant isolation (solo + firm)
+    const task = await Task.findOne({ _id: taskId, ...req.firmQuery });
     if (!task) {
         throw CustomException('Task not found', 404);
     }
@@ -1219,25 +1095,13 @@ const updateComment = asyncHandler(async (req, res) => {
 const deleteComment = asyncHandler(async (req, res) => {
     const { id, commentId } = req.params;
     const userId = req.userID;
-    const firmId = req.firmId;
 
     // IDOR protection
     const taskId = sanitizeObjectId(id);
     const sanitizedCommentId = sanitizeObjectId(commentId);
 
-    // Build query with firmId to prevent IDOR
-    const query = { _id: taskId };
-    if (firmId) {
-        query.firmId = firmId;
-    } else {
-        // Solo lawyer - only their own tasks
-        query.$or = [
-            { assignedTo: userId },
-            { createdBy: userId }
-        ];
-    }
-
-    const task = await Task.findOne(query);
+    // Use req.firmQuery for proper tenant isolation (solo + firm)
+    const task = await Task.findOne({ _id: taskId, ...req.firmQuery });
     if (!task) {
         throw CustomException('Task not found', 404);
     }
@@ -1264,9 +1128,6 @@ const deleteComment = asyncHandler(async (req, res) => {
 
 // Bulk update tasks
 const bulkUpdateTasks = asyncHandler(async (req, res) => {
-    const userId = req.userID;
-    const firmId = req.firmId; // From firmFilter middleware
-
     // Mass assignment protection
     const data = pickAllowedFields(req.body, ALLOWED_FIELDS.BULK_UPDATE);
     const { taskIds, updates } = data;
@@ -1300,9 +1161,6 @@ const bulkUpdateTasks = asyncHandler(async (req, res) => {
         updateData.assignedTo = sanitizeObjectId(updateData.assignedTo);
     }
 
-    // Convert firmId to ObjectId for proper MongoDB matching
-    const firmObjectId = firmId ? new mongoose.Types.ObjectId(firmId) : null;
-
     // Verify access to all tasks - use req.firmQuery for proper tenant isolation
     const accessQuery = { _id: { $in: sanitizedTaskIds }, ...req.firmQuery };
 
@@ -1312,8 +1170,9 @@ const bulkUpdateTasks = asyncHandler(async (req, res) => {
         throw CustomException('Some tasks are not accessible', 403);
     }
 
+    // Use req.firmQuery in updateMany for tenant isolation
     await Task.updateMany(
-        { _id: { $in: sanitizedTaskIds } },
+        { _id: { $in: sanitizedTaskIds }, ...req.firmQuery },
         { $set: updateData }
     );
 
@@ -1326,9 +1185,6 @@ const bulkUpdateTasks = asyncHandler(async (req, res) => {
 
 // Bulk delete tasks
 const bulkDeleteTasks = asyncHandler(async (req, res) => {
-    const userId = req.userID;
-    const firmId = req.firmId; // From firmFilter middleware
-
     // Mass assignment protection
     const data = pickAllowedFields(req.body, ALLOWED_FIELDS.BULK_DELETE);
     const { taskIds } = data;
@@ -1345,13 +1201,8 @@ const bulkDeleteTasks = asyncHandler(async (req, res) => {
     // IDOR protection - sanitize all task IDs
     const sanitizedTaskIds = taskIds.map(id => sanitizeObjectId(id));
 
-    // Convert firmId to ObjectId for proper MongoDB matching
-    const firmObjectId = firmId ? new mongoose.Types.ObjectId(firmId) : null;
-
-    // Verify ownership of all tasks - firmId first, then creator-only
-    const accessQuery = firmObjectId
-        ? { _id: { $in: sanitizedTaskIds }, firmId: firmObjectId }
-        : { _id: { $in: sanitizedTaskIds }, createdBy: userId };
+    // Use req.firmQuery for proper tenant isolation (solo + firm)
+    const accessQuery = { _id: { $in: sanitizedTaskIds }, ...req.firmQuery };
 
     const tasks = await Task.find(accessQuery).select('_id');
     const foundTaskIds = tasks.map(t => t._id.toString());
@@ -1369,8 +1220,7 @@ const bulkDeleteTasks = asyncHandler(async (req, res) => {
         });
     }
 
-    // SECURITY: Use accessQuery to ensure firmId/createdBy filter is applied
-    // This prevents cross-firm task deletion even if IDs are known
+    // SECURITY: Use accessQuery with req.firmQuery to ensure tenant isolation
     await Task.deleteMany(accessQuery);
 
     res.status(200).json({
@@ -1457,22 +1307,18 @@ const getTasksByCase = asyncHandler(async (req, res) => {
     // Centralized middleware handles tenant validation
 
     const { caseId } = req.params;
-    const userId = req.userID;
-    const firmId = req.firmId;
 
     // IDOR protection
     const sanitizedCaseId = sanitizeObjectId(caseId);
 
-    // Convert firmId to ObjectId for proper MongoDB matching
-    const firmObjectId = firmId ? new mongoose.Types.ObjectId(firmId) : null;
-
-    // Verify case exists and user has access
-    const caseDoc = await Case.findOne({ _id: sanitizedCaseId, firmId: firmObjectId });
+    // Verify case exists and user has access using req.firmQuery
+    const caseDoc = await Case.findOne({ _id: sanitizedCaseId, ...req.firmQuery });
     if (!caseDoc) {
         throw CustomException('Case not found', 404);
     }
 
-    const tasks = await Task.find({ caseId: sanitizedCaseId, firmId: firmObjectId })
+    // Use req.firmQuery for proper tenant isolation (solo + firm)
+    const tasks = await Task.find({ caseId: sanitizedCaseId, ...req.firmQuery })
         .populate('assignedTo', 'firstName lastName image')
         .populate('createdBy', 'firstName lastName')
         .sort({ dueDate: 1, priority: -1 })
@@ -1490,20 +1336,15 @@ const getTasksDueToday = asyncHandler(async (req, res) => {
     // Validate tenant context first
     // Centralized middleware handles tenant validation
 
-    const userId = req.userID;
-    const firmId = req.firmId; // From firmFilter middleware
-
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
 
     const endOfDay = new Date();
     endOfDay.setHours(23, 59, 59, 999);
 
-    // Build query - use req.firmQuery for proper tenant isolation
-    const baseQuery = { ...req.firmQuery };
-
+    // Use req.firmQuery for proper tenant isolation (solo + firm)
     const tasks = await Task.find({
-        ...baseQuery,
+        ...req.firmQuery,
         dueDate: { $gte: startOfDay, $lte: endOfDay },
         status: { $nin: ['done', 'canceled'] }
     })
@@ -1543,7 +1384,6 @@ const getTasksDueToday = asyncHandler(async (req, res) => {
 const addDependency = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
-    const firmId = req.firmId;
 
     // IDOR protection
     const taskId = sanitizeObjectId(id);
@@ -1844,22 +1684,12 @@ const updateProgress = asyncHandler(async (req, res) => {
 const addWorkflowRule = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { name, trigger, conditions, actions } = req.body;
-    const userId = req.userID;
-    const firmId = req.firmId;
 
-    // Build query with firmId to prevent IDOR
-    const query = { _id: id };
-    if (firmId) {
-        query.firmId = firmId;
-    } else {
-        // Solo lawyer - only their own tasks
-        query.$or = [
-            { assignedTo: userId },
-            { createdBy: userId }
-        ];
-    }
+    // IDOR protection
+    const taskId = sanitizeObjectId(id);
 
-    const task = await Task.findOne(query);
+    // Use req.firmQuery for proper tenant isolation (solo + firm)
+    const task = await Task.findOne({ _id: taskId, ...req.firmQuery });
     if (!task) {
         throw CustomException('Task not found', 404);
     }
@@ -1893,21 +1723,12 @@ const updateOutcome = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { outcome, outcomeNotes } = req.body;
     const userId = req.userID;
-    const firmId = req.firmId;
 
-    // Build query with firmId to prevent IDOR
-    const query = { _id: id };
-    if (firmId) {
-        query.firmId = firmId;
-    } else {
-        // Solo lawyer - only their own tasks
-        query.$or = [
-            { assignedTo: userId },
-            { createdBy: userId }
-        ];
-    }
+    // IDOR protection
+    const taskId = sanitizeObjectId(id);
 
-    const task = await Task.findOne(query);
+    // Use req.firmQuery for proper tenant isolation (solo + firm)
+    const task = await Task.findOne({ _id: taskId, ...req.firmQuery });
     if (!task) {
         throw CustomException('Task not found', 404);
     }
@@ -1916,7 +1737,8 @@ const updateOutcome = asyncHandler(async (req, res) => {
     task.outcomeNotes = outcomeNotes;
     task.outcomeDate = new Date();
 
-    const user = await User.findOne({ _id: userId, firmId }).select('firstName lastName');
+    // User lookup by ID is safe (users are global)
+    const user = await User.findById(userId).select('firstName lastName');
 
     task.history.push({
         action: 'updated',
@@ -2005,22 +1827,12 @@ const updateEstimate = asyncHandler(async (req, res) => {
  */
 const getTimeTrackingSummary = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const userId = req.userID;
-    const firmId = req.firmId;
 
-    // Build query with firmId to prevent IDOR
-    const query = { _id: id };
-    if (firmId) {
-        query.firmId = firmId;
-    } else {
-        // Solo lawyer - only their own tasks
-        query.$or = [
-            { assignedTo: userId },
-            { createdBy: userId }
-        ];
-    }
+    // IDOR protection
+    const taskId = sanitizeObjectId(id);
 
-    const task = await Task.findOne(query)
+    // Use req.firmQuery for proper tenant isolation (solo + firm)
+    const task = await Task.findOne({ _id: taskId, ...req.firmQuery })
         .populate('timeTracking.sessions.userId', 'firstName lastName');
 
     if (!task) {
@@ -2139,23 +1951,12 @@ const updateSubtask = asyncHandler(async (req, res) => {
  */
 const getTaskFull = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const userId = req.userID;
-    const firmId = req.firmId;
 
-    // Build query with firmId to prevent IDOR
-    const query = { _id: id };
-    if (firmId) {
-        query.firmId = firmId;
-    } else {
-        // Solo lawyer - only their own tasks
-        query.$or = [
-            { assignedTo: userId },
-            { createdBy: userId }
-        ];
-    }
+    // IDOR protection
+    const taskId = sanitizeObjectId(id);
 
-    // Fetch task with full population
-    const task = await Task.findOne(query)
+    // Use req.firmQuery for proper tenant isolation (solo + firm)
+    const task = await Task.findOne({ _id: taskId, ...req.firmQuery })
         .populate('assignedTo', 'username firstName lastName image email')
         .populate('createdBy', 'username firstName lastName image email')
         .populate('caseId', 'title caseNumber category')
@@ -2233,19 +2034,8 @@ const getTaskFull = asyncHandler(async (req, res) => {
  * GET /api/tasks/overview
  */
 const getTasksOverview = asyncHandler(async (req, res) => {
-    const userId = req.userID;
-    const firmId = req.firmId;
-
-    // Build base query
-    const baseQuery = { isDeleted: { $ne: true } };
-    if (firmId) {
-        baseQuery.firmId = firmId;
-    } else {
-        baseQuery.$or = [
-            { assignedTo: userId },
-            { createdBy: userId }
-        ];
-    }
+    // Build base query with tenant isolation from middleware
+    const baseQuery = { isDeleted: { $ne: true }, ...req.firmQuery };
 
     // Get counts by status
     const statusCounts = await Task.aggregate([
