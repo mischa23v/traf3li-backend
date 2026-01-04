@@ -20,14 +20,14 @@ class GanttService {
 
   /**
    * Get Gantt chart data with filters
-   * @param {ObjectId} firmId - Firm ID
+   * @param {Object} firmQuery - Tenant filter (firmId or lawyerId) from req.firmQuery
    * @param {Object} filters - { caseId, assigneeId, dateRange, status, projectId }
    * @returns {Object} - Gantt data in DHTMLX format
    */
-  async getGanttData(firmId, filters = {}) {
+  async getGanttData(firmQuery = {}, filters = {}) {
     try {
-      // Build query
-      const query = { firmId };
+      // Build query with tenant isolation (gold standard: spread firmQuery)
+      const query = { ...firmQuery };
 
       if (filters.caseId) {
         query.caseId = filters.caseId;
@@ -239,18 +239,15 @@ class GanttService {
 
   /**
    * Get task hierarchy recursively
-   * SECURITY: Requires firmId for multi-tenant isolation
+   * SECURITY: Requires firmQuery for multi-tenant isolation (gold standard)
    * @param {ObjectId} taskId - Task ID
-   * @param {ObjectId} firmId - Firm ID for multi-tenant isolation
+   * @param {Object} firmQuery - Tenant filter from req.firmQuery (firmId or lawyerId)
    * @returns {Object} - Task with all subtasks
    */
-  async getTaskHierarchy(taskId, firmId = null) {
+  async getTaskHierarchy(taskId, firmQuery = {}) {
     try {
-      // SECURITY: Build query with firmId for multi-tenant isolation
-      const query = { _id: taskId };
-      if (firmId) {
-        query.firmId = firmId;
-      }
+      // SECURITY: Build query with firmQuery spread (gold standard pattern)
+      const query = { _id: taskId, ...firmQuery };
       const task = await Task.findOne(query)
         .populate('assignedTo', 'name email avatar')
         .populate('caseId', 'title caseNumber')
@@ -260,18 +257,15 @@ class GanttService {
         throw new Error('Task not found');
       }
 
-      // SECURITY: Find child tasks with firmId filter
-      const childQuery = { parentTaskId: taskId };
-      if (firmId) {
-        childQuery.firmId = firmId;
-      }
+      // SECURITY: Find child tasks with firmQuery filter
+      const childQuery = { parentTaskId: taskId, ...firmQuery };
       const children = await Task.find(childQuery)
         .populate('assignedTo', 'name email avatar')
         .lean();
 
       // Recursively get children's hierarchies
       const childrenWithHierarchy = await Promise.all(
-        children.map(child => this.getTaskHierarchy(child._id, firmId))
+        children.map(child => this.getTaskHierarchy(child._id, firmQuery))
       );
 
       task.children = childrenWithHierarchy;
@@ -403,15 +397,13 @@ class GanttService {
   /**
    * Adjust task dates based on dependencies
    * @param {ObjectId} taskId - Task ID
-   * @param {ObjectId} firmId - Firm ID for multi-tenant isolation
+   * @param {Object} firmQuery - Tenant filter from req.firmQuery (gold standard)
    * @returns {Object} - Updated task
    */
-  async adjustForDependencies(taskId, firmId = null) {
+  async adjustForDependencies(taskId, firmQuery = {}) {
     try {
-      const query = { _id: taskId };
-      if (firmId) {
-        query.firmId = firmId;
-      }
+      // SECURITY: Use firmQuery spread pattern (gold standard)
+      const query = { _id: taskId, ...firmQuery };
       const task = await Task.findOne(query);
       if (!task) {
         throw new Error('Task not found');
@@ -649,15 +641,13 @@ class GanttService {
   /**
    * Calculate slack time for a task
    * @param {ObjectId} taskId - Task ID
-   * @param {ObjectId} firmId - Firm ID for multi-tenant isolation
+   * @param {Object} firmQuery - Tenant filter from req.firmQuery (gold standard)
    * @returns {Number} - Slack time in days
    */
-  async calculateSlackTime(taskId, firmId = null) {
+  async calculateSlackTime(taskId, firmQuery = {}) {
     try {
-      const query = { _id: taskId };
-      if (firmId) {
-        query.firmId = firmId;
-      }
+      // SECURITY: Use firmQuery spread pattern (gold standard)
+      const query = { _id: taskId, ...firmQuery };
       const task = await Task.findOne(query).lean();
       if (!task) {
         throw new Error('Task not found');
@@ -802,13 +792,14 @@ class GanttService {
 
   /**
    * Get resource allocation over time
-   * @param {ObjectId} firmId - Firm ID
+   * @param {Object} firmQuery - Tenant filter from req.firmQuery (gold standard)
    * @param {Object} dateRange - { start, end }
    * @returns {Object} - Resource allocation data
    */
-  async getResourceAllocation(firmId, dateRange) {
+  async getResourceAllocation(firmQuery = {}, dateRange) {
     try {
-      const query = { firmId, assignedTo: { $ne: null } };
+      // SECURITY: Use firmQuery spread pattern (gold standard)
+      const query = { ...firmQuery, assignedTo: { $ne: null } };
 
       if (dateRange) {
         query.$or = [
@@ -999,23 +990,23 @@ class GanttService {
   /**
    * Suggest optimal assignment for a task
    * @param {ObjectId} taskId - Task ID
-   * @param {ObjectId} firmId - Firm ID for multi-tenant isolation
+   * @param {Object} firmQuery - Tenant filter from req.firmQuery (gold standard)
    * @returns {Array} - Suggested assignees sorted by availability
    */
-  async suggestOptimalAssignment(taskId, firmId = null) {
+  async suggestOptimalAssignment(taskId, firmQuery = {}) {
     try {
-      const query = { _id: taskId };
-      if (firmId) {
-        query.firmId = firmId;
-      }
+      // SECURITY: Use firmQuery spread pattern (gold standard)
+      const query = { _id: taskId, ...firmQuery };
       const task = await Task.findOne(query).lean();
       if (!task) {
         throw new Error('Task not found');
       }
 
-      // Get all users in the firm
+      // Get all users in the firm/for solo lawyer
       const User = mongoose.model('User');
-      const users = await User.find({ firmId: task.firmId }).select('_id name email avatar').lean();
+      // For solo lawyers, task.lawyerId is set, for firms task.firmId is set
+      const userQuery = task.firmId ? { firmId: task.firmId } : { _id: task.lawyerId };
+      const users = await User.find(userQuery).select('_id name email avatar').lean();
 
       // Calculate workload for each user
       const suggestions = [];
@@ -1056,14 +1047,14 @@ class GanttService {
 
   /**
    * Create dependency between tasks
-   * SECURITY: Requires firmId for multi-tenant isolation
+   * SECURITY: Requires firmQuery for multi-tenant isolation (gold standard)
    * @param {ObjectId} sourceId - Source task ID
    * @param {ObjectId} targetId - Target task ID
    * @param {Number} type - 0=FS, 1=SS, 2=FF, 3=SF
-   * @param {ObjectId} firmId - Firm ID for multi-tenant isolation
+   * @param {Object} firmQuery - Tenant filter from req.firmQuery (gold standard)
    * @returns {Object} - Updated tasks
    */
-  async createDependency(sourceId, targetId, type = 0, firmId = null) {
+  async createDependency(sourceId, targetId, type = 0, firmQuery = {}) {
     try {
       // Validate dependency
       const isValid = await this.validateDependency(sourceId, targetId);
@@ -1071,13 +1062,9 @@ class GanttService {
         throw new Error('Invalid dependency: would create circular reference');
       }
 
-      // SECURITY: Build query with firmId for multi-tenant isolation
-      const sourceQuery = { _id: sourceId };
-      const targetQuery = { _id: targetId };
-      if (firmId) {
-        sourceQuery.firmId = firmId;
-        targetQuery.firmId = firmId;
-      }
+      // SECURITY: Build query with firmQuery spread (gold standard pattern)
+      const sourceQuery = { _id: sourceId, ...firmQuery };
+      const targetQuery = { _id: targetId, ...firmQuery };
 
       // Get both tasks
       const sourceTask = await Task.findOne(sourceQuery);
@@ -1118,7 +1105,7 @@ class GanttService {
       await targetTask.save();
 
       // Recalculate target task dates
-      await this.adjustForDependencies(targetId, firmId);
+      await this.adjustForDependencies(targetId, firmQuery);
 
       return { sourceTask, targetTask };
     } catch (error) {
@@ -1129,21 +1116,17 @@ class GanttService {
 
   /**
    * Remove dependency between tasks
-   * SECURITY: Requires firmId for multi-tenant isolation
+   * SECURITY: Requires firmQuery for multi-tenant isolation (gold standard)
    * @param {ObjectId} sourceId - Source task ID
    * @param {ObjectId} targetId - Target task ID
-   * @param {ObjectId} firmId - Firm ID for multi-tenant isolation
+   * @param {Object} firmQuery - Tenant filter from req.firmQuery (gold standard)
    * @returns {Object} - Updated tasks
    */
-  async removeDependency(sourceId, targetId, firmId = null) {
+  async removeDependency(sourceId, targetId, firmQuery = {}) {
     try {
-      // SECURITY: Build query with firmId for multi-tenant isolation
-      const sourceQuery = { _id: sourceId };
-      const targetQuery = { _id: targetId };
-      if (firmId) {
-        sourceQuery.firmId = firmId;
-        targetQuery.firmId = firmId;
-      }
+      // SECURITY: Build query with firmQuery spread (gold standard pattern)
+      const sourceQuery = { _id: sourceId, ...firmQuery };
+      const targetQuery = { _id: targetId, ...firmQuery };
 
       const sourceTask = await Task.findOne(sourceQuery);
       const targetTask = await Task.findOne(targetQuery);
@@ -1233,15 +1216,13 @@ class GanttService {
   /**
    * Get dependency chain for a task
    * @param {ObjectId} taskId - Task ID
-   * @param {ObjectId} firmId - Firm ID for multi-tenant isolation
+   * @param {Object} firmQuery - Tenant filter from req.firmQuery (gold standard)
    * @returns {Object} - Dependency chain
    */
-  async getDependencyChain(taskId, firmId = null) {
+  async getDependencyChain(taskId, firmQuery = {}) {
     try {
-      const query = { _id: taskId };
-      if (firmId) {
-        query.firmId = firmId;
-      }
+      // SECURITY: Use firmQuery spread pattern (gold standard)
+      const query = { _id: taskId, ...firmQuery };
       const task = await Task.findOne(query).populate('blocks blockedBy').lean();
 
       if (!task) {
@@ -1252,7 +1233,7 @@ class GanttService {
       const dependents = await this.getRecursiveDependents(taskId);
 
       // Get tasks this task depends on (recursively)
-      const dependencies = await this.getRecursiveDependencies(taskId, new Set(), firmId);
+      const dependencies = await this.getRecursiveDependencies(taskId, new Set(), firmQuery);
 
       return {
         task: {
@@ -1305,27 +1286,25 @@ class GanttService {
    * Get recursive dependencies
    * @param {ObjectId} taskId - Task ID
    * @param {Set} visited - Visited tasks
-   * @param {ObjectId} firmId - Firm ID for multi-tenant isolation
+   * @param {Object} firmQuery - Tenant filter from req.firmQuery (gold standard)
    * @returns {Array} - Dependency tasks
    */
-  async getRecursiveDependencies(taskId, visited = new Set(), firmId = null) {
+  async getRecursiveDependencies(taskId, visited = new Set(), firmQuery = {}) {
     if (visited.has(taskId.toString())) {
       return [];
     }
 
     visited.add(taskId.toString());
 
-    const query = { _id: taskId };
-    if (firmId) {
-      query.firmId = firmId;
-    }
+    // SECURITY: Use firmQuery spread pattern (gold standard)
+    const query = { _id: taskId, ...firmQuery };
     const task = await Task.findOne(query).select('blockedBy').lean();
 
     if (!task || !task.blockedBy || task.blockedBy.length === 0) {
       return [];
     }
 
-    const dependencies = await Task.find({ _id: { $in: task.blockedBy } })
+    const dependencies = await Task.find({ _id: { $in: task.blockedBy }, ...firmQuery })
       .select('_id title status')
       .lean();
 
@@ -1338,7 +1317,7 @@ class GanttService {
         status: dep.status
       });
 
-      const childDeps = await this.getRecursiveDependencies(dep._id, visited, firmId);
+      const childDeps = await this.getRecursiveDependencies(dep._id, visited, firmQuery);
       result.push(...childDeps);
     }
 
@@ -1351,20 +1330,17 @@ class GanttService {
 
   /**
    * Update task dates (from drag-drop)
-   * SECURITY: Requires firmId for multi-tenant isolation
+   * SECURITY: Requires firmQuery for multi-tenant isolation (gold standard)
    * @param {ObjectId} taskId - Task ID
    * @param {Date} startDate - New start date
    * @param {Date} endDate - New end date
-   * @param {ObjectId} firmId - Firm ID for multi-tenant isolation
+   * @param {Object} firmQuery - Tenant filter from req.firmQuery (gold standard)
    * @returns {Object} - Updated task
    */
-  async updateTaskDates(taskId, startDate, endDate, firmId = null) {
+  async updateTaskDates(taskId, startDate, endDate, firmQuery = {}) {
     try {
-      // SECURITY: Build query with firmId for multi-tenant isolation
-      const query = { _id: taskId };
-      if (firmId) {
-        query.firmId = firmId;
-      }
+      // SECURITY: Build query with firmQuery spread (gold standard pattern)
+      const query = { _id: taskId, ...firmQuery };
       const task = await Task.findOne(query);
       if (!task) {
         throw new Error('Task not found');
@@ -1376,7 +1352,7 @@ class GanttService {
       await task.save();
 
       // Propagate changes to dependent tasks
-      await this.propagateDateChanges(taskId, 'date', firmId);
+      await this.propagateDateChanges(taskId, 'date', firmQuery);
 
       return task;
     } catch (error) {
@@ -1387,19 +1363,16 @@ class GanttService {
 
   /**
    * Update task duration
-   * SECURITY: Requires firmId for multi-tenant isolation
+   * SECURITY: Requires firmQuery for multi-tenant isolation (gold standard)
    * @param {ObjectId} taskId - Task ID
    * @param {Number} duration - New duration in days
-   * @param {ObjectId} firmId - Firm ID for multi-tenant isolation
+   * @param {Object} firmQuery - Tenant filter from req.firmQuery (gold standard)
    * @returns {Object} - Updated task
    */
-  async updateTaskDuration(taskId, duration, firmId = null) {
+  async updateTaskDuration(taskId, duration, firmQuery = {}) {
     try {
-      // SECURITY: Build query with firmId for multi-tenant isolation
-      const query = { _id: taskId };
-      if (firmId) {
-        query.firmId = firmId;
-      }
+      // SECURITY: Build query with firmQuery spread (gold standard pattern)
+      const query = { _id: taskId, ...firmQuery };
       const task = await Task.findOne(query);
       if (!task) {
         throw new Error('Task not found');
@@ -1413,7 +1386,7 @@ class GanttService {
       await task.save();
 
       // Propagate changes
-      await this.propagateDateChanges(taskId, 'duration', firmId);
+      await this.propagateDateChanges(taskId, 'duration', firmQuery);
 
       return task;
     } catch (error) {
@@ -1424,19 +1397,16 @@ class GanttService {
 
   /**
    * Update task progress
-   * SECURITY: Requires firmId for multi-tenant isolation
+   * SECURITY: Requires firmQuery for multi-tenant isolation (gold standard)
    * @param {ObjectId} taskId - Task ID
    * @param {Number} progress - Progress (0-100)
-   * @param {ObjectId} firmId - Firm ID for multi-tenant isolation
+   * @param {Object} firmQuery - Tenant filter from req.firmQuery (gold standard)
    * @returns {Object} - Updated task
    */
-  async updateTaskProgress(taskId, progress, firmId = null) {
+  async updateTaskProgress(taskId, progress, firmQuery = {}) {
     try {
-      // SECURITY: Build query with firmId for multi-tenant isolation
-      const query = { _id: taskId };
-      if (firmId) {
-        query.firmId = firmId;
-      }
+      // SECURITY: Build query with firmQuery spread (gold standard pattern)
+      const query = { _id: taskId, ...firmQuery };
       const task = await Task.findOne(query);
       if (!task) {
         throw new Error('Task not found');
@@ -1456,19 +1426,16 @@ class GanttService {
 
   /**
    * Update task parent (move in hierarchy)
-   * SECURITY: Requires firmId for multi-tenant isolation
+   * SECURITY: Requires firmQuery for multi-tenant isolation (gold standard)
    * @param {ObjectId} taskId - Task ID
    * @param {ObjectId} newParentId - New parent task ID (null for root)
-   * @param {ObjectId} firmId - Firm ID for multi-tenant isolation
+   * @param {Object} firmQuery - Tenant filter from req.firmQuery (gold standard)
    * @returns {Object} - Updated task
    */
-  async updateTaskParent(taskId, newParentId, firmId = null) {
+  async updateTaskParent(taskId, newParentId, firmQuery = {}) {
     try {
-      // SECURITY: Build query with firmId for multi-tenant isolation
-      const query = { _id: taskId };
-      if (firmId) {
-        query.firmId = firmId;
-      }
+      // SECURITY: Build query with firmQuery spread (gold standard pattern)
+      const query = { _id: taskId, ...firmQuery };
       const task = await Task.findOne(query);
       if (!task) {
         throw new Error('Task not found');
@@ -1476,11 +1443,8 @@ class GanttService {
 
       // Validate new parent exists
       if (newParentId && newParentId !== 'null' && newParentId !== null) {
-        // SECURITY: Parent must be in same firm
-        const parentQuery = { _id: newParentId };
-        if (firmId) {
-          parentQuery.firmId = firmId;
-        }
+        // SECURITY: Parent must be in same tenant (use firmQuery)
+        const parentQuery = { _id: newParentId, ...firmQuery };
         const newParent = await Task.findOne(parentQuery);
         if (!newParent) {
           throw new Error('New parent task not found');
@@ -1537,12 +1501,13 @@ class GanttService {
    * Auto-schedule all tasks in a project
    * @param {ObjectId} projectId - Project/Case ID
    * @param {Date} startDate - Project start date
-   * @param {ObjectId} firmId - Firm ID for multi-tenant isolation
+   * @param {Object} firmQuery - Tenant filter from req.firmQuery (gold standard)
    * @returns {Array} - Updated tasks
    */
-  async autoSchedule(projectId, startDate, firmId = null) {
+  async autoSchedule(projectId, startDate, firmQuery = {}) {
     try {
-      const tasks = await Task.find({ caseId: projectId }).lean();
+      // SECURITY: Use firmQuery spread pattern (gold standard)
+      const tasks = await Task.find({ caseId: projectId, ...firmQuery }).lean();
 
       if (tasks.length === 0) {
         return [];
@@ -1618,11 +1583,8 @@ class GanttService {
           endDate: taskEndDate
         });
 
-        // Update task in database
-        const updateQuery = { _id: currentId };
-        if (firmId) {
-          updateQuery.firmId = firmId;
-        }
+        // Update task in database (use firmQuery for tenant isolation)
+        const updateQuery = { _id: currentId, ...firmQuery };
         await Task.findOneAndUpdate(updateQuery, {
           startDate: taskStartDate,
           dueDate: taskEndDate
@@ -1642,8 +1604,8 @@ class GanttService {
         });
       }
 
-      // Return updated tasks
-      return await Task.find({ caseId: projectId }).lean();
+      // Return updated tasks (use firmQuery for tenant isolation)
+      return await Task.find({ caseId: projectId, ...firmQuery }).lean();
     } catch (error) {
       logger.error('Error in autoSchedule:', error);
       throw error;
@@ -1653,13 +1615,14 @@ class GanttService {
   /**
    * Level resources (redistribute tasks to avoid overallocation)
    * @param {ObjectId} projectId - Project/Case ID
-   * @param {ObjectId} firmId - Firm ID for multi-tenant isolation
+   * @param {Object} firmQuery - Tenant filter from req.firmQuery (gold standard)
    * @returns {Array} - Updated tasks
    */
-  async levelResources(projectId, firmId = null) {
+  async levelResources(projectId, firmQuery = {}) {
     try {
       // This is a complex algorithm - simplified version
-      const tasks = await Task.find({ caseId: projectId }).populate('assignedTo').lean();
+      // SECURITY: Use firmQuery spread pattern (gold standard)
+      const tasks = await Task.find({ caseId: projectId, ...firmQuery }).populate('assignedTo').lean();
 
       // Get all assignees
       const assignees = new Set();
@@ -1681,11 +1644,8 @@ class GanttService {
           // Try to reschedule conflicting tasks
           for (const conflict of conflicts.conflicts) {
             for (const conflictTask of conflict.tasks) {
-              // Find alternative dates or assignees
-              const taskQuery = { _id: conflictTask.id };
-              if (firmId) {
-                taskQuery.firmId = firmId;
-              }
+              // Find alternative dates or assignees (use firmQuery for tenant isolation)
+              const taskQuery = { _id: conflictTask.id, ...firmQuery };
               const task = await Task.findOne(taskQuery);
               if (task && !task.blockedBy?.length) {
                 // Task has no dependencies, can be moved
@@ -1699,7 +1659,8 @@ class GanttService {
         }
       }
 
-      return await Task.find({ caseId: projectId }).lean();
+      // Return updated tasks (use firmQuery for tenant isolation)
+      return await Task.find({ caseId: projectId, ...firmQuery }).lean();
     } catch (error) {
       logger.error('Error in levelResources:', error);
       throw error;
