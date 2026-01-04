@@ -380,13 +380,20 @@ eventSchema.index({ 'attendees.userId': 1, startDateTime: 1 });
 eventSchema.index({ 'recurrence.enabled': 1, 'recurrence.nextOccurrence': 1 });
 eventSchema.index({ title: 'text', description: 'text' });
 
-// Generate event ID before saving
+// Generate event ID before saving (tenant-scoped)
 eventSchema.pre('save', async function(next) {
     if (!this.eventId) {
         const date = new Date();
         const year = date.getFullYear();
         const month = String(date.getMonth() + 1).padStart(2, '0');
+
+        // Build tenant-scoped query for per-tenant ID generation (gold standard)
+        const tenantQuery = {};
+        if (this.firmId) tenantQuery.firmId = this.firmId;
+        else if (this.lawyerId) tenantQuery.lawyerId = this.lawyerId;
+
         const count = await this.constructor.countDocuments({
+            ...tenantQuery,
             createdAt: {
                 $gte: new Date(year, date.getMonth(), 1),
                 $lt: new Date(year, date.getMonth() + 1, 1)
@@ -525,13 +532,15 @@ eventSchema.statics.getCalendarEvents = async function(userId, startDate, endDat
         .sort({ startDateTime: 1 });
 };
 
-// Static method: Get upcoming events
-eventSchema.statics.getUpcoming = async function(userId, days = 7) {
+// Static method: Get upcoming events (with tenant isolation)
+eventSchema.statics.getUpcoming = async function(userId, days = 7, firmQuery = {}) {
     const now = new Date();
     const future = new Date();
     future.setDate(future.getDate() + days);
 
-    return await this.find({
+    // Build tenant-scoped query
+    const query = {
+        ...firmQuery,
         $or: [
             { createdBy: new mongoose.Types.ObjectId(userId) },
             { organizer: new mongoose.Types.ObjectId(userId) },
@@ -539,7 +548,9 @@ eventSchema.statics.getUpcoming = async function(userId, days = 7) {
         ],
         startDateTime: { $gte: now, $lte: future },
         status: { $in: ['scheduled', 'confirmed'] }
-    })
+    };
+
+    return await this.find(query)
     .populate('caseId', 'title caseNumber')
     .populate('clientId', 'firstName lastName')
     .sort({ startDateTime: 1 });
@@ -626,20 +637,30 @@ eventSchema.statics.getStats = async function(userId, filters = {}) {
     };
 };
 
-// Static method: Check availability
-eventSchema.statics.checkAvailability = async function(userIds, startDateTime, endDateTime, excludeEventId = null) {
+// Static method: Check availability (with tenant isolation)
+eventSchema.statics.checkAvailability = async function(userIds, startDateTime, endDateTime, excludeEventId = null, firmQuery = {}) {
+    // Build tenant-scoped query
     const query = {
-        $or: userIds.map(id => ({
-            $or: [
-                { organizer: new mongoose.Types.ObjectId(id) },
-                { 'attendees.userId': new mongoose.Types.ObjectId(id) }
-            ]
-        })),
+        ...firmQuery,
         status: { $in: ['scheduled', 'confirmed'] },
-        $or: [
-            { startDateTime: { $lt: endDateTime, $gte: startDateTime } },
-            { endDateTime: { $gt: startDateTime, $lte: endDateTime } },
-            { startDateTime: { $lte: startDateTime }, endDateTime: { $gte: endDateTime } }
+        $and: [
+            // User filter
+            {
+                $or: userIds.map(id => ({
+                    $or: [
+                        { organizer: new mongoose.Types.ObjectId(id) },
+                        { 'attendees.userId': new mongoose.Types.ObjectId(id) }
+                    ]
+                }))
+            },
+            // Time overlap filter
+            {
+                $or: [
+                    { startDateTime: { $lt: endDateTime, $gte: startDateTime } },
+                    { endDateTime: { $gt: startDateTime, $lte: endDateTime } },
+                    { startDateTime: { $lte: startDateTime }, endDateTime: { $gte: endDateTime } }
+                ]
+            }
         ]
     };
 

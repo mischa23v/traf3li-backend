@@ -64,7 +64,6 @@ const validateFutureDate = (date, allowPast = false) => {
  */
 const createEvent = asyncHandler(async (req, res) => {
     const userId = req.userID;
-    const firmId = req.firmId; // From firmFilter middleware
 
     // Block departed users from creating events
     if (req.isDeparted) {
@@ -103,17 +102,18 @@ const createEvent = asyncHandler(async (req, res) => {
         notes
     } = sanitizedData;
 
-    // IDOR Protection: Validate case access if provided
+    // IDOR Protection: Validate case access if provided - use req.firmQuery for tenant isolation
     if (caseId) {
-        const caseDoc = await Case.findOne({ _id: caseId, firmId });
+        const caseDoc = await Case.findOne({ _id: caseId, ...req.firmQuery });
         if (!caseDoc) {
             throw CustomException('Case not found or you do not have access', 404);
         }
     }
 
     // IDOR Protection: Validate client access if provided
+    // User lookups by ID are safe (users are global within same firm context)
     if (clientId) {
-        const clientDoc = await User.findOne({ _id: clientId, firmId });
+        const clientDoc = await User.findById(clientId);
         if (!clientDoc) {
             throw CustomException('Client not found or you do not have access', 404);
         }
@@ -125,8 +125,8 @@ const createEvent = asyncHandler(async (req, res) => {
     validateDateRange(parsedStartDateTime, parsedEndDateTime);
     validateFutureDate(parsedStartDateTime, false); // Prevent past dates for new events
 
-    // Create event with defaults for optional fields
-    const event = await Event.create({
+    // Create event with req.addFirmId() for proper tenant isolation
+    const event = await Event.create(req.addFirmId({
         title,
         type,
         description,
@@ -138,7 +138,6 @@ const createEvent = asyncHandler(async (req, res) => {
         caseId,
         clientId,
         organizer: userId,
-        firmId, // Add firmId for multi-tenancy
         attendees,
         agenda,
         reminders,
@@ -149,7 +148,7 @@ const createEvent = asyncHandler(async (req, res) => {
         tags,
         notes,
         createdBy: userId
-    });
+    }));
 
     // Create default reminders if none provided
     if (!reminders || reminders.length === 0) {
@@ -252,7 +251,6 @@ const getEvents = asyncHandler(async (req, res) => {
     } = req.query;
 
     const userId = req.userID;
-    const firmId = req.firmId; // From firmFilter middleware
     const isDeparted = req.isDeparted; // From firmFilter middleware
 
     // Build base query - use req.firmQuery for proper tenant isolation
@@ -405,15 +403,14 @@ const getEvents = asyncHandler(async (req, res) => {
  */
 const getEvent = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const userId = req.userID;
-    const firmId = req.firmId; // From firmFilter middleware
 
     // IDOR Protection: Validate ID format before query
     if (!id || id.length !== 24 || !/^[0-9a-fA-F]{24}$/.test(id)) {
         throw CustomException('Invalid event ID format', 400);
     }
 
-    const event = await Event.findOne({ _id: id, firmId })
+    // Use req.firmQuery for proper tenant isolation (solo + firm)
+    const event = await Event.findOne({ _id: id, ...req.firmQuery })
         .populate('organizer', 'firstName lastName image email')
         .populate('attendees.userId', 'firstName lastName image email')
         .populate('caseId', 'title caseNumber category')
@@ -442,14 +439,14 @@ const getEvent = asyncHandler(async (req, res) => {
 const updateEvent = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
-    const firmId = req.firmId; // From firmFilter middleware
 
     // Block departed users from updating
     if (req.isDeparted) {
         throw CustomException('لم يعد لديك صلاحية تعديل المواعيد', 403);
     }
 
-    const event = await Event.findOne({ _id: id, firmId });
+    // Use req.firmQuery for proper tenant isolation (solo + firm)
+    const event = await Event.findOne({ _id: id, ...req.firmQuery });
 
     if (!event) {
         throw CustomException('Event not found', 404);
@@ -485,17 +482,18 @@ const updateEvent = asyncHandler(async (req, res) => {
         validateDateRange(startDate, endDate);
     }
 
-    // IDOR Protection: Validate case access if provided
-    if (sanitizedData.caseId && sanitizedData.caseId !== event.caseId.toString()) {
-        const caseDoc = await Case.findOne({ _id: sanitizedData.caseId, firmId });
+    // IDOR Protection: Validate case access if provided - use req.firmQuery for tenant isolation
+    if (sanitizedData.caseId && sanitizedData.caseId !== event.caseId?.toString()) {
+        const caseDoc = await Case.findOne({ _id: sanitizedData.caseId, ...req.firmQuery });
         if (!caseDoc) {
             throw CustomException('Case not found or you do not have access', 404);
         }
     }
 
     // IDOR Protection: Validate client access if provided
-    if (sanitizedData.clientId && sanitizedData.clientId !== event.clientId.toString()) {
-        const clientDoc = await User.findOne({ _id: sanitizedData.clientId, firmId });
+    // User lookups by ID are safe (users are global within same firm context)
+    if (sanitizedData.clientId && sanitizedData.clientId !== event.clientId?.toString()) {
+        const clientDoc = await User.findById(sanitizedData.clientId);
         if (!clientDoc) {
             throw CustomException('Client not found or you do not have access', 404);
         }
@@ -509,7 +507,8 @@ const updateEvent = asyncHandler(async (req, res) => {
     // Sync with linked task if exists
     if (event.taskId) {
         try {
-            const linkedTask = await Task.findOne({ _id: event.taskId, firmId });
+            // Use req.firmQuery for proper tenant isolation
+            const linkedTask = await Task.findOne({ _id: event.taskId, ...req.firmQuery });
 
             if (linkedTask) {
                 // Update task fields
@@ -584,9 +583,9 @@ const updateEvent = asyncHandler(async (req, res) => {
 const deleteEvent = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
-    const firmId = req.firmId; // From firmFilter middleware
 
-    const event = await Event.findOne({ _id: id, firmId });
+    // Use req.firmQuery for proper tenant isolation (solo + firm)
+    const event = await Event.findOne({ _id: id, ...req.firmQuery });
 
     if (!event) {
         throw CustomException('Event not found', 404);
@@ -602,7 +601,8 @@ const deleteEvent = asyncHandler(async (req, res) => {
     // Handle linked task - unlink it instead of deleting to preserve task data
     if (event.taskId) {
         try {
-            const linkedTask = await Task.findOne({ _id: event.taskId, firmId });
+            // Use req.firmQuery for proper tenant isolation
+            const linkedTask = await Task.findOne({ _id: event.taskId, ...req.firmQuery });
             if (linkedTask) {
                 linkedTask.linkedEventId = null;
                 await linkedTask.save();
@@ -613,8 +613,8 @@ const deleteEvent = asyncHandler(async (req, res) => {
         }
     }
 
-    // IDOR protection: Include firmId in delete query
-    await Event.findOneAndDelete({ _id: id, firmId });
+    // IDOR protection: Include req.firmQuery in delete query
+    await Event.findOneAndDelete({ _id: id, ...req.firmQuery });
 
     res.status(200).json({
         success: true,
@@ -630,9 +630,9 @@ const cancelEvent = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { reason } = req.body;
     const userId = req.userID;
-    const firmId = req.firmId;
 
-    const event = await Event.findOne({ _id: id, firmId });
+    // Use req.firmQuery for proper tenant isolation (solo + firm)
+    const event = await Event.findOne({ _id: id, ...req.firmQuery });
 
     if (!event) {
         throw CustomException('Event not found', 404);
@@ -667,13 +667,13 @@ const postponeEvent = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { newDateTime, reason } = req.body;
     const userId = req.userID;
-    const firmId = req.firmId;
 
     if (!newDateTime) {
         throw CustomException('New date/time is required', 400);
     }
 
-    const event = await Event.findOne({ _id: id, firmId });
+    // Use req.firmQuery for proper tenant isolation (solo + firm)
+    const event = await Event.findOne({ _id: id, ...req.firmQuery });
 
     if (!event) {
         throw CustomException('Event not found', 404);
@@ -713,9 +713,9 @@ const completeEvent = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { minutesNotes } = req.body;
     const userId = req.userID;
-    const firmId = req.firmId; // SECURITY: Added firmId for multi-tenant isolation
 
-    const event = await Event.findOne({ _id: id, firmId });
+    // Use req.firmQuery for proper tenant isolation (solo + firm)
+    const event = await Event.findOne({ _id: id, ...req.firmQuery });
 
     if (!event) {
         throw CustomException('Event not found', 404);
@@ -758,9 +758,9 @@ const addAttendee = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { userId: attendeeUserId, email, name, role, isRequired } = req.body;
     const userId = req.userID;
-    const firmId = req.firmId; // SECURITY: Added firmId for multi-tenant isolation
 
-    const event = await Event.findOne({ _id: id, firmId });
+    // Use req.firmQuery for proper tenant isolation (solo + firm)
+    const event = await Event.findOne({ _id: id, ...req.firmQuery });
 
     if (!event) {
         throw CustomException('Event not found', 404);
@@ -805,9 +805,9 @@ const addAttendee = asyncHandler(async (req, res) => {
 const removeAttendee = asyncHandler(async (req, res) => {
     const { id, attendeeId } = req.params;
     const userId = req.userID;
-    const firmId = req.firmId; // SECURITY: Added firmId for multi-tenant isolation
 
-    const event = await Event.findOne({ _id: id, firmId });
+    // Use req.firmQuery for proper tenant isolation (solo + firm)
+    const event = await Event.findOne({ _id: id, ...req.firmQuery });
 
     if (!event) {
         throw CustomException('Event not found', 404);
@@ -834,13 +834,13 @@ const rsvpEvent = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { status, responseNote } = req.body;
     const userId = req.userID;
-    const firmId = req.firmId; // SECURITY: Added firmId for multi-tenant isolation
 
     if (!status || !['confirmed', 'declined', 'tentative'].includes(status)) {
         throw CustomException('Valid RSVP status is required (confirmed, declined, tentative)', 400);
     }
 
-    const event = await Event.findOne({ _id: id, firmId });
+    // Use req.firmQuery for proper tenant isolation (solo + firm)
+    const event = await Event.findOne({ _id: id, ...req.firmQuery });
 
     if (!event) {
         throw CustomException('Event not found', 404);
@@ -876,9 +876,9 @@ const addAgendaItem = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { title, description, duration, presenter, notes } = req.body;
     const userId = req.userID;
-    const firmId = req.firmId; // SECURITY: Added firmId for multi-tenant isolation
 
-    const event = await Event.findOne({ _id: id, firmId });
+    // Use req.firmQuery for proper tenant isolation (solo + firm)
+    const event = await Event.findOne({ _id: id, ...req.firmQuery });
 
     if (!event) {
         throw CustomException('Event not found', 404);
@@ -915,9 +915,9 @@ const addAgendaItem = asyncHandler(async (req, res) => {
 const updateAgendaItem = asyncHandler(async (req, res) => {
     const { id, agendaId } = req.params;
     const userId = req.userID;
-    const firmId = req.firmId; // SECURITY: Added firmId for multi-tenant isolation
 
-    const event = await Event.findOne({ _id: id, firmId });
+    // Use req.firmQuery for proper tenant isolation (solo + firm)
+    const event = await Event.findOne({ _id: id, ...req.firmQuery });
 
     if (!event) {
         throw CustomException('Event not found', 404);
@@ -955,9 +955,9 @@ const updateAgendaItem = asyncHandler(async (req, res) => {
 const deleteAgendaItem = asyncHandler(async (req, res) => {
     const { id, agendaId } = req.params;
     const userId = req.userID;
-    const firmId = req.firmId; // SECURITY: Added firmId for multi-tenant isolation
 
-    const event = await Event.findOne({ _id: id, firmId });
+    // Use req.firmQuery for proper tenant isolation (solo + firm)
+    const event = await Event.findOne({ _id: id, ...req.firmQuery });
 
     if (!event) {
         throw CustomException('Event not found', 404);
@@ -986,9 +986,9 @@ const addActionItem = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { description, assignedTo, dueDate, priority } = req.body;
     const userId = req.userID;
-    const firmId = req.firmId;
 
-    const event = await Event.findOne({ _id: id, firmId });
+    // Use req.firmQuery for proper tenant isolation (solo + firm)
+    const event = await Event.findOne({ _id: id, ...req.firmQuery });
 
     if (!event) {
         throw CustomException('Event not found', 404);
@@ -1038,9 +1038,9 @@ const addActionItem = asyncHandler(async (req, res) => {
 const updateActionItem = asyncHandler(async (req, res) => {
     const { id, itemId } = req.params;
     const userId = req.userID;
-    const firmId = req.firmId;
 
-    const event = await Event.findOne({ _id: id, firmId });
+    // Use req.firmQuery for proper tenant isolation (solo + firm)
+    const event = await Event.findOne({ _id: id, ...req.firmQuery });
 
     if (!event) {
         throw CustomException('Event not found', 404);
@@ -1097,17 +1097,17 @@ const updateActionItem = asyncHandler(async (req, res) => {
 const getCalendarEvents = asyncHandler(async (req, res) => {
     const { startDate, endDate, caseId, type, status } = req.query;
     const userId = req.userID;
-    const firmId = req.firmId; // From firmFilter middleware
 
     if (!startDate || !endDate) {
         throw CustomException('Start date and end date are required', 400);
     }
 
+    // Pass req.firmQuery for proper tenant isolation
     const events = await Event.getCalendarEvents(
         userId,
         new Date(startDate),
         new Date(endDate),
-        { caseId, type, status, firmId }
+        { caseId, type, status, ...req.firmQuery }
     );
 
     res.status(200).json({
@@ -1124,9 +1124,9 @@ const getCalendarEvents = asyncHandler(async (req, res) => {
 const getUpcomingEvents = asyncHandler(async (req, res) => {
     const { days = 7 } = req.query;
     const userId = req.userID;
-    const firmId = req.firmId; // From firmFilter middleware
 
-    const events = await Event.getUpcoming(userId, parseInt(days), firmId);
+    // Pass req.firmQuery for proper tenant isolation
+    const events = await Event.getUpcoming(userId, parseInt(days), req.firmQuery);
 
     res.status(200).json({
         success: true,
@@ -1142,7 +1142,7 @@ const getUpcomingEvents = asyncHandler(async (req, res) => {
 const getEventsByDate = asyncHandler(async (req, res) => {
     const { date } = req.params;
     const userId = req.userID;
-    const firmId = req.firmId; // From firmFilter middleware
+    // firmQuery already set by middleware - used below in queries
 
     const startOfDay = new Date(date);
     startOfDay.setHours(0, 0, 0, 0);
@@ -1181,7 +1181,7 @@ const getEventsByDate = asyncHandler(async (req, res) => {
 const getEventsByMonth = asyncHandler(async (req, res) => {
     const { year, month } = req.params;
     const userId = req.userID;
-    const firmId = req.firmId; // From firmFilter middleware
+    // firmQuery already set by middleware - used below in queries
 
     const startDate = new Date(year, month - 1, 1);
     const endDate = new Date(year, month, 0, 23, 59, 59);
@@ -1218,16 +1218,9 @@ const getEventsByMonth = asyncHandler(async (req, res) => {
 const getEventStats = asyncHandler(async (req, res) => {
     const { startDate, endDate } = req.query;
     const userId = req.userID;
-    const firmId = req.firmId; // From firmFilter middleware
-    const isSoloLawyer = req.isSoloLawyer;
 
-    // Pass proper tenant context to model method
-    const filters = { startDate, endDate };
-    if (isSoloLawyer || !firmId) {
-        filters.lawyerId = userId;
-    } else {
-        filters.firmId = firmId;
-    }
+    // Pass proper tenant context to model method using req.firmQuery
+    const filters = { startDate, endDate, ...req.firmQuery };
 
     const stats = await Event.getStats(userId, filters);
 
@@ -1243,21 +1236,20 @@ const getEventStats = asyncHandler(async (req, res) => {
  */
 const checkAvailability = asyncHandler(async (req, res) => {
     const { userIds, startDateTime, endDateTime, excludeEventId } = req.body;
-    const firmId = req.firmId; // SECURITY: Added firmId for multi-tenant isolation
 
     if (!userIds || !startDateTime || !endDateTime) {
         throw CustomException('User IDs, start time, and end time are required', 400);
     }
 
-    // SECURITY: Verify requested users belong to same firm
-    if (firmId && userIds && userIds.length > 0) {
+    // SECURITY: Verify requested users belong to same tenant (firm or solo lawyer)
+    if (userIds && userIds.length > 0) {
         const User = require('../models/user.model');
         const validUsers = await User.countDocuments({
             _id: { $in: userIds },
-            firmId: firmId
+            ...req.firmQuery
         });
         if (validUsers !== userIds.length) {
-            throw CustomException('Cannot check availability for users outside your firm', 403);
+            throw CustomException('Cannot check availability for users outside your organization', 403);
         }
     }
 
@@ -1271,7 +1263,7 @@ const checkAvailability = asyncHandler(async (req, res) => {
         parsedStartDateTime,
         parsedEndDateTime,
         excludeEventId,
-        firmId // Pass firmId to model method
+        req.firmQuery // Pass firmQuery for proper tenant isolation
     );
 
     res.status(200).json({
@@ -1282,22 +1274,19 @@ const checkAvailability = asyncHandler(async (req, res) => {
 
 /**
  * Sync task to calendar (helper)
+ * Uses task's own firmId/lawyerId for tenant isolation
  */
-const syncTaskToCalendar = async (taskId, firmId = null) => {
+const syncTaskToCalendar = async (taskId, firmQuery = {}) => {
     try {
-        const taskQuery = { _id: taskId };
-        if (firmId) {
-            taskQuery.firmId = firmId;
-        }
-        const task = await Task.findOne(taskQuery);
+        const task = await Task.findOne({ _id: taskId, ...firmQuery });
         if (!task || !task.dueDate) return;
 
-        // SECURITY: Include firmId in query for multi-tenant isolation
-        const eventQuery = { taskId: task._id };
-        if (task.firmId) {
-            eventQuery.firmId = task.firmId;
-        }
-        const existingEvent = await Event.findOne(eventQuery);
+        // Build tenant query from task's own tenant context
+        const tenantQuery = {};
+        if (task.firmId) tenantQuery.firmId = task.firmId;
+        else if (task.lawyerId) tenantQuery.lawyerId = task.lawyerId;
+
+        const existingEvent = await Event.findOne({ taskId: task._id, ...tenantQuery });
 
         if (existingEvent) {
             existingEvent.title = task.title;
@@ -1306,7 +1295,8 @@ const syncTaskToCalendar = async (taskId, firmId = null) => {
             existingEvent.status = task.status === 'done' ? 'completed' : 'scheduled';
             await existingEvent.save();
         } else {
-            await Event.create({
+            // Use task's tenant context for new event
+            const eventData = {
                 title: task.title,
                 type: 'task',
                 description: task.description,
@@ -1317,8 +1307,10 @@ const syncTaskToCalendar = async (taskId, firmId = null) => {
                 organizer: task.createdBy,
                 createdBy: task.createdBy,
                 attendees: task.assignedTo ? [{ userId: task.assignedTo, status: 'confirmed', isRequired: true }] : [],
-                color: '#10b981'
-            });
+                color: '#10b981',
+                ...tenantQuery
+            };
+            await Event.create(eventData);
         }
     } catch (error) {
         logger.error('Error syncing task to calendar', { error: error.message });
@@ -1334,9 +1326,8 @@ const syncTaskToCalendar = async (taskId, firmId = null) => {
 const exportEventToICS = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
-    const firmId = req.firmId; // SECURITY: Added firmId for multi-tenant isolation
 
-    const event = await Event.findOne({ _id: id, firmId })
+    const event = await Event.findOne({ _id: id, ...req.firmQuery })
         .populate('organizer', 'firstName lastName email')
         .populate('attendees.userId', 'firstName lastName email')
         .populate('caseId', 'title caseNumber');
@@ -1666,7 +1657,6 @@ function sanitizeFilename(filename) {
 const createEventFromNaturalLanguage = asyncHandler(async (req, res) => {
     const { text } = req.body;
     const userId = req.userID;
-    const firmId = req.firmId;
 
     // Block departed users from creating events
     if (req.isDeparted) {
@@ -1692,15 +1682,15 @@ const createEventFromNaturalLanguage = asyncHandler(async (req, res) => {
 
     // IDOR Protection: Validate case access if provided
     if (eventData.caseId) {
-        const caseDoc = await Case.findOne({ _id: eventData.caseId, firmId });
+        const caseDoc = await Case.findOne({ _id: eventData.caseId, ...req.firmQuery });
         if (!caseDoc) {
             throw CustomException('Case not found or you do not have access', 404);
         }
     }
 
-    // IDOR Protection: Validate client access if provided
+    // Validate client access if provided (User lookup by ID is safe)
     if (eventData.clientId) {
-        const clientDoc = await User.findOne({ _id: eventData.clientId, firmId });
+        const clientDoc = await User.findById(eventData.clientId);
         if (!clientDoc) {
             throw CustomException('Client not found or you do not have access', 404);
         }
@@ -1716,16 +1706,11 @@ const createEventFromNaturalLanguage = asyncHandler(async (req, res) => {
     const attendeesArray = [];
     if (eventData.attendees && Array.isArray(eventData.attendees)) {
         for (const attendee of eventData.attendees) {
-            // Try to find user by name or email
-            // SECURITY: Only match users within the same firm to prevent cross-firm data exposure
+            // Try to find user by email
+            // SECURITY: Only match users within the same tenant to prevent cross-tenant data exposure
             let attendeeUserId = null;
             if (attendee.email) {
-                const userFilter = { email: attendee.email };
-                // Scope to same firm for multi-tenancy security
-                if (firmId) {
-                    userFilter.firmId = firmId;
-                }
-                const user = await User.findOne(userFilter);
+                const user = await User.findOne({ email: attendee.email, ...req.firmQuery });
                 if (user) attendeeUserId = user._id;
             }
 
@@ -1751,8 +1736,8 @@ const createEventFromNaturalLanguage = asyncHandler(async (req, res) => {
         };
     }
 
-    // Create the event
-    const event = await Event.create({
+    // Create the event using req.addFirmId for proper tenant isolation
+    const event = await Event.create(req.addFirmId({
         title: eventData.title,
         type: eventData.type || 'meeting',
         description: eventData.description || null,
@@ -1764,7 +1749,6 @@ const createEventFromNaturalLanguage = asyncHandler(async (req, res) => {
         caseId: eventData.caseId || null,
         clientId: eventData.clientId || null,
         organizer: userId,
-        firmId,
         attendees: attendeesArray,
         reminders: [],
         recurrence: { enabled: false },
@@ -1780,7 +1764,7 @@ const createEventFromNaturalLanguage = asyncHandler(async (req, res) => {
             parsingConfidence: confidence,
             tokensUsed: parseResult.tokensUsed
         }
-    });
+    }));
 
     // Create default reminders
     const start = parsedStartDateTime;
@@ -1829,7 +1813,6 @@ const createEventFromNaturalLanguage = asyncHandler(async (req, res) => {
 const createEventFromVoice = asyncHandler(async (req, res) => {
     const { transcription } = req.body;
     const userId = req.userID;
-    const firmId = req.firmId;
 
     // Block departed users from creating events
     if (req.isDeparted) {
@@ -1867,15 +1850,15 @@ const createEventFromVoice = asyncHandler(async (req, res) => {
 
     // IDOR Protection: Validate case access if provided
     if (formalizedData.caseId) {
-        const caseDoc = await Case.findOne({ _id: formalizedData.caseId, firmId });
+        const caseDoc = await Case.findOne({ _id: formalizedData.caseId, ...req.firmQuery });
         if (!caseDoc) {
             throw CustomException('Case not found or you do not have access', 404);
         }
     }
 
-    // IDOR Protection: Validate client access if provided
+    // Validate client access if provided (User lookup by ID is safe)
     if (formalizedData.clientId) {
-        const clientDoc = await User.findOne({ _id: formalizedData.clientId, firmId });
+        const clientDoc = await User.findById(formalizedData.clientId);
         if (!clientDoc) {
             throw CustomException('Client not found or you do not have access', 404);
         }
@@ -1891,15 +1874,10 @@ const createEventFromVoice = asyncHandler(async (req, res) => {
     const attendeesArray = [];
     if (formalizedData.attendees && Array.isArray(formalizedData.attendees)) {
         for (const attendee of formalizedData.attendees) {
-            // SECURITY: Only match users within the same firm to prevent cross-firm data exposure
+            // SECURITY: Only match users within the same tenant to prevent cross-tenant data exposure
             let attendeeUserId = null;
             if (attendee.email) {
-                const userFilter = { email: attendee.email };
-                // Scope to same firm for multi-tenancy security
-                if (firmId) {
-                    userFilter.firmId = firmId;
-                }
-                const user = await User.findOne(userFilter);
+                const user = await User.findOne({ email: attendee.email, ...req.firmQuery });
                 if (user) attendeeUserId = user._id;
             }
 
@@ -1925,8 +1903,8 @@ const createEventFromVoice = asyncHandler(async (req, res) => {
         };
     }
 
-    // Create the event
-    const event = await Event.create({
+    // Create the event using req.addFirmId for proper tenant isolation
+    const event = await Event.create(req.addFirmId({
         title: formalizedData.title,
         type: formalizedData.type || 'meeting',
         description: formalizedData.description || null,
@@ -1938,7 +1916,6 @@ const createEventFromVoice = asyncHandler(async (req, res) => {
         caseId: formalizedData.caseId || null,
         clientId: formalizedData.clientId || null,
         organizer: userId,
-        firmId,
         attendees: attendeesArray,
         reminders: [],
         recurrence: { enabled: false },
@@ -1955,7 +1932,7 @@ const createEventFromVoice = asyncHandler(async (req, res) => {
             parsingConfidence: confidence,
             validationWarnings: validation.warnings
         }
-    });
+    }));
 
     // Create default reminders
     const start = parsedStartDateTime;
