@@ -269,7 +269,7 @@ reminderSchema.pre('save', async function(next) {
                 $gte: new Date(year, date.getMonth(), 1),
                 $lt: new Date(year, date.getMonth() + 1, 1)
             }
-        });
+        }).setOptions({ bypassFirmFilter: true });
         this.reminderId = `REM-${year}${month}-${String(count + 1).padStart(4, '0')}`;
     }
 
