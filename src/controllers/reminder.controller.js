@@ -246,9 +246,16 @@ const getReminders = asyncHandler(async (req, res) => {
     };
     const query = { ...baseQuery };
 
-    if (status) query.status = status;
-    if (priority) query.priority = priority;
-    if (type) query.type = type;
+    // Handle array filters (frontend may send status[]=pending&status[]=snoozed)
+    if (status) {
+        query.status = Array.isArray(status) ? { $in: status } : status;
+    }
+    if (priority) {
+        query.priority = Array.isArray(priority) ? { $in: priority } : priority;
+    }
+    if (type) {
+        query.type = Array.isArray(type) ? { $in: type } : type;
+    }
     if (relatedCase) query.relatedCase = relatedCase;
     if (clientId) query.clientId = clientId;
 

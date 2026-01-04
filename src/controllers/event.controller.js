@@ -280,10 +280,15 @@ const getEvents = asyncHandler(async (req, res) => {
         if (endDate) query.startDateTime.$lte = new Date(endDate);
     }
 
-    if (type) query.type = type;
+    // Handle array filters (frontend may send type[]=meeting&type[]=hearing)
+    if (type) {
+        query.type = Array.isArray(type) ? { $in: type } : type;
+    }
     if (caseId) query.caseId = caseId;
     if (clientId) query.clientId = clientId;
-    if (status) query.status = status;
+    if (status) {
+        query.status = Array.isArray(status) ? { $in: status } : status;
+    }
 
     const sortOptions = {};
     sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
