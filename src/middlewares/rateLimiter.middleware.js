@@ -226,6 +226,49 @@ const searchRateLimiter = createRateLimiter({
   },
 });
 
+// ═══════════════════════════════════════════════════════════════
+// GOLD STANDARD: Search-aware rate limiter (AWS/Algolia/Elastic pattern)
+// ═══════════════════════════════════════════════════════════════
+// Search operations are inherently "bursty" (typing generates many requests)
+// Gold standard: Higher burst limits for search, separate from general API limits
+
+const authenticatedSearchRateLimiter = createRateLimiter({
+  windowMs: 1 * 60 * 1000, // 1 minute window
+  max: 120, // 120 searches/min for authenticated users (2/sec burst capacity)
+  keyGenerator: (req) => {
+    // Per-user search limit
+    return `search:${req.userID || req._rateLimitUserId || req.user?._id?.toString() || ipKeyGenerator(req)}`;
+  },
+  message: {
+    success: false,
+    error: 'بحث كثير جداً - أبطئ قليلاً',
+    error_en: 'Too many search requests - Slow down',
+    code: 'SEARCH_RATE_LIMIT_EXCEEDED',
+  },
+});
+
+const unauthenticatedSearchRateLimiter = createRateLimiter({
+  windowMs: 1 * 60 * 1000,
+  max: 20, // 20 searches/min for unauthenticated (stricter)
+  message: {
+    success: false,
+    error: 'بحث كثير جداً - أبطئ قليلاً',
+    error_en: 'Too many search requests - Slow down',
+    code: 'SEARCH_RATE_LIMIT_EXCEEDED',
+  },
+});
+
+/**
+ * Detect if request is a search operation
+ * Gold standard: Apply search limits to ANY endpoint with search params
+ * (AWS/Algolia pattern - operation-type-aware rate limiting)
+ */
+const isSearchOperation = (req) => {
+  // Check query params that indicate search
+  const searchParams = ['search', 'q', 'query', 'filter', 'keyword'];
+  return searchParams.some(param => req.query[param]);
+};
+
 const authenticatedRateLimiter = createRateLimiter({
   windowMs: 1 * 60 * 1000,
   max: 400,
@@ -254,6 +297,19 @@ const unauthenticatedRateLimiter = createRateLimiter({
   },
 });
 
+/**
+ * Smart Rate Limiter (Gold Standard: AWS/Algolia/Elastic pattern)
+ *
+ * Operation-type-aware rate limiting:
+ * - Search operations: Higher burst limits (typing generates many requests)
+ * - General API: Standard limits
+ * - Authenticated vs Unauthenticated: Different quotas
+ *
+ * This follows the gold standard pattern used by:
+ * - AWS API Gateway (operation-type throttling)
+ * - Algolia/Elastic (search-specific limits)
+ * - Google/Microsoft (per-operation quotas)
+ */
 const smartRateLimiter = (req, res, next) => {
   // Skip rate limiting for auth routes
   if (req.path.startsWith('/auth/') || req.path.startsWith('/api/auth/')) {
@@ -264,8 +320,21 @@ const smartRateLimiter = (req, res, next) => {
 
   if (userId) {
     req._rateLimitUserId = userId;
+
+    // Gold standard: Search operations get separate, higher limits
+    // (AWS/Algolia pattern - search is read-only and inherently bursty)
+    if (isSearchOperation(req)) {
+      return authenticatedSearchRateLimiter(req, res, next);
+    }
+
     return authenticatedRateLimiter(req, res, next);
   }
+
+  // Unauthenticated users
+  if (isSearchOperation(req)) {
+    return unauthenticatedSearchRateLimiter(req, res, next);
+  }
+
   return unauthenticatedRateLimiter(req, res, next);
 };
 
@@ -670,6 +739,11 @@ module.exports = {
   userRateLimiter,
   roleBasedRateLimiter,
   checkRateLimit,
+
+  // Gold standard: Search-aware rate limiters (AWS/Algolia pattern)
+  authenticatedSearchRateLimiter,
+  unauthenticatedSearchRateLimiter,
+  isSearchOperation,
 
   // Enhanced limiters
   globalRateLimiter,
