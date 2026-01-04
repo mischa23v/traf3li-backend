@@ -320,9 +320,11 @@ const indexDefinitions = [
             { keys: { blocks: 1 }, options: { name: 'idx_blocks', sparse: true } },
 
             // Full-text search
+            // Gold Standard: default_language: 'none' disables stop words (after, before, the, etc.)
+            // This ensures ALL words are searchable, not just non-stop words
             {
                 keys: { title: 'text', description: 'text', notes: 'text' },
-                options: { name: 'idx_task_textsearch' }
+                options: { name: 'idx_task_textsearch', default_language: 'none' }
             }
         ]
     },
