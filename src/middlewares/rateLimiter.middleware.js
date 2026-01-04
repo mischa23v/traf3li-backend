@@ -259,14 +259,47 @@ const unauthenticatedSearchRateLimiter = createRateLimiter({
 });
 
 /**
- * Detect if request is a search operation
- * Gold standard: Apply search limits to ANY endpoint with search params
- * (AWS/Algolia pattern - operation-type-aware rate limiting)
+ * Detect if request is a search/filter operation
+ * Gold standard: Apply search limits to ANY endpoint with search/filter params
+ * (AWS/Algolia/Elastic pattern - operation-type-aware rate limiting)
+ *
+ * Why this matters:
+ * - Search/filter operations are READ-ONLY (safe to allow more)
+ * - They're inherently "bursty" (typing, filtering UI interactions)
+ * - Users expect instant feedback when filtering lists
+ *
+ * Covers: /tasks, /reminders, /events, /cases, /clients, /leads, etc.
  */
 const isSearchOperation = (req) => {
-  // Check query params that indicate search
-  const searchParams = ['search', 'q', 'query', 'filter', 'keyword'];
-  return searchParams.some(param => req.query[param]);
+  // Only GET requests can be search operations (gold standard: read vs write distinction)
+  if (req.method !== 'GET') {
+    return false;
+  }
+
+  // Text search params (direct search)
+  const textSearchParams = ['search', 'q', 'query', 'keyword', 'text'];
+
+  // Filter params that indicate list filtering (tasks, reminders, events, etc.)
+  const filterParams = [
+    'filter',
+    'status',      // Task/reminder/event status filtering
+    'priority',    // Task/reminder priority filtering
+    'type',        // Event/reminder type filtering
+    'eventType',   // Event type
+    'relatedTo',   // Reminder related entity
+    'caseId',      // Filter by case
+    'clientId',    // Filter by client
+    'assignedTo',  // Filter by assignee
+    'createdBy',   // Filter by creator
+    'lawyerId',    // Filter by lawyer
+    'tags',        // Tag filtering
+    'category',    // Category filtering
+    'dateRange',   // Date range filtering
+  ];
+
+  // Check if any search/filter param is present
+  const allSearchParams = [...textSearchParams, ...filterParams];
+  return allSearchParams.some(param => req.query[param] !== undefined);
 };
 
 const authenticatedRateLimiter = createRateLimiter({
