@@ -17,7 +17,14 @@ const {
     bulkDeleteReminders,
     bulkUpdateReminders,
     createReminderFromNaturalLanguage,
-    createReminderFromVoice
+    createReminderFromVoice,
+    // NEW: Missing endpoints
+    cloneReminder,
+    getRemindersByClient,
+    getRemindersByCase,
+    rescheduleReminder,
+    createReminderFromTask,
+    createReminderFromEvent
 } = require('../controllers/reminder.controller');
 
 const {
@@ -54,6 +61,14 @@ app.get('/overdue', getOverdueReminders);
 app.get('/snoozed-due', getSnoozedDueReminders);
 app.get('/delegated', getDelegatedReminders);
 
+// NEW: Filter by client/case (must be before parameterized routes)
+app.get('/client/:clientId', getRemindersByClient);
+app.get('/case/:caseId', getRemindersByCase);
+
+// NEW: Create from other entities
+app.post('/from-task/:taskId', createReminderFromTask);
+app.post('/from-event/:eventId', createReminderFromEvent);
+
 // NLP endpoints (must be before parameterized routes)
 app.post('/parse', createReminderFromNaturalLanguage);
 app.post('/voice', createReminderFromVoice);
@@ -75,5 +90,9 @@ app.post('/:id/complete', completeReminder);
 app.post('/:id/dismiss', dismissReminder);
 app.post('/:id/snooze', snoozeReminder);
 app.post('/:id/delegate', delegateReminder);
+
+// NEW: Clone and reschedule
+app.post('/:id/clone', cloneReminder);
+app.post('/:id/reschedule', rescheduleReminder);
 
 module.exports = app;

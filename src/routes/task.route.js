@@ -40,7 +40,16 @@ const {
     getTimeTrackingSummary,
     // Aggregated endpoints
     getTaskFull,
-    getTasksOverview
+    getTasksOverview,
+    // NEW: Missing endpoints
+    getActiveTimers,
+    pauseTimer,
+    resumeTimer,
+    cloneTask,
+    getTaskActivity,
+    getTasksByClient,
+    convertTaskToEvent,
+    searchTasks
 } = require('../controllers/task.controller');
 
 // Template controller (extracted for maintainability)
@@ -99,6 +108,11 @@ app.post('/templates/:templateId/create', createFromTemplate);
 // Batch endpoint: Tasks Overview
 app.get('/overview', getTasksOverview);
 
+// NEW: Active timers & search (must be before parameterized routes)
+app.get('/timers/active', getActiveTimers);
+app.get('/search', searchTasks);
+app.get('/client/:clientId', getTasksByClient);
+
 // Static routes (must be before parameterized routes)
 app.get('/stats', getTaskStats);
 app.get('/upcoming', getUpcomingTasks);
@@ -134,6 +148,9 @@ app.delete('/:id', deleteTask);
 
 // Task actions
 app.post('/:id/complete', completeTask);
+app.post('/:id/clone', cloneTask);
+app.get('/:id/activity', getTaskActivity);
+app.post('/:id/convert-to-event', convertTaskToEvent);
 
 // Subtask management
 app.post('/:id/subtasks', addSubtask);
@@ -143,6 +160,8 @@ app.delete('/:id/subtasks/:subtaskId', deleteSubtask);
 // Time tracking
 app.post('/:id/timer/start', startTimer);
 app.post('/:id/timer/stop', stopTimer);
+app.patch('/:id/timer/pause', pauseTimer);
+app.patch('/:id/timer/resume', resumeTimer);
 app.post('/:id/time', addManualTime);
 
 // Comments
