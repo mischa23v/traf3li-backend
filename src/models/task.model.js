@@ -353,7 +353,9 @@ taskSchema.index({ dueDate: 1, status: 1 });
 taskSchema.index({ caseId: 1, status: 1 });
 taskSchema.index({ clientId: 1 });
 taskSchema.index({ 'recurring.enabled': 1, 'recurring.nextDue': 1 });
-taskSchema.index({ title: 'text', description: 'text' });
+// Full-text search index - matches createIndexes.js definition
+// Gold standard: Include notes for comprehensive search
+taskSchema.index({ title: 'text', description: 'text', notes: 'text' }, { name: 'idx_task_textsearch' });
 taskSchema.index({ isTemplate: 1, createdBy: 1 });
 taskSchema.index({ isTemplate: 1, isPublic: 1 });
 taskSchema.index({ blockedBy: 1 });
