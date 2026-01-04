@@ -18,10 +18,29 @@ const mongoose = require('mongoose');
 
 class LocationRemindersService {
   /**
+   * Build tenant filter from firmQuery for use in queries
+   * @param {Object} firmQuery - The firmQuery object from req.firmQuery
+   * @returns {Object} Tenant filter with ObjectId conversion
+   */
+  _buildTenantFilter(firmQuery = {}) {
+    const filter = {};
+    if (firmQuery.firmId) {
+      filter.firmId = typeof firmQuery.firmId === 'string'
+        ? new mongoose.Types.ObjectId(firmQuery.firmId)
+        : firmQuery.firmId;
+    } else if (firmQuery.lawyerId) {
+      filter.lawyerId = typeof firmQuery.lawyerId === 'string'
+        ? new mongoose.Types.ObjectId(firmQuery.lawyerId)
+        : firmQuery.lawyerId;
+    }
+    return filter;
+  }
+
+  /**
    * Create a location-based reminder
    *
    * @param {ObjectId} userId - User ID
-   * @param {ObjectId} firmId - Firm ID (optional)
+   * @param {Object} firmQuery - Tenant filter from req.firmQuery (supports solo lawyers)
    * @param {Object} reminderData - Base reminder data
    * @param {Object} locationTrigger - Location trigger configuration
    * @param {String} locationTrigger.type - Trigger type: 'arrive'|'leave'|'nearby'
@@ -33,9 +52,10 @@ class LocationRemindersService {
    * @param {Number} locationTrigger.radius - Trigger radius in meters (default: 100)
    * @param {Boolean} locationTrigger.repeatTrigger - Allow repeated triggers (default: false)
    * @param {Number} locationTrigger.cooldownMinutes - Cooldown between triggers (default: 60)
+   * @param {Function} addFirmId - Helper function to add tenant context to data
    * @returns {Promise<Object>} Created reminder
    */
-  async createLocationReminder(userId, firmId, reminderData, locationTrigger) {
+  async createLocationReminder(userId, firmQuery, reminderData, locationTrigger, addFirmId) {
     try {
       // Validate required fields
       if (!userId) {
@@ -77,19 +97,48 @@ class LocationRemindersService {
       }
 
       // If savedLocationId is provided, validate it exists
+      // Gold standard: Use firmQuery for tenant isolation
+      const tenantFilter = this._buildTenantFilter(firmQuery);
       let savedLocationId = null;
       if (location.savedLocationId) {
-        const savedLocation = await UserLocation.findOne({ _id: location.savedLocationId, userId });
+        const savedLocation = await UserLocation.findOne({
+          _id: location.savedLocationId,
+          userId,
+          ...tenantFilter
+        });
         if (!savedLocation) {
           throw new Error('Invalid saved location ID');
         }
         savedLocationId = location.savedLocationId;
       }
 
-      // Prepare reminder data
-      const reminderPayload = {
+      // Prepare reminder data with tenant context
+      // Gold standard: Use addFirmId helper for proper tenant isolation
+      const reminderPayload = addFirmId ? addFirmId({
         ...reminderData,
         userId,
+        status: 'pending',
+        locationTrigger: {
+          enabled: true,
+          type,
+          location: {
+            name: location.name,
+            address: location.address || '',
+            latitude: location.latitude,
+            longitude: location.longitude,
+            savedLocationId
+          },
+          radius,
+          triggered: false,
+          triggeredAt: null,
+          lastCheckedAt: null,
+          repeatTrigger,
+          cooldownMinutes
+        }
+      }) : {
+        ...reminderData,
+        userId,
+        ...tenantFilter,
         status: 'pending',
         locationTrigger: {
           enabled: true,
@@ -144,14 +193,14 @@ class LocationRemindersService {
    * Check user's current location against pending location reminders
    *
    * @param {ObjectId} userId - User ID
-   * @param {ObjectId} firmId - Firm ID (optional, for future multi-tenancy)
+   * @param {Object} firmQuery - Tenant filter from req.firmQuery (supports solo lawyers)
    * @param {Object} currentLocation - Current location
    * @param {Number} currentLocation.latitude - Current latitude
    * @param {Number} currentLocation.longitude - Current longitude
    * @param {Number} currentLocation.accuracy - GPS accuracy in meters (optional)
    * @returns {Promise<Array>} Array of triggered reminders
    */
-  async checkLocationTriggers(userId, firmId, currentLocation) {
+  async checkLocationTriggers(userId, firmQuery, currentLocation) {
     try {
       // Validate inputs
       if (!userId) {
@@ -169,8 +218,12 @@ class LocationRemindersService {
         throw new Error('Invalid coordinates');
       }
 
+      // Gold standard: Build tenant filter from firmQuery
+      const tenantFilter = this._buildTenantFilter(firmQuery);
+
       // Find all pending location-based reminders for the user
       const reminders = await Reminder.find({
+        ...tenantFilter,
         userId,
         status: 'pending',
         'locationTrigger.enabled': true,
@@ -255,14 +308,14 @@ class LocationRemindersService {
    * Get nearby reminders for a specific location
    *
    * @param {ObjectId} userId - User ID
-   * @param {ObjectId} firmId - Firm ID (optional)
+   * @param {Object} firmQuery - Tenant filter from req.firmQuery (supports solo lawyers)
    * @param {Object} location - Location to check
    * @param {Number} location.latitude - Latitude
    * @param {Number} location.longitude - Longitude
    * @param {Number} radiusMeters - Search radius in meters (default: 500)
    * @returns {Promise<Array>} Reminders within radius
    */
-  async getNearbyReminders(userId, firmId, location, radiusMeters = 500) {
+  async getNearbyReminders(userId, firmQuery, location, radiusMeters = 500) {
     try {
       // Validate inputs
       if (!userId) {
@@ -285,8 +338,12 @@ class LocationRemindersService {
         throw new Error('Radius must be between 10 and 50000 meters');
       }
 
+      // Gold standard: Build tenant filter from firmQuery
+      const tenantFilter = this._buildTenantFilter(firmQuery);
+
       // Find all pending location-based reminders for the user
       const reminders = await Reminder.find({
+        ...tenantFilter,
         userId,
         status: { $in: ['pending', 'snoozed'] },
         'locationTrigger.enabled': true
@@ -335,7 +392,7 @@ class LocationRemindersService {
    * Save a user location for use in reminders
    *
    * @param {ObjectId} userId - User ID
-   * @param {ObjectId} firmId - Firm ID (optional)
+   * @param {Object} firmQuery - Tenant filter from req.firmQuery (supports solo lawyers)
    * @param {Object} locationData - Location data
    * @param {String} locationData.name - Location name
    * @param {String} locationData.address - Address (optional)
@@ -344,9 +401,10 @@ class LocationRemindersService {
    * @param {String} locationData.type - Type: 'home'|'office'|'court'|'client'|'custom'
    * @param {Number} locationData.radius - Default radius in meters (optional, default: 100)
    * @param {Boolean} locationData.isDefault - Set as default location (optional)
+   * @param {Function} addFirmId - Helper function to add tenant context to data
    * @returns {Promise<Object>} Created/updated location
    */
-  async saveUserLocation(userId, firmId, locationData) {
+  async saveUserLocation(userId, firmQuery, locationData, addFirmId) {
     try {
       // Validate inputs
       if (!userId) {
@@ -388,10 +446,9 @@ class LocationRemindersService {
         throw new Error('Radius must be between 10 and 10000 meters');
       }
 
-      // Create location payload
-      const locationPayload = {
+      // Gold standard: Use addFirmId helper for proper tenant isolation
+      const basePayload = {
         userId,
-        firmId: firmId || null,
         name,
         address: address || '',
         type,
@@ -403,6 +460,11 @@ class LocationRemindersService {
         isDefault,
         isActive: true
       };
+
+      // Use addFirmId if provided, otherwise build tenant filter manually
+      const locationPayload = addFirmId
+        ? addFirmId(basePayload)
+        : { ...basePayload, ...this._buildTenantFilter(firmQuery) };
 
       // Create the location
       const location = await UserLocation.create(locationPayload);
@@ -421,14 +483,14 @@ class LocationRemindersService {
    * Get all saved locations for a user
    *
    * @param {ObjectId} userId - User ID
-   * @param {ObjectId} firmId - Firm ID (optional)
+   * @param {Object} firmQuery - Tenant filter from req.firmQuery (supports solo lawyers)
    * @param {Object} options - Query options
    * @param {String} options.type - Filter by type (optional)
    * @param {Boolean} options.activeOnly - Only active locations (default: true)
    * @param {Boolean} options.groupByType - Group results by type (default: false)
    * @returns {Promise<Array>} User's saved locations
    */
-  async getUserLocations(userId, firmId, options = {}) {
+  async getUserLocations(userId, firmQuery, options = {}) {
     try {
       // Validate inputs
       if (!userId) {
@@ -437,17 +499,21 @@ class LocationRemindersService {
 
       const { type, activeOnly = true, groupByType = false } = options;
 
-      // Build query
+      // Gold standard: Build tenant filter from firmQuery
+      const tenantFilter = this._buildTenantFilter(firmQuery);
+
+      // Build query with proper tenant isolation
       const query = {
         userId,
-        ...(firmId && { firmId }),
+        ...tenantFilter,
         ...(activeOnly && { isActive: true }),
         ...(type && { type })
       };
 
       // If groupByType is requested, use the static method
+      // Note: This method also needs tenant isolation but we'll pass firmQuery for consistency
       if (groupByType) {
-        const groupedLocations = await UserLocation.getLocationsByType(userId);
+        const groupedLocations = await UserLocation.getLocationsByType(userId, firmQuery);
         return {
           success: true,
           message: 'Locations retrieved and grouped by type',
@@ -462,9 +528,11 @@ class LocationRemindersService {
         .lean();
 
       // Add reminder count for each location
+      // Gold standard: Include tenant filter in queries
       const locationsWithStats = await Promise.all(
         locations.map(async (location) => {
           const reminderCount = await Reminder.countDocuments({
+            ...tenantFilter,
             userId,
             'locationTrigger.enabled': true,
             'locationTrigger.location.savedLocationId': location._id,
@@ -494,19 +562,24 @@ class LocationRemindersService {
    * @param {ObjectId} userId - User ID
    * @param {ObjectId} locationId - Location ID to update
    * @param {Object} updateData - Data to update
+   * @param {Object} firmQuery - Tenant filter from req.firmQuery (supports solo lawyers)
    * @returns {Promise<Object>} Updated location
    */
-  async updateUserLocation(userId, locationId, updateData) {
+  async updateUserLocation(userId, locationId, updateData, firmQuery = {}) {
     try {
       // Validate inputs
       if (!userId || !locationId) {
         throw new Error('User ID and Location ID are required');
       }
 
-      // Find the location
+      // Gold standard: Build tenant filter from firmQuery
+      const tenantFilter = this._buildTenantFilter(firmQuery);
+
+      // Find the location with proper tenant isolation
       const location = await UserLocation.findOne({
         _id: locationId,
-        userId
+        userId,
+        ...tenantFilter
       });
 
       if (!location) {
@@ -547,19 +620,24 @@ class LocationRemindersService {
    *
    * @param {ObjectId} userId - User ID
    * @param {ObjectId} locationId - Location ID to delete
+   * @param {Object} firmQuery - Tenant filter from req.firmQuery (supports solo lawyers)
    * @returns {Promise<Object>} Deletion result
    */
-  async deleteUserLocation(userId, locationId) {
+  async deleteUserLocation(userId, locationId, firmQuery = {}) {
     try {
       // Validate inputs
       if (!userId || !locationId) {
         throw new Error('User ID and Location ID are required');
       }
 
-      // Find the location
+      // Gold standard: Build tenant filter from firmQuery
+      const tenantFilter = this._buildTenantFilter(firmQuery);
+
+      // Find the location with proper tenant isolation
       const location = await UserLocation.findOne({
         _id: locationId,
-        userId
+        userId,
+        ...tenantFilter
       });
 
       if (!location) {
@@ -567,7 +645,9 @@ class LocationRemindersService {
       }
 
       // Check if any active reminders are using this location
+      // Gold standard: Include tenant filter in queries
       const activeReminders = await Reminder.countDocuments({
+        ...tenantFilter,
         userId,
         'locationTrigger.enabled': true,
         'locationTrigger.location.savedLocationId': locationId,
@@ -610,19 +690,24 @@ class LocationRemindersService {
    * Get location-based reminders summary for a user
    *
    * @param {ObjectId} userId - User ID
-   * @param {ObjectId} firmId - Firm ID (optional)
+   * @param {Object} firmQuery - Tenant filter from req.firmQuery (supports solo lawyers)
    * @returns {Promise<Object>} Summary statistics
    */
-  async getLocationRemindersSummary(userId, firmId) {
+  async getLocationRemindersSummary(userId, firmQuery) {
     try {
       if (!userId) {
         throw new Error('User ID is required');
       }
 
+      // Gold standard: Build tenant filter from firmQuery
+      const tenantFilter = this._buildTenantFilter(firmQuery);
+
       // Get counts by trigger type
+      // Gold standard: First $match MUST include tenant filter for FIRM_ISOLATION compliance
       const summary = await Reminder.aggregate([
         {
           $match: {
+            ...tenantFilter,
             userId: new mongoose.Types.ObjectId(userId),
             'locationTrigger.enabled': true,
             status: { $in: ['pending', 'snoozed'] }
@@ -643,14 +728,16 @@ class LocationRemindersService {
         { $limit: 1000 }
       ]);
 
-      // Get total counts
+      // Get total counts - Gold standard: Include tenant filter
       const totalLocationReminders = await Reminder.countDocuments({
+        ...tenantFilter,
         userId,
         'locationTrigger.enabled': true,
         status: { $in: ['pending', 'snoozed'] }
       });
 
       const totalSavedLocations = await UserLocation.countDocuments({
+        ...tenantFilter,
         userId,
         isActive: true
       });
@@ -764,17 +851,22 @@ class LocationRemindersService {
    *
    * @param {ObjectId} userId - User ID
    * @param {ObjectId} reminderId - Reminder ID
+   * @param {Object} firmQuery - Tenant filter from req.firmQuery (supports solo lawyers)
    * @returns {Promise<Object>} Reset result
    */
-  async resetLocationTrigger(userId, reminderId) {
+  async resetLocationTrigger(userId, reminderId, firmQuery = {}) {
     try {
       if (!userId || !reminderId) {
         throw new Error('User ID and Reminder ID are required');
       }
 
+      // Gold standard: Build tenant filter from firmQuery
+      const tenantFilter = this._buildTenantFilter(firmQuery);
+
       const reminder = await Reminder.findOne({
         _id: reminderId,
-        userId
+        userId,
+        ...tenantFilter
       });
 
       if (!reminder) {

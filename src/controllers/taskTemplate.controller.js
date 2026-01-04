@@ -40,7 +40,9 @@ const ALLOWED_FIELDS = {
 const getTemplates = asyncHandler(async (req, res) => {
     const userId = req.userID;
 
+    // Gold standard: Use ...req.firmQuery for tenant isolation
     const templates = await Task.find({
+        ...req.firmQuery,
         isTemplate: true,
         $or: [
             { createdBy: userId },
@@ -70,8 +72,10 @@ const getTemplate = asyncHandler(async (req, res) => {
     // IDOR protection
     const sanitizedTemplateId = sanitizeObjectId(templateId);
 
+    // Gold standard: Use ...req.firmQuery for tenant isolation
     const template = await Task.findOne({
         _id: sanitizedTemplateId,
+        ...req.firmQuery,
         isTemplate: true,
         $or: [
             { createdBy: userId },
@@ -181,8 +185,10 @@ const updateTemplate = asyncHandler(async (req, res) => {
         throw CustomException('Invalid priority value', 400);
     }
 
+    // Gold standard: Use ...req.firmQuery for tenant isolation
     const template = await Task.findOne({
         _id: sanitizedTemplateId,
+        ...req.firmQuery,
         isTemplate: true,
         createdBy: userId
     });
@@ -216,8 +222,10 @@ const deleteTemplate = asyncHandler(async (req, res) => {
     // IDOR protection
     const sanitizedTemplateId = sanitizeObjectId(templateId);
 
+    // Gold standard: Use ...req.firmQuery for tenant isolation
     const template = await Task.findOneAndDelete({
         _id: sanitizedTemplateId,
+        ...req.firmQuery,
         isTemplate: true,
         createdBy: userId
     });
@@ -261,8 +269,10 @@ const createFromTemplate = asyncHandler(async (req, res) => {
     const sanitizedCaseId = caseId ? sanitizeObjectId(caseId) : null;
     const sanitizedClientId = clientId ? sanitizeObjectId(clientId) : null;
 
+    // Gold standard: Use ...req.firmQuery for tenant isolation
     const template = await Task.findOne({
         _id: sanitizedTemplateId,
+        ...req.firmQuery,
         isTemplate: true,
         $or: [
             { createdBy: userId },
