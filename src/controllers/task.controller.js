@@ -70,7 +70,12 @@ const ALLOWED_FIELDS = {
     COMPLETE: ['completionNote'],
     DEPENDENCY: ['dependsOn', 'type'],
     STATUS_UPDATE: ['status'],
-    PROGRESS: ['progress', 'autoCalculate']
+    PROGRESS: ['progress', 'autoCalculate'],
+    // New missing endpoints
+    CLONE: ['title', 'resetDueDate', 'includeSubtasks', 'includeChecklists', 'includeAttachments'],
+    CONVERT_TO_EVENT: ['eventType', 'duration', 'attendees', 'location'],
+    TIMER_PAUSE: ['reason'],
+    TIMER_RESUME: ['notes']
 };
 
 // =============================================================================
@@ -2124,6 +2129,902 @@ const getTasksOverview = asyncHandler(async (req, res) => {
 // - taskAttachment.controller.js (addAttachment, deleteAttachment, etc.)
 // =============================================================================
 
+// =============================================================================
+// NEW MISSING ENDPOINTS (Gold Standard Implementation)
+// =============================================================================
+
+/**
+ * Get all active timers across tasks
+ * GET /api/tasks/timers/active
+ */
+const getActiveTimers = asyncHandler(async (req, res) => {
+    // Use req.firmQuery for proper tenant isolation (solo + firm)
+    const tasks = await Task.find({
+        ...req.firmQuery,
+        'timeTracking.isTracking': true
+    })
+        .select('title timeTracking.currentSessionStart timeTracking.sessions assignedTo caseId')
+        .populate('assignedTo', 'firstName lastName image')
+        .populate('caseId', 'title caseNumber')
+        .lean();
+
+    // Calculate elapsed time for each active timer
+    const now = new Date();
+    const activeTimers = tasks.map(task => {
+        const activeSession = task.timeTracking?.sessions?.find(s => !s.endedAt);
+        const startTime = task.timeTracking?.currentSessionStart || activeSession?.startedAt;
+        const elapsedMinutes = startTime
+            ? Math.round((now - new Date(startTime)) / 60000)
+            : 0;
+
+        return {
+            taskId: task._id,
+            title: task.title,
+            startedAt: startTime,
+            elapsedMinutes,
+            assignedTo: task.assignedTo,
+            caseId: task.caseId,
+            isPaused: task.timeTracking?.isPaused || false,
+            pausedMinutes: task.timeTracking?.pausedMinutes || 0
+        };
+    });
+
+    res.status(200).json({
+        success: true,
+        data: activeTimers,
+        count: activeTimers.length
+    });
+});
+
+/**
+ * Pause a running timer
+ * PATCH /api/tasks/:id/timer/pause
+ */
+const pauseTimer = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const userId = req.userID;
+
+    // IDOR protection
+    const taskId = sanitizeObjectId(id);
+
+    // Mass assignment protection
+    const data = pickAllowedFields(req.body, ALLOWED_FIELDS.TIMER_PAUSE);
+    const { reason } = data;
+
+    // Use req.firmQuery for proper tenant isolation
+    const task = await Task.findOne({ _id: taskId, ...req.firmQuery });
+    if (!task) {
+        throw CustomException('Task not found', 404);
+    }
+
+    if (!task.timeTracking.isTracking) {
+        throw CustomException('No active timer to pause', 400);
+    }
+
+    if (task.timeTracking.isPaused) {
+        throw CustomException('Timer is already paused', 400);
+    }
+
+    const now = new Date();
+    const startTime = task.timeTracking.currentSessionStart;
+
+    // Calculate elapsed time before pause
+    const elapsedBeforePause = Math.round((now - new Date(startTime)) / 60000);
+
+    // Mark as paused
+    task.timeTracking.isPaused = true;
+    task.timeTracking.pausedAt = now;
+    task.timeTracking.elapsedBeforePause = (task.timeTracking.elapsedBeforePause || 0) + elapsedBeforePause;
+
+    // Add to active session
+    const activeSession = task.timeTracking.sessions.find(s => !s.endedAt);
+    if (activeSession) {
+        activeSession.pausedAt = now;
+        activeSession.pauseReason = reason;
+    }
+
+    task.history.push({
+        action: 'timer_paused',
+        userId,
+        changes: { reason, elapsedMinutes: elapsedBeforePause },
+        timestamp: now
+    });
+
+    await task.save();
+
+    res.status(200).json({
+        success: true,
+        message: 'Timer paused',
+        data: {
+            isPaused: true,
+            pausedAt: now,
+            elapsedMinutes: task.timeTracking.elapsedBeforePause
+        }
+    });
+});
+
+/**
+ * Resume a paused timer
+ * PATCH /api/tasks/:id/timer/resume
+ */
+const resumeTimer = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const userId = req.userID;
+
+    // IDOR protection
+    const taskId = sanitizeObjectId(id);
+
+    // Mass assignment protection
+    const data = pickAllowedFields(req.body, ALLOWED_FIELDS.TIMER_RESUME);
+    const { notes } = data;
+
+    // Use req.firmQuery for proper tenant isolation
+    const task = await Task.findOne({ _id: taskId, ...req.firmQuery });
+    if (!task) {
+        throw CustomException('Task not found', 404);
+    }
+
+    if (!task.timeTracking.isTracking) {
+        throw CustomException('No active timer to resume', 400);
+    }
+
+    if (!task.timeTracking.isPaused) {
+        throw CustomException('Timer is not paused', 400);
+    }
+
+    const now = new Date();
+    const pausedAt = task.timeTracking.pausedAt;
+    const pauseDuration = pausedAt ? Math.round((now - new Date(pausedAt)) / 60000) : 0;
+
+    // Update pause tracking
+    task.timeTracking.isPaused = false;
+    task.timeTracking.pausedAt = null;
+    task.timeTracking.pausedMinutes = (task.timeTracking.pausedMinutes || 0) + pauseDuration;
+    task.timeTracking.currentSessionStart = now; // Reset session start for accurate tracking
+
+    // Update active session
+    const activeSession = task.timeTracking.sessions.find(s => !s.endedAt);
+    if (activeSession) {
+        activeSession.resumedAt = now;
+        activeSession.totalPausedMinutes = (activeSession.totalPausedMinutes || 0) + pauseDuration;
+        if (notes) {
+            activeSession.notes = (activeSession.notes ? activeSession.notes + '\n' : '') + notes;
+        }
+    }
+
+    task.history.push({
+        action: 'timer_resumed',
+        userId,
+        changes: { pauseDuration },
+        timestamp: now
+    });
+
+    await task.save();
+
+    res.status(200).json({
+        success: true,
+        message: 'Timer resumed',
+        data: {
+            isPaused: false,
+            resumedAt: now,
+            pauseDurationMinutes: pauseDuration,
+            totalPausedMinutes: task.timeTracking.pausedMinutes
+        }
+    });
+});
+
+/**
+ * Clone a task
+ * POST /api/tasks/:id/clone
+ */
+const cloneTask = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const userId = req.userID;
+
+    // Block departed users
+    if (req.isDeparted) {
+        throw CustomException('لم يعد لديك صلاحية إنشاء مهام جديدة', 403);
+    }
+
+    // IDOR protection
+    const taskId = sanitizeObjectId(id);
+
+    // Mass assignment protection
+    const data = pickAllowedFields(req.body, ALLOWED_FIELDS.CLONE);
+    const {
+        title: newTitle,
+        resetDueDate = true,
+        includeSubtasks = true,
+        includeChecklists = true,
+        includeAttachments = false
+    } = data;
+
+    // Use req.firmQuery for proper tenant isolation
+    const originalTask = await Task.findOne({ _id: taskId, ...req.firmQuery });
+    if (!originalTask) {
+        throw CustomException('Task not found', 404);
+    }
+
+    // Prepare clone data
+    const cloneData = {
+        title: newTitle || `${originalTask.title} (Copy)`,
+        description: originalTask.description,
+        priority: originalTask.priority,
+        label: originalTask.label,
+        tags: [...(originalTask.tags || [])],
+        status: 'todo', // Always reset to todo
+        progress: 0,    // Always reset progress
+        assignedTo: originalTask.assignedTo,
+        caseId: originalTask.caseId,
+        clientId: originalTask.clientId,
+        notes: originalTask.notes,
+        points: originalTask.points,
+        createdBy: userId,
+        // Reset time tracking
+        timeTracking: {
+            estimatedMinutes: originalTask.timeTracking?.estimatedMinutes || 0,
+            actualMinutes: 0,
+            sessions: [],
+            isTracking: false
+        },
+        // Handle subtasks
+        subtasks: includeSubtasks
+            ? originalTask.subtasks.map(s => ({ title: s.title, completed: false, autoReset: s.autoReset }))
+            : [],
+        // Handle checklists
+        checklists: includeChecklists
+            ? originalTask.checklists.map(c => ({
+                title: c.title,
+                items: c.items?.map(i => ({ text: i.text, completed: false })) || []
+            }))
+            : [],
+        // Copy reminders
+        reminders: originalTask.reminders?.map(r => ({
+            ...r.toObject(),
+            _id: undefined,
+            sent: false,
+            sentAt: null
+        })) || [],
+        // Copy recurring settings if any
+        recurring: originalTask.recurring?.enabled ? { ...originalTask.recurring.toObject(), occurrencesCompleted: 0 } : undefined,
+        // Empty history for clone
+        history: [{
+            action: 'cloned',
+            userId,
+            changes: { clonedFrom: originalTask._id },
+            timestamp: new Date()
+        }],
+        // Empty comments
+        comments: []
+    };
+
+    // Handle due date
+    if (!resetDueDate && originalTask.dueDate) {
+        cloneData.dueDate = originalTask.dueDate;
+        cloneData.dueTime = originalTask.dueTime;
+    }
+
+    // Copy attachments if requested (metadata only, not files)
+    if (includeAttachments && originalTask.attachments?.length > 0) {
+        cloneData.attachments = originalTask.attachments
+            .filter(a => !a.isVoiceMemo) // Exclude voice memos
+            .map(a => ({
+                fileName: a.fileName,
+                originalName: a.originalName,
+                mimeType: a.mimeType,
+                size: a.size,
+                uploadedBy: userId,
+                uploadedAt: new Date(),
+                // Note: S3 file URL is shared, actual file not duplicated
+                url: a.url,
+                isCloned: true
+            }));
+    }
+
+    // Use req.addFirmId for proper tenant isolation
+    const clonedTask = await Task.create(req.addFirmId(cloneData));
+
+    // Populate for response
+    const populatedTask = await Task.findOne({ _id: clonedTask._id, ...req.firmQuery })
+        .populate('assignedTo', 'firstName lastName email image')
+        .populate('createdBy', 'firstName lastName email image')
+        .populate('caseId', 'title caseNumber')
+        .populate('clientId', 'firstName lastName');
+
+    res.status(201).json({
+        success: true,
+        message: 'Task cloned successfully',
+        data: populatedTask,
+        clonedFrom: originalTask._id
+    });
+});
+
+/**
+ * Get task activity/history
+ * GET /api/tasks/:id/activity
+ */
+const getTaskActivity = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { page = 1, limit = 50 } = req.query;
+
+    // IDOR protection
+    const taskId = sanitizeObjectId(id);
+
+    // Use req.firmQuery for proper tenant isolation
+    const task = await Task.findOne({ _id: taskId, ...req.firmQuery })
+        .select('history title')
+        .lean();
+
+    if (!task) {
+        throw CustomException('Task not found', 404);
+    }
+
+    // Get history entries with pagination
+    const history = task.history || [];
+    const total = history.length;
+    const startIndex = (parseInt(page) - 1) * parseInt(limit);
+    const paginatedHistory = history
+        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+        .slice(startIndex, startIndex + parseInt(limit));
+
+    // Populate user info for each history entry
+    const userIds = [...new Set(paginatedHistory.map(h => h.userId).filter(Boolean))];
+    const users = await User.find({ _id: { $in: userIds } }).select('firstName lastName image').lean();
+    const userMap = {};
+    users.forEach(u => { userMap[u._id.toString()] = u; });
+
+    const enrichedHistory = paginatedHistory.map(h => ({
+        ...h,
+        user: h.userId ? userMap[h.userId.toString()] : null
+    }));
+
+    res.status(200).json({
+        success: true,
+        data: enrichedHistory,
+        pagination: {
+            page: parseInt(page),
+            limit: parseInt(limit),
+            total,
+            pages: Math.ceil(total / parseInt(limit))
+        }
+    });
+});
+
+/**
+ * Get tasks by client
+ * GET /api/tasks/client/:clientId
+ */
+const getTasksByClient = asyncHandler(async (req, res) => {
+    const { clientId } = req.params;
+    const { page = 1, limit = 50, status, priority } = req.query;
+
+    // IDOR protection
+    const sanitizedClientId = sanitizeObjectId(clientId);
+
+    // Build query with tenant isolation
+    const query = {
+        clientId: sanitizedClientId,
+        ...req.firmQuery
+    };
+
+    if (status) query.status = status;
+    if (priority) query.priority = priority;
+
+    const tasks = await Task.find(query)
+        .populate('assignedTo', 'firstName lastName image')
+        .populate('createdBy', 'firstName lastName')
+        .populate('caseId', 'title caseNumber')
+        .sort({ dueDate: 1, priority: -1 })
+        .limit(parseInt(limit))
+        .skip((parseInt(page) - 1) * parseInt(limit))
+        .lean();
+
+    const total = await Task.countDocuments(query);
+
+    res.status(200).json({
+        success: true,
+        data: tasks,
+        pagination: {
+            page: parseInt(page),
+            limit: parseInt(limit),
+            total,
+            pages: Math.ceil(total / parseInt(limit))
+        }
+    });
+});
+
+/**
+ * Convert task to event
+ * POST /api/tasks/:id/convert-to-event
+ */
+const convertTaskToEvent = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const userId = req.userID;
+
+    // IDOR protection
+    const taskId = sanitizeObjectId(id);
+
+    // Mass assignment protection
+    const data = pickAllowedFields(req.body, ALLOWED_FIELDS.CONVERT_TO_EVENT);
+    const { eventType = 'task', duration = 60, attendees = [], location } = data;
+
+    // Use req.firmQuery for proper tenant isolation
+    const task = await Task.findOne({ _id: taskId, ...req.firmQuery });
+    if (!task) {
+        throw CustomException('Task not found', 404);
+    }
+
+    // Determine start date/time
+    let startDateTime;
+    if (task.dueDate) {
+        startDateTime = new Date(task.dueDate);
+        if (task.dueTime) {
+            const [hours, minutes] = task.dueTime.split(':');
+            startDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+        }
+    } else {
+        // Default to tomorrow 9am if no due date
+        startDateTime = new Date();
+        startDateTime.setDate(startDateTime.getDate() + 1);
+        startDateTime.setHours(9, 0, 0, 0);
+    }
+
+    const endDateTime = new Date(startDateTime.getTime() + duration * 60000);
+
+    // Create event using req.addFirmId
+    const event = await Event.create(req.addFirmId({
+        title: task.title,
+        type: eventType,
+        description: task.description,
+        startDateTime,
+        endDateTime,
+        allDay: !task.dueTime,
+        taskId: task._id,
+        caseId: task.caseId,
+        clientId: task.clientId,
+        organizer: userId,
+        createdBy: userId,
+        attendees: [
+            { userId: task.assignedTo || userId, status: 'confirmed', role: 'required' },
+            ...attendees.map(a => ({ userId: sanitizeObjectId(a), status: 'invited', role: 'optional' }))
+        ],
+        priority: task.priority,
+        location: location || {},
+        color: '#10b981',
+        tags: task.tags,
+        notes: task.notes
+    }));
+
+    // Link event to task
+    task.linkedEventId = event._id;
+    task.history.push({
+        action: 'converted_to_event',
+        userId,
+        changes: { eventId: event._id },
+        timestamp: new Date()
+    });
+    await task.save();
+
+    // Populate for response
+    const populatedEvent = await Event.findOne({ _id: event._id, ...req.firmQuery })
+        .populate('organizer', 'firstName lastName image')
+        .populate('attendees.userId', 'firstName lastName email');
+
+    res.status(201).json({
+        success: true,
+        message: 'Task converted to event',
+        data: {
+            event: populatedEvent,
+            task: {
+                _id: task._id,
+                title: task.title,
+                linkedEventId: task.linkedEventId
+            }
+        }
+    });
+});
+
+/**
+ * Advanced task search
+ * GET /api/tasks/search
+ */
+const searchTasks = asyncHandler(async (req, res) => {
+    const {
+        q,           // Search query
+        status,
+        priority,
+        assignedTo,
+        caseId,
+        clientId,
+        startDate,
+        endDate,
+        overdue,
+        hasAttachments,
+        hasComments,
+        page = 1,
+        limit = 50,
+        sortBy = 'relevance',
+        sortOrder = 'desc'
+    } = req.query;
+
+    // Build query with tenant isolation
+    const query = { ...req.firmQuery };
+
+    // Text search - escape regex for security
+    if (q && q.trim()) {
+        const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const searchRegex = new RegExp(escapeRegex(q.trim()), 'i');
+        query.$or = [
+            { title: searchRegex },
+            { description: searchRegex },
+            { notes: searchRegex },
+            { tags: searchRegex }
+        ];
+    }
+
+    // Filters
+    if (status) {
+        query.status = Array.isArray(status) ? { $in: status } : status;
+    }
+    if (priority) {
+        query.priority = Array.isArray(priority) ? { $in: priority } : priority;
+    }
+    if (assignedTo) {
+        query.assignedTo = sanitizeObjectId(assignedTo);
+    }
+    if (caseId) {
+        query.caseId = sanitizeObjectId(caseId);
+    }
+    if (clientId) {
+        query.clientId = sanitizeObjectId(clientId);
+    }
+
+    // Date range
+    if (startDate || endDate) {
+        query.dueDate = {};
+        if (startDate) query.dueDate.$gte = new Date(startDate);
+        if (endDate) query.dueDate.$lte = new Date(endDate);
+    }
+
+    // Overdue filter
+    if (overdue === 'true') {
+        query.dueDate = { ...(query.dueDate || {}), $lt: new Date() };
+        query.status = { $nin: ['done', 'canceled'] };
+    }
+
+    // Has attachments
+    if (hasAttachments === 'true') {
+        query['attachments.0'] = { $exists: true };
+    }
+
+    // Has comments
+    if (hasComments === 'true') {
+        query['comments.0'] = { $exists: true };
+    }
+
+    // Build sort
+    let sortOptions = {};
+    if (sortBy === 'relevance' && q) {
+        // MongoDB text search score (if using text index)
+        sortOptions = { score: { $meta: 'textScore' } };
+    } else {
+        sortOptions[sortBy === 'relevance' ? 'updatedAt' : sortBy] = sortOrder === 'desc' ? -1 : 1;
+    }
+
+    const tasks = await Task.find(query)
+        .populate('assignedTo', 'firstName lastName image')
+        .populate('createdBy', 'firstName lastName')
+        .populate('caseId', 'title caseNumber')
+        .populate('clientId', 'firstName lastName')
+        .sort(sortOptions)
+        .limit(parseInt(limit))
+        .skip((parseInt(page) - 1) * parseInt(limit))
+        .lean();
+
+    const total = await Task.countDocuments(query);
+
+    res.status(200).json({
+        success: true,
+        data: tasks,
+        query: q,
+        filters: { status, priority, assignedTo, caseId, clientId, startDate, endDate, overdue },
+        pagination: {
+            page: parseInt(page),
+            limit: parseInt(limit),
+            total,
+            pages: Math.ceil(total / parseInt(limit))
+        }
+    });
+});
+
+/**
+ * Bulk create tasks
+ * POST /api/tasks/bulk
+ * Gold Standard: Netflix pattern - max 50 items, per-item error handling
+ */
+const bulkCreateTasks = asyncHandler(async (req, res) => {
+    const userId = req.userID;
+
+    // Block departed users
+    if (req.isDeparted) {
+        throw CustomException('لم يعد لديك صلاحية إنشاء مهام جديدة', 403);
+    }
+
+    // Mass assignment protection
+    const safeData = pickAllowedFields(req.body, ['tasks']);
+    const { tasks } = safeData;
+
+    if (!tasks || !Array.isArray(tasks) || tasks.length === 0) {
+        throw CustomException('Tasks array is required', 400);
+    }
+
+    if (tasks.length > 50) {
+        throw CustomException('Maximum 50 tasks can be created at once', 400);
+    }
+
+    const createdTasks = [];
+    const errors = [];
+
+    for (let i = 0; i < tasks.length; i++) {
+        try {
+            // Mass assignment protection per task
+            const taskData = pickAllowedFields(tasks[i], ALLOWED_FIELDS.CREATE);
+
+            // Validate required field
+            if (!taskData.title || typeof taskData.title !== 'string' || taskData.title.trim().length === 0) {
+                throw new Error('Task title is required');
+            }
+
+            // Validate enums
+            if (taskData.priority && !VALID_PRIORITIES.includes(taskData.priority)) {
+                throw new Error('Invalid priority value');
+            }
+            if (taskData.status && !VALID_STATUSES.includes(taskData.status)) {
+                throw new Error('Invalid status value');
+            }
+
+            // Sanitize input
+            const sanitizedTitle = stripHtml(taskData.title);
+            const sanitizedDescription = taskData.description ? sanitizeRichText(taskData.description) : '';
+            const sanitizedNotes = taskData.notes ? sanitizeRichText(taskData.notes) : '';
+
+            // Dangerous content check
+            if (hasDangerousContent(taskData.description) || hasDangerousContent(taskData.notes)) {
+                throw new Error('Invalid content detected');
+            }
+
+            // IDOR protection - sanitize IDs
+            const sanitizedAssignedTo = taskData.assignedTo ? sanitizeObjectId(taskData.assignedTo) : null;
+            const sanitizedCaseId = taskData.caseId ? sanitizeObjectId(taskData.caseId) : null;
+            const sanitizedClientId = taskData.clientId ? sanitizeObjectId(taskData.clientId) : null;
+
+            // Validate case access if provided
+            if (sanitizedCaseId) {
+                const caseDoc = await Case.findOne({ _id: sanitizedCaseId, ...req.firmQuery });
+                if (!caseDoc) {
+                    throw new Error('Case not found or access denied');
+                }
+            }
+
+            // Validate assignedTo if provided (User lookups are safe per CLAUDE.md)
+            if (sanitizedAssignedTo) {
+                const assignedUser = await User.findById(sanitizedAssignedTo);
+                if (!assignedUser) {
+                    throw new Error('Assigned user not found');
+                }
+            }
+
+            // Use req.addFirmId() for proper tenant isolation
+            const task = await Task.create(req.addFirmId({
+                title: sanitizedTitle,
+                description: sanitizedDescription,
+                priority: taskData.priority || 'medium',
+                status: taskData.status || 'todo',
+                label: taskData.label,
+                tags: taskData.tags,
+                dueDate: taskData.dueDate,
+                dueTime: taskData.dueTime,
+                startDate: taskData.startDate,
+                assignedTo: sanitizedAssignedTo || userId,
+                createdBy: userId,
+                caseId: sanitizedCaseId,
+                clientId: sanitizedClientId,
+                subtasks: taskData.subtasks || [],
+                checklists: taskData.checklists || [],
+                timeTracking: taskData.timeTracking || { estimatedMinutes: 0, actualMinutes: 0, sessions: [] },
+                recurring: taskData.recurring,
+                reminders: taskData.reminders || [],
+                notes: sanitizedNotes,
+                points: taskData.points || 0
+            }));
+
+            createdTasks.push(task);
+        } catch (error) {
+            errors.push({
+                index: i,
+                title: tasks[i].title,
+                error: error.message
+            });
+        }
+    }
+
+    res.status(201).json({
+        success: true,
+        message: `${createdTasks.length} task(s) created successfully`,
+        data: {
+            created: createdTasks.length,
+            failed: errors.length,
+            tasks: createdTasks,
+            errors: errors.length > 0 ? errors : undefined
+        }
+    });
+});
+
+/**
+ * Reschedule task with reason
+ * POST /api/tasks/:id/reschedule
+ * Gold Standard: Same pattern as rescheduleReminder/rescheduleEvent
+ */
+const rescheduleTask = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const userId = req.userID;
+
+    // IDOR protection
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid task ID format', 400);
+    }
+
+    // Mass assignment protection
+    const safeData = pickAllowedFields(req.body, ['newDueDate', 'newDueTime', 'reason']);
+    const { newDueDate, newDueTime, reason } = safeData;
+
+    if (!newDueDate) {
+        throw CustomException('newDueDate is required', 400);
+    }
+
+    const parsedDate = new Date(newDueDate);
+    if (isNaN(parsedDate.getTime())) {
+        throw CustomException('Invalid newDueDate format', 400);
+    }
+
+    // Use req.firmQuery for proper tenant isolation
+    const task = await Task.findOne({ _id: sanitizedId, ...req.firmQuery });
+    if (!task) {
+        throw CustomException('Task not found', 404);
+    }
+
+    // Store previous date for history
+    const previousDueDate = task.dueDate;
+    const previousDueTime = task.dueTime;
+
+    // Update task
+    task.dueDate = parsedDate;
+    if (newDueTime) {
+        task.dueTime = newDueTime;
+    }
+
+    // Track reschedule in history
+    if (!task.history) {
+        task.history = [];
+    }
+    task.history.push({
+        action: 'rescheduled',
+        userId,
+        timestamp: new Date(),
+        previousValue: { dueDate: previousDueDate, dueTime: previousDueTime },
+        newValue: { dueDate: parsedDate, dueTime: newDueTime || task.dueTime },
+        reason
+    });
+
+    await task.save();
+
+    await task.populate([
+        { path: 'assignedTo', select: 'firstName lastName image' },
+        { path: 'caseId', select: 'title caseNumber' },
+        { path: 'clientId', select: 'firstName lastName' }
+    ]);
+
+    res.status(200).json({
+        success: true,
+        message: 'Task rescheduled successfully',
+        data: task,
+        previousDueDate,
+        previousDueTime
+    });
+});
+
+/**
+ * Get task conflicts (overlapping due dates for same assignee)
+ * GET /api/tasks/conflicts
+ * Gold Standard: Same pattern as getConflicts for events
+ */
+const getTaskConflicts = asyncHandler(async (req, res) => {
+    const { userIds, dueDate, dueDateStart, dueDateEnd } = req.query;
+
+    // Parse userIds
+    const userIdArray = userIds ? (Array.isArray(userIds) ? userIds : userIds.split(',')) : [req.userID];
+
+    // Validate users belong to same tenant
+    if (userIdArray.length > 0) {
+        const validUsers = await User.countDocuments({
+            _id: { $in: userIdArray },
+            ...req.firmQuery
+        });
+        if (validUsers !== userIdArray.length) {
+            throw CustomException('Cannot check conflicts for users outside your organization', 403);
+        }
+    }
+
+    // Build query with tenant isolation
+    const query = {
+        ...req.firmQuery,
+        assignedTo: { $in: userIdArray },
+        status: { $nin: ['done', 'canceled'] }
+    };
+
+    // Date filter
+    if (dueDate) {
+        const date = new Date(dueDate);
+        const startOfDay = new Date(date);
+        startOfDay.setHours(0, 0, 0, 0);
+        const endOfDay = new Date(date);
+        endOfDay.setHours(23, 59, 59, 999);
+        query.dueDate = { $gte: startOfDay, $lte: endOfDay };
+    } else if (dueDateStart || dueDateEnd) {
+        query.dueDate = {};
+        if (dueDateStart) query.dueDate.$gte = new Date(dueDateStart);
+        if (dueDateEnd) query.dueDate.$lte = new Date(dueDateEnd);
+    }
+
+    const tasks = await Task.find(query)
+        .populate('assignedTo', 'firstName lastName image')
+        .populate('caseId', 'title caseNumber')
+        .sort({ dueDate: 1, priority: -1 })
+        .lean();
+
+    // Group by assignee and date to find conflicts
+    const conflictsByUser = {};
+    userIdArray.forEach(uid => { conflictsByUser[uid] = []; });
+
+    tasks.forEach(task => {
+        const assigneeId = task.assignedTo?._id?.toString();
+        if (assigneeId && conflictsByUser[assigneeId]) {
+            conflictsByUser[assigneeId].push(task);
+        }
+    });
+
+    // Find dates with multiple high-priority tasks
+    const overloadedDates = {};
+    Object.entries(conflictsByUser).forEach(([uid, userTasks]) => {
+        const byDate = {};
+        userTasks.forEach(t => {
+            if (t.dueDate) {
+                const dateKey = t.dueDate.toISOString().split('T')[0];
+                if (!byDate[dateKey]) byDate[dateKey] = [];
+                byDate[dateKey].push(t);
+            }
+        });
+        Object.entries(byDate).forEach(([date, dateTasks]) => {
+            if (dateTasks.length > 3 || dateTasks.filter(t => t.priority === 'critical' || t.priority === 'high').length > 2) {
+                if (!overloadedDates[date]) overloadedDates[date] = {};
+                overloadedDates[date][uid] = dateTasks;
+            }
+        });
+    });
+
+    res.status(200).json({
+        success: true,
+        data: {
+            hasConflicts: Object.keys(overloadedDates).length > 0,
+            totalTasks: tasks.length,
+            tasksByUser: conflictsByUser,
+            overloadedDates,
+            filters: { userIds: userIdArray, dueDate, dueDateStart, dueDateEnd }
+        }
+    });
+});
+
 module.exports = {
     createTask,
     getTasks,
@@ -2162,6 +3063,18 @@ module.exports = {
     getTimeTrackingSummary,
     // Aggregated endpoints (GOLD STANDARD)
     getTaskFull,
-    getTasksOverview
+    getTasksOverview,
+    // NEW: Missing endpoints
+    getActiveTimers,
+    pauseTimer,
+    resumeTimer,
+    cloneTask,
+    getTaskActivity,
+    getTasksByClient,
+    convertTaskToEvent,
+    searchTasks,
+    bulkCreateTasks,
+    rescheduleTask,
+    getTaskConflicts
 };
 

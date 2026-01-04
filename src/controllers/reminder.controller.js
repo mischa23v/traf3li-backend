@@ -1234,6 +1234,425 @@ const createReminderFromVoice = asyncHandler(async (req, res) => {
     }
 });
 
+// =============================================================================
+// NEW MISSING ENDPOINTS (Gold Standard Implementation)
+// =============================================================================
+
+/**
+ * Clone a reminder
+ * POST /api/reminders/:id/clone
+ */
+const cloneReminder = asyncHandler(async (req, res) => {
+    validateTenantContext(req);
+
+    const { id } = req.params;
+    const userId = req.userID;
+
+    // IDOR protection
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid reminder ID format', 400);
+    }
+
+    // Mass assignment protection
+    const safeData = pickAllowedFields(req.body, ['title', 'reminderDateTime']);
+    const { title: newTitle, reminderDateTime: newDateTime } = safeData;
+
+    // Use req.firmQuery for proper tenant isolation
+    const originalReminder = await Reminder.findOne({ _id: sanitizedId, ...req.firmQuery });
+    if (!originalReminder) {
+        throw CustomException('Reminder not found', 404);
+    }
+
+    // IDOR - only owner can clone
+    if (originalReminder.userId.toString() !== userId) {
+        throw CustomException('You can only clone your own reminders', 403);
+    }
+
+    // Prepare clone data
+    const cloneData = {
+        title: newTitle || `${originalReminder.title} (Copy)`,
+        description: originalReminder.description,
+        userId,
+        reminderDateTime: newDateTime ? new Date(newDateTime) : new Date(Date.now() + 24 * 60 * 60 * 1000), // Default: tomorrow
+        priority: originalReminder.priority,
+        type: originalReminder.type,
+        relatedCase: originalReminder.relatedCase,
+        relatedTask: originalReminder.relatedTask,
+        relatedEvent: originalReminder.relatedEvent,
+        relatedInvoice: originalReminder.relatedInvoice,
+        clientId: originalReminder.clientId,
+        recurring: originalReminder.recurring?.enabled ? { ...originalReminder.recurring.toObject(), occurrencesCompleted: 0 } : { enabled: false },
+        notification: originalReminder.notification,
+        tags: [...(originalReminder.tags || [])],
+        notes: originalReminder.notes,
+        status: 'pending',
+        createdBy: userId
+    };
+
+    // Set legacy fields
+    cloneData.reminderDate = cloneData.reminderDateTime;
+    cloneData.reminderTime = cloneData.reminderDateTime.toTimeString().substring(0, 5);
+
+    // Use req.addFirmId for proper tenant isolation
+    const clonedReminder = await Reminder.create(req.addFirmId(cloneData));
+
+    await clonedReminder.populate([
+        { path: 'relatedCase', select: 'title caseNumber' },
+        { path: 'relatedTask', select: 'title dueDate' },
+        { path: 'relatedEvent', select: 'title startDateTime' },
+        { path: 'clientId', select: 'firstName lastName' }
+    ]);
+
+    res.status(201).json({
+        success: true,
+        message: 'Reminder cloned successfully',
+        data: clonedReminder,
+        clonedFrom: originalReminder._id
+    });
+});
+
+/**
+ * Get reminders by client
+ * GET /api/reminders/client/:clientId
+ */
+const getRemindersByClient = asyncHandler(async (req, res) => {
+    validateTenantContext(req);
+
+    const { clientId } = req.params;
+    const { page = 1, limit = 50, status, priority } = req.query;
+    const userId = req.userID;
+
+    // IDOR protection
+    const sanitizedClientId = sanitizeObjectId(clientId);
+    if (!sanitizedClientId) {
+        throw CustomException('Invalid clientId format', 400);
+    }
+
+    // Build query with tenant isolation
+    const query = {
+        clientId: sanitizedClientId,
+        ...req.firmQuery,
+        $or: [
+            { userId },
+            { delegatedTo: userId }
+        ]
+    };
+
+    if (status) query.status = status;
+    if (priority) query.priority = priority;
+
+    const reminders = await Reminder.find(query)
+        .populate('relatedCase', 'title caseNumber')
+        .populate('relatedTask', 'title dueDate')
+        .populate('userId', 'firstName lastName')
+        .sort({ reminderDateTime: 1 })
+        .limit(parseInt(limit))
+        .skip((parseInt(page) - 1) * parseInt(limit))
+        .lean();
+
+    const total = await Reminder.countDocuments(query);
+
+    res.status(200).json({
+        success: true,
+        data: reminders,
+        pagination: {
+            page: parseInt(page),
+            limit: parseInt(limit),
+            total,
+            pages: Math.ceil(total / parseInt(limit))
+        }
+    });
+});
+
+/**
+ * Get reminders by case
+ * GET /api/reminders/case/:caseId
+ */
+const getRemindersByCase = asyncHandler(async (req, res) => {
+    validateTenantContext(req);
+
+    const { caseId } = req.params;
+    const { page = 1, limit = 50, status, priority } = req.query;
+    const userId = req.userID;
+
+    // IDOR protection
+    const sanitizedCaseId = sanitizeObjectId(caseId);
+    if (!sanitizedCaseId) {
+        throw CustomException('Invalid caseId format', 400);
+    }
+
+    // Verify case access
+    const caseDoc = await Case.findOne({ _id: sanitizedCaseId, ...req.firmQuery });
+    if (!caseDoc) {
+        throw CustomException('Case not found', 404);
+    }
+
+    // Build query with tenant isolation
+    const query = {
+        relatedCase: sanitizedCaseId,
+        ...req.firmQuery,
+        $or: [
+            { userId },
+            { delegatedTo: userId }
+        ]
+    };
+
+    if (status) query.status = status;
+    if (priority) query.priority = priority;
+
+    const reminders = await Reminder.find(query)
+        .populate('userId', 'firstName lastName')
+        .populate('delegatedTo', 'firstName lastName')
+        .populate('clientId', 'firstName lastName')
+        .sort({ reminderDateTime: 1 })
+        .limit(parseInt(limit))
+        .skip((parseInt(page) - 1) * parseInt(limit))
+        .lean();
+
+    const total = await Reminder.countDocuments(query);
+
+    res.status(200).json({
+        success: true,
+        data: reminders,
+        pagination: {
+            page: parseInt(page),
+            limit: parseInt(limit),
+            total,
+            pages: Math.ceil(total / parseInt(limit))
+        }
+    });
+});
+
+/**
+ * Reschedule reminder with reason
+ * POST /api/reminders/:id/reschedule
+ */
+const rescheduleReminder = asyncHandler(async (req, res) => {
+    validateTenantContext(req);
+
+    const { id } = req.params;
+    const userId = req.userID;
+
+    // IDOR protection
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid reminder ID format', 400);
+    }
+
+    // Mass assignment protection
+    const safeData = pickAllowedFields(req.body, ['newDateTime', 'reason']);
+    const { newDateTime, reason } = safeData;
+
+    if (!newDateTime) {
+        throw CustomException('newDateTime is required', 400);
+    }
+
+    const parsedDate = new Date(newDateTime);
+    if (isNaN(parsedDate.getTime())) {
+        throw CustomException('Invalid newDateTime format', 400);
+    }
+
+    // Use req.firmQuery for proper tenant isolation
+    const reminder = await Reminder.findOne({ _id: sanitizedId, ...req.firmQuery });
+    if (!reminder) {
+        throw CustomException('Reminder not found', 404);
+    }
+
+    // IDOR - only owner or delegatee can reschedule
+    const hasAccess = reminder.userId.toString() === userId ||
+                      reminder.delegatedTo?.toString() === userId;
+    if (!hasAccess) {
+        throw CustomException('You cannot reschedule this reminder', 403);
+    }
+
+    // Store previous date for history
+    const previousDateTime = reminder.reminderDateTime;
+
+    // Update reminder
+    reminder.reminderDateTime = parsedDate;
+    reminder.reminderDate = parsedDate;
+    reminder.reminderTime = parsedDate.toTimeString().substring(0, 5);
+
+    // Reset status if it was snoozed
+    if (reminder.status === 'snoozed') {
+        reminder.status = 'pending';
+    }
+
+    // Track reschedule history
+    if (!reminder.rescheduleHistory) {
+        reminder.rescheduleHistory = [];
+    }
+    reminder.rescheduleHistory.push({
+        previousDateTime,
+        newDateTime: parsedDate,
+        reason,
+        rescheduledBy: userId,
+        rescheduledAt: new Date()
+    });
+
+    await reminder.save();
+
+    await reminder.populate([
+        { path: 'relatedCase', select: 'title caseNumber' },
+        { path: 'relatedTask', select: 'title dueDate' },
+        { path: 'clientId', select: 'firstName lastName' }
+    ]);
+
+    res.status(200).json({
+        success: true,
+        message: 'Reminder rescheduled successfully',
+        data: reminder,
+        previousDateTime
+    });
+});
+
+/**
+ * Create reminder from task
+ * POST /api/reminders/from-task/:taskId
+ */
+const createReminderFromTask = asyncHandler(async (req, res) => {
+    validateTenantContext(req);
+
+    const { taskId } = req.params;
+    const userId = req.userID;
+
+    // IDOR protection
+    const sanitizedTaskId = sanitizeObjectId(taskId);
+    if (!sanitizedTaskId) {
+        throw CustomException('Invalid taskId format', 400);
+    }
+
+    // Mass assignment protection
+    const safeData = pickAllowedFields(req.body, ['beforeMinutes', 'priority', 'notification']);
+    const { beforeMinutes = 60, priority = 'medium', notification } = safeData;
+
+    // Verify task access
+    const task = await Task.findOne({ _id: sanitizedTaskId, ...req.firmQuery });
+    if (!task) {
+        throw CustomException('Task not found', 404);
+    }
+
+    if (!task.dueDate) {
+        throw CustomException('Task has no due date - cannot create reminder', 400);
+    }
+
+    // Calculate reminder time (before task due date)
+    const reminderDateTime = new Date(task.dueDate);
+    if (task.dueTime) {
+        const [hours, minutes] = task.dueTime.split(':');
+        reminderDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+    }
+    reminderDateTime.setMinutes(reminderDateTime.getMinutes() - beforeMinutes);
+
+    // Create reminder
+    const reminder = await Reminder.create(req.addFirmId({
+        title: `Reminder: ${task.title}`,
+        description: `Task due: ${task.title}`,
+        userId,
+        reminderDateTime,
+        reminderDate: reminderDateTime,
+        reminderTime: reminderDateTime.toTimeString().substring(0, 5),
+        priority,
+        type: 'task_due',
+        relatedTask: task._id,
+        relatedCase: task.caseId,
+        clientId: task.clientId,
+        notification: notification || { channels: ['push', 'in_app'] },
+        tags: task.tags || [],
+        status: 'pending',
+        createdBy: userId
+    }));
+
+    await reminder.populate([
+        { path: 'relatedTask', select: 'title dueDate status' },
+        { path: 'relatedCase', select: 'title caseNumber' },
+        { path: 'clientId', select: 'firstName lastName' }
+    ]);
+
+    res.status(201).json({
+        success: true,
+        message: 'Reminder created from task',
+        data: reminder,
+        linkedTask: {
+            _id: task._id,
+            title: task.title,
+            dueDate: task.dueDate
+        }
+    });
+});
+
+/**
+ * Create reminder from event
+ * POST /api/reminders/from-event/:eventId
+ */
+const createReminderFromEvent = asyncHandler(async (req, res) => {
+    validateTenantContext(req);
+
+    const { eventId } = req.params;
+    const userId = req.userID;
+
+    // IDOR protection
+    const sanitizedEventId = sanitizeObjectId(eventId);
+    if (!sanitizedEventId) {
+        throw CustomException('Invalid eventId format', 400);
+    }
+
+    // Mass assignment protection
+    const safeData = pickAllowedFields(req.body, ['beforeMinutes', 'priority', 'notification']);
+    const { beforeMinutes = 30, priority = 'medium', notification } = safeData;
+
+    // Verify event access
+    const event = await Event.findOne({ _id: sanitizedEventId, ...req.firmQuery });
+    if (!event) {
+        throw CustomException('Event not found', 404);
+    }
+
+    if (!event.startDateTime) {
+        throw CustomException('Event has no start time - cannot create reminder', 400);
+    }
+
+    // Calculate reminder time (before event start)
+    const reminderDateTime = new Date(event.startDateTime);
+    reminderDateTime.setMinutes(reminderDateTime.getMinutes() - beforeMinutes);
+
+    // Create reminder
+    const reminder = await Reminder.create(req.addFirmId({
+        title: `Reminder: ${event.title}`,
+        description: `Event: ${event.title}`,
+        userId,
+        reminderDateTime,
+        reminderDate: reminderDateTime,
+        reminderTime: reminderDateTime.toTimeString().substring(0, 5),
+        priority,
+        type: event.type === 'hearing' ? 'hearing' : 'meeting',
+        relatedEvent: event._id,
+        relatedCase: event.caseId,
+        clientId: event.clientId,
+        notification: notification || { channels: ['push', 'email', 'in_app'] },
+        tags: event.tags || [],
+        status: 'pending',
+        createdBy: userId
+    }));
+
+    await reminder.populate([
+        { path: 'relatedEvent', select: 'title startDateTime type' },
+        { path: 'relatedCase', select: 'title caseNumber' },
+        { path: 'clientId', select: 'firstName lastName' }
+    ]);
+
+    res.status(201).json({
+        success: true,
+        message: 'Reminder created from event',
+        data: reminder,
+        linkedEvent: {
+            _id: event._id,
+            title: event.title,
+            startDateTime: event.startDateTime
+        }
+    });
+});
+
 // Helper function to calculate next reminder date
 function calculateNextReminderDate(currentDate, recurring) {
     const nextDate = new Date(currentDate);
@@ -1265,6 +1684,424 @@ function calculateNextReminderDate(currentDate, recurring) {
     return nextDate;
 }
 
+/**
+ * Bulk create reminders
+ * POST /api/reminders/bulk
+ * Gold Standard: Netflix pattern - max 50 items, per-item error handling
+ */
+const bulkCreateReminders = asyncHandler(async (req, res) => {
+    // Validate tenant context first
+    validateTenantContext(req);
+
+    const userId = req.userID;
+
+    // Mass assignment protection
+    const safeData = pickAllowedFields(req.body, ['reminders']);
+    const { reminders } = safeData;
+
+    if (!reminders || !Array.isArray(reminders) || reminders.length === 0) {
+        throw CustomException('Reminders array is required', 400);
+    }
+
+    if (reminders.length > 50) {
+        throw CustomException('Maximum 50 reminders can be created at once', 400);
+    }
+
+    const allowedReminderFields = [
+        'title', 'description', 'reminderDateTime', 'reminderDate', 'reminderTime',
+        'priority', 'type', 'relatedCase', 'relatedTask', 'relatedEvent',
+        'relatedInvoice', 'clientId', 'recurring', 'notification', 'tags', 'notes'
+    ];
+
+    const createdReminders = [];
+    const errors = [];
+
+    for (let i = 0; i < reminders.length; i++) {
+        try {
+            const reminderData = pickAllowedFields(reminders[i], allowedReminderFields);
+
+            // Validate and parse date
+            let dateTime = new Date();
+            if (reminderData.reminderDateTime) {
+                dateTime = new Date(reminderData.reminderDateTime);
+                if (isNaN(dateTime.getTime())) {
+                    throw new Error('Invalid reminderDateTime format');
+                }
+            } else if (reminderData.reminderDate && reminderData.reminderTime) {
+                dateTime = new Date(`${reminderData.reminderDate}T${reminderData.reminderTime}`);
+                if (isNaN(dateTime.getTime())) {
+                    throw new Error('Invalid date/time format');
+                }
+            }
+
+            // Normalize priority
+            const priorityMap = { urgent: 'critical', normal: 'medium' };
+            const priority = priorityMap[reminderData.priority] || reminderData.priority || 'medium';
+
+            // IDOR protection - validate related entities
+            let sanitizedRelatedCase = null;
+            if (reminderData.relatedCase) {
+                sanitizedRelatedCase = sanitizeObjectId(reminderData.relatedCase);
+                const caseDoc = await Case.findOne({ _id: sanitizedRelatedCase, ...req.firmQuery });
+                if (!caseDoc) {
+                    throw new Error('Case not found or access denied');
+                }
+            }
+
+            let sanitizedRelatedTask = null;
+            if (reminderData.relatedTask) {
+                sanitizedRelatedTask = sanitizeObjectId(reminderData.relatedTask);
+                const task = await Task.findOne({ _id: sanitizedRelatedTask, ...req.firmQuery });
+                if (!task) {
+                    throw new Error('Task not found or access denied');
+                }
+            }
+
+            let sanitizedRelatedEvent = null;
+            if (reminderData.relatedEvent) {
+                sanitizedRelatedEvent = sanitizeObjectId(reminderData.relatedEvent);
+                const event = await Event.findOne({ _id: sanitizedRelatedEvent, ...req.firmQuery });
+                if (!event) {
+                    throw new Error('Event not found or access denied');
+                }
+            }
+
+            const sanitizedClientId = reminderData.clientId ? sanitizeObjectId(reminderData.clientId) : null;
+            const sanitizedRelatedInvoice = reminderData.relatedInvoice ? sanitizeObjectId(reminderData.relatedInvoice) : null;
+
+            // Normalize notification
+            let notification = reminderData.notification || { channels: ['push'] };
+            if (notification.advanceNotifications !== undefined) {
+                if (typeof notification.advanceNotifications === 'number') {
+                    notification = {
+                        ...notification,
+                        advanceNotifications: [{
+                            beforeMinutes: notification.advanceNotifications,
+                            channels: notification.channels || ['push']
+                        }]
+                    };
+                }
+            }
+
+            // Use req.addFirmId() for proper tenant isolation
+            const reminder = await Reminder.create(req.addFirmId({
+                title: reminderData.title || 'Untitled Reminder',
+                description: reminderData.description,
+                userId,
+                reminderDateTime: dateTime,
+                reminderDate: dateTime,
+                reminderTime: dateTime.toTimeString().substring(0, 5),
+                priority,
+                type: reminderData.type || 'general',
+                relatedCase: sanitizedRelatedCase,
+                relatedTask: sanitizedRelatedTask,
+                relatedEvent: sanitizedRelatedEvent,
+                relatedInvoice: sanitizedRelatedInvoice,
+                clientId: sanitizedClientId,
+                recurring: reminderData.recurring || { enabled: false },
+                notification,
+                tags: reminderData.tags || [],
+                notes: reminderData.notes,
+                status: 'pending',
+                createdBy: userId
+            }));
+
+            createdReminders.push(reminder);
+        } catch (error) {
+            errors.push({
+                index: i,
+                title: reminders[i].title,
+                error: error.message
+            });
+        }
+    }
+
+    res.status(201).json({
+        success: true,
+        message: `${createdReminders.length} reminder(s) created successfully`,
+        data: {
+            created: createdReminders.length,
+            failed: errors.length,
+            reminders: createdReminders,
+            errors: errors.length > 0 ? errors : undefined
+        }
+    });
+});
+
+/**
+ * Search reminders
+ * GET /api/reminders/search
+ * Gold Standard: Same pattern as searchTasks
+ */
+const searchReminders = asyncHandler(async (req, res) => {
+    // Validate tenant context first
+    validateTenantContext(req);
+
+    const userId = req.userID;
+    const {
+        q,           // Search query
+        status,
+        priority,
+        type,
+        relatedCase,
+        clientId,
+        startDate,
+        endDate,
+        overdue,
+        page = 1,
+        limit = 50,
+        sortBy = 'reminderDateTime',
+        sortOrder = 'asc'
+    } = req.query;
+
+    // Build query with tenant isolation
+    const query = { ...req.firmQuery, userId };
+
+    // Text search - escape regex for security
+    if (q && q.trim()) {
+        const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const searchRegex = new RegExp(escapeRegex(q.trim()), 'i');
+        query.$or = [
+            { title: searchRegex },
+            { description: searchRegex },
+            { notes: searchRegex },
+            { tags: searchRegex }
+        ];
+    }
+
+    // Filters
+    if (status) {
+        query.status = Array.isArray(status) ? { $in: status } : status;
+    }
+    if (priority) {
+        query.priority = Array.isArray(priority) ? { $in: priority } : priority;
+    }
+    if (type) {
+        query.type = Array.isArray(type) ? { $in: type } : type;
+    }
+    if (relatedCase) {
+        query.relatedCase = sanitizeObjectId(relatedCase);
+    }
+    if (clientId) {
+        query.clientId = sanitizeObjectId(clientId);
+    }
+
+    // Date range filter
+    if (startDate || endDate) {
+        query.reminderDateTime = {};
+        if (startDate) query.reminderDateTime.$gte = new Date(startDate);
+        if (endDate) query.reminderDateTime.$lte = new Date(endDate);
+    }
+
+    // Overdue filter
+    if (overdue === 'true') {
+        query.reminderDateTime = { ...(query.reminderDateTime || {}), $lt: new Date() };
+        query.status = { $nin: ['completed', 'dismissed', 'snoozed'] };
+    }
+
+    // Build sort
+    const sortOptions = {};
+    sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
+
+    const reminders = await Reminder.find(query)
+        .populate('relatedCase', 'title caseNumber')
+        .populate('relatedTask', 'title')
+        .populate('clientId', 'firstName lastName')
+        .sort(sortOptions)
+        .limit(parseInt(limit))
+        .skip((parseInt(page) - 1) * parseInt(limit))
+        .lean();
+
+    const total = await Reminder.countDocuments(query);
+
+    res.status(200).json({
+        success: true,
+        data: reminders,
+        query: q,
+        filters: { status, priority, type, relatedCase, clientId, startDate, endDate, overdue },
+        pagination: {
+            page: parseInt(page),
+            limit: parseInt(limit),
+            total,
+            pages: Math.ceil(total / parseInt(limit))
+        }
+    });
+});
+
+/**
+ * Get reminder activity/history
+ * GET /api/reminders/:id/activity
+ * Gold Standard: Same pattern as getTaskActivity
+ */
+const getReminderActivity = asyncHandler(async (req, res) => {
+    validateTenantContext(req);
+
+    const { id } = req.params;
+    const { page = 1, limit = 50 } = req.query;
+    const userId = req.userID;
+
+    // IDOR protection
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid reminder ID format', 400);
+    }
+
+    // Use req.firmQuery for proper tenant isolation
+    const reminder = await Reminder.findOne({ _id: sanitizedId, ...req.firmQuery })
+        .select('rescheduleHistory snoozeHistory delegatedHistory title userId')
+        .lean();
+
+    if (!reminder) {
+        throw CustomException('Reminder not found', 404);
+    }
+
+    // IDOR - only owner or delegatee can view activity
+    if (reminder.userId.toString() !== userId) {
+        throw CustomException('You cannot view this reminder activity', 403);
+    }
+
+    // Combine all history into one timeline
+    const allActivity = [
+        ...(reminder.rescheduleHistory || []).map(h => ({ ...h, activityType: 'rescheduled' })),
+        ...(reminder.snoozeHistory || []).map(h => ({ ...h, activityType: 'snoozed' })),
+        ...(reminder.delegatedHistory || []).map(h => ({ ...h, activityType: 'delegated' }))
+    ];
+
+    // Sort by timestamp descending
+    allActivity.sort((a, b) => new Date(b.rescheduledAt || b.snoozedAt || b.delegatedAt || 0) - new Date(a.rescheduledAt || a.snoozedAt || a.delegatedAt || 0));
+
+    const total = allActivity.length;
+    const startIndex = (parseInt(page) - 1) * parseInt(limit);
+    const paginatedActivity = allActivity.slice(startIndex, startIndex + parseInt(limit));
+
+    // Get unique user IDs for population
+    const userIds = [...new Set(
+        paginatedActivity
+            .map(h => h.rescheduledBy || h.snoozedBy || h.delegatedBy || h.delegatedTo)
+            .filter(Boolean)
+    )];
+    const users = await User.find({ _id: { $in: userIds } }).select('firstName lastName image').lean();
+    const userMap = {};
+    users.forEach(u => { userMap[u._id.toString()] = u; });
+
+    const enrichedActivity = paginatedActivity.map(h => ({
+        ...h,
+        user: userMap[(h.rescheduledBy || h.snoozedBy || h.delegatedBy)?.toString()] || null,
+        delegatedToUser: h.delegatedTo ? userMap[h.delegatedTo.toString()] : null
+    }));
+
+    res.status(200).json({
+        success: true,
+        data: enrichedActivity,
+        pagination: {
+            page: parseInt(page),
+            limit: parseInt(limit),
+            total,
+            pages: Math.ceil(total / parseInt(limit))
+        }
+    });
+});
+
+/**
+ * Get conflicting reminders (overlapping times for same user)
+ * GET /api/reminders/conflicts
+ * Gold Standard: Same pattern as getConflicts for events
+ */
+const getReminderConflicts = asyncHandler(async (req, res) => {
+    validateTenantContext(req);
+
+    const { userIds, startDateTime, endDateTime, reminderDate } = req.query;
+    const userId = req.userID;
+
+    // Parse userIds
+    const userIdArray = userIds ? (Array.isArray(userIds) ? userIds : userIds.split(',')) : [userId];
+
+    // Validate users belong to same tenant
+    if (userIdArray.length > 0) {
+        const validUsers = await User.countDocuments({
+            _id: { $in: userIdArray },
+            ...req.firmQuery
+        });
+        if (validUsers !== userIdArray.length) {
+            throw CustomException('Cannot check conflicts for users outside your organization', 403);
+        }
+    }
+
+    // Build query with tenant isolation
+    const query = {
+        ...req.firmQuery,
+        userId: { $in: userIdArray },
+        status: { $nin: ['completed', 'dismissed'] }
+    };
+
+    // Date filter
+    if (startDateTime && endDateTime) {
+        query.reminderDateTime = {
+            $gte: new Date(startDateTime),
+            $lte: new Date(endDateTime)
+        };
+    } else if (reminderDate) {
+        const date = new Date(reminderDate);
+        const startOfDay = new Date(date);
+        startOfDay.setHours(0, 0, 0, 0);
+        const endOfDay = new Date(date);
+        endOfDay.setHours(23, 59, 59, 999);
+        query.reminderDateTime = { $gte: startOfDay, $lte: endOfDay };
+    }
+
+    const reminders = await Reminder.find(query)
+        .populate('relatedCase', 'title caseNumber')
+        .populate('relatedTask', 'title')
+        .sort({ reminderDateTime: 1 })
+        .lean();
+
+    // Group by user
+    const remindersByUser = {};
+    userIdArray.forEach(uid => { remindersByUser[uid] = []; });
+
+    reminders.forEach(reminder => {
+        const uid = reminder.userId.toString();
+        if (remindersByUser[uid]) {
+            remindersByUser[uid].push(reminder);
+        }
+    });
+
+    // Find time slots with multiple reminders (potential conflicts)
+    const conflictTimeSlots = {};
+    Object.entries(remindersByUser).forEach(([uid, userReminders]) => {
+        // Group by 30-minute time slots
+        const bySlot = {};
+        userReminders.forEach(r => {
+            if (r.reminderDateTime) {
+                const slotKey = new Date(r.reminderDateTime);
+                slotKey.setMinutes(Math.floor(slotKey.getMinutes() / 30) * 30);
+                slotKey.setSeconds(0);
+                const key = slotKey.toISOString();
+                if (!bySlot[key]) bySlot[key] = [];
+                bySlot[key].push(r);
+            }
+        });
+        // Find slots with >1 reminder
+        Object.entries(bySlot).forEach(([slot, slotReminders]) => {
+            if (slotReminders.length > 1) {
+                if (!conflictTimeSlots[slot]) conflictTimeSlots[slot] = {};
+                conflictTimeSlots[slot][uid] = slotReminders;
+            }
+        });
+    });
+
+    res.status(200).json({
+        success: true,
+        data: {
+            hasConflicts: Object.keys(conflictTimeSlots).length > 0,
+            totalReminders: reminders.length,
+            remindersByUser,
+            conflictTimeSlots,
+            filters: { userIds: userIdArray, startDateTime, endDateTime, reminderDate }
+        }
+    });
+});
+
 module.exports = {
     createReminder,
     getReminders,
@@ -1283,5 +2120,16 @@ module.exports = {
     bulkDeleteReminders,
     bulkUpdateReminders,
     createReminderFromNaturalLanguage,
-    createReminderFromVoice
+    createReminderFromVoice,
+    // NEW: Missing endpoints
+    cloneReminder,
+    getRemindersByClient,
+    getRemindersByCase,
+    rescheduleReminder,
+    createReminderFromTask,
+    createReminderFromEvent,
+    bulkCreateReminders,
+    searchReminders,
+    getReminderActivity,
+    getReminderConflicts
 };

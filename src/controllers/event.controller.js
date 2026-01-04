@@ -1317,6 +1317,618 @@ const syncTaskToCalendar = async (taskId, firmQuery = {}) => {
     }
 };
 
+// =============================================================================
+// NEW MISSING ENDPOINTS (Gold Standard Implementation)
+// =============================================================================
+
+/**
+ * Delete action item
+ * DELETE /api/events/:id/action-items/:itemId
+ */
+const deleteActionItem = asyncHandler(async (req, res) => {
+    const { id, itemId } = req.params;
+    const userId = req.userID;
+
+    // IDOR Protection: Validate ID format
+    if (!id || id.length !== 24 || !/^[0-9a-fA-F]{24}$/.test(id)) {
+        throw CustomException('Invalid event ID format', 400);
+    }
+
+    // Use req.firmQuery for proper tenant isolation
+    const event = await Event.findOne({ _id: id, ...req.firmQuery });
+
+    if (!event) {
+        throw CustomException('Event not found', 404);
+    }
+
+    // IDOR Protection: Check access
+    const hasAccess = event.organizer?.toString() === userId ||
+                      event.createdBy?.toString() === userId ||
+                      event.isUserAttendee(userId);
+
+    if (!hasAccess) {
+        throw CustomException('You cannot delete action items from this event', 403);
+    }
+
+    const item = event.actionItems.id(itemId);
+    if (!item) {
+        throw CustomException('Action item not found', 404);
+    }
+
+    event.actionItems.pull(itemId);
+    await event.save();
+
+    res.status(200).json({
+        success: true,
+        message: 'Action item deleted',
+        data: event.actionItems
+    });
+});
+
+/**
+ * Clone an event
+ * POST /api/events/:id/clone
+ */
+const cloneEvent = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const userId = req.userID;
+
+    // Block departed users
+    if (req.isDeparted) {
+        throw CustomException('لم يعد لديك صلاحية إنشاء مواعيد جديدة', 403);
+    }
+
+    // IDOR Protection
+    if (!id || id.length !== 24 || !/^[0-9a-fA-F]{24}$/.test(id)) {
+        throw CustomException('Invalid event ID format', 400);
+    }
+
+    // Mass assignment protection
+    const allowedFields = ['title', 'startDateTime', 'endDateTime', 'resetAttendees'];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+    const { title: newTitle, startDateTime: newStart, endDateTime: newEnd, resetAttendees = false } = safeData;
+
+    // Use req.firmQuery for proper tenant isolation
+    const originalEvent = await Event.findOne({ _id: id, ...req.firmQuery })
+        .populate('attendees.userId', 'firstName lastName email');
+
+    if (!originalEvent) {
+        throw CustomException('Event not found', 404);
+    }
+
+    // Parse new dates if provided
+    const parsedStart = newStart ? parseAndValidateDate(newStart) : new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const parsedEnd = newEnd ? parseAndValidateDate(newEnd) :
+        (originalEvent.endDateTime ? new Date(parsedStart.getTime() + (originalEvent.endDateTime - originalEvent.startDateTime)) : null);
+
+    if (parsedEnd) {
+        validateDateRange(parsedStart, parsedEnd);
+    }
+
+    // Prepare clone data
+    const cloneData = {
+        title: newTitle || `${originalEvent.title} (Copy)`,
+        type: originalEvent.type,
+        description: originalEvent.description,
+        startDateTime: parsedStart,
+        endDateTime: parsedEnd,
+        allDay: originalEvent.allDay,
+        timezone: originalEvent.timezone,
+        location: originalEvent.location,
+        caseId: originalEvent.caseId,
+        clientId: originalEvent.clientId,
+        organizer: userId,
+        attendees: resetAttendees ? [] : originalEvent.attendees.map(a => ({
+            userId: a.userId?._id || a.userId,
+            email: a.email,
+            name: a.name,
+            role: a.role,
+            isRequired: a.isRequired,
+            status: 'invited'  // Reset RSVP status
+        })),
+        agenda: originalEvent.agenda.map(a => ({
+            title: a.title,
+            description: a.description,
+            duration: a.duration,
+            presenter: a.presenter,
+            notes: a.notes,
+            order: a.order,
+            completed: false
+        })),
+        actionItems: [],  // Don't copy action items
+        reminders: originalEvent.reminders.map(r => ({
+            type: r.type,
+            beforeMinutes: r.beforeMinutes,
+            sent: false
+        })),
+        recurrence: { enabled: false },  // Don't copy recurrence
+        priority: originalEvent.priority,
+        visibility: originalEvent.visibility,
+        color: originalEvent.color,
+        tags: [...(originalEvent.tags || [])],
+        notes: originalEvent.notes,
+        createdBy: userId,
+        status: 'scheduled'
+    };
+
+    // Use req.addFirmId for proper tenant isolation
+    const clonedEvent = await Event.create(req.addFirmId(cloneData));
+
+    await clonedEvent.populate([
+        { path: 'organizer', select: 'firstName lastName image' },
+        { path: 'attendees.userId', select: 'firstName lastName image email' },
+        { path: 'caseId', select: 'title caseNumber' },
+        { path: 'clientId', select: 'firstName lastName' }
+    ]);
+
+    res.status(201).json({
+        success: true,
+        message: 'Event cloned successfully',
+        data: clonedEvent,
+        clonedFrom: originalEvent._id
+    });
+});
+
+/**
+ * Reschedule event with notification
+ * POST /api/events/:id/reschedule
+ */
+const rescheduleEvent = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const userId = req.userID;
+
+    // Block departed users
+    if (req.isDeparted) {
+        throw CustomException('لم يعد لديك صلاحية تعديل المواعيد', 403);
+    }
+
+    // IDOR Protection
+    if (!id || id.length !== 24 || !/^[0-9a-fA-F]{24}$/.test(id)) {
+        throw CustomException('Invalid event ID format', 400);
+    }
+
+    // Mass assignment protection
+    const allowedFields = ['newStartDateTime', 'newEndDateTime', 'reason', 'notifyAttendees'];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+    const { newStartDateTime, newEndDateTime, reason, notifyAttendees = true } = safeData;
+
+    if (!newStartDateTime) {
+        throw CustomException('newStartDateTime is required', 400);
+    }
+
+    // Use req.firmQuery for proper tenant isolation
+    const event = await Event.findOne({ _id: id, ...req.firmQuery });
+
+    if (!event) {
+        throw CustomException('Event not found', 404);
+    }
+
+    // IDOR Protection: Check access
+    const canUpdate = event.organizer?.toString() === userId || event.createdBy?.toString() === userId;
+    if (!canUpdate) {
+        throw CustomException('Only the organizer can reschedule this event', 403);
+    }
+
+    // Validate new dates
+    const parsedStart = parseAndValidateDate(newStartDateTime);
+    const parsedEnd = newEndDateTime ? parseAndValidateDate(newEndDateTime) :
+        (event.endDateTime ? new Date(parsedStart.getTime() + (event.endDateTime - event.startDateTime)) : null);
+
+    if (parsedEnd) {
+        validateDateRange(parsedStart, parsedEnd);
+    }
+
+    // Store previous dates for history
+    const previousStartDateTime = event.startDateTime;
+    const previousEndDateTime = event.endDateTime;
+
+    // Update event
+    event.startDateTime = parsedStart;
+    event.endDateTime = parsedEnd;
+    event.lastModifiedBy = userId;
+
+    // Track reschedule history
+    if (!event.rescheduleHistory) {
+        event.rescheduleHistory = [];
+    }
+    event.rescheduleHistory.push({
+        previousStartDateTime,
+        previousEndDateTime,
+        newStartDateTime: parsedStart,
+        newEndDateTime: parsedEnd,
+        reason,
+        rescheduledBy: userId,
+        rescheduledAt: new Date()
+    });
+
+    // Reset reminder sent flags
+    event.reminders.forEach(r => { r.sent = false; });
+
+    // Reset attendee RSVP status if notifying
+    if (notifyAttendees && event.attendees.length > 0) {
+        event.attendees.forEach(a => {
+            if (a.status !== 'declined') {
+                a.status = 'invited';
+                a.respondedAt = null;
+            }
+        });
+    }
+
+    await event.save();
+
+    await event.populate([
+        { path: 'organizer', select: 'firstName lastName image email' },
+        { path: 'attendees.userId', select: 'firstName lastName image email' },
+        { path: 'caseId', select: 'title caseNumber' }
+    ]);
+
+    res.status(200).json({
+        success: true,
+        message: 'Event rescheduled successfully',
+        data: event,
+        previousSchedule: {
+            startDateTime: previousStartDateTime,
+            endDateTime: previousEndDateTime
+        },
+        notificationsSent: notifyAttendees
+    });
+});
+
+/**
+ * Get conflicting events
+ * GET /api/events/conflicts
+ */
+const getConflicts = asyncHandler(async (req, res) => {
+    const { userIds, startDateTime, endDateTime, excludeEventId } = req.query;
+
+    if (!startDateTime || !endDateTime) {
+        throw CustomException('startDateTime and endDateTime are required', 400);
+    }
+
+    const parsedStart = parseAndValidateDate(startDateTime);
+    const parsedEnd = parseAndValidateDate(endDateTime);
+    validateDateRange(parsedStart, parsedEnd);
+
+    // Parse userIds
+    const userIdArray = userIds ? (Array.isArray(userIds) ? userIds : userIds.split(',')) : [req.userID];
+
+    // SECURITY: Verify requested users belong to same tenant
+    if (userIdArray.length > 0) {
+        const validUsers = await User.countDocuments({
+            _id: { $in: userIdArray },
+            ...req.firmQuery
+        });
+        if (validUsers !== userIdArray.length) {
+            throw CustomException('Cannot check conflicts for users outside your organization', 403);
+        }
+    }
+
+    // Build conflict query
+    const conflictQuery = {
+        ...req.firmQuery,
+        status: { $nin: ['cancelled', 'completed'] },
+        $or: [
+            { organizer: { $in: userIdArray } },
+            { 'attendees.userId': { $in: userIdArray } },
+            { createdBy: { $in: userIdArray } }
+        ],
+        // Time overlap: (start1 < end2) && (start2 < end1)
+        startDateTime: { $lt: parsedEnd },
+        endDateTime: { $gt: parsedStart }
+    };
+
+    if (excludeEventId) {
+        conflictQuery._id = { $ne: excludeEventId };
+    }
+
+    const conflicts = await Event.find(conflictQuery)
+        .populate('organizer', 'firstName lastName image')
+        .populate('attendees.userId', 'firstName lastName')
+        .sort({ startDateTime: 1 })
+        .lean();
+
+    // Group conflicts by user
+    const conflictsByUser = {};
+    userIdArray.forEach(uid => { conflictsByUser[uid] = []; });
+
+    conflicts.forEach(event => {
+        userIdArray.forEach(uid => {
+            const isInvolved =
+                event.organizer?._id?.toString() === uid ||
+                event.createdBy?.toString() === uid ||
+                event.attendees?.some(a => a.userId?._id?.toString() === uid);
+
+            if (isInvolved) {
+                conflictsByUser[uid].push(event);
+            }
+        });
+    });
+
+    res.status(200).json({
+        success: true,
+        data: {
+            hasConflicts: conflicts.length > 0,
+            conflicts,
+            conflictsByUser,
+            requestedTimeSlot: {
+                startDateTime: parsedStart,
+                endDateTime: parsedEnd
+            }
+        },
+        count: conflicts.length
+    });
+});
+
+/**
+ * Bulk create events
+ * POST /api/events/bulk
+ */
+const bulkCreateEvents = asyncHandler(async (req, res) => {
+    const userId = req.userID;
+
+    // Block departed users
+    if (req.isDeparted) {
+        throw CustomException('لم يعد لديك صلاحية إنشاء مواعيد جديدة', 403);
+    }
+
+    // Mass assignment protection
+    const safeData = pickAllowedFields(req.body, ['events']);
+    const { events } = safeData;
+
+    if (!events || !Array.isArray(events) || events.length === 0) {
+        throw CustomException('Events array is required', 400);
+    }
+
+    if (events.length > 50) {
+        throw CustomException('Maximum 50 events can be created at once', 400);
+    }
+
+    const allowedEventFields = [
+        'title', 'type', 'description', 'startDateTime', 'endDateTime',
+        'allDay', 'timezone', 'location', 'caseId', 'clientId',
+        'attendees', 'priority', 'visibility', 'color', 'tags', 'notes'
+    ];
+
+    const createdEvents = [];
+    const errors = [];
+
+    for (let i = 0; i < events.length; i++) {
+        try {
+            const eventData = pickAllowedFields(events[i], allowedEventFields);
+
+            // Validate dates
+            const parsedStart = parseAndValidateDate(eventData.startDateTime);
+            const parsedEnd = eventData.endDateTime ? parseAndValidateDate(eventData.endDateTime) : null;
+            if (parsedEnd) validateDateRange(parsedStart, parsedEnd);
+
+            // IDOR: Validate case access
+            if (eventData.caseId) {
+                const caseDoc = await Case.findOne({ _id: eventData.caseId, ...req.firmQuery });
+                if (!caseDoc) {
+                    throw new Error('Case not found or access denied');
+                }
+            }
+
+            const event = await Event.create(req.addFirmId({
+                ...eventData,
+                startDateTime: parsedStart,
+                endDateTime: parsedEnd,
+                organizer: userId,
+                createdBy: userId,
+                status: 'scheduled'
+            }));
+
+            createdEvents.push(event);
+        } catch (error) {
+            errors.push({
+                index: i,
+                title: events[i].title,
+                error: error.message
+            });
+        }
+    }
+
+    res.status(201).json({
+        success: true,
+        message: `${createdEvents.length} event(s) created successfully`,
+        data: {
+            created: createdEvents.length,
+            failed: errors.length,
+            events: createdEvents,
+            errors: errors.length > 0 ? errors : undefined
+        }
+    });
+});
+
+/**
+ * Bulk update events
+ * PUT /api/events/bulk
+ */
+const bulkUpdateEvents = asyncHandler(async (req, res) => {
+    const userId = req.userID;
+
+    // Block departed users
+    if (req.isDeparted) {
+        throw CustomException('لم يعد لديك صلاحية تعديل المواعيد', 403);
+    }
+
+    // Mass assignment protection
+    const safeData = pickAllowedFields(req.body, ['eventIds', 'updates']);
+    const { eventIds, updates } = safeData;
+
+    if (!eventIds || !Array.isArray(eventIds) || eventIds.length === 0) {
+        throw CustomException('Event IDs are required', 400);
+    }
+
+    if (!updates || typeof updates !== 'object') {
+        throw CustomException('Updates object is required', 400);
+    }
+
+    if (eventIds.length > 50) {
+        throw CustomException('Maximum 50 events can be updated at once', 400);
+    }
+
+    // Allowed bulk update fields
+    const allowedUpdates = ['status', 'priority', 'color', 'tags'];
+    const updateData = pickAllowedFields(updates, allowedUpdates);
+
+    if (Object.keys(updateData).length === 0) {
+        throw CustomException('No valid update fields provided', 400);
+    }
+
+    // IDOR protection - verify all events belong to user/tenant
+    const events = await Event.find({
+        _id: { $in: eventIds },
+        ...req.firmQuery,
+        $or: [
+            { organizer: userId },
+            { createdBy: userId }
+        ]
+    });
+
+    if (events.length !== eventIds.length) {
+        throw CustomException('Some events are not accessible or you do not have permission', 403);
+    }
+
+    // Perform bulk update
+    await Event.updateMany(
+        {
+            _id: { $in: eventIds },
+            ...req.firmQuery,
+            $or: [
+                { organizer: userId },
+                { createdBy: userId }
+            ]
+        },
+        {
+            $set: {
+                ...updateData,
+                lastModifiedBy: userId
+            }
+        }
+    );
+
+    res.status(200).json({
+        success: true,
+        message: `${events.length} event(s) updated successfully`,
+        count: events.length
+    });
+});
+
+/**
+ * Bulk delete events
+ * DELETE /api/events/bulk
+ */
+const bulkDeleteEvents = asyncHandler(async (req, res) => {
+    const userId = req.userID;
+
+    // Mass assignment protection
+    const safeData = pickAllowedFields(req.body, ['eventIds']);
+    const { eventIds } = safeData;
+
+    if (!eventIds || !Array.isArray(eventIds) || eventIds.length === 0) {
+        throw CustomException('Event IDs are required', 400);
+    }
+
+    if (eventIds.length > 50) {
+        throw CustomException('Maximum 50 events can be deleted at once', 400);
+    }
+
+    // IDOR protection - verify all events belong to user/tenant
+    const events = await Event.find({
+        _id: { $in: eventIds },
+        ...req.firmQuery,
+        $or: [
+            { organizer: userId },
+            { createdBy: userId }
+        ]
+    });
+
+    if (events.length !== eventIds.length) {
+        throw CustomException('Some events are not accessible or you do not have permission', 403);
+    }
+
+    // Unlink any linked tasks
+    for (const event of events) {
+        if (event.taskId) {
+            try {
+                const linkedTask = await Task.findOne({ _id: event.taskId, ...req.firmQuery });
+                if (linkedTask) {
+                    linkedTask.linkedEventId = null;
+                    await linkedTask.save();
+                }
+            } catch (error) {
+                logger.error('Error unlinking task from deleted event', { error: error.message });
+            }
+        }
+    }
+
+    // Perform bulk delete
+    await Event.deleteMany({
+        _id: { $in: eventIds },
+        ...req.firmQuery,
+        $or: [
+            { organizer: userId },
+            { createdBy: userId }
+        ]
+    });
+
+    res.status(200).json({
+        success: true,
+        message: `${events.length} event(s) deleted successfully`,
+        count: events.length
+    });
+});
+
+/**
+ * Get events by client
+ * GET /api/events/client/:clientId
+ */
+const getEventsByClient = asyncHandler(async (req, res) => {
+    const { clientId } = req.params;
+    const { page = 1, limit = 50, status, type, startDate, endDate } = req.query;
+
+    // IDOR Protection
+    if (!clientId || clientId.length !== 24 || !/^[0-9a-fA-F]{24}$/.test(clientId)) {
+        throw CustomException('Invalid clientId format', 400);
+    }
+
+    // Build query with tenant isolation
+    const query = {
+        clientId,
+        ...req.firmQuery
+    };
+
+    if (status) query.status = status;
+    if (type) query.type = type;
+    if (startDate || endDate) {
+        query.startDateTime = {};
+        if (startDate) query.startDateTime.$gte = new Date(startDate);
+        if (endDate) query.startDateTime.$lte = new Date(endDate);
+    }
+
+    const events = await Event.find(query)
+        .populate('organizer', 'firstName lastName image')
+        .populate('caseId', 'title caseNumber')
+        .sort({ startDateTime: -1 })
+        .limit(parseInt(limit))
+        .skip((parseInt(page) - 1) * parseInt(limit))
+        .lean();
+
+    const total = await Event.countDocuments(query);
+
+    res.status(200).json({
+        success: true,
+        data: events,
+        pagination: {
+            page: parseInt(page),
+            limit: parseInt(limit),
+            total,
+            pages: Math.ceil(total / parseInt(limit))
+        }
+    });
+});
+
 // === ICS EXPORT/IMPORT ===
 
 /**
@@ -1977,6 +2589,179 @@ const createEventFromVoice = asyncHandler(async (req, res) => {
     });
 });
 
+/**
+ * Search events
+ * GET /api/events/search
+ * Gold Standard: Same pattern as searchTasks
+ */
+const searchEvents = asyncHandler(async (req, res) => {
+    const {
+        q,           // Search query
+        type,
+        status,
+        priority,
+        visibility,
+        caseId,
+        clientId,
+        organizer,
+        startDate,
+        endDate,
+        allDay,
+        page = 1,
+        limit = 50,
+        sortBy = 'startDateTime',
+        sortOrder = 'asc'
+    } = req.query;
+
+    // Build query with tenant isolation
+    const query = { ...req.firmQuery };
+
+    // Text search - escape regex for security
+    if (q && q.trim()) {
+        const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const searchRegex = new RegExp(escapeRegex(q.trim()), 'i');
+        query.$or = [
+            { title: searchRegex },
+            { description: searchRegex },
+            { notes: searchRegex },
+            { tags: searchRegex },
+            { 'location.name': searchRegex }
+        ];
+    }
+
+    // Filters
+    if (type) {
+        query.type = Array.isArray(type) ? { $in: type } : type;
+    }
+    if (status) {
+        query.status = Array.isArray(status) ? { $in: status } : status;
+    }
+    if (priority) {
+        query.priority = Array.isArray(priority) ? { $in: priority } : priority;
+    }
+    if (visibility) {
+        query.visibility = visibility;
+    }
+    if (caseId) {
+        const { sanitizeObjectId } = require('../utils/securityUtils');
+        query.caseId = sanitizeObjectId(caseId);
+    }
+    if (clientId) {
+        const { sanitizeObjectId } = require('../utils/securityUtils');
+        query.clientId = sanitizeObjectId(clientId);
+    }
+    if (organizer) {
+        const { sanitizeObjectId } = require('../utils/securityUtils');
+        query.organizer = sanitizeObjectId(organizer);
+    }
+
+    // Date range filter
+    if (startDate || endDate) {
+        query.startDateTime = {};
+        if (startDate) query.startDateTime.$gte = new Date(startDate);
+        if (endDate) query.startDateTime.$lte = new Date(endDate);
+    }
+
+    // All day filter
+    if (allDay === 'true' || allDay === 'false') {
+        query.allDay = allDay === 'true';
+    }
+
+    // Build sort
+    const sortOptions = {};
+    sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
+
+    const events = await Event.find(query)
+        .populate('organizer', 'firstName lastName image')
+        .populate('caseId', 'title caseNumber')
+        .populate('clientId', 'firstName lastName')
+        .populate('attendees.userId', 'firstName lastName image')
+        .sort(sortOptions)
+        .limit(parseInt(limit))
+        .skip((parseInt(page) - 1) * parseInt(limit))
+        .lean();
+
+    const total = await Event.countDocuments(query);
+
+    res.status(200).json({
+        success: true,
+        data: events,
+        query: q,
+        filters: { type, status, priority, visibility, caseId, clientId, organizer, startDate, endDate, allDay },
+        pagination: {
+            page: parseInt(page),
+            limit: parseInt(limit),
+            total,
+            pages: Math.ceil(total / parseInt(limit))
+        }
+    });
+});
+
+/**
+ * Get event activity/history
+ * GET /api/events/:id/activity
+ * Gold Standard: Same pattern as getTaskActivity
+ */
+const getEventActivity = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { page = 1, limit = 50 } = req.query;
+
+    // IDOR protection
+    const { sanitizeObjectId } = require('../utils/securityUtils');
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid event ID format', 400);
+    }
+
+    // Use req.firmQuery for proper tenant isolation
+    const event = await Event.findOne({ _id: sanitizedId, ...req.firmQuery })
+        .select('history rescheduleHistory title organizer')
+        .lean();
+
+    if (!event) {
+        throw CustomException('Event not found', 404);
+    }
+
+    // Combine all history into one timeline
+    const allActivity = [
+        ...(event.history || []).map(h => ({ ...h, activityType: h.action || 'updated' })),
+        ...(event.rescheduleHistory || []).map(h => ({ ...h, activityType: 'rescheduled', timestamp: h.rescheduledAt }))
+    ];
+
+    // Sort by timestamp descending
+    allActivity.sort((a, b) => new Date(b.timestamp || b.rescheduledAt || 0) - new Date(a.timestamp || a.rescheduledAt || 0));
+
+    const total = allActivity.length;
+    const startIndex = (parseInt(page) - 1) * parseInt(limit);
+    const paginatedActivity = allActivity.slice(startIndex, startIndex + parseInt(limit));
+
+    // Get unique user IDs for population
+    const userIds = [...new Set(
+        paginatedActivity
+            .map(h => h.userId || h.rescheduledBy)
+            .filter(Boolean)
+    )];
+    const users = await User.find({ _id: { $in: userIds } }).select('firstName lastName image').lean();
+    const userMap = {};
+    users.forEach(u => { userMap[u._id.toString()] = u; });
+
+    const enrichedActivity = paginatedActivity.map(h => ({
+        ...h,
+        user: userMap[(h.userId || h.rescheduledBy)?.toString()] || null
+    }));
+
+    res.status(200).json({
+        success: true,
+        data: enrichedActivity,
+        pagination: {
+            page: parseInt(page),
+            limit: parseInt(limit),
+            total,
+            pages: Math.ceil(total / parseInt(limit))
+        }
+    });
+});
+
 module.exports = {
     createEvent,
     getEvents,
@@ -2004,5 +2789,16 @@ module.exports = {
     exportEventToICS,
     importEventsFromICS,
     createEventFromNaturalLanguage,
-    createEventFromVoice
+    createEventFromVoice,
+    // NEW: Missing endpoints
+    deleteActionItem,
+    cloneEvent,
+    rescheduleEvent,
+    getConflicts,
+    bulkCreateEvents,
+    bulkUpdateEvents,
+    bulkDeleteEvents,
+    getEventsByClient,
+    searchEvents,
+    getEventActivity
 };
