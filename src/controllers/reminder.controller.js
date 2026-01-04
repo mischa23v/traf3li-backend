@@ -175,7 +175,7 @@ const createReminder = asyncHandler(async (req, res) => {
     const sanitizedClientId = clientId ? sanitizeObjectId(clientId) : null;
     const sanitizedRelatedInvoice = relatedInvoice ? sanitizeObjectId(relatedInvoice) : null;
 
-    const reminder = await Reminder.create({
+    const reminder = await Reminder.create(req.addFirmId({
         title: title || 'Untitled Reminder',
         description,
         userId,
@@ -195,7 +195,7 @@ const createReminder = asyncHandler(async (req, res) => {
         notes,
         status: 'pending',
         createdBy: userId
-    });
+    }));
 
     await reminder.populate([
         { path: 'relatedCase', select: 'title caseNumber' },
@@ -599,7 +599,7 @@ const completeReminder = asyncHandler(async (req, res) => {
             (!reminder.recurring.maxOccurrences || reminder.recurring.occurrencesCompleted < reminder.recurring.maxOccurrences);
 
         if (shouldCreate) {
-            await Reminder.create({
+            await Reminder.create(req.addFirmId({
                 title: reminder.title,
                 description: reminder.description,
                 userId: reminder.userId,
@@ -622,7 +622,7 @@ const completeReminder = asyncHandler(async (req, res) => {
                 notes: reminder.notes,
                 status: 'pending',
                 createdBy: reminder.userId
-            });
+            }));
 
             return res.status(200).json({
                 success: true,
@@ -1082,7 +1082,7 @@ const createReminderFromNaturalLanguage = asyncHandler(async (req, res) => {
         }
 
         // Create reminder with parsed data
-        const reminder = await Reminder.create({
+        const reminder = await Reminder.create(req.addFirmId({
             title: reminderData.title,
             description: reminderData.description || null,
             userId,
@@ -1102,7 +1102,7 @@ const createReminderFromNaturalLanguage = asyncHandler(async (req, res) => {
                 confidence: confidence.overall,
                 parsedFrom: 'natural_language'
             }
-        });
+        }));
 
         await reminder.populate([
             { path: 'relatedCase', select: 'title caseNumber' },
@@ -1177,7 +1177,7 @@ const createReminderFromVoice = asyncHandler(async (req, res) => {
         }
 
         // Create reminder with parsed data
-        const reminder = await Reminder.create({
+        const reminder = await Reminder.create(req.addFirmId({
             title: reminderData.title,
             description: reminderData.description || null,
             userId,
@@ -1199,7 +1199,7 @@ const createReminderFromVoice = asyncHandler(async (req, res) => {
                 parsedFrom: 'voice_transcription',
                 processedAt: metadata.processedAt
             }
-        });
+        }));
 
         await reminder.populate([
             { path: 'relatedCase', select: 'title caseNumber' },
