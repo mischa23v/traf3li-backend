@@ -93,6 +93,14 @@ const getFirmTier = async (firmId) => {
 
 /**
  * Create rate limiter with Redis store
+ * Gold Standard: AWS/Stripe pattern with proper response headers
+ *
+ * Headers returned on ALL responses:
+ * - X-RateLimit-Limit: Max requests per window
+ * - X-RateLimit-Remaining: Requests remaining in window
+ * - X-RateLimit-Reset: Unix timestamp when window resets
+ * - Retry-After: Seconds to wait (only on 429)
+ *
  * @param {object} options - Rate limit options
  * @returns {Function} - Express middleware
  */
@@ -106,16 +114,35 @@ const createRateLimiter = (options = {}) => {
       error_en: 'Too many requests - Please try again later',
       code: 'RATE_LIMIT_EXCEEDED',
     },
-    standardHeaders: true, // Return rate limit info in headers
-    legacyHeaders: false, // Disable X-RateLimit-* headers
-    handler: (req, res) => {
+    // Gold Standard: Enable both header formats (AWS/Stripe pattern)
+    standardHeaders: true,  // RateLimit-* headers (draft standard)
+    legacyHeaders: true,    // X-RateLimit-* headers (widely supported)
+    // Custom 429 handler with Retry-After (RFC 7231 compliant)
+    handler: (req, res, next, rateLimitOptions) => {
+      // Calculate retry time in seconds
+      const windowMs = rateLimitOptions.windowMs || options.windowMs || defaultOptions.windowMs;
+      const retryAfter = Math.ceil(windowMs / 1000);
+      const resetTime = Math.ceil((Date.now() + windowMs) / 1000);
+
       // Track throttled request
       const userId = req.userID || req.user?._id || req._rateLimitUserId;
       if (userId) {
         rateLimitingService.trackRequest(userId.toString(), req.path, true).catch(() => {});
       }
 
-      res.status(429).json(options.message || defaultOptions.message);
+      // Gold Standard: Set Retry-After header (RFC 7231)
+      res.set('Retry-After', retryAfter);
+      res.set('X-RateLimit-Reset', resetTime);
+
+      // Return detailed error response (Stripe pattern)
+      const errorMessage = options.message || defaultOptions.message;
+      res.status(429).json({
+        ...errorMessage,
+        retryAfter,
+        resetAt: new Date(resetTime * 1000).toISOString(),
+        message: `Rate limit exceeded. Try again in ${retryAfter} seconds.`,
+        message_ar: `تم تجاوز الحد الأقصى. حاول مرة أخرى بعد ${retryAfter} ثانية.`,
+      });
     },
   };
 

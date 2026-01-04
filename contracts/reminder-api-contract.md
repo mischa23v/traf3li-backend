@@ -651,15 +651,25 @@ createdBy, lawyerId, tags, category, startDate, endDate, reminderDate
 | `POST /reminders` | General (write) | 400/min |
 | `PUT /reminders/:id` | General (write) | 400/min |
 
-### Response Headers
+### Response Headers (Gold Standard - AWS/Stripe Pattern)
 
-When rate limited, response includes:
+**On ALL API responses:**
+```
+X-RateLimit-Limit: 400          # Max requests per window
+X-RateLimit-Remaining: 385      # Requests remaining in current window
+X-RateLimit-Reset: 1704412800   # Unix timestamp when window resets
+RateLimit-Limit: 400            # Draft standard format
+RateLimit-Remaining: 385        # Draft standard format
+RateLimit-Reset: 60             # Seconds until reset
+```
+
+**On 429 responses (rate limited):**
 ```
 HTTP/1.1 429 Too Many Requests
-X-RateLimit-Limit: 120
+Retry-After: 60                 # Seconds to wait before retry (RFC 7231)
+X-RateLimit-Limit: 400
 X-RateLimit-Remaining: 0
 X-RateLimit-Reset: 1704412800
-Retry-After: 45
 ```
 
 ### Error Response (429)
@@ -668,7 +678,11 @@ Retry-After: 45
     "success": false,
     "error": "بحث كثير جداً - أبطئ قليلاً",
     "error_en": "Too many search requests - Slow down",
-    "code": "SEARCH_RATE_LIMIT_EXCEEDED"
+    "code": "SEARCH_RATE_LIMIT_EXCEEDED",
+    "retryAfter": 60,
+    "resetAt": "2026-01-04T12:00:00.000Z",
+    "message": "Rate limit exceeded. Try again in 60 seconds.",
+    "message_ar": "تم تجاوز الحد الأقصى. حاول مرة أخرى بعد 60 ثانية."
 }
 ```
 
