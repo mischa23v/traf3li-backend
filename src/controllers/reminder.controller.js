@@ -232,7 +232,8 @@ const getReminders = asyncHandler(async (req, res) => {
         limit = 50,
         sortBy = 'reminderDateTime',
         sortOrder = 'asc',
-        includeStats = 'false' // NEW: Include stats in response
+        includeStats = 'false', // NEW: Include stats in response
+        isArchived = 'false' // Gold Standard: Filter archived by default (matches Tasks API)
     } = req.query;
 
     const userId = req.userID;
@@ -245,6 +246,13 @@ const getReminders = asyncHandler(async (req, res) => {
         ]
     };
     const query = { ...baseQuery };
+
+    // Gold Standard: Filter archived items (matches Tasks API pattern)
+    if (isArchived === 'true' || isArchived === 'only') {
+        query.isArchived = true;
+    } else {
+        query.isArchived = { $ne: true };
+    }
 
     // Handle array filters (frontend may send status[]=pending&status[]=snoozed)
     if (status) {
