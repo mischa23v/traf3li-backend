@@ -880,12 +880,17 @@ class GanttService {
   /**
    * Get assignee workload
    * @param {ObjectId} assigneeId - User ID
+   * @param {Object} firmQuery - Tenant filter from req.firmQuery (gold standard)
    * @param {Object} dateRange - { start, end }
    * @returns {Object} - Workload data
    */
-  async getAssigneeWorkload(assigneeId, dateRange) {
+  async getAssigneeWorkload(assigneeId, firmQuery = {}, dateRange) {
     try {
-      const query = { assignedTo: assigneeId };
+      // Gold standard: Spread firmQuery for proper tenant isolation (solo lawyers + firms)
+      const query = {
+        ...firmQuery,
+        assignedTo: assigneeId
+      };
 
       if (dateRange) {
         query.$or = [
@@ -950,15 +955,17 @@ class GanttService {
   /**
    * Check for resource conflicts (overallocation)
    * @param {ObjectId} assigneeId - User ID
+   * @param {Object} firmQuery - Tenant filter from req.firmQuery (gold standard)
    * @param {Date} startDate - Start date
    * @param {Date} endDate - End date
    * @returns {Object} - Conflict information
    */
-  async checkResourceConflicts(assigneeId, startDate, endDate) {
+  async checkResourceConflicts(assigneeId, firmQuery = {}, startDate, endDate) {
     try {
       const maxHoursPerDay = 8; // Standard workday
 
-      const workload = await this.getAssigneeWorkload(assigneeId, {
+      // Gold standard: Pass firmQuery to getAssigneeWorkload for tenant isolation
+      const workload = await this.getAssigneeWorkload(assigneeId, firmQuery, {
         start: startDate,
         end: endDate
       });
@@ -1012,7 +1019,8 @@ class GanttService {
       const suggestions = [];
 
       for (const user of users) {
-        const workload = await this.getAssigneeWorkload(user._id, {
+        // Gold standard: Pass firmQuery for tenant isolation
+        const workload = await this.getAssigneeWorkload(user._id, firmQuery, {
           start: task.startDate || new Date(),
           end: task.dueDate || this.addDays(task.startDate || new Date(), 1)
         });
@@ -1634,8 +1642,10 @@ class GanttService {
 
       // Check for overallocation
       for (const assigneeId of assignees) {
+        // Gold standard: Pass firmQuery for tenant isolation
         const conflicts = await this.checkResourceConflicts(
           assigneeId,
+          firmQuery,
           new Date(),
           this.addDays(new Date(), 365)
         );
