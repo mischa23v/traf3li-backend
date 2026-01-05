@@ -817,3 +817,31 @@ Reorder reminders (for drag & drop).
 | isArchived | string | 'false' | Filter by archived status. Options: 'false' (hide archived), 'true'/'only' (show only archived) |
 
 **Note:** By default, archived reminders are excluded from the main list. Use `isArchived=true` or `isArchived=only` to show archived reminders.
+
+---
+
+## NEW: Calendar Sync Support (2026-01-05)
+
+Reminders now support calendar synchronization (matching Events/Tasks).
+
+### Schema Additions
+```javascript
+// Calendar Sync
+calendarSync: {
+    googleCalendarId: String,
+    outlookEventId: String,
+    appleCalendarId: String,
+    iCalUid: String,
+    lastSyncedAt: Date,
+    syncStatus: 'synced' | 'pending' | 'failed' | 'not_synced'  // Default: 'not_synced'
+}
+```
+
+### Purpose
+
+Calendar sync fields allow reminders to:
+1. Be synced to external calendars (Google, Outlook, Apple)
+2. Track sync status across platforms
+3. Maintain bidirectional sync with external calendar events
+
+**Note:** Reminders already have a full `locationTrigger` schema with Haversine distance calculation. See existing `POST /api/reminders/:id/location/check` endpoint for location trigger functionality.

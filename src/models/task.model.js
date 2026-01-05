@@ -360,6 +360,45 @@ const taskSchema = new mongoose.Schema({
         type: Number,
         default: 0,
         index: true
+    },
+    // ═══════════════════════════════════════════════════════════════
+    // Location (Gold Standard - matches Reminders/Events for consistency)
+    // ═══════════════════════════════════════════════════════════════
+    location: {
+        name: String,
+        address: String,
+        latitude: Number,
+        longitude: Number,
+        room: String,
+        instructions: String,
+        savedLocationId: { type: mongoose.Schema.Types.ObjectId, ref: 'UserLocation' }
+    },
+    // Location-based trigger configuration (Gold Standard - matches Reminders)
+    locationTrigger: {
+        enabled: { type: Boolean, default: false },
+        type: { type: String, enum: ['arrive', 'leave', 'nearby'] },
+        radius: { type: Number, default: 100 }, // meters
+        triggered: { type: Boolean, default: false },
+        triggeredAt: Date,
+        lastCheckedAt: Date,
+        // For repeated location triggers
+        repeatTrigger: { type: Boolean, default: false },
+        cooldownMinutes: { type: Number, default: 60 } // Don't re-trigger within this time
+    },
+    // ═══════════════════════════════════════════════════════════════
+    // Calendar Sync (Gold Standard - matches Events/Appointments)
+    // ═══════════════════════════════════════════════════════════════
+    calendarSync: {
+        googleCalendarId: String,
+        outlookEventId: String,
+        appleCalendarId: String,
+        iCalUid: String,
+        lastSyncedAt: Date,
+        syncStatus: {
+            type: String,
+            enum: ['synced', 'pending', 'failed', 'not_synced'],
+            default: 'not_synced'
+        }
     }
 }, {
     versionKey: false,
@@ -399,6 +438,11 @@ taskSchema.index({ firmId: 1, isArchived: 1, status: 1 });
 // Sort order indexes for drag & drop
 taskSchema.index({ firmId: 1, sortOrder: 1 });
 taskSchema.index({ firmId: 1, status: 1, sortOrder: 1 });
+// Location-based trigger indexes (Gold Standard - matches Reminders)
+taskSchema.index({ 'locationTrigger.enabled': 1, 'locationTrigger.triggered': 1 });
+// Calendar sync indexes
+taskSchema.index({ 'calendarSync.googleCalendarId': 1 });
+taskSchema.index({ 'calendarSync.syncStatus': 1 });
 
 // Pre-save hook to calculate progress from subtasks and budget
 taskSchema.pre('save', function (next) {
@@ -505,6 +549,65 @@ taskSchema.statics.getStats = async function (userId, firmId = null, firmQuery =
         dueToday,
         completedThisWeek
     };
+};
+
+// Instance method: Check if location trigger should fire (Gold Standard - matches Reminders)
+taskSchema.methods.checkLocationTrigger = function(currentLat, currentLng) {
+    // Return false if location trigger is not enabled
+    if (!this.locationTrigger?.enabled) {
+        return false;
+    }
+
+    // Return false if already triggered and not set to repeat
+    if (this.locationTrigger.triggered && !this.locationTrigger.repeatTrigger) {
+        return false;
+    }
+
+    // Check cooldown period for repeated triggers
+    if (this.locationTrigger.repeatTrigger && this.locationTrigger.triggeredAt) {
+        const cooldownMs = (this.locationTrigger.cooldownMinutes || 60) * 60 * 1000;
+        const timeSinceLastTrigger = Date.now() - new Date(this.locationTrigger.triggeredAt).getTime();
+        if (timeSinceLastTrigger < cooldownMs) {
+            return false;
+        }
+    }
+
+    // Validate location coordinates (use task's location for target)
+    const targetLat = this.location?.latitude;
+    const targetLng = this.location?.longitude;
+
+    if (!targetLat || !targetLng || !currentLat || !currentLng) {
+        return false;
+    }
+
+    // Calculate distance using Haversine formula
+    const R = 6371e3; // Earth's radius in meters
+    const φ1 = currentLat * Math.PI / 180;
+    const φ2 = targetLat * Math.PI / 180;
+    const Δφ = (targetLat - currentLat) * Math.PI / 180;
+    const Δλ = (targetLng - currentLng) * Math.PI / 180;
+
+    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+              Math.cos(φ1) * Math.cos(φ2) *
+              Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const distance = R * c; // Distance in meters
+
+    const radius = this.locationTrigger.radius || 100;
+    const isWithinRadius = distance <= radius;
+
+    // Check trigger type
+    const triggerType = this.locationTrigger.type;
+
+    if (triggerType === 'arrive' || triggerType === 'nearby') {
+        // Trigger when user is within the radius
+        return isWithinRadius;
+    } else if (triggerType === 'leave') {
+        // Trigger when user is outside the radius
+        return !isWithinRadius;
+    }
+
+    return false;
 };
 
 module.exports = mongoose.model('Task', taskSchema);

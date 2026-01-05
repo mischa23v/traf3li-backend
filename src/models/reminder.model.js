@@ -198,6 +198,19 @@ const reminderSchema = new mongoose.Schema({
     archivedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     // Sort order for drag & drop (Gold Standard - matches Tasks API)
     sortOrder: { type: Number, default: 0 },
+    // Calendar Sync (Gold Standard - matches Events/Tasks)
+    calendarSync: {
+        googleCalendarId: String,
+        outlookEventId: String,
+        appleCalendarId: String,
+        iCalUid: String,
+        lastSyncedAt: Date,
+        syncStatus: {
+            type: String,
+            enum: ['synced', 'pending', 'failed', 'not_synced'],
+            default: 'not_synced'
+        }
+    },
     // Additional fields
     notes: {
         type: String,
@@ -270,6 +283,9 @@ reminderSchema.index({ userId: 1, isArchived: 1 });
 
 // Sort order for drag & drop
 reminderSchema.index({ userId: 1, sortOrder: 1 });
+// Calendar sync indexes (Gold Standard - matches Events/Tasks)
+reminderSchema.index({ 'calendarSync.googleCalendarId': 1 });
+reminderSchema.index({ 'calendarSync.syncStatus': 1 });
 
 // Generate reminder ID before saving
 // Gold Standard: Scope ID sequence to tenant (each firm/lawyer has own sequence)

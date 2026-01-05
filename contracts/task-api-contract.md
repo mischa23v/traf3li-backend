@@ -781,3 +781,157 @@ X-RateLimit-Reset: 1704412800
 2. **Read operations are safe**: Higher limits for reads don't risk data corruption
 3. **Separate buckets**: Search limits don't consume general API quota
 4. **Gold standard compliance**: Follows AWS API Gateway, Algolia, Elasticsearch patterns
+
+---
+
+## NEW: Location Trigger & Calendar Sync (2026-01-05)
+
+### Schema Additions
+
+Tasks now support location-based triggers (matching Reminders) and calendar synchronization (matching Events):
+
+```javascript
+// Location (for location-based reminders)
+location: {
+    name: String,
+    address: String,
+    latitude: Number,
+    longitude: Number,
+    room: String,
+    instructions: String,
+    savedLocationId: ObjectId  // Reference to UserLocation
+}
+
+// Location Trigger Configuration
+locationTrigger: {
+    enabled: Boolean,           // Default: false
+    type: 'arrive' | 'leave' | 'nearby',
+    radius: Number,             // meters, default: 100
+    triggered: Boolean,         // Has it fired?
+    triggeredAt: Date,
+    lastCheckedAt: Date,
+    repeatTrigger: Boolean,     // Can re-trigger after cooldown
+    cooldownMinutes: Number     // Default: 60
+}
+
+// Calendar Sync
+calendarSync: {
+    googleCalendarId: String,
+    outlookEventId: String,
+    appleCalendarId: String,
+    iCalUid: String,
+    lastSyncedAt: Date,
+    syncStatus: 'synced' | 'pending' | 'failed' | 'not_synced'
+}
+```
+
+### PUT /api/tasks/:id/location-trigger
+
+Configure location-based trigger for a task.
+
+**Request Body:**
+```javascript
+['enabled', 'type', 'radius', 'repeatTrigger', 'cooldownMinutes']
+```
+
+**Example:**
+```json
+{
+    "enabled": true,
+    "type": "arrive",
+    "radius": 200,
+    "repeatTrigger": true,
+    "cooldownMinutes": 120
+}
+```
+
+**Response:**
+```json
+{
+    "success": true,
+    "message": "Location trigger updated successfully",
+    "data": { /* task object */ }
+}
+```
+
+### POST /api/tasks/:id/location/check
+
+Check if current location should trigger the task's location alert.
+
+**Request Body:**
+```json
+{
+    "latitude": 24.7136,
+    "longitude": 46.6753
+}
+```
+
+**Response:**
+```json
+{
+    "success": true,
+    "triggered": true,
+    "data": {
+        "taskId": "...",
+        "title": "Review contract at client office",
+        "locationTrigger": { ... },
+        "location": { ... }
+    }
+}
+```
+
+### GET /api/tasks/location-triggers
+
+Get all tasks with location triggers enabled (for mobile app background polling).
+
+**Query Parameters:**
+- `untriggeredOnly`: 'true' | 'false' (default: 'true')
+
+**Response:**
+```json
+{
+    "success": true,
+    "count": 3,
+    "data": [
+        {
+            "_id": "...",
+            "title": "...",
+            "location": { ... },
+            "locationTrigger": { ... }
+        }
+    ]
+}
+```
+
+### POST /api/tasks/location/check
+
+Bulk check all user's tasks against current location.
+
+**Request Body:**
+```json
+{
+    "latitude": 24.7136,
+    "longitude": 46.6753
+}
+```
+
+**Response:**
+```json
+{
+    "success": true,
+    "totalChecked": 5,
+    "triggered": 1,
+    "data": [
+        { /* triggered task */ }
+    ]
+}
+```
+
+### Updated Endpoint Summary
+
+| Method | Endpoint | Handler | Description |
+|--------|----------|---------|-------------|
+| PUT | /:id/location-trigger | updateLocationTrigger | Configure location trigger |
+| POST | /:id/location/check | checkLocationTrigger | Check single task location |
+| GET | /location-triggers | getTasksWithLocationTriggers | Get all location-enabled tasks |
+| POST | /location/check | bulkCheckLocationTriggers | Bulk check all tasks |

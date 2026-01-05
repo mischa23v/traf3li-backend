@@ -3172,6 +3172,207 @@ const getEventsByCase = asyncHandler(async (req, res) => {
     });
 });
 
+// ═══════════════════════════════════════════════════════════════
+// LOCATION TRIGGER ENDPOINTS (Gold Standard - matches Reminders/Tasks)
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Update Event Location Trigger
+ * PUT /api/events/:id/location-trigger
+ *
+ * Enable or configure location-based triggers for an event
+ */
+const updateLocationTrigger = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const userId = req.userID;
+
+    // IDOR protection
+    const eventId = sanitizeObjectId(id);
+
+    const event = await Event.findOne({ _id: eventId, ...req.firmQuery });
+    if (!event) {
+        throw CustomException('Event not found', 404);
+    }
+
+    // Mass assignment protection
+    const allowedFields = ['enabled', 'type', 'radius', 'repeatTrigger', 'cooldownMinutes'];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
+    // Update location trigger settings
+    if (!event.locationTrigger) {
+        event.locationTrigger = {};
+    }
+
+    Object.assign(event.locationTrigger, safeData);
+
+    // Reset triggered state when configuration changes
+    if (safeData.enabled !== undefined || safeData.type !== undefined) {
+        event.locationTrigger.triggered = false;
+        event.locationTrigger.triggeredAt = null;
+    }
+
+    event.lastModifiedBy = userId;
+    await event.save();
+
+    res.status(200).json({
+        success: true,
+        message: 'Location trigger updated successfully',
+        data: event
+    });
+});
+
+/**
+ * Check Location Trigger
+ * POST /api/events/:id/location/check
+ *
+ * Check if user's current location should trigger this event's location alert
+ */
+const checkLocationTrigger = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { latitude, longitude } = req.body;
+
+    if (latitude === undefined || longitude === undefined) {
+        throw CustomException('latitude and longitude are required', 400);
+    }
+
+    // IDOR protection
+    const eventId = sanitizeObjectId(id);
+
+    const event = await Event.findOne({ _id: eventId, ...req.firmQuery });
+    if (!event) {
+        throw CustomException('Event not found', 404);
+    }
+
+    // Use the model's checkLocationTrigger method
+    const shouldTrigger = event.checkLocationTrigger(latitude, longitude);
+
+    if (shouldTrigger) {
+        // Mark as triggered
+        event.locationTrigger.triggered = true;
+        event.locationTrigger.triggeredAt = new Date();
+        event.locationTrigger.lastCheckedAt = new Date();
+        await event.save();
+    } else {
+        // Update last checked timestamp
+        event.locationTrigger.lastCheckedAt = new Date();
+        await event.save();
+    }
+
+    res.status(200).json({
+        success: true,
+        triggered: shouldTrigger,
+        data: {
+            eventId: event._id,
+            title: event.title,
+            locationTrigger: event.locationTrigger,
+            location: event.location
+        }
+    });
+});
+
+/**
+ * Get Events with Location Triggers
+ * GET /api/events/location-triggers
+ *
+ * Get all events that have location triggers enabled (for mobile app polling)
+ */
+const getEventsWithLocationTriggers = asyncHandler(async (req, res) => {
+    const userId = req.userID;
+    const { untriggeredOnly = 'true' } = req.query;
+
+    // Build query for events with enabled location triggers
+    const query = {
+        ...req.firmQuery,
+        'locationTrigger.enabled': true,
+        status: { $nin: ['completed', 'cancelled', 'canceled'] },
+        isArchived: { $ne: true }
+    };
+
+    // Only get untriggered events by default (for repeated triggers, include all)
+    if (untriggeredOnly === 'true') {
+        query.$or = [
+            { 'locationTrigger.triggered': false },
+            { 'locationTrigger.triggered': { $exists: false } },
+            { 'locationTrigger.repeatTrigger': true }
+        ];
+    }
+
+    // Filter by user's events
+    query.$and = query.$and || [];
+    query.$and.push({
+        $or: [
+            { createdBy: userId },
+            { organizer: userId },
+            { 'attendees.userId': userId }
+        ]
+    });
+
+    const events = await Event.find(query)
+        .select('title description status type startDateTime endDateTime location locationTrigger')
+        .sort({ startDateTime: 1 });
+
+    res.status(200).json({
+        success: true,
+        count: events.length,
+        data: events
+    });
+});
+
+/**
+ * Bulk Check Location Triggers
+ * POST /api/events/location/check
+ *
+ * Check multiple events against user's current location at once
+ */
+const bulkCheckLocationTriggers = asyncHandler(async (req, res) => {
+    const { latitude, longitude } = req.body;
+    const userId = req.userID;
+
+    if (latitude === undefined || longitude === undefined) {
+        throw CustomException('latitude and longitude are required', 400);
+    }
+
+    // Get all events with enabled location triggers for this user
+    const query = {
+        ...req.firmQuery,
+        'locationTrigger.enabled': true,
+        status: { $nin: ['completed', 'cancelled', 'canceled'] },
+        isArchived: { $ne: true },
+        $or: [
+            { createdBy: userId },
+            { organizer: userId },
+            { 'attendees.userId': userId }
+        ]
+    };
+
+    const events = await Event.find(query)
+        .select('title description status type startDateTime endDateTime location locationTrigger');
+
+    const triggeredEvents = [];
+
+    for (const event of events) {
+        const shouldTrigger = event.checkLocationTrigger(latitude, longitude);
+
+        if (shouldTrigger) {
+            event.locationTrigger.triggered = true;
+            event.locationTrigger.triggeredAt = new Date();
+            event.locationTrigger.lastCheckedAt = new Date();
+            await event.save();
+            triggeredEvents.push(event);
+        } else {
+            event.locationTrigger.lastCheckedAt = new Date();
+            await event.save();
+        }
+    }
+
+    res.status(200).json({
+        success: true,
+        totalChecked: events.length,
+        triggered: triggeredEvents.length,
+        data: triggeredEvents
+    });
+});
+
 module.exports = {
     createEvent,
     getEvents,
@@ -3221,5 +3422,10 @@ module.exports = {
     // NEW: Utility endpoints
     getAllEventIds,
     getArchivedEvents,
-    getEventsByCase
+    getEventsByCase,
+    // NEW: Location trigger endpoints (Gold Standard - matches Reminders/Tasks)
+    updateLocationTrigger,
+    checkLocationTrigger,
+    getEventsWithLocationTriggers,
+    bulkCheckLocationTriggers
 };

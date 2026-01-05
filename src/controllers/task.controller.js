@@ -4010,6 +4010,211 @@ const getArchivedTasks = asyncHandler(async (req, res) => {
     });
 });
 
+// ═══════════════════════════════════════════════════════════════
+// LOCATION TRIGGER ENDPOINTS (Gold Standard - matches Reminders)
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Update Task Location Trigger
+ * PUT /api/tasks/:id/location-trigger
+ *
+ * Enable or configure location-based triggers for a task
+ */
+const updateLocationTrigger = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const userId = req.userID;
+
+    // IDOR protection
+    const taskId = sanitizeObjectId(id);
+
+    const task = await Task.findOne({ _id: taskId, ...req.firmQuery });
+    if (!task) {
+        throw CustomException('Task not found', 404);
+    }
+
+    // Mass assignment protection
+    const allowedFields = ['enabled', 'type', 'radius', 'repeatTrigger', 'cooldownMinutes'];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
+    // Update location trigger settings
+    if (!task.locationTrigger) {
+        task.locationTrigger = {};
+    }
+
+    Object.assign(task.locationTrigger, safeData);
+
+    // Reset triggered state when configuration changes
+    if (safeData.enabled !== undefined || safeData.type !== undefined) {
+        task.locationTrigger.triggered = false;
+        task.locationTrigger.triggeredAt = null;
+    }
+
+    task.history.push({
+        action: 'updated',
+        userId,
+        changes: { locationTrigger: safeData },
+        timestamp: new Date()
+    });
+
+    await task.save();
+
+    res.status(200).json({
+        success: true,
+        message: 'Location trigger updated successfully',
+        data: task
+    });
+});
+
+/**
+ * Check Location Trigger
+ * POST /api/tasks/:id/location/check
+ *
+ * Check if user's current location should trigger this task's location alert
+ */
+const checkLocationTrigger = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { latitude, longitude } = req.body;
+
+    if (latitude === undefined || longitude === undefined) {
+        throw CustomException('latitude and longitude are required', 400);
+    }
+
+    // IDOR protection
+    const taskId = sanitizeObjectId(id);
+
+    const task = await Task.findOne({ _id: taskId, ...req.firmQuery });
+    if (!task) {
+        throw CustomException('Task not found', 404);
+    }
+
+    // Use the model's checkLocationTrigger method
+    const shouldTrigger = task.checkLocationTrigger(latitude, longitude);
+
+    if (shouldTrigger) {
+        // Mark as triggered
+        task.locationTrigger.triggered = true;
+        task.locationTrigger.triggeredAt = new Date();
+        task.locationTrigger.lastCheckedAt = new Date();
+        await task.save();
+    } else {
+        // Update last checked timestamp
+        task.locationTrigger.lastCheckedAt = new Date();
+        await task.save();
+    }
+
+    res.status(200).json({
+        success: true,
+        triggered: shouldTrigger,
+        data: {
+            taskId: task._id,
+            title: task.title,
+            locationTrigger: task.locationTrigger,
+            location: task.location
+        }
+    });
+});
+
+/**
+ * Get Tasks with Location Triggers
+ * GET /api/tasks/location-triggers
+ *
+ * Get all tasks that have location triggers enabled (for mobile app polling)
+ */
+const getTasksWithLocationTriggers = asyncHandler(async (req, res) => {
+    const userId = req.userID;
+    const { untriggeredOnly = 'true' } = req.query;
+
+    // Build query for tasks with enabled location triggers
+    const query = {
+        ...req.firmQuery,
+        'locationTrigger.enabled': true,
+        status: { $nin: ['done', 'canceled'] },
+        isArchived: { $ne: true }
+    };
+
+    // Only get untriggered tasks by default (for repeated triggers, include all)
+    if (untriggeredOnly === 'true') {
+        query.$or = [
+            { 'locationTrigger.triggered': false },
+            { 'locationTrigger.triggered': { $exists: false } },
+            { 'locationTrigger.repeatTrigger': true }
+        ];
+    }
+
+    // Filter by assigned to current user
+    query.$and = query.$and || [];
+    query.$and.push({
+        $or: [
+            { assignedTo: userId },
+            { createdBy: userId }
+        ]
+    });
+
+    const tasks = await Task.find(query)
+        .select('title description status priority dueDate location locationTrigger')
+        .sort({ dueDate: 1 });
+
+    res.status(200).json({
+        success: true,
+        count: tasks.length,
+        data: tasks
+    });
+});
+
+/**
+ * Bulk Check Location Triggers
+ * POST /api/tasks/location/check
+ *
+ * Check multiple tasks against user's current location at once
+ */
+const bulkCheckLocationTriggers = asyncHandler(async (req, res) => {
+    const { latitude, longitude } = req.body;
+    const userId = req.userID;
+
+    if (latitude === undefined || longitude === undefined) {
+        throw CustomException('latitude and longitude are required', 400);
+    }
+
+    // Get all tasks with enabled location triggers for this user
+    const query = {
+        ...req.firmQuery,
+        'locationTrigger.enabled': true,
+        status: { $nin: ['done', 'canceled'] },
+        isArchived: { $ne: true },
+        $or: [
+            { assignedTo: userId },
+            { createdBy: userId }
+        ]
+    };
+
+    const tasks = await Task.find(query)
+        .select('title description status priority dueDate location locationTrigger');
+
+    const triggeredTasks = [];
+
+    for (const task of tasks) {
+        const shouldTrigger = task.checkLocationTrigger(latitude, longitude);
+
+        if (shouldTrigger) {
+            task.locationTrigger.triggered = true;
+            task.locationTrigger.triggeredAt = new Date();
+            task.locationTrigger.lastCheckedAt = new Date();
+            await task.save();
+            triggeredTasks.push(task);
+        } else {
+            task.locationTrigger.lastCheckedAt = new Date();
+            await task.save();
+        }
+    }
+
+    res.status(200).json({
+        success: true,
+        totalChecked: tasks.length,
+        triggered: triggeredTasks.length,
+        data: triggeredTasks
+    });
+});
+
 module.exports = {
     createTask,
     getTasks,
@@ -4071,6 +4276,11 @@ module.exports = {
     reorderTasks,
     getAllTaskIds,
     exportTasks,
-    getArchivedTasks
+    getArchivedTasks,
+    // NEW: Location trigger endpoints (Gold Standard - matches Reminders)
+    updateLocationTrigger,
+    checkLocationTrigger,
+    getTasksWithLocationTriggers,
+    bulkCheckLocationTriggers
 };
 

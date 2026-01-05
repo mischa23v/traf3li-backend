@@ -55,6 +55,7 @@ const savedFilterSchema = new mongoose.Schema({
             'leads',
             'tasks',
             'events',
+            'reminders',  // Added - Gold Standard: support saved views for reminders
             'expenses',
             'payments',
             'documents',
