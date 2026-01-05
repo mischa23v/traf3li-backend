@@ -3373,6 +3373,141 @@ const bulkCheckLocationTriggers = asyncHandler(async (req, res) => {
     });
 });
 
+// ═══════════════════════════════════════════════════════════════
+// EXPORT & REORDER ENDPOINTS (Gold Standard - matches Tasks/Reminders)
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Export Events
+ * GET /api/events/export
+ *
+ * Export events in JSON or CSV format
+ */
+const exportEvents = asyncHandler(async (req, res) => {
+    const {
+        format = 'json',
+        status,
+        type,
+        startDate,
+        endDate,
+        isArchived = 'false'
+    } = req.query;
+
+    // Build query using req.firmQuery for proper tenant isolation
+    const query = { ...req.firmQuery };
+
+    // Filter archived
+    if (isArchived === 'true' || isArchived === 'only') {
+        query.isArchived = true;
+    } else {
+        query.isArchived = { $ne: true };
+    }
+
+    if (status) query.status = Array.isArray(status) ? { $in: status } : status;
+    if (type) query.type = Array.isArray(type) ? { $in: type } : type;
+    if (startDate) query.startDateTime = { $gte: new Date(startDate) };
+    if (endDate) {
+        query.startDateTime = query.startDateTime || {};
+        query.startDateTime.$lte = new Date(endDate);
+    }
+
+    const events = await Event.find(query)
+        .populate('caseId', 'title caseNumber')
+        .populate('clientId', 'firstName lastName')
+        .populate('createdBy', 'firstName lastName')
+        .populate('organizer', 'firstName lastName')
+        .sort({ startDateTime: -1 })
+        .lean();
+
+    if (format === 'csv') {
+        // Build CSV export data
+        const exportData = events.map(event => ({
+            eventId: event.eventId || '',
+            title: event.title || '',
+            type: event.type || '',
+            status: event.status || '',
+            startDateTime: event.startDateTime ? new Date(event.startDateTime).toISOString() : '',
+            endDateTime: event.endDateTime ? new Date(event.endDateTime).toISOString() : '',
+            location: event.location?.name || event.locationString || '',
+            case: event.caseId ? `${event.caseId.caseNumber} - ${event.caseId.title}` : '',
+            client: event.clientId ? `${event.clientId.firstName} ${event.clientId.lastName}` : '',
+            organizer: event.organizer ? `${event.organizer.firstName} ${event.organizer.lastName}` : '',
+            createdBy: event.createdBy ? `${event.createdBy.firstName} ${event.createdBy.lastName}` : '',
+            createdAt: event.createdAt ? new Date(event.createdAt).toISOString() : ''
+        }));
+
+        return res.status(200).json({
+            success: true,
+            format: 'csv',
+            totalRecords: exportData.length,
+            headers: Object.keys(exportData[0] || {}),
+            data: exportData
+        });
+    }
+
+    // JSON format (default)
+    res.status(200).json({
+        success: true,
+        format: 'json',
+        totalRecords: events.length,
+        data: events
+    });
+});
+
+/**
+ * Reorder Events
+ * PATCH /api/events/reorder
+ *
+ * Update sortOrder for drag & drop reordering
+ */
+const reorderEvents = asyncHandler(async (req, res) => {
+    const { eventIds, orders } = req.body;
+
+    if (!eventIds || !Array.isArray(eventIds)) {
+        throw CustomException('eventIds array is required', 400);
+    }
+    if (!orders || !Array.isArray(orders)) {
+        throw CustomException('orders array is required', 400);
+    }
+    if (eventIds.length !== orders.length) {
+        throw CustomException('eventIds and orders arrays must have the same length', 400);
+    }
+
+    // Validate all IDs
+    const sanitizedIds = eventIds.map(id => sanitizeObjectId(id));
+    if (sanitizedIds.some(id => !id)) {
+        throw CustomException('Invalid event ID format', 400);
+    }
+
+    // Verify all events belong to user's tenant
+    const events = await Event.find({
+        _id: { $in: sanitizedIds },
+        ...req.firmQuery
+    }).select('_id');
+
+    if (events.length !== sanitizedIds.length) {
+        throw CustomException('Some events not found or access denied', 404);
+    }
+
+    // Build bulk write operations
+    const bulkOps = sanitizedIds.map((id, index) => ({
+        updateOne: {
+            filter: { _id: id, ...req.firmQuery },
+            update: { $set: { sortOrder: orders[index] } }
+        }
+    }));
+
+    await Event.bulkWrite(bulkOps);
+
+    res.status(200).json({
+        success: true,
+        message: `${sanitizedIds.length} event(s) reordered successfully`,
+        data: {
+            reordered: sanitizedIds.length
+        }
+    });
+});
+
 module.exports = {
     createEvent,
     getEvents,
@@ -3427,5 +3562,8 @@ module.exports = {
     updateLocationTrigger,
     checkLocationTrigger,
     getEventsWithLocationTriggers,
-    bulkCheckLocationTriggers
+    bulkCheckLocationTriggers,
+    // NEW: Export & Reorder (Gold Standard - matches Tasks/Reminders)
+    exportEvents,
+    reorderEvents
 };
