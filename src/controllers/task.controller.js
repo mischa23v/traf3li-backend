@@ -3585,22 +3585,23 @@ const reorderTasks = asyncHandler(async (req, res) => {
         });
     }
 
-    // Update sort orders using bulkWrite for efficiency
-    const bulkOps = sanitizedItems.map(item => ({
-        updateOne: {
-            filter: { _id: item.taskId, ...req.firmQuery },
-            update: { $set: { sortOrder: item.sortOrder } }
-        }
-    }));
-
-    const result = await Task.bulkWrite(bulkOps);
+    // Update sort orders using individual updates
+    // (bulkWrite has plugin compatibility issues with globalFirmIsolation)
+    let modifiedCount = 0;
+    for (const item of sanitizedItems) {
+        const result = await Task.updateOne(
+            { _id: item.taskId, ...req.firmQuery },
+            { $set: { sortOrder: item.sortOrder } }
+        );
+        if (result.modifiedCount > 0) modifiedCount++;
+    }
 
     res.status(200).json({
         success: true,
-        message: `${result.modifiedCount} task(s) reordered successfully`,
+        message: `${modifiedCount} task(s) reordered successfully`,
         data: {
-            modified: result.modifiedCount,
-            matched: result.matchedCount
+            modified: modifiedCount,
+            matched: sanitizedItems.length
         }
     });
 });
