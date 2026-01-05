@@ -52,7 +52,18 @@ const {
     searchTasks,
     bulkCreateTasks,
     rescheduleTask,
-    getTaskConflicts
+    getTaskConflicts,
+    // NEW: Bulk operations & additional features
+    bulkCompleteTasks,
+    bulkAssignTasks,
+    bulkArchiveTasks,
+    bulkUnarchiveTasks,
+    archiveTask,
+    unarchiveTask,
+    reorderTasks,
+    getAllTaskIds,
+    exportTasks,
+    getArchivedTasks
 } = require('../controllers/task.controller');
 
 // Template controller (extracted for maintainability)
@@ -128,6 +139,19 @@ app.get('/case/:caseId', getTasksByCase);
 app.post('/bulk', bulkCreateTasks);
 app.put('/bulk', bulkUpdateTasks);
 app.delete('/bulk', bulkDeleteTasks);
+// NEW: Bulk complete, assign, archive, unarchive
+app.post('/bulk/complete', bulkCompleteTasks);
+app.post('/bulk/assign', bulkAssignTasks);
+app.post('/bulk/archive', bulkArchiveTasks);
+app.post('/bulk/unarchive', bulkUnarchiveTasks);
+
+// NEW: Export and Select All
+app.get('/export', exportTasks);
+app.get('/ids', getAllTaskIds);
+app.get('/archived', getArchivedTasks);
+
+// NEW: Reorder for drag & drop
+app.patch('/reorder', reorderTasks);
 
 // NLP & AI-powered task routes
 app.post('/parse', createTaskFromNaturalLanguage);
@@ -157,6 +181,9 @@ app.post('/:id/clone', cloneTask);
 app.post('/:id/reschedule', rescheduleTask);
 app.get('/:id/activity', getTaskActivity);
 app.post('/:id/convert-to-event', convertTaskToEvent);
+// NEW: Archive/Unarchive single task
+app.post('/:id/archive', archiveTask);
+app.post('/:id/unarchive', unarchiveTask);
 
 // Subtask management
 app.post('/:id/subtasks', addSubtask);
