@@ -28,7 +28,19 @@ const {
     bulkCreateReminders,
     searchReminders,
     getReminderActivity,
-    getReminderConflicts
+    getReminderConflicts,
+    // NEW: Bulk operations (Gold Standard)
+    bulkCompleteReminders,
+    bulkArchiveReminders,
+    bulkUnarchiveReminders,
+    // NEW: Single archive operations
+    archiveReminder,
+    unarchiveReminder,
+    // NEW: Utility endpoints
+    getAllReminderIds,
+    getArchivedReminders,
+    exportReminders,
+    reorderReminders
 } = require('../controllers/reminder.controller');
 
 const {
@@ -81,6 +93,18 @@ app.post('/voice', createReminderFromVoice);
 app.post('/bulk', bulkCreateReminders);
 app.put('/bulk', bulkUpdateReminders);
 app.delete('/bulk', bulkDeleteReminders);
+// NEW: Bulk complete, archive, unarchive (Gold Standard - matches Tasks API)
+app.post('/bulk/complete', bulkCompleteReminders);
+app.post('/bulk/archive', bulkArchiveReminders);
+app.post('/bulk/unarchive', bulkUnarchiveReminders);
+
+// NEW: Export and Select All
+app.get('/export', exportReminders);
+app.get('/ids', getAllReminderIds);
+app.get('/archived', getArchivedReminders);
+
+// NEW: Reorder for drag & drop
+app.patch('/reorder', reorderReminders);
 
 // Search and conflicts
 app.get('/search', searchReminders);
@@ -104,5 +128,8 @@ app.post('/:id/delegate', delegateReminder);
 app.post('/:id/clone', cloneReminder);
 app.post('/:id/reschedule', rescheduleReminder);
 app.get('/:id/activity', getReminderActivity);
+// NEW: Archive/Unarchive single reminder
+app.post('/:id/archive', archiveReminder);
+app.post('/:id/unarchive', unarchiveReminder);
 
 module.exports = app;

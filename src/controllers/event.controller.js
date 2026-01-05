@@ -3,7 +3,7 @@ const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
 const nlpService = require('../services/nlp.service');
 const voiceToTaskService = require('../services/voiceToTask.service');
-const { pickAllowedFields } = require('../utils/securityUtils');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const logger = require('../utils/logger');
 
 // ============================================
@@ -2767,6 +2767,403 @@ const getEventActivity = asyncHandler(async (req, res) => {
     });
 });
 
+// =============================================================================
+// BULK OPERATIONS (Gold Standard - Match Tasks API)
+// =============================================================================
+
+/**
+ * Bulk Complete Events
+ * POST /api/events/bulk/complete
+ * Gold Standard: AWS batch operations pattern
+ */
+const bulkCompleteEvents = asyncHandler(async (req, res) => {
+    const userId = req.userID;
+
+    // Mass assignment protection
+    const data = pickAllowedFields(req.body, ['eventIds', 'completionNote']);
+    const { eventIds, completionNote } = data;
+
+    if (!eventIds || !Array.isArray(eventIds) || eventIds.length === 0) {
+        throw CustomException('Event IDs are required', 400);
+    }
+
+    if (eventIds.length > 100) {
+        throw CustomException('Cannot complete more than 100 events at once', 400);
+    }
+
+    // IDOR protection
+    const sanitizedIds = eventIds.map(id => sanitizeObjectId(id)).filter(Boolean);
+
+    const accessQuery = {
+        _id: { $in: sanitizedIds },
+        ...req.firmQuery,
+        status: { $nin: ['completed', 'cancelled'] }
+    };
+
+    const events = await Event.find(accessQuery).select('_id status');
+    const foundIds = events.map(e => e._id.toString());
+    const failedIds = sanitizedIds.filter(id => !foundIds.includes(id.toString()));
+
+    if (foundIds.length === 0) {
+        return res.status(200).json({
+            success: true,
+            message: 'No events to complete',
+            data: { completed: 0, failed: failedIds.length }
+        });
+    }
+
+    const now = new Date();
+    const updateResult = await Event.updateMany(
+        { _id: { $in: foundIds }, ...req.firmQuery },
+        {
+            $set: {
+                status: 'completed',
+                completedAt: now,
+                completedBy: userId
+            },
+            $push: {
+                history: {
+                    action: 'completed',
+                    userId,
+                    details: completionNote || 'Bulk completed',
+                    timestamp: now
+                }
+            }
+        }
+    );
+
+    res.status(200).json({
+        success: true,
+        message: `${updateResult.modifiedCount} event(s) completed successfully`,
+        data: {
+            completed: updateResult.modifiedCount,
+            failed: failedIds.length,
+            failedIds: failedIds.length > 0 ? failedIds : undefined
+        }
+    });
+});
+
+/**
+ * Bulk Archive Events
+ * POST /api/events/bulk/archive
+ * Gold Standard: SAP/Salesforce soft-delete pattern
+ */
+const bulkArchiveEvents = asyncHandler(async (req, res) => {
+    const userId = req.userID;
+
+    // Mass assignment protection
+    const data = pickAllowedFields(req.body, ['eventIds']);
+    const { eventIds } = data;
+
+    if (!eventIds || !Array.isArray(eventIds) || eventIds.length === 0) {
+        throw CustomException('Event IDs are required', 400);
+    }
+
+    if (eventIds.length > 100) {
+        throw CustomException('Cannot archive more than 100 events at once', 400);
+    }
+
+    // IDOR protection
+    const sanitizedIds = eventIds.map(id => sanitizeObjectId(id)).filter(Boolean);
+
+    const accessQuery = {
+        _id: { $in: sanitizedIds },
+        ...req.firmQuery,
+        isArchived: { $ne: true }
+    };
+
+    const events = await Event.find(accessQuery).select('_id');
+    const foundIds = events.map(e => e._id.toString());
+    const failedIds = sanitizedIds.filter(id => !foundIds.includes(id.toString()));
+
+    if (foundIds.length === 0) {
+        return res.status(200).json({
+            success: true,
+            message: 'No events to archive',
+            data: { archived: 0, failed: failedIds.length }
+        });
+    }
+
+    const now = new Date();
+    const updateResult = await Event.updateMany(
+        { _id: { $in: foundIds }, ...req.firmQuery },
+        {
+            $set: {
+                isArchived: true,
+                archivedAt: now,
+                archivedBy: userId
+            }
+        }
+    );
+
+    res.status(200).json({
+        success: true,
+        message: `${updateResult.modifiedCount} event(s) archived successfully`,
+        data: {
+            archived: updateResult.modifiedCount,
+            failed: failedIds.length,
+            failedIds: failedIds.length > 0 ? failedIds : undefined
+        }
+    });
+});
+
+/**
+ * Bulk Unarchive Events
+ * POST /api/events/bulk/unarchive
+ */
+const bulkUnarchiveEvents = asyncHandler(async (req, res) => {
+    const userId = req.userID;
+
+    // Mass assignment protection
+    const data = pickAllowedFields(req.body, ['eventIds']);
+    const { eventIds } = data;
+
+    if (!eventIds || !Array.isArray(eventIds) || eventIds.length === 0) {
+        throw CustomException('Event IDs are required', 400);
+    }
+
+    if (eventIds.length > 100) {
+        throw CustomException('Cannot unarchive more than 100 events at once', 400);
+    }
+
+    // IDOR protection
+    const sanitizedIds = eventIds.map(id => sanitizeObjectId(id)).filter(Boolean);
+
+    const accessQuery = {
+        _id: { $in: sanitizedIds },
+        ...req.firmQuery,
+        isArchived: true
+    };
+
+    const events = await Event.find(accessQuery).select('_id');
+    const foundIds = events.map(e => e._id.toString());
+    const failedIds = sanitizedIds.filter(id => !foundIds.includes(id.toString()));
+
+    if (foundIds.length === 0) {
+        return res.status(200).json({
+            success: true,
+            message: 'No events to unarchive',
+            data: { unarchived: 0, failed: failedIds.length }
+        });
+    }
+
+    const updateResult = await Event.updateMany(
+        { _id: { $in: foundIds }, ...req.firmQuery },
+        {
+            $set: { isArchived: false },
+            $unset: { archivedAt: '', archivedBy: '' }
+        }
+    );
+
+    res.status(200).json({
+        success: true,
+        message: `${updateResult.modifiedCount} event(s) unarchived successfully`,
+        data: {
+            unarchived: updateResult.modifiedCount,
+            failed: failedIds.length,
+            failedIds: failedIds.length > 0 ? failedIds : undefined
+        }
+    });
+});
+
+// =============================================================================
+// SINGLE ITEM ARCHIVE OPERATIONS
+// =============================================================================
+
+/**
+ * Archive a single event
+ * POST /api/events/:id/archive
+ */
+const archiveEvent = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const userId = req.userID;
+
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid event ID format', 400);
+    }
+
+    const event = await Event.findOne({ _id: sanitizedId, ...req.firmQuery });
+    if (!event) {
+        throw CustomException('Event not found', 404);
+    }
+
+    if (event.isArchived) {
+        throw CustomException('Event is already archived', 400);
+    }
+
+    event.isArchived = true;
+    event.archivedAt = new Date();
+    event.archivedBy = userId;
+    await event.save();
+
+    res.status(200).json({
+        success: true,
+        message: 'Event archived successfully',
+        data: event
+    });
+});
+
+/**
+ * Unarchive a single event
+ * POST /api/events/:id/unarchive
+ */
+const unarchiveEvent = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const userId = req.userID;
+
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid event ID format', 400);
+    }
+
+    const event = await Event.findOne({ _id: sanitizedId, ...req.firmQuery });
+    if (!event) {
+        throw CustomException('Event not found', 404);
+    }
+
+    if (!event.isArchived) {
+        throw CustomException('Event is not archived', 400);
+    }
+
+    event.isArchived = false;
+    event.archivedAt = undefined;
+    event.archivedBy = undefined;
+    await event.save();
+
+    res.status(200).json({
+        success: true,
+        message: 'Event unarchived successfully',
+        data: event
+    });
+});
+
+// =============================================================================
+// UTILITY ENDPOINTS
+// =============================================================================
+
+/**
+ * Get all event IDs (for select all)
+ * GET /api/events/ids
+ * Gold Standard: Same pattern as getAllTaskIds
+ */
+const getAllEventIds = asyncHandler(async (req, res) => {
+    const userId = req.userID;
+    const { status, type, isArchived, startDate, endDate } = req.query;
+
+    const query = { ...req.firmQuery };
+
+    if (status) query.status = Array.isArray(status) ? { $in: status } : status;
+    if (type) query.type = Array.isArray(type) ? { $in: type } : type;
+    if (isArchived !== undefined) query.isArchived = isArchived === 'true';
+
+    if (startDate || endDate) {
+        query.startDateTime = {};
+        if (startDate) query.startDateTime.$gte = new Date(startDate);
+        if (endDate) query.startDateTime.$lte = new Date(endDate);
+    }
+
+    const events = await Event.find(query).select('_id').lean();
+    const ids = events.map(e => e._id.toString());
+
+    res.status(200).json({
+        success: true,
+        data: ids,
+        count: ids.length
+    });
+});
+
+/**
+ * Get archived events
+ * GET /api/events/archived
+ * Gold Standard: Same pattern as getArchivedTasks
+ */
+const getArchivedEvents = asyncHandler(async (req, res) => {
+    const { page = 1, limit = 50, sortBy = 'archivedAt', sortOrder = 'desc' } = req.query;
+
+    const query = {
+        ...req.firmQuery,
+        isArchived: true
+    };
+
+    const sortOptions = {};
+    sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
+
+    const events = await Event.find(query)
+        .populate('caseId', 'title caseNumber')
+        .populate('clientId', 'firstName lastName')
+        .populate('createdBy', 'firstName lastName')
+        .sort(sortOptions)
+        .limit(parseInt(limit))
+        .skip((parseInt(page) - 1) * parseInt(limit))
+        .lean();
+
+    const total = await Event.countDocuments(query);
+
+    res.status(200).json({
+        success: true,
+        data: events,
+        pagination: {
+            page: parseInt(page),
+            limit: parseInt(limit),
+            total,
+            pages: Math.ceil(total / parseInt(limit))
+        }
+    });
+});
+
+/**
+ * Get events by case
+ * GET /api/events/case/:caseId
+ * Gold Standard: Same pattern as getTasksByCase
+ */
+const getEventsByCase = asyncHandler(async (req, res) => {
+    const { caseId } = req.params;
+    const { page = 1, limit = 50, status, type } = req.query;
+
+    // IDOR protection
+    const sanitizedCaseId = sanitizeObjectId(caseId);
+    if (!sanitizedCaseId) {
+        throw CustomException('Invalid caseId format', 400);
+    }
+
+    // Verify case access
+    const caseDoc = await Case.findOne({ _id: sanitizedCaseId, ...req.firmQuery });
+    if (!caseDoc) {
+        throw CustomException('Case not found', 404);
+    }
+
+    const query = {
+        caseId: sanitizedCaseId,
+        ...req.firmQuery
+    };
+
+    if (status) query.status = Array.isArray(status) ? { $in: status } : status;
+    if (type) query.type = Array.isArray(type) ? { $in: type } : type;
+
+    const events = await Event.find(query)
+        .populate('clientId', 'firstName lastName')
+        .populate('createdBy', 'firstName lastName')
+        .populate('attendees.userId', 'firstName lastName email')
+        .sort({ startDateTime: 1 })
+        .limit(parseInt(limit))
+        .skip((parseInt(page) - 1) * parseInt(limit))
+        .lean();
+
+    const total = await Event.countDocuments(query);
+
+    res.status(200).json({
+        success: true,
+        data: events,
+        pagination: {
+            page: parseInt(page),
+            limit: parseInt(limit),
+            total,
+            pages: Math.ceil(total / parseInt(limit))
+        }
+    });
+});
+
 module.exports = {
     createEvent,
     getEvents,
@@ -2805,5 +3202,16 @@ module.exports = {
     bulkDeleteEvents,
     getEventsByClient,
     searchEvents,
-    getEventActivity
+    getEventActivity,
+    // NEW: Bulk operations (Gold Standard)
+    bulkCompleteEvents,
+    bulkArchiveEvents,
+    bulkUnarchiveEvents,
+    // NEW: Single archive operations
+    archiveEvent,
+    unarchiveEvent,
+    // NEW: Utility endpoints
+    getAllEventIds,
+    getArchivedEvents,
+    getEventsByCase
 };

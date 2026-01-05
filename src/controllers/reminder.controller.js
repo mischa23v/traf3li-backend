@@ -2109,6 +2109,488 @@ const getReminderConflicts = asyncHandler(async (req, res) => {
     });
 });
 
+// =============================================================================
+// BULK OPERATIONS (Gold Standard - Match Tasks API)
+// =============================================================================
+
+/**
+ * Bulk Complete Reminders
+ * POST /api/reminders/bulk/complete
+ * Gold Standard: AWS batch operations pattern - atomic, with partial failure reporting
+ */
+const bulkCompleteReminders = asyncHandler(async (req, res) => {
+    validateTenantContext(req);
+
+    const userId = req.userID;
+
+    // Mass assignment protection
+    const data = pickAllowedFields(req.body, ['reminderIds', 'completionNote']);
+    const { reminderIds, completionNote } = data;
+
+    if (!reminderIds || !Array.isArray(reminderIds) || reminderIds.length === 0) {
+        throw CustomException('Reminder IDs are required', 400);
+    }
+
+    if (reminderIds.length > 100) {
+        throw CustomException('Cannot complete more than 100 reminders at once', 400);
+    }
+
+    // IDOR protection - sanitize all IDs
+    const sanitizedIds = reminderIds.map(id => sanitizeObjectId(id)).filter(Boolean);
+
+    // Use req.firmQuery for proper tenant isolation
+    const accessQuery = {
+        _id: { $in: sanitizedIds },
+        ...req.firmQuery,
+        $or: [{ userId }, { delegatedTo: userId }],
+        status: { $nin: ['completed', 'dismissed'] }
+    };
+
+    const reminders = await Reminder.find(accessQuery).select('_id status');
+    const foundIds = reminders.map(r => r._id.toString());
+    const failedIds = sanitizedIds.filter(id => !foundIds.includes(id.toString()));
+
+    if (foundIds.length === 0) {
+        return res.status(200).json({
+            success: true,
+            message: 'No reminders to complete',
+            data: { completed: 0, failed: failedIds.length }
+        });
+    }
+
+    const now = new Date();
+    const updateResult = await Reminder.updateMany(
+        { _id: { $in: foundIds }, ...req.firmQuery },
+        {
+            $set: {
+                status: 'completed',
+                completedAt: now,
+                completedBy: userId,
+                completionNote: completionNote || 'Bulk completed',
+                acknowledgedAt: now,
+                acknowledgedBy: userId,
+                acknowledgmentAction: 'completed'
+            }
+        }
+    );
+
+    res.status(200).json({
+        success: true,
+        message: `${updateResult.modifiedCount} reminder(s) completed successfully`,
+        data: {
+            completed: updateResult.modifiedCount,
+            failed: failedIds.length,
+            failedIds: failedIds.length > 0 ? failedIds : undefined
+        }
+    });
+});
+
+/**
+ * Bulk Archive Reminders
+ * POST /api/reminders/bulk/archive
+ * Gold Standard: SAP/Salesforce soft-delete pattern
+ */
+const bulkArchiveReminders = asyncHandler(async (req, res) => {
+    validateTenantContext(req);
+
+    const userId = req.userID;
+
+    // Mass assignment protection
+    const data = pickAllowedFields(req.body, ['reminderIds']);
+    const { reminderIds } = data;
+
+    if (!reminderIds || !Array.isArray(reminderIds) || reminderIds.length === 0) {
+        throw CustomException('Reminder IDs are required', 400);
+    }
+
+    if (reminderIds.length > 100) {
+        throw CustomException('Cannot archive more than 100 reminders at once', 400);
+    }
+
+    // IDOR protection
+    const sanitizedIds = reminderIds.map(id => sanitizeObjectId(id)).filter(Boolean);
+
+    const accessQuery = {
+        _id: { $in: sanitizedIds },
+        ...req.firmQuery,
+        userId,
+        isArchived: { $ne: true }
+    };
+
+    const reminders = await Reminder.find(accessQuery).select('_id');
+    const foundIds = reminders.map(r => r._id.toString());
+    const failedIds = sanitizedIds.filter(id => !foundIds.includes(id.toString()));
+
+    if (foundIds.length === 0) {
+        return res.status(200).json({
+            success: true,
+            message: 'No reminders to archive',
+            data: { archived: 0, failed: failedIds.length }
+        });
+    }
+
+    const now = new Date();
+    const updateResult = await Reminder.updateMany(
+        { _id: { $in: foundIds }, ...req.firmQuery },
+        {
+            $set: {
+                isArchived: true,
+                archivedAt: now,
+                archivedBy: userId
+            }
+        }
+    );
+
+    res.status(200).json({
+        success: true,
+        message: `${updateResult.modifiedCount} reminder(s) archived successfully`,
+        data: {
+            archived: updateResult.modifiedCount,
+            failed: failedIds.length,
+            failedIds: failedIds.length > 0 ? failedIds : undefined
+        }
+    });
+});
+
+/**
+ * Bulk Unarchive Reminders
+ * POST /api/reminders/bulk/unarchive
+ */
+const bulkUnarchiveReminders = asyncHandler(async (req, res) => {
+    validateTenantContext(req);
+
+    const userId = req.userID;
+
+    // Mass assignment protection
+    const data = pickAllowedFields(req.body, ['reminderIds']);
+    const { reminderIds } = data;
+
+    if (!reminderIds || !Array.isArray(reminderIds) || reminderIds.length === 0) {
+        throw CustomException('Reminder IDs are required', 400);
+    }
+
+    if (reminderIds.length > 100) {
+        throw CustomException('Cannot unarchive more than 100 reminders at once', 400);
+    }
+
+    // IDOR protection
+    const sanitizedIds = reminderIds.map(id => sanitizeObjectId(id)).filter(Boolean);
+
+    const accessQuery = {
+        _id: { $in: sanitizedIds },
+        ...req.firmQuery,
+        userId,
+        isArchived: true
+    };
+
+    const reminders = await Reminder.find(accessQuery).select('_id');
+    const foundIds = reminders.map(r => r._id.toString());
+    const failedIds = sanitizedIds.filter(id => !foundIds.includes(id.toString()));
+
+    if (foundIds.length === 0) {
+        return res.status(200).json({
+            success: true,
+            message: 'No reminders to unarchive',
+            data: { unarchived: 0, failed: failedIds.length }
+        });
+    }
+
+    const updateResult = await Reminder.updateMany(
+        { _id: { $in: foundIds }, ...req.firmQuery },
+        {
+            $set: { isArchived: false },
+            $unset: { archivedAt: '', archivedBy: '' }
+        }
+    );
+
+    res.status(200).json({
+        success: true,
+        message: `${updateResult.modifiedCount} reminder(s) unarchived successfully`,
+        data: {
+            unarchived: updateResult.modifiedCount,
+            failed: failedIds.length,
+            failedIds: failedIds.length > 0 ? failedIds : undefined
+        }
+    });
+});
+
+// =============================================================================
+// SINGLE ITEM ARCHIVE OPERATIONS
+// =============================================================================
+
+/**
+ * Archive a single reminder
+ * POST /api/reminders/:id/archive
+ */
+const archiveReminder = asyncHandler(async (req, res) => {
+    validateTenantContext(req);
+
+    const { id } = req.params;
+    const userId = req.userID;
+
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid reminder ID format', 400);
+    }
+
+    const reminder = await Reminder.findOne({ _id: sanitizedId, ...req.firmQuery });
+    if (!reminder) {
+        throw CustomException('Reminder not found', 404);
+    }
+
+    if (reminder.userId.toString() !== userId) {
+        throw CustomException('You can only archive your own reminders', 403);
+    }
+
+    if (reminder.isArchived) {
+        throw CustomException('Reminder is already archived', 400);
+    }
+
+    reminder.isArchived = true;
+    reminder.archivedAt = new Date();
+    reminder.archivedBy = userId;
+    await reminder.save();
+
+    res.status(200).json({
+        success: true,
+        message: 'Reminder archived successfully',
+        data: reminder
+    });
+});
+
+/**
+ * Unarchive a single reminder
+ * POST /api/reminders/:id/unarchive
+ */
+const unarchiveReminder = asyncHandler(async (req, res) => {
+    validateTenantContext(req);
+
+    const { id } = req.params;
+    const userId = req.userID;
+
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid reminder ID format', 400);
+    }
+
+    const reminder = await Reminder.findOne({ _id: sanitizedId, ...req.firmQuery });
+    if (!reminder) {
+        throw CustomException('Reminder not found', 404);
+    }
+
+    if (reminder.userId.toString() !== userId) {
+        throw CustomException('You can only unarchive your own reminders', 403);
+    }
+
+    if (!reminder.isArchived) {
+        throw CustomException('Reminder is not archived', 400);
+    }
+
+    reminder.isArchived = false;
+    reminder.archivedAt = undefined;
+    reminder.archivedBy = undefined;
+    await reminder.save();
+
+    res.status(200).json({
+        success: true,
+        message: 'Reminder unarchived successfully',
+        data: reminder
+    });
+});
+
+// =============================================================================
+// UTILITY ENDPOINTS
+// =============================================================================
+
+/**
+ * Get all reminder IDs (for select all)
+ * GET /api/reminders/ids
+ * Gold Standard: Same pattern as getAllTaskIds
+ */
+const getAllReminderIds = asyncHandler(async (req, res) => {
+    validateTenantContext(req);
+
+    const userId = req.userID;
+    const { status, priority, type, isArchived } = req.query;
+
+    const query = {
+        ...req.firmQuery,
+        $or: [{ userId }, { delegatedTo: userId }]
+    };
+
+    if (status) query.status = Array.isArray(status) ? { $in: status } : status;
+    if (priority) query.priority = Array.isArray(priority) ? { $in: priority } : priority;
+    if (type) query.type = Array.isArray(type) ? { $in: type } : type;
+    if (isArchived !== undefined) query.isArchived = isArchived === 'true';
+
+    const reminders = await Reminder.find(query).select('_id').lean();
+    const ids = reminders.map(r => r._id.toString());
+
+    res.status(200).json({
+        success: true,
+        data: ids,
+        count: ids.length
+    });
+});
+
+/**
+ * Get archived reminders
+ * GET /api/reminders/archived
+ * Gold Standard: Same pattern as getArchivedTasks
+ */
+const getArchivedReminders = asyncHandler(async (req, res) => {
+    validateTenantContext(req);
+
+    const userId = req.userID;
+    const { page = 1, limit = 50, sortBy = 'archivedAt', sortOrder = 'desc' } = req.query;
+
+    const query = {
+        ...req.firmQuery,
+        userId,
+        isArchived: true
+    };
+
+    const sortOptions = {};
+    sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
+
+    const reminders = await Reminder.find(query)
+        .populate('relatedCase', 'title caseNumber')
+        .populate('relatedTask', 'title')
+        .populate('clientId', 'firstName lastName')
+        .sort(sortOptions)
+        .limit(parseInt(limit))
+        .skip((parseInt(page) - 1) * parseInt(limit))
+        .lean();
+
+    const total = await Reminder.countDocuments(query);
+
+    res.status(200).json({
+        success: true,
+        data: reminders,
+        pagination: {
+            page: parseInt(page),
+            limit: parseInt(limit),
+            total,
+            pages: Math.ceil(total / parseInt(limit))
+        }
+    });
+});
+
+/**
+ * Export reminders
+ * GET /api/reminders/export
+ * Gold Standard: Same pattern as exportTasks
+ */
+const exportReminders = asyncHandler(async (req, res) => {
+    validateTenantContext(req);
+
+    const userId = req.userID;
+    const { format = 'json', status, priority, type, startDate, endDate } = req.query;
+
+    const query = {
+        ...req.firmQuery,
+        $or: [{ userId }, { delegatedTo: userId }]
+    };
+
+    if (status) query.status = Array.isArray(status) ? { $in: status } : status;
+    if (priority) query.priority = Array.isArray(priority) ? { $in: priority } : priority;
+    if (type) query.type = Array.isArray(type) ? { $in: type } : type;
+
+    if (startDate || endDate) {
+        query.reminderDateTime = {};
+        if (startDate) query.reminderDateTime.$gte = new Date(startDate);
+        if (endDate) query.reminderDateTime.$lte = new Date(endDate);
+    }
+
+    const reminders = await Reminder.find(query)
+        .populate('relatedCase', 'title caseNumber')
+        .populate('relatedTask', 'title')
+        .populate('clientId', 'firstName lastName')
+        .populate('userId', 'firstName lastName email')
+        .sort({ reminderDateTime: 1 })
+        .lean();
+
+    if (format === 'csv') {
+        const csvRows = ['ID,Title,DateTime,Status,Priority,Type,Related Case,Client'];
+        reminders.forEach(r => {
+            const row = [
+                r._id,
+                `"${(r.title || '').replace(/"/g, '""')}"`,
+                r.reminderDateTime ? new Date(r.reminderDateTime).toISOString() : '',
+                r.status || '',
+                r.priority || '',
+                r.type || '',
+                r.relatedCase?.title || '',
+                r.clientId ? `${r.clientId.firstName} ${r.clientId.lastName}` : ''
+            ];
+            csvRows.push(row.join(','));
+        });
+
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', `attachment; filename=reminders-export-${Date.now()}.csv`);
+        return res.send(csvRows.join('\n'));
+    }
+
+    res.status(200).json({
+        success: true,
+        data: reminders,
+        count: reminders.length,
+        exportedAt: new Date().toISOString()
+    });
+});
+
+/**
+ * Reorder reminders (for drag & drop)
+ * PATCH /api/reminders/reorder
+ * Gold Standard: Same pattern as reorderTasks
+ */
+const reorderReminders = asyncHandler(async (req, res) => {
+    validateTenantContext(req);
+
+    const userId = req.userID;
+
+    // Mass assignment protection
+    const data = pickAllowedFields(req.body, ['reminderIds', 'orders']);
+    const { reminderIds, orders } = data;
+
+    if (!reminderIds || !Array.isArray(reminderIds) || reminderIds.length === 0) {
+        throw CustomException('Reminder IDs are required', 400);
+    }
+
+    if (!orders || !Array.isArray(orders) || orders.length !== reminderIds.length) {
+        throw CustomException('Orders array must match reminderIds length', 400);
+    }
+
+    // IDOR protection
+    const sanitizedIds = reminderIds.map(id => sanitizeObjectId(id)).filter(Boolean);
+
+    // Verify ownership
+    const reminders = await Reminder.find({
+        _id: { $in: sanitizedIds },
+        ...req.firmQuery,
+        userId
+    }).select('_id');
+
+    if (reminders.length !== sanitizedIds.length) {
+        throw CustomException('Some reminders are not accessible', 403);
+    }
+
+    // Update order for each reminder
+    const bulkOps = sanitizedIds.map((id, index) => ({
+        updateOne: {
+            filter: { _id: id, ...req.firmQuery },
+            update: { $set: { sortOrder: orders[index] } }
+        }
+    }));
+
+    await Reminder.bulkWrite(bulkOps);
+
+    res.status(200).json({
+        success: true,
+        message: `${sanitizedIds.length} reminder(s) reordered successfully`
+    });
+});
+
 module.exports = {
     createReminder,
     getReminders,
@@ -2138,5 +2620,17 @@ module.exports = {
     bulkCreateReminders,
     searchReminders,
     getReminderActivity,
-    getReminderConflicts
+    getReminderConflicts,
+    // NEW: Bulk operations (Gold Standard)
+    bulkCompleteReminders,
+    bulkArchiveReminders,
+    bulkUnarchiveReminders,
+    // NEW: Single archive operations
+    archiveReminder,
+    unarchiveReminder,
+    // NEW: Utility endpoints
+    getAllReminderIds,
+    getArchivedReminders,
+    exportReminders,
+    reorderReminders
 };
