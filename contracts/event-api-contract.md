@@ -561,6 +561,7 @@ node --check src/models/event.model.js
 |------|--------|-----------|
 | 2026-01-04 | Initial contract documentation | No |
 | 2026-01-04 | Added missing endpoints for feature parity | No |
+| 2026-01-05 | Added bulk complete/archive/unarchive, archive schema, isArchived filter | No |
 
 ---
 
@@ -711,3 +712,116 @@ X-RateLimit-Reset: 1704412800
 2. **Read operations are safe**: Higher limits for reads don't risk data corruption
 3. **Separate buckets**: Search limits don't consume general API quota
 4. **Gold standard compliance**: Follows AWS API Gateway, Algolia, Elasticsearch patterns
+
+---
+
+## NEW: Bulk Operations & Archive System (2026-01-05)
+
+### Schema Additions
+The following fields were added to the Event schema:
+```javascript
+{
+    isArchived: { type: Boolean, default: false, index: true },
+    archivedAt: Date,
+    archivedBy: { type: ObjectId, ref: 'User' }
+}
+```
+
+### New Bulk Endpoints
+
+#### POST /api/events/bulk/complete
+Complete multiple events at once.
+```javascript
+// Request body
+{ "eventIds": ["id1", "id2", "id3"], "completionNote": "optional note" }
+
+// Response
+{
+    "success": true,
+    "message": "3 event(s) completed successfully",
+    "data": {
+        "completed": 3,
+        "failed": 0,
+        "failedIds": []
+    }
+}
+```
+
+#### POST /api/events/bulk/archive
+Archive multiple events (soft delete).
+```javascript
+// Request body
+{ "eventIds": ["id1", "id2", "id3"] }
+
+// Response
+{
+    "success": true,
+    "message": "3 event(s) archived successfully",
+    "data": {
+        "archived": 3,
+        "failed": 0,
+        "failedIds": []
+    }
+}
+```
+
+#### POST /api/events/bulk/unarchive
+Restore archived events.
+```javascript
+// Request body
+{ "eventIds": ["id1", "id2", "id3"] }
+
+// Response
+{
+    "success": true,
+    "message": "3 event(s) unarchived successfully",
+    "data": {
+        "unarchived": 3,
+        "failed": 0,
+        "failedIds": []
+    }
+}
+```
+
+### Single Archive Endpoints
+
+#### POST /api/events/:id/archive
+Archive a single event.
+
+#### POST /api/events/:id/unarchive
+Unarchive a single event.
+
+### Utility Endpoints
+
+#### GET /api/events/ids
+Get all event IDs (for "Select All" functionality).
+```
+Query params: status, type, isArchived, startDate, endDate
+```
+```json
+{
+    "success": true,
+    "data": ["id1", "id2", "id3"],
+    "count": 3
+}
+```
+
+#### GET /api/events/archived
+Get archived events with pagination.
+```
+Query params: page, limit, sortBy, sortOrder
+```
+
+#### GET /api/events/case/:caseId
+Get events for a specific case.
+```
+Query params: page, limit, status, type
+```
+
+### Updated Query Parameters for GET /api/events
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| isArchived | string | 'false' | Filter by archived status. Options: 'false' (hide archived), 'true'/'only' (show only archived) |
+
+**Note:** By default, archived events are excluded from the main list. Use `isArchived=true` or `isArchived=only` to show archived events.
