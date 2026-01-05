@@ -77,7 +77,8 @@ const historyEntrySchema = new mongoose.Schema({
         enum: ['created', 'updated', 'status_changed', 'assigned', 'completed', 'reopened',
             'commented', 'attachment_added', 'attachment_removed', 'subtask_added',
             'subtask_completed', 'subtask_uncompleted', 'subtask_deleted',
-            'dependency_added', 'dependency_removed', 'created_from_template']
+            'dependency_added', 'dependency_removed', 'created_from_template',
+            'archived', 'unarchived', 'cloned', 'reordered', 'rescheduled']
     },
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     userName: String,
