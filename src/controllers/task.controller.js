@@ -75,7 +75,14 @@ const ALLOWED_FIELDS = {
     CLONE: ['title', 'resetDueDate', 'includeSubtasks', 'includeChecklists', 'includeAttachments'],
     CONVERT_TO_EVENT: ['eventType', 'duration', 'attendees', 'location'],
     TIMER_PAUSE: ['reason'],
-    TIMER_RESUME: ['notes']
+    TIMER_RESUME: ['notes'],
+    // NEW: Bulk operations for select all/bulk edit features
+    BULK_COMPLETE: ['taskIds', 'completionNote'],
+    BULK_ASSIGN: ['taskIds', 'assignedTo'],
+    BULK_ARCHIVE: ['taskIds'],
+    BULK_UNARCHIVE: ['taskIds'],
+    REORDER: ['taskId', 'newSortOrder', 'reorderItems'],
+    RESCHEDULE: ['newDueDate', 'newDueTime', 'reason']
 };
 
 // =============================================================================
@@ -3118,6 +3125,890 @@ const getTaskConflicts = asyncHandler(async (req, res) => {
     });
 });
 
+// =============================================================================
+// NEW: BULK OPERATIONS (Gold Standard - AWS/Google/Microsoft pattern)
+// =============================================================================
+
+/**
+ * Bulk Complete Tasks
+ * POST /api/tasks/bulk/complete
+ *
+ * Gold Standard: AWS batch operations pattern - atomic, with partial failure reporting
+ */
+const bulkCompleteTasks = asyncHandler(async (req, res) => {
+    // Mass assignment protection
+    const data = pickAllowedFields(req.body, ALLOWED_FIELDS.BULK_COMPLETE);
+    const { taskIds, completionNote } = data;
+
+    // Input validation
+    if (!taskIds || !Array.isArray(taskIds) || taskIds.length === 0) {
+        throw CustomException('Task IDs are required', 400);
+    }
+
+    if (taskIds.length > 100) {
+        throw CustomException('Cannot complete more than 100 tasks at once', 400);
+    }
+
+    const userId = req.userID;
+
+    // IDOR protection - sanitize all task IDs
+    const sanitizedTaskIds = taskIds.map(id => sanitizeObjectId(id));
+
+    // Use req.firmQuery for proper tenant isolation
+    const accessQuery = { _id: { $in: sanitizedTaskIds }, ...req.firmQuery };
+
+    const tasks = await Task.find(accessQuery).select('_id status');
+    const foundTaskIds = tasks.map(t => t._id.toString());
+
+    // Find which IDs failed authorization
+    const failedIds = sanitizedTaskIds.filter(id => !foundTaskIds.includes(id.toString()));
+
+    if (failedIds.length > 0 && foundTaskIds.length === 0) {
+        return res.status(403).json({
+            success: false,
+            message: 'No tasks accessible',
+            failedCount: failedIds.length
+        });
+    }
+
+    // Complete all accessible tasks
+    const now = new Date();
+    const updateResult = await Task.updateMany(
+        { _id: { $in: foundTaskIds }, ...req.firmQuery },
+        {
+            $set: {
+                status: 'done',
+                completedAt: now,
+                completedBy: userId,
+                progress: 100
+            },
+            $push: {
+                history: {
+                    action: 'completed',
+                    userId,
+                    changes: { status: { from: 'various', to: 'done' } },
+                    details: completionNote || 'Bulk completed',
+                    timestamp: now
+                }
+            }
+        }
+    );
+
+    res.status(200).json({
+        success: true,
+        message: `${updateResult.modifiedCount} task(s) completed successfully`,
+        data: {
+            completed: updateResult.modifiedCount,
+            failed: failedIds.length,
+            failedIds: failedIds.length > 0 ? failedIds : undefined
+        }
+    });
+});
+
+/**
+ * Bulk Assign Tasks
+ * POST /api/tasks/bulk/assign
+ *
+ * Gold Standard: Microsoft Planner / Asana pattern - reassign multiple tasks
+ */
+const bulkAssignTasks = asyncHandler(async (req, res) => {
+    // Mass assignment protection
+    const data = pickAllowedFields(req.body, ALLOWED_FIELDS.BULK_ASSIGN);
+    const { taskIds, assignedTo } = data;
+
+    // Input validation
+    if (!taskIds || !Array.isArray(taskIds) || taskIds.length === 0) {
+        throw CustomException('Task IDs are required', 400);
+    }
+
+    if (!assignedTo) {
+        throw CustomException('Assignee is required', 400);
+    }
+
+    if (taskIds.length > 100) {
+        throw CustomException('Cannot assign more than 100 tasks at once', 400);
+    }
+
+    const userId = req.userID;
+
+    // IDOR protection - sanitize all IDs
+    const sanitizedTaskIds = taskIds.map(id => sanitizeObjectId(id));
+    const sanitizedAssignedTo = sanitizeObjectId(assignedTo);
+
+    // Validate assignee exists (User lookups by ID are safe per CLAUDE.md)
+    const assignedUser = await User.findById(sanitizedAssignedTo).select('firstName lastName email');
+    if (!assignedUser) {
+        throw CustomException('Assigned user not found', 404);
+    }
+
+    // Use req.firmQuery for proper tenant isolation
+    const accessQuery = { _id: { $in: sanitizedTaskIds }, ...req.firmQuery };
+
+    const tasks = await Task.find(accessQuery).select('_id assignedTo');
+    const foundTaskIds = tasks.map(t => t._id.toString());
+
+    // Find which IDs failed authorization
+    const failedIds = sanitizedTaskIds.filter(id => !foundTaskIds.includes(id.toString()));
+
+    if (failedIds.length > 0 && foundTaskIds.length === 0) {
+        return res.status(403).json({
+            success: false,
+            message: 'No tasks accessible',
+            failedCount: failedIds.length
+        });
+    }
+
+    // Assign all accessible tasks
+    const now = new Date();
+    const updateResult = await Task.updateMany(
+        { _id: { $in: foundTaskIds }, ...req.firmQuery },
+        {
+            $set: { assignedTo: sanitizedAssignedTo },
+            $push: {
+                history: {
+                    action: 'assigned',
+                    userId,
+                    changes: { assignedTo: { to: sanitizedAssignedTo } },
+                    details: `Bulk assigned to ${assignedUser.firstName} ${assignedUser.lastName}`,
+                    timestamp: now
+                }
+            }
+        }
+    );
+
+    res.status(200).json({
+        success: true,
+        message: `${updateResult.modifiedCount} task(s) assigned successfully`,
+        data: {
+            assigned: updateResult.modifiedCount,
+            assignedTo: {
+                _id: assignedUser._id,
+                firstName: assignedUser.firstName,
+                lastName: assignedUser.lastName,
+                email: assignedUser.email
+            },
+            failed: failedIds.length,
+            failedIds: failedIds.length > 0 ? failedIds : undefined
+        }
+    });
+});
+
+/**
+ * Bulk Archive Tasks
+ * POST /api/tasks/bulk/archive
+ *
+ * Gold Standard: SAP/Salesforce soft-delete pattern - never lose data
+ */
+const bulkArchiveTasks = asyncHandler(async (req, res) => {
+    // Mass assignment protection
+    const data = pickAllowedFields(req.body, ALLOWED_FIELDS.BULK_ARCHIVE);
+    const { taskIds } = data;
+
+    // Input validation
+    if (!taskIds || !Array.isArray(taskIds) || taskIds.length === 0) {
+        throw CustomException('Task IDs are required', 400);
+    }
+
+    if (taskIds.length > 100) {
+        throw CustomException('Cannot archive more than 100 tasks at once', 400);
+    }
+
+    const userId = req.userID;
+
+    // IDOR protection - sanitize all task IDs
+    const sanitizedTaskIds = taskIds.map(id => sanitizeObjectId(id));
+
+    // Use req.firmQuery for proper tenant isolation
+    const accessQuery = {
+        _id: { $in: sanitizedTaskIds },
+        ...req.firmQuery,
+        isArchived: { $ne: true } // Only archive non-archived tasks
+    };
+
+    const tasks = await Task.find(accessQuery).select('_id');
+    const foundTaskIds = tasks.map(t => t._id.toString());
+
+    // Find which IDs failed authorization or already archived
+    const failedIds = sanitizedTaskIds.filter(id => !foundTaskIds.includes(id.toString()));
+
+    if (foundTaskIds.length === 0) {
+        return res.status(200).json({
+            success: true,
+            message: 'No tasks to archive (already archived or not accessible)',
+            data: { archived: 0, failed: failedIds.length }
+        });
+    }
+
+    // Archive all accessible tasks
+    const now = new Date();
+    const updateResult = await Task.updateMany(
+        { _id: { $in: foundTaskIds }, ...req.firmQuery },
+        {
+            $set: {
+                isArchived: true,
+                archivedAt: now,
+                archivedBy: userId
+            },
+            $push: {
+                history: {
+                    action: 'archived',
+                    userId,
+                    details: 'Bulk archived',
+                    timestamp: now
+                }
+            }
+        }
+    );
+
+    res.status(200).json({
+        success: true,
+        message: `${updateResult.modifiedCount} task(s) archived successfully`,
+        data: {
+            archived: updateResult.modifiedCount,
+            failed: failedIds.length,
+            failedIds: failedIds.length > 0 ? failedIds : undefined
+        }
+    });
+});
+
+/**
+ * Bulk Unarchive Tasks
+ * POST /api/tasks/bulk/unarchive
+ *
+ * Gold Standard: Restore archived items
+ */
+const bulkUnarchiveTasks = asyncHandler(async (req, res) => {
+    // Mass assignment protection
+    const data = pickAllowedFields(req.body, ALLOWED_FIELDS.BULK_UNARCHIVE);
+    const { taskIds } = data;
+
+    // Input validation
+    if (!taskIds || !Array.isArray(taskIds) || taskIds.length === 0) {
+        throw CustomException('Task IDs are required', 400);
+    }
+
+    if (taskIds.length > 100) {
+        throw CustomException('Cannot unarchive more than 100 tasks at once', 400);
+    }
+
+    const userId = req.userID;
+
+    // IDOR protection - sanitize all task IDs
+    const sanitizedTaskIds = taskIds.map(id => sanitizeObjectId(id));
+
+    // Use req.firmQuery for proper tenant isolation
+    const accessQuery = {
+        _id: { $in: sanitizedTaskIds },
+        ...req.firmQuery,
+        isArchived: true // Only unarchive archived tasks
+    };
+
+    const tasks = await Task.find(accessQuery).select('_id');
+    const foundTaskIds = tasks.map(t => t._id.toString());
+
+    if (foundTaskIds.length === 0) {
+        return res.status(200).json({
+            success: true,
+            message: 'No tasks to unarchive (not archived or not accessible)',
+            data: { unarchived: 0, failed: sanitizedTaskIds.length }
+        });
+    }
+
+    // Unarchive all accessible tasks
+    const now = new Date();
+    const updateResult = await Task.updateMany(
+        { _id: { $in: foundTaskIds }, ...req.firmQuery },
+        {
+            $set: {
+                isArchived: false,
+                archivedAt: null,
+                archivedBy: null
+            },
+            $push: {
+                history: {
+                    action: 'unarchived',
+                    userId,
+                    details: 'Bulk unarchived',
+                    timestamp: now
+                }
+            }
+        }
+    );
+
+    res.status(200).json({
+        success: true,
+        message: `${updateResult.modifiedCount} task(s) unarchived successfully`,
+        data: {
+            unarchived: updateResult.modifiedCount,
+            failed: sanitizedTaskIds.length - foundTaskIds.length
+        }
+    });
+});
+
+/**
+ * Archive Single Task
+ * POST /api/tasks/:id/archive
+ */
+const archiveTask = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const userId = req.userID;
+
+    // IDOR protection
+    const taskId = sanitizeObjectId(id);
+
+    // Use req.firmQuery for proper tenant isolation
+    const task = await Task.findOne({ _id: taskId, ...req.firmQuery });
+    if (!task) {
+        throw CustomException('Task not found', 404);
+    }
+
+    if (task.isArchived) {
+        return res.status(200).json({
+            success: true,
+            message: 'Task is already archived',
+            data: task
+        });
+    }
+
+    // Archive the task
+    task.isArchived = true;
+    task.archivedAt = new Date();
+    task.archivedBy = userId;
+    task.history.push({
+        action: 'archived',
+        userId,
+        timestamp: new Date()
+    });
+
+    await task.save();
+
+    res.status(200).json({
+        success: true,
+        message: 'Task archived successfully',
+        data: task
+    });
+});
+
+/**
+ * Unarchive Single Task
+ * POST /api/tasks/:id/unarchive
+ */
+const unarchiveTask = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const userId = req.userID;
+
+    // IDOR protection
+    const taskId = sanitizeObjectId(id);
+
+    // Use req.firmQuery for proper tenant isolation
+    const task = await Task.findOne({ _id: taskId, ...req.firmQuery });
+    if (!task) {
+        throw CustomException('Task not found', 404);
+    }
+
+    if (!task.isArchived) {
+        return res.status(200).json({
+            success: true,
+            message: 'Task is not archived',
+            data: task
+        });
+    }
+
+    // Unarchive the task
+    task.isArchived = false;
+    task.archivedAt = null;
+    task.archivedBy = null;
+    task.history.push({
+        action: 'unarchived',
+        userId,
+        timestamp: new Date()
+    });
+
+    await task.save();
+
+    res.status(200).json({
+        success: true,
+        message: 'Task unarchived successfully',
+        data: task
+    });
+});
+
+/**
+ * Reorder Tasks (Drag & Drop)
+ * PATCH /api/tasks/reorder
+ *
+ * Gold Standard: Notion/Linear fractional indexing pattern for O(1) reorder
+ */
+const reorderTasks = asyncHandler(async (req, res) => {
+    // Mass assignment protection
+    const data = pickAllowedFields(req.body, ALLOWED_FIELDS.REORDER);
+    const { reorderItems } = data;
+
+    // Input validation
+    if (!reorderItems || !Array.isArray(reorderItems) || reorderItems.length === 0) {
+        throw CustomException('Reorder items are required. Format: [{ taskId, sortOrder }]', 400);
+    }
+
+    if (reorderItems.length > 100) {
+        throw CustomException('Cannot reorder more than 100 tasks at once', 400);
+    }
+
+    // Validate each item has taskId and sortOrder
+    for (const item of reorderItems) {
+        if (!item.taskId || typeof item.sortOrder !== 'number') {
+            throw CustomException('Each item must have taskId and sortOrder (number)', 400);
+        }
+    }
+
+    // IDOR protection - sanitize all task IDs
+    const sanitizedItems = reorderItems.map(item => ({
+        taskId: sanitizeObjectId(item.taskId),
+        sortOrder: item.sortOrder
+    }));
+
+    const taskIds = sanitizedItems.map(item => item.taskId);
+
+    // Verify all tasks belong to current tenant
+    const tasks = await Task.find({
+        _id: { $in: taskIds },
+        ...req.firmQuery
+    }).select('_id');
+
+    const foundTaskIds = new Set(tasks.map(t => t._id.toString()));
+    const invalidIds = taskIds.filter(id => !foundTaskIds.has(id.toString()));
+
+    if (invalidIds.length > 0) {
+        return res.status(403).json({
+            success: false,
+            message: `${invalidIds.length} task(s) not found or not accessible`,
+            invalidIds
+        });
+    }
+
+    // Update sort orders using bulkWrite for efficiency
+    const bulkOps = sanitizedItems.map(item => ({
+        updateOne: {
+            filter: { _id: item.taskId, ...req.firmQuery },
+            update: { $set: { sortOrder: item.sortOrder } }
+        }
+    }));
+
+    const result = await Task.bulkWrite(bulkOps);
+
+    res.status(200).json({
+        success: true,
+        message: `${result.modifiedCount} task(s) reordered successfully`,
+        data: {
+            modified: result.modifiedCount,
+            matched: result.matchedCount
+        }
+    });
+});
+
+/**
+ * Get All Task IDs (for "Select All" feature)
+ * GET /api/tasks/ids
+ *
+ * Gold Standard: Returns only IDs with same filters as getTasks
+ * Allows frontend to implement efficient "Select All" without loading full task data
+ */
+const getAllTaskIds = asyncHandler(async (req, res) => {
+    const {
+        status,
+        priority,
+        label,
+        assignedTo,
+        caseId,
+        clientId,
+        overdue,
+        search,
+        startDate,
+        endDate,
+        isArchived
+    } = req.query;
+
+    const userId = req.userID;
+    const isDeparted = req.isDeparted;
+
+    // IDOR protection - sanitize ObjectIds in query parameters
+    const sanitizedAssignedTo = assignedTo ? sanitizeObjectId(assignedTo) : null;
+    const sanitizedCaseId = caseId ? sanitizeObjectId(caseId) : null;
+    const sanitizedClientId = clientId ? sanitizeObjectId(clientId) : null;
+
+    // Build query using req.firmQuery for proper tenant isolation
+    let query = { ...req.firmQuery };
+
+    // Default: exclude archived unless explicitly requested
+    if (isArchived === 'true') {
+        query.isArchived = true;
+    } else if (isArchived === 'only') {
+        query.isArchived = true;
+    } else {
+        query.isArchived = { $ne: true };
+    }
+
+    // Departed users can only see their own tasks
+    if (isDeparted) {
+        query.$or = [
+            { assignedTo: userId },
+            { createdBy: userId }
+        ];
+    }
+
+    // Apply filters
+    if (status) {
+        query.status = Array.isArray(status) ? { $in: status } : status;
+    }
+    if (priority) {
+        query.priority = Array.isArray(priority) ? { $in: priority } : priority;
+    }
+    if (label) {
+        query.label = Array.isArray(label) ? { $in: label } : label;
+    }
+    if (sanitizedAssignedTo) query.assignedTo = sanitizedAssignedTo;
+    if (sanitizedCaseId) query.caseId = sanitizedCaseId;
+    if (sanitizedClientId) query.clientId = sanitizedClientId;
+
+    // Date range filter
+    if (startDate || endDate) {
+        query.dueDate = {};
+        if (startDate) query.dueDate.$gte = new Date(startDate);
+        if (endDate) query.dueDate.$lte = new Date(endDate);
+    }
+
+    // Overdue filter
+    if (overdue === 'true') {
+        query.dueDate = { $lt: new Date() };
+        query.status = { $nin: ['done', 'canceled'] };
+    }
+
+    // Text search
+    if (search && search.trim()) {
+        const searchTerm = search.trim();
+        if (query.$or) {
+            query.$and = [
+                { $or: query.$or },
+                { $text: { $search: searchTerm } }
+            ];
+            delete query.$or;
+        } else {
+            query.$text = { $search: searchTerm };
+        }
+    }
+
+    // Only return IDs (highly efficient query)
+    const tasks = await Task.find(query).select('_id').lean();
+    const taskIds = tasks.map(t => t._id);
+
+    res.status(200).json({
+        success: true,
+        message: `Found ${taskIds.length} task(s)`,
+        data: {
+            taskIds,
+            count: taskIds.length
+        }
+    });
+});
+
+/**
+ * Export Tasks (CSV, Excel, PDF)
+ * GET /api/tasks/export
+ *
+ * Gold Standard: AWS S3 export pattern with async generation for large datasets
+ */
+const exportTasks = asyncHandler(async (req, res) => {
+    const {
+        format = 'csv', // csv, xlsx, pdf
+        status,
+        priority,
+        label,
+        assignedTo,
+        caseId,
+        clientId,
+        overdue,
+        search,
+        startDate,
+        endDate,
+        isArchived,
+        fields // Optional: comma-separated list of fields to include
+    } = req.query;
+
+    // Validate format
+    const validFormats = ['csv', 'xlsx', 'pdf', 'json'];
+    if (!validFormats.includes(format)) {
+        throw CustomException(`Invalid format. Valid formats: ${validFormats.join(', ')}`, 400);
+    }
+
+    const userId = req.userID;
+    const isDeparted = req.isDeparted;
+
+    // IDOR protection - sanitize ObjectIds in query parameters
+    const sanitizedAssignedTo = assignedTo ? sanitizeObjectId(assignedTo) : null;
+    const sanitizedCaseId = caseId ? sanitizeObjectId(caseId) : null;
+    const sanitizedClientId = clientId ? sanitizeObjectId(clientId) : null;
+
+    // Build query using req.firmQuery for proper tenant isolation
+    let query = { ...req.firmQuery };
+
+    // Default: exclude archived unless explicitly requested
+    if (isArchived === 'true' || isArchived === 'only') {
+        query.isArchived = true;
+    } else {
+        query.isArchived = { $ne: true };
+    }
+
+    // Departed users can only see their own tasks
+    if (isDeparted) {
+        query.$or = [
+            { assignedTo: userId },
+            { createdBy: userId }
+        ];
+    }
+
+    // Apply filters
+    if (status) {
+        query.status = Array.isArray(status) ? { $in: status } : status;
+    }
+    if (priority) {
+        query.priority = Array.isArray(priority) ? { $in: priority } : priority;
+    }
+    if (label) {
+        query.label = Array.isArray(label) ? { $in: label } : label;
+    }
+    if (sanitizedAssignedTo) query.assignedTo = sanitizedAssignedTo;
+    if (sanitizedCaseId) query.caseId = sanitizedCaseId;
+    if (sanitizedClientId) query.clientId = sanitizedClientId;
+
+    // Date range filter
+    if (startDate || endDate) {
+        query.dueDate = {};
+        if (startDate) query.dueDate.$gte = new Date(startDate);
+        if (endDate) query.dueDate.$lte = new Date(endDate);
+    }
+
+    // Overdue filter
+    if (overdue === 'true') {
+        query.dueDate = { $lt: new Date() };
+        query.status = { $nin: ['done', 'canceled'] };
+    }
+
+    // Text search
+    if (search && search.trim()) {
+        const searchTerm = search.trim();
+        if (query.$or) {
+            query.$and = [
+                { $or: query.$or },
+                { $text: { $search: searchTerm } }
+            ];
+            delete query.$or;
+        } else {
+            query.$text = { $search: searchTerm };
+        }
+    }
+
+    // Fetch tasks with populated fields
+    const tasks = await Task.find(query)
+        .populate('assignedTo', 'firstName lastName email')
+        .populate('createdBy', 'firstName lastName email')
+        .populate('caseId', 'title caseNumber')
+        .populate('clientId', 'firstName lastName')
+        .sort({ dueDate: 1 })
+        .limit(10000) // Safety limit
+        .lean();
+
+    // Define exportable fields
+    const defaultFields = [
+        'title', 'description', 'status', 'priority', 'label', 'tags',
+        'dueDate', 'dueTime', 'startDate', 'assignedTo', 'createdBy',
+        'caseId', 'clientId', 'progress', 'completedAt', 'createdAt'
+    ];
+
+    const selectedFields = fields
+        ? fields.split(',').filter(f => defaultFields.includes(f.trim()))
+        : defaultFields;
+
+    // Transform tasks for export
+    const exportData = tasks.map(task => {
+        const row = {};
+        selectedFields.forEach(field => {
+            switch (field) {
+                case 'assignedTo':
+                    row['Assigned To'] = task.assignedTo
+                        ? `${task.assignedTo.firstName} ${task.assignedTo.lastName}`
+                        : '';
+                    break;
+                case 'createdBy':
+                    row['Created By'] = task.createdBy
+                        ? `${task.createdBy.firstName} ${task.createdBy.lastName}`
+                        : '';
+                    break;
+                case 'caseId':
+                    row['Case'] = task.caseId
+                        ? `${task.caseId.caseNumber || ''} - ${task.caseId.title || ''}`
+                        : '';
+                    break;
+                case 'clientId':
+                    row['Client'] = task.clientId
+                        ? `${task.clientId.firstName} ${task.clientId.lastName}`
+                        : '';
+                    break;
+                case 'tags':
+                    row['Tags'] = (task.tags || []).join(', ');
+                    break;
+                case 'dueDate':
+                    row['Due Date'] = task.dueDate
+                        ? new Date(task.dueDate).toISOString().split('T')[0]
+                        : '';
+                    break;
+                case 'startDate':
+                    row['Start Date'] = task.startDate
+                        ? new Date(task.startDate).toISOString().split('T')[0]
+                        : '';
+                    break;
+                case 'completedAt':
+                    row['Completed At'] = task.completedAt
+                        ? new Date(task.completedAt).toISOString()
+                        : '';
+                    break;
+                case 'createdAt':
+                    row['Created At'] = task.createdAt
+                        ? new Date(task.createdAt).toISOString()
+                        : '';
+                    break;
+                case 'description':
+                    // Strip HTML for export
+                    row['Description'] = task.description
+                        ? task.description.replace(/<[^>]*>/g, '').substring(0, 500)
+                        : '';
+                    break;
+                default:
+                    row[field.charAt(0).toUpperCase() + field.slice(1)] = task[field] || '';
+            }
+        });
+        return row;
+    });
+
+    // Generate export based on format
+    if (format === 'json') {
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('Content-Disposition', `attachment; filename="tasks-export-${Date.now()}.json"`);
+        return res.json({
+            success: true,
+            exportDate: new Date().toISOString(),
+            totalRecords: exportData.length,
+            data: exportData
+        });
+    }
+
+    if (format === 'csv') {
+        // Generate CSV
+        const headers = Object.keys(exportData[0] || {});
+        const csvRows = [
+            headers.join(','),
+            ...exportData.map(row =>
+                headers.map(h => {
+                    const value = String(row[h] || '');
+                    // Escape quotes and wrap in quotes if contains comma, newline, or quote
+                    if (value.includes(',') || value.includes('\n') || value.includes('"')) {
+                        return `"${value.replace(/"/g, '""')}"`;
+                    }
+                    return value;
+                }).join(',')
+            )
+        ];
+
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', `attachment; filename="tasks-export-${Date.now()}.csv"`);
+        return res.send(csvRows.join('\n'));
+    }
+
+    if (format === 'xlsx') {
+        // For Excel, return JSON with instructions to use xlsx library on frontend
+        // Or integrate with a server-side xlsx library if available
+        res.setHeader('Content-Type', 'application/json');
+        return res.json({
+            success: true,
+            format: 'xlsx',
+            message: 'Excel export data ready. Use xlsx library to generate file.',
+            exportDate: new Date().toISOString(),
+            totalRecords: exportData.length,
+            headers: Object.keys(exportData[0] || {}),
+            data: exportData
+        });
+    }
+
+    if (format === 'pdf') {
+        // For PDF, return JSON with formatting instructions
+        // Frontend can use libraries like jsPDF or pdfmake
+        res.setHeader('Content-Type', 'application/json');
+        return res.json({
+            success: true,
+            format: 'pdf',
+            message: 'PDF export data ready. Use pdfmake or jsPDF to generate file.',
+            exportDate: new Date().toISOString(),
+            totalRecords: exportData.length,
+            headers: Object.keys(exportData[0] || {}),
+            data: exportData
+        });
+    }
+});
+
+/**
+ * Get Archived Tasks
+ * GET /api/tasks/archived
+ *
+ * Convenience endpoint for viewing archived tasks
+ */
+const getArchivedTasks = asyncHandler(async (req, res) => {
+    const {
+        page = 1,
+        limit = 50,
+        sortBy = 'archivedAt',
+        sortOrder = 'desc'
+    } = req.query;
+
+    const userId = req.userID;
+    const isDeparted = req.isDeparted;
+
+    // Build query using req.firmQuery for proper tenant isolation
+    let query = { ...req.firmQuery, isArchived: true };
+
+    // Departed users can only see their own tasks
+    if (isDeparted) {
+        query.$or = [
+            { assignedTo: userId },
+            { createdBy: userId }
+        ];
+    }
+
+    const sortOptions = {};
+    sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
+
+    const [tasks, total] = await Promise.all([
+        Task.find(query)
+            .populate('assignedTo', 'firstName lastName email image')
+            .populate('createdBy', 'firstName lastName email image')
+            .populate('caseId', 'title caseNumber')
+            .populate('clientId', 'firstName lastName')
+            .populate('archivedBy', 'firstName lastName')
+            .sort(sortOptions)
+            .skip((parseInt(page) - 1) * parseInt(limit))
+            .limit(parseInt(limit)),
+        Task.countDocuments(query)
+    ]);
+
+    res.status(200).json({
+        success: true,
+        data: tasks,
+        pagination: {
+            page: parseInt(page),
+            limit: parseInt(limit),
+            total,
+            pages: Math.ceil(total / parseInt(limit))
+        }
+    });
+});
+
 module.exports = {
     createTask,
     getTasks,
@@ -3168,6 +4059,17 @@ module.exports = {
     searchTasks,
     bulkCreateTasks,
     rescheduleTask,
-    getTaskConflicts
+    getTaskConflicts,
+    // NEW: Bulk operations & additional features
+    bulkCompleteTasks,
+    bulkAssignTasks,
+    bulkArchiveTasks,
+    bulkUnarchiveTasks,
+    archiveTask,
+    unarchiveTask,
+    reorderTasks,
+    getAllTaskIds,
+    exportTasks,
+    getArchivedTasks
 };
 

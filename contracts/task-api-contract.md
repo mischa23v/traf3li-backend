@@ -163,8 +163,21 @@
 ### Bulk Operations
 | Method | Endpoint | Handler |
 |--------|----------|---------|
+| POST | /bulk | bulkCreateTasks |
 | PUT | /bulk | bulkUpdateTasks |
 | DELETE | /bulk | bulkDeleteTasks |
+| POST | /bulk/complete | bulkCompleteTasks |
+| POST | /bulk/assign | bulkAssignTasks |
+| POST | /bulk/archive | bulkArchiveTasks |
+| POST | /bulk/unarchive | bulkUnarchiveTasks |
+
+### Export & Select All
+| Method | Endpoint | Handler |
+|--------|----------|---------|
+| GET | /export | exportTasks |
+| GET | /ids | getAllTaskIds |
+| GET | /archived | getArchivedTasks |
+| PATCH | /reorder | reorderTasks |
 
 ### AI/NLP Features
 | Method | Endpoint | Handler |
@@ -190,6 +203,12 @@
 | Method | Endpoint | Handler |
 |--------|----------|---------|
 | POST | /:id/complete | completeTask |
+| POST | /:id/clone | cloneTask |
+| POST | /:id/reschedule | rescheduleTask |
+| POST | /:id/archive | archiveTask |
+| POST | /:id/unarchive | unarchiveTask |
+| GET | /:id/activity | getTaskActivity |
+| POST | /:id/convert-to-event | convertTaskToEvent |
 
 ### Subtasks
 | Method | Endpoint | Handler |
@@ -286,7 +305,11 @@
     "history": [...],
     "linkedEventId": "ObjectId",
     "createdAt": "ISO date",
-    "updatedAt": "ISO date"
+    "updatedAt": "ISO date",
+    "isArchived": false,
+    "archivedAt": "ISO date (null if not archived)",
+    "archivedBy": { "_id": "...", "firstName": "...", "lastName": "..." },
+    "sortOrder": 0
 }
 ```
 
@@ -324,6 +347,231 @@ node --check src/controllers/task.controller.js
 | 2026-01-02 | Extracted inline arrays to ALLOWED_FIELDS constant | No |
 | 2026-01-02 | Extracted validation arrays to VALID_PRIORITIES/VALID_STATUSES | No |
 | 2026-01-04 | Added missing endpoints for feature parity | No |
+| 2026-01-05 | Added bulk complete, assign, archive, unarchive endpoints | No |
+| 2026-01-05 | Added export endpoint (CSV/Excel/PDF/JSON) | No |
+| 2026-01-05 | Added getAllTaskIds for "Select All" feature | No |
+| 2026-01-05 | Added drag & drop reorder endpoint | No |
+| 2026-01-05 | Added isArchived, archivedAt, archivedBy, sortOrder fields to Task model | No |
+
+---
+
+## NEW: Bulk Operations & Features (2026-01-05)
+
+### POST /api/tasks/bulk/complete
+Bulk mark multiple tasks as completed.
+```javascript
+// Request body
+{
+    "taskIds": ["id1", "id2", ...],
+    "completionNote": "Optional note" // optional
+}
+// Max 100 tasks per request
+```
+
+**Response:**
+```json
+{
+    "success": true,
+    "message": "X task(s) completed successfully",
+    "data": {
+        "completed": 10,
+        "failed": 2,
+        "failedIds": ["id1", "id2"]
+    }
+}
+```
+
+### POST /api/tasks/bulk/assign
+Bulk reassign multiple tasks to a different team member.
+```javascript
+// Request body
+{
+    "taskIds": ["id1", "id2", ...],
+    "assignedTo": "userId"
+}
+// Max 100 tasks per request
+```
+
+**Response:**
+```json
+{
+    "success": true,
+    "message": "X task(s) assigned successfully",
+    "data": {
+        "assigned": 10,
+        "assignedTo": { "_id": "...", "firstName": "...", "lastName": "...", "email": "..." },
+        "failed": 0
+    }
+}
+```
+
+### POST /api/tasks/bulk/archive
+Bulk archive multiple tasks (soft delete).
+```javascript
+// Request body
+{
+    "taskIds": ["id1", "id2", ...]
+}
+// Max 100 tasks per request
+```
+
+**Response:**
+```json
+{
+    "success": true,
+    "message": "X task(s) archived successfully",
+    "data": {
+        "archived": 10,
+        "failed": 2,
+        "failedIds": ["id1", "id2"]
+    }
+}
+```
+
+### POST /api/tasks/bulk/unarchive
+Bulk restore archived tasks.
+```javascript
+// Request body
+{
+    "taskIds": ["id1", "id2", ...]
+}
+// Max 100 tasks per request
+```
+
+**Response:**
+```json
+{
+    "success": true,
+    "message": "X task(s) unarchived successfully",
+    "data": {
+        "unarchived": 10,
+        "failed": 0
+    }
+}
+```
+
+### POST /api/tasks/:id/archive
+Archive a single task (soft delete).
+
+**Response:**
+```json
+{
+    "success": true,
+    "message": "Task archived successfully",
+    "data": { /* task */ }
+}
+```
+
+### POST /api/tasks/:id/unarchive
+Restore a single archived task.
+
+**Response:**
+```json
+{
+    "success": true,
+    "message": "Task unarchived successfully",
+    "data": { /* task */ }
+}
+```
+
+### GET /api/tasks/archived
+List all archived tasks with pagination.
+```
+Query params:
+- page (default: 1)
+- limit (default: 50)
+- sortBy (default: archivedAt)
+- sortOrder (default: desc)
+```
+
+**Response:**
+```json
+{
+    "success": true,
+    "data": [...],
+    "pagination": {
+        "page": 1,
+        "limit": 50,
+        "total": 100,
+        "pages": 2
+    }
+}
+```
+
+### GET /api/tasks/ids
+Get all task IDs matching current filters (for "Select All" feature).
+```
+Query params: Same as GET /api/tasks
+- status, priority, label, assignedTo, caseId, clientId
+- overdue, search, startDate, endDate
+- isArchived (true/only/false)
+```
+
+**Response:**
+```json
+{
+    "success": true,
+    "message": "Found X task(s)",
+    "data": {
+        "taskIds": ["id1", "id2", ...],
+        "count": 150
+    }
+}
+```
+
+### GET /api/tasks/export
+Export tasks to CSV, Excel, PDF, or JSON.
+```
+Query params:
+- format: csv | xlsx | pdf | json (default: csv)
+- fields: comma-separated list of fields to include (optional)
+- All filter params from GET /api/tasks
+```
+
+**Response for CSV:**
+Downloads CSV file directly.
+
+**Response for xlsx/pdf:**
+```json
+{
+    "success": true,
+    "format": "xlsx",
+    "message": "Excel export data ready. Use xlsx library to generate file.",
+    "exportDate": "ISO date",
+    "totalRecords": 100,
+    "headers": ["Title", "Status", ...],
+    "data": [...]
+}
+```
+
+**Response for JSON:**
+Downloads JSON file directly.
+
+### PATCH /api/tasks/reorder
+Reorder tasks for drag & drop functionality.
+```javascript
+// Request body
+{
+    "reorderItems": [
+        { "taskId": "id1", "sortOrder": 0 },
+        { "taskId": "id2", "sortOrder": 1 },
+        { "taskId": "id3", "sortOrder": 2 }
+    ]
+}
+// Max 100 tasks per request
+```
+
+**Response:**
+```json
+{
+    "success": true,
+    "message": "X task(s) reordered successfully",
+    "data": {
+        "modified": 3,
+        "matched": 3
+    }
+}
+```
 
 ---
 

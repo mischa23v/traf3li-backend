@@ -340,6 +340,25 @@ const taskSchema = new mongoose.Schema({
     automationId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Automation'
+    },
+    // Archive/Soft Delete (Gold Standard - SAP/Salesforce pattern)
+    isArchived: {
+        type: Boolean,
+        default: false,
+        index: true
+    },
+    archivedAt: {
+        type: Date
+    },
+    archivedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    },
+    // Manual Sort Order for Drag & Drop (Google Tasks/Notion pattern)
+    sortOrder: {
+        type: Number,
+        default: 0,
+        index: true
     }
 }, {
     versionKey: false,
@@ -373,6 +392,12 @@ taskSchema.index({ firmId: 1, cycleId: 1 });
 taskSchema.index({ lifecycleInstanceId: 1 });
 taskSchema.index({ automationId: 1 });
 taskSchema.index({ createdByAutomation: 1 });
+// Archive and soft delete indexes
+taskSchema.index({ firmId: 1, isArchived: 1 });
+taskSchema.index({ firmId: 1, isArchived: 1, status: 1 });
+// Sort order indexes for drag & drop
+taskSchema.index({ firmId: 1, sortOrder: 1 });
+taskSchema.index({ firmId: 1, status: 1, sortOrder: 1 });
 
 // Pre-save hook to calculate progress from subtasks and budget
 taskSchema.pre('save', function (next) {
