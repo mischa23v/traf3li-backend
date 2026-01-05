@@ -63,7 +63,12 @@ const {
     reorderTasks,
     getAllTaskIds,
     exportTasks,
-    getArchivedTasks
+    getArchivedTasks,
+    // NEW: Location trigger endpoints (Gold Standard - matches Reminders)
+    updateLocationTrigger,
+    checkLocationTrigger,
+    getTasksWithLocationTriggers,
+    bulkCheckLocationTriggers
 } = require('../controllers/task.controller');
 
 // Template controller (extracted for maintainability)
@@ -153,6 +158,10 @@ app.get('/archived', getArchivedTasks);
 // NEW: Reorder for drag & drop
 app.patch('/reorder', reorderTasks);
 
+// NEW: Location trigger routes (Gold Standard - matches Reminders)
+app.get('/location-triggers', getTasksWithLocationTriggers);
+app.post('/location/check', bulkCheckLocationTriggers);
+
 // NLP & AI-powered task routes
 app.post('/parse', createTaskFromNaturalLanguage);
 app.post('/voice', createTaskFromVoice);
@@ -184,6 +193,9 @@ app.post('/:id/convert-to-event', convertTaskToEvent);
 // NEW: Archive/Unarchive single task
 app.post('/:id/archive', archiveTask);
 app.post('/:id/unarchive', unarchiveTask);
+// NEW: Location trigger for single task
+app.put('/:id/location-trigger', updateLocationTrigger);
+app.post('/:id/location/check', checkLocationTrigger);
 
 // Subtask management
 app.post('/:id/subtasks', addSubtask);

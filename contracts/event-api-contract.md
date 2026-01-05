@@ -825,3 +825,137 @@ Query params: page, limit, status, type
 | isArchived | string | 'false' | Filter by archived status. Options: 'false' (hide archived), 'true'/'only' (show only archived) |
 
 **Note:** By default, archived events are excluded from the main list. Use `isArchived=true` or `isArchived=only` to show archived events.
+
+---
+
+## NEW: Location Triggers (2026-01-05)
+
+Events now support location-based triggers (matching Reminders/Tasks).
+
+### Schema Additions
+```javascript
+// Location Trigger Configuration
+locationTrigger: {
+    enabled: Boolean,           // Default: false
+    type: 'arrive' | 'leave' | 'nearby',
+    radius: Number,             // meters, default: 100
+    triggered: Boolean,         // Has it fired?
+    triggeredAt: Date,
+    lastCheckedAt: Date,
+    repeatTrigger: Boolean,     // Can re-trigger after cooldown
+    cooldownMinutes: Number     // Default: 60
+}
+```
+
+**Note:** Events already have a full `location` schema with coordinates. Location triggers use `location.coordinates.latitude` and `location.coordinates.longitude`.
+
+### PUT /api/events/:id/location-trigger
+
+Configure location-based trigger for an event.
+
+**Request Body:**
+```javascript
+['enabled', 'type', 'radius', 'repeatTrigger', 'cooldownMinutes']
+```
+
+**Example:**
+```json
+{
+    "enabled": true,
+    "type": "arrive",
+    "radius": 200,
+    "repeatTrigger": false
+}
+```
+
+**Response:**
+```json
+{
+    "success": true,
+    "message": "Location trigger updated successfully",
+    "data": { /* event object */ }
+}
+```
+
+### POST /api/events/:id/location/check
+
+Check if current location should trigger the event's location alert.
+
+**Request Body:**
+```json
+{
+    "latitude": 24.7136,
+    "longitude": 46.6753
+}
+```
+
+**Response:**
+```json
+{
+    "success": true,
+    "triggered": true,
+    "data": {
+        "eventId": "...",
+        "title": "Court Hearing",
+        "locationTrigger": { ... },
+        "location": { ... }
+    }
+}
+```
+
+### GET /api/events/location-triggers
+
+Get all events with location triggers enabled (for mobile app background polling).
+
+**Query Parameters:**
+- `untriggeredOnly`: 'true' | 'false' (default: 'true')
+
+**Response:**
+```json
+{
+    "success": true,
+    "count": 3,
+    "data": [
+        {
+            "_id": "...",
+            "title": "Court Hearing",
+            "startDateTime": "...",
+            "location": { ... },
+            "locationTrigger": { ... }
+        }
+    ]
+}
+```
+
+### POST /api/events/location/check
+
+Bulk check all user's events against current location.
+
+**Request Body:**
+```json
+{
+    "latitude": 24.7136,
+    "longitude": 46.6753
+}
+```
+
+**Response:**
+```json
+{
+    "success": true,
+    "totalChecked": 5,
+    "triggered": 1,
+    "data": [
+        { /* triggered event */ }
+    ]
+}
+```
+
+### Updated Endpoint Summary
+
+| Method | Endpoint | Handler | Description |
+|--------|----------|---------|-------------|
+| PUT | /:id/location-trigger | updateLocationTrigger | Configure location trigger |
+| POST | /:id/location/check | checkLocationTrigger | Check single event location |
+| GET | /location-triggers | getEventsWithLocationTriggers | Get all location-enabled events |
+| POST | /location/check | bulkCheckLocationTriggers | Bulk check all events |

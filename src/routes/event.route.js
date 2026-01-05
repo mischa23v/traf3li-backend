@@ -49,7 +49,12 @@ const {
     // NEW: Utility endpoints
     getAllEventIds,
     getArchivedEvents,
-    getEventsByCase
+    getEventsByCase,
+    // NEW: Location trigger endpoints (Gold Standard - matches Reminders/Tasks)
+    updateLocationTrigger,
+    checkLocationTrigger,
+    getEventsWithLocationTriggers,
+    bulkCheckLocationTriggers
 } = require('../controllers/event.controller');
 
 const app = express.Router();
@@ -98,6 +103,10 @@ app.get('/archived', userMiddleware, getArchivedEvents);
 // NEW: Filter by case (must be before parameterized routes)
 app.get('/case/:caseId', userMiddleware, getEventsByCase);
 
+// NEW: Location trigger routes (Gold Standard - matches Reminders/Tasks)
+app.get('/location-triggers', userMiddleware, getEventsWithLocationTriggers);
+app.post('/location/check', userMiddleware, bulkCheckLocationTriggers);
+
 // NLP & Voice endpoints
 app.post('/parse', userMiddleware, createEventFromNaturalLanguage);
 app.post('/voice', userMiddleware, createEventFromVoice);
@@ -121,6 +130,9 @@ app.get('/:id/activity', userMiddleware, getEventActivity);
 // NEW: Archive/Unarchive single event
 app.post('/:id/archive', userMiddleware, archiveEvent);
 app.post('/:id/unarchive', userMiddleware, unarchiveEvent);
+// NEW: Location trigger for single event
+app.put('/:id/location-trigger', userMiddleware, updateLocationTrigger);
+app.post('/:id/location/check', userMiddleware, checkLocationTrigger);
 
 // Attendee management
 app.post('/:id/attendees', userMiddleware, addAttendee);

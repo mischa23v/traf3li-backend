@@ -299,6 +299,18 @@ const eventSchema = new mongoose.Schema({
             default: 'not_synced'
         }
     },
+    // Location-based trigger configuration (Gold Standard - matches Reminders/Tasks)
+    locationTrigger: {
+        enabled: { type: Boolean, default: false },
+        type: { type: String, enum: ['arrive', 'leave', 'nearby'] },
+        radius: { type: Number, default: 100 }, // meters
+        triggered: { type: Boolean, default: false },
+        triggeredAt: Date,
+        lastCheckedAt: Date,
+        // For repeated location triggers
+        repeatTrigger: { type: Boolean, default: false },
+        cooldownMinutes: { type: Number, default: 60 } // Don't re-trigger within this time
+    },
     // Display
     color: {
         type: String,
@@ -387,6 +399,8 @@ eventSchema.index({ title: 'text', description: 'text' });
 // Archive queries (Gold Standard - matches Tasks API)
 eventSchema.index({ firmId: 1, isArchived: 1, archivedAt: -1 });
 eventSchema.index({ createdBy: 1, isArchived: 1 });
+// Location-based trigger indexes (Gold Standard - matches Reminders/Tasks)
+eventSchema.index({ 'locationTrigger.enabled': 1, 'locationTrigger.triggered': 1 });
 
 // Generate event ID before saving (tenant-scoped)
 eventSchema.pre('save', async function(next) {
@@ -734,6 +748,65 @@ eventSchema.statics.checkAvailability = async function(userIds, startDateTime, e
         available: conflicts.length === 0,
         conflicts
     };
+};
+
+// Instance method: Check if location trigger should fire (Gold Standard - matches Reminders/Tasks)
+eventSchema.methods.checkLocationTrigger = function(currentLat, currentLng) {
+    // Return false if location trigger is not enabled
+    if (!this.locationTrigger?.enabled) {
+        return false;
+    }
+
+    // Return false if already triggered and not set to repeat
+    if (this.locationTrigger.triggered && !this.locationTrigger.repeatTrigger) {
+        return false;
+    }
+
+    // Check cooldown period for repeated triggers
+    if (this.locationTrigger.repeatTrigger && this.locationTrigger.triggeredAt) {
+        const cooldownMs = (this.locationTrigger.cooldownMinutes || 60) * 60 * 1000;
+        const timeSinceLastTrigger = Date.now() - new Date(this.locationTrigger.triggeredAt).getTime();
+        if (timeSinceLastTrigger < cooldownMs) {
+            return false;
+        }
+    }
+
+    // Validate location coordinates (use event's location for target)
+    const targetLat = this.location?.coordinates?.latitude;
+    const targetLng = this.location?.coordinates?.longitude;
+
+    if (!targetLat || !targetLng || !currentLat || !currentLng) {
+        return false;
+    }
+
+    // Calculate distance using Haversine formula
+    const R = 6371e3; // Earth's radius in meters
+    const φ1 = currentLat * Math.PI / 180;
+    const φ2 = targetLat * Math.PI / 180;
+    const Δφ = (targetLat - currentLat) * Math.PI / 180;
+    const Δλ = (targetLng - currentLng) * Math.PI / 180;
+
+    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+              Math.cos(φ1) * Math.cos(φ2) *
+              Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const distance = R * c; // Distance in meters
+
+    const radius = this.locationTrigger.radius || 100;
+    const isWithinRadius = distance <= radius;
+
+    // Check trigger type
+    const triggerType = this.locationTrigger.type;
+
+    if (triggerType === 'arrive' || triggerType === 'nearby') {
+        // Trigger when user is within the radius
+        return isWithinRadius;
+    } else if (triggerType === 'leave') {
+        // Trigger when user is outside the radius
+        return !isWithinRadius;
+    }
+
+    return false;
 };
 
 module.exports = mongoose.model('Event', eventSchema);
