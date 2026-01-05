@@ -338,6 +338,10 @@ const eventSchema = new mongoose.Schema({
     completedAt: Date,
     completedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     outcome: String,
+    // Archive support (Gold Standard - matches Tasks API)
+    isArchived: { type: Boolean, default: false, index: true },
+    archivedAt: Date,
+    archivedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     // Follow-up
     followUpRequired: { type: Boolean, default: false },
     followUpTaskId: { type: mongoose.Schema.Types.ObjectId, ref: 'Task' },
@@ -379,6 +383,10 @@ eventSchema.index({ status: 1, startDateTime: 1 });
 eventSchema.index({ 'attendees.userId': 1, startDateTime: 1 });
 eventSchema.index({ 'recurrence.enabled': 1, 'recurrence.nextOccurrence': 1 });
 eventSchema.index({ title: 'text', description: 'text' });
+
+// Archive queries (Gold Standard - matches Tasks API)
+eventSchema.index({ firmId: 1, isArchived: 1, archivedAt: -1 });
+eventSchema.index({ createdBy: 1, isArchived: 1 });
 
 // Generate event ID before saving (tenant-scoped)
 eventSchema.pre('save', async function(next) {
