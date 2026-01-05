@@ -354,6 +354,8 @@ const eventSchema = new mongoose.Schema({
     isArchived: { type: Boolean, default: false, index: true },
     archivedAt: Date,
     archivedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    // Sort order for drag & drop (Gold Standard - matches Tasks/Reminders)
+    sortOrder: { type: Number, default: 0 },
     // Follow-up
     followUpRequired: { type: Boolean, default: false },
     followUpTaskId: { type: mongoose.Schema.Types.ObjectId, ref: 'Task' },
@@ -401,6 +403,9 @@ eventSchema.index({ firmId: 1, isArchived: 1, archivedAt: -1 });
 eventSchema.index({ createdBy: 1, isArchived: 1 });
 // Location-based trigger indexes (Gold Standard - matches Reminders/Tasks)
 eventSchema.index({ 'locationTrigger.enabled': 1, 'locationTrigger.triggered': 1 });
+// Sort order indexes for drag & drop (Gold Standard - matches Tasks/Reminders)
+eventSchema.index({ firmId: 1, sortOrder: 1 });
+eventSchema.index({ createdBy: 1, sortOrder: 1 });
 
 // Generate event ID before saving (tenant-scoped)
 eventSchema.pre('save', async function(next) {

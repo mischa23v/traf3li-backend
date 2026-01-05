@@ -54,7 +54,10 @@ const {
     updateLocationTrigger,
     checkLocationTrigger,
     getEventsWithLocationTriggers,
-    bulkCheckLocationTriggers
+    bulkCheckLocationTriggers,
+    // NEW: Export & Reorder (Gold Standard - matches Tasks/Reminders)
+    exportEvents,
+    reorderEvents
 } = require('../controllers/event.controller');
 
 const app = express.Router();
@@ -99,6 +102,9 @@ app.post('/bulk/unarchive', userMiddleware, bulkUnarchiveEvents);
 // NEW: Export and Select All
 app.get('/ids', userMiddleware, getAllEventIds);
 app.get('/archived', userMiddleware, getArchivedEvents);
+// NEW: Export & Reorder (Gold Standard - matches Tasks/Reminders)
+app.get('/export', userMiddleware, exportEvents);
+app.patch('/reorder', userMiddleware, reorderEvents);
 
 // NEW: Filter by case (must be before parameterized routes)
 app.get('/case/:caseId', userMiddleware, getEventsByCase);

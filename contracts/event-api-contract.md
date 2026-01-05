@@ -562,6 +562,8 @@ node --check src/models/event.model.js
 | 2026-01-04 | Initial contract documentation | No |
 | 2026-01-04 | Added missing endpoints for feature parity | No |
 | 2026-01-05 | Added bulk complete/archive/unarchive, archive schema, isArchived filter | No |
+| 2026-01-05 | Added location triggers (Gold Standard - matches Tasks/Reminders) | No |
+| 2026-01-05 | Added sortOrder field, exportEvents, reorderEvents (Gold Standard feature parity) | No |
 
 ---
 
@@ -959,3 +961,120 @@ Bulk check all user's events against current location.
 | POST | /:id/location/check | checkLocationTrigger | Check single event location |
 | GET | /location-triggers | getEventsWithLocationTriggers | Get all location-enabled events |
 | POST | /location/check | bulkCheckLocationTriggers | Bulk check all events |
+
+---
+
+## NEW: Export & Reorder (2026-01-05)
+
+Events now support export and drag-and-drop reordering (matching Tasks API - Gold Standard feature parity).
+
+### Schema Additions
+```javascript
+{
+    sortOrder: { type: Number, default: 0, index: true }
+}
+```
+
+Indexes added:
+- `{ firmId: 1, sortOrder: 1 }`
+- `{ createdBy: 1, sortOrder: 1 }`
+
+### GET /api/events/export
+
+Export events data in JSON or CSV format.
+
+**Query Parameters:**
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| format | string | 'json' | Export format: 'json' or 'csv' |
+| status | string | - | Filter by status |
+| type | string | - | Filter by event type |
+| startDate | ISO date | - | Filter events starting after |
+| endDate | ISO date | - | Filter events ending before |
+| isArchived | string | 'false' | Include archived events |
+
+**Response (JSON format):**
+```json
+{
+    "success": true,
+    "format": "json",
+    "count": 25,
+    "data": [
+        {
+            "_id": "...",
+            "eventId": "EVT-202601-0001",
+            "title": "Court Hearing",
+            "type": "hearing",
+            "status": "scheduled",
+            "startDateTime": "2026-01-15T09:00:00.000Z",
+            "endDateTime": "2026-01-15T10:00:00.000Z",
+            "location": { ... },
+            "caseId": { "_id": "...", "title": "...", "caseNumber": "..." },
+            "clientId": { "_id": "...", "firstName": "...", "lastName": "..." },
+            "priority": "high",
+            "createdBy": { ... },
+            "createdAt": "..."
+        }
+    ],
+    "exportedAt": "2026-01-05T12:00:00.000Z"
+}
+```
+
+**Response (CSV format):**
+```json
+{
+    "success": true,
+    "format": "csv",
+    "count": 25,
+    "data": "Event ID,Title,Type,Status,Start Date Time,End Date Time,Location,Case,Client,Priority,Created At\nEVT-202601-0001,Court Hearing,hearing,scheduled,2026-01-15T09:00:00.000Z,2026-01-15T10:00:00.000Z,\"Riyadh Court\",\"Smith vs. Jones\",\"John Smith\",high,2026-01-04T10:00:00.000Z\n...",
+    "exportedAt": "2026-01-05T12:00:00.000Z"
+}
+```
+
+### PATCH /api/events/reorder
+
+Reorder events for drag-and-drop functionality.
+
+**Request Body:**
+```javascript
+['eventIds', 'orders']
+```
+
+**Example Request:**
+```json
+{
+    "eventIds": ["eventId1", "eventId2", "eventId3"],
+    "orders": [0, 1, 2]
+}
+```
+
+**Validation:**
+- `eventIds` must be an array of valid ObjectIds
+- `orders` must be an array of numbers
+- Both arrays must have the same length
+- All event IDs must belong to the requesting user's firm/account
+
+**Response:**
+```json
+{
+    "success": true,
+    "message": "Events reordered successfully",
+    "data": {
+        "modifiedCount": 3
+    }
+}
+```
+
+**Security:**
+- All events are verified to belong to the user's firm (using `...req.firmQuery`)
+- IDOR protection via sanitizeObjectId
+- Bulk operations use tenant-scoped queries
+
+### Updated Endpoint Summary (Import/Export)
+
+| Method | Endpoint | Handler | Description |
+|--------|----------|---------|-------------|
+| GET | /:id/export/ics | exportEventToICS | Export single event to ICS |
+| POST | /import/ics | importEventsFromICS | Import events from ICS file |
+| GET | /export | exportEvents | Export events (JSON/CSV) |
+| PATCH | /reorder | reorderEvents | Reorder events (drag & drop) |
