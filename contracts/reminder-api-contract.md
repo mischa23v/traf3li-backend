@@ -484,6 +484,7 @@ node --check src/controllers/locationReminder.controller.js
 |------|--------|-----------|
 | 2026-01-04 | Initial contract documentation | No |
 | 2026-01-04 | Added missing endpoints for feature parity | No |
+| 2026-01-05 | Added bulk complete/archive/unarchive, archive schema, isArchived filter | No |
 
 ---
 
@@ -692,3 +693,127 @@ X-RateLimit-Reset: 1704412800
 2. **Read operations are safe**: Higher limits for reads don't risk data corruption
 3. **Separate buckets**: Search limits don't consume general API quota
 4. **Gold standard compliance**: Follows AWS API Gateway, Algolia, Elasticsearch patterns
+
+---
+
+## NEW: Bulk Operations & Archive System (2026-01-05)
+
+### Schema Additions
+The following fields were added to the Reminder schema:
+```javascript
+{
+    isArchived: { type: Boolean, default: false, index: true },
+    archivedAt: Date,
+    archivedBy: { type: ObjectId, ref: 'User' },
+    sortOrder: { type: Number, default: 0 }  // For drag & drop reorder
+}
+```
+
+### New Bulk Endpoints
+
+#### POST /api/reminders/bulk/complete
+Complete multiple reminders at once.
+```javascript
+// Request body
+{ "reminderIds": ["id1", "id2", "id3"], "completionNote": "optional note" }
+
+// Response
+{
+    "success": true,
+    "message": "3 reminder(s) completed successfully",
+    "data": {
+        "completed": 3,
+        "failed": 0,
+        "failedIds": []
+    }
+}
+```
+
+#### POST /api/reminders/bulk/archive
+Archive multiple reminders (soft delete).
+```javascript
+// Request body
+{ "reminderIds": ["id1", "id2", "id3"] }
+
+// Response
+{
+    "success": true,
+    "message": "3 reminder(s) archived successfully",
+    "data": {
+        "archived": 3,
+        "failed": 0,
+        "failedIds": []
+    }
+}
+```
+
+#### POST /api/reminders/bulk/unarchive
+Restore archived reminders.
+```javascript
+// Request body
+{ "reminderIds": ["id1", "id2", "id3"] }
+
+// Response
+{
+    "success": true,
+    "message": "3 reminder(s) unarchived successfully",
+    "data": {
+        "unarchived": 3,
+        "failed": 0,
+        "failedIds": []
+    }
+}
+```
+
+### Single Archive Endpoints
+
+#### POST /api/reminders/:id/archive
+Archive a single reminder.
+
+#### POST /api/reminders/:id/unarchive
+Unarchive a single reminder.
+
+### Utility Endpoints
+
+#### GET /api/reminders/ids
+Get all reminder IDs (for "Select All" functionality).
+```
+Query params: status, priority, type, isArchived
+```
+```json
+{
+    "success": true,
+    "data": ["id1", "id2", "id3"],
+    "count": 3
+}
+```
+
+#### GET /api/reminders/archived
+Get archived reminders with pagination.
+```
+Query params: page, limit, sortBy, sortOrder
+```
+
+#### GET /api/reminders/export
+Export reminders in JSON or CSV format.
+```
+Query params: format (json|csv), status, priority, type, startDate, endDate
+```
+
+#### PATCH /api/reminders/reorder
+Reorder reminders (for drag & drop).
+```javascript
+// Request body
+{
+    "reminderIds": ["id1", "id2", "id3"],
+    "orders": [0, 1, 2]
+}
+```
+
+### Updated Query Parameters for GET /api/reminders
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| isArchived | string | 'false' | Filter by archived status. Options: 'false' (hide archived), 'true'/'only' (show only archived) |
+
+**Note:** By default, archived reminders are excluded from the main list. Use `isArchived=true` or `isArchived=only` to show archived reminders.

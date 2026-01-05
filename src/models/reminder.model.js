@@ -192,6 +192,12 @@ const reminderSchema = new mongoose.Schema({
     completedAt: Date,
     completedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     completionNote: String,
+    // Archive support (Gold Standard - matches Tasks API)
+    isArchived: { type: Boolean, default: false, index: true },
+    archivedAt: Date,
+    archivedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    // Sort order for drag & drop (Gold Standard - matches Tasks API)
+    sortOrder: { type: Number, default: 0 },
     // Additional fields
     notes: {
         type: String,
@@ -257,6 +263,13 @@ reminderSchema.index({ 'locationTrigger.enabled': 1, 'locationTrigger.triggered'
 
 // Firm-based queries
 reminderSchema.index({ firmId: 1, createdAt: -1 });
+
+// Archive queries (Gold Standard - matches Tasks API)
+reminderSchema.index({ firmId: 1, isArchived: 1, archivedAt: -1 });
+reminderSchema.index({ userId: 1, isArchived: 1 });
+
+// Sort order for drag & drop
+reminderSchema.index({ userId: 1, sortOrder: 1 });
 
 // Generate reminder ID before saving
 // Gold Standard: Scope ID sequence to tenant (each firm/lawyer has own sequence)

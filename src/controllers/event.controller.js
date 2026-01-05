@@ -247,7 +247,8 @@ const getEvents = asyncHandler(async (req, res) => {
         limit = 50,
         sortBy = 'startDateTime',
         sortOrder = 'asc',
-        includeStats = 'false' // NEW: Include stats in response (GOLD STANDARD)
+        includeStats = 'false', // NEW: Include stats in response (GOLD STANDARD)
+        isArchived = 'false' // Gold Standard: Filter archived by default (matches Tasks API)
     } = req.query;
 
     const userId = req.userID;
@@ -272,6 +273,13 @@ const getEvents = asyncHandler(async (req, res) => {
 
     // Copy base query for filtering
     const query = { ...baseQuery };
+
+    // Gold Standard: Filter archived items (matches Tasks API pattern)
+    if (isArchived === 'true' || isArchived === 'only') {
+        query.isArchived = true;
+    } else {
+        query.isArchived = { $ne: true };
+    }
 
     // Date range filter
     if (startDate || endDate) {
