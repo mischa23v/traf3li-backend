@@ -435,12 +435,13 @@ const getProductivityData = asyncHandler(async (req, res) => {
     data: ganttTasks,
     links: uniqueLinks,
     collections: {
-      priorities: ['critical', 'urgent', 'high', 'medium', 'low'],
+      // Gold Standard: Match actual model enums exactly
+      priorities: ['none', 'low', 'medium', 'high', 'critical'], // from task.model.js
       types: ['task', 'reminder', 'event'],
       statuses: {
-        task: ['backlog', 'todo', 'in_progress', 'review', 'done', 'canceled'],
+        task: ['backlog', 'todo', 'in_progress', 'done', 'canceled'], // from task.model.js
         reminder: ['pending', 'snoozed', 'completed', 'dismissed', 'delegated'],
-        event: ['scheduled', 'confirmed', 'tentative', 'canceled', 'postponed', 'completed', 'in_progress']
+        event: ['scheduled', 'confirmed', 'tentative', 'canceled', 'postponed', 'completed', 'in_progress', 'rescheduled']
       }
     },
     summary
