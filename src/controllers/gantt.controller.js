@@ -194,56 +194,40 @@ const getProductivityData = asyncHandler(async (req, res) => {
   }
 
   // Fetch all data sources in parallel - use req.firmQuery for proper tenant isolation
+  // GOLD STANDARD: Spread firmQuery at top level (not inside $and) so globalFirmIsolation plugin detects it
   const [tasks, reminders, events] = await Promise.all([
-    // Tasks query
+    // Tasks query - spread firmQuery at top level for plugin detection
     Task.find({
-      $and: [
-        // Firm/lawyer filter using req.firmQuery for proper tenant isolation
-        req.firmQuery,
-        // Exclude canceled tasks
-        { status: { $ne: 'canceled' } },
-        // Exclude templates
-        { isTemplate: { $ne: true } },
-        // Date filter on dueDate
-        ...(Object.keys(dateFilters).length > 0 ? [{ dueDate: dateFilters }] : [])
-      ]
+      ...req.firmQuery,
+      status: { $ne: 'canceled' },
+      isTemplate: { $ne: true },
+      ...(Object.keys(dateFilters).length > 0 ? { dueDate: dateFilters } : {})
     })
     .populate('assignedTo', 'name email avatar')
     .populate('caseId', 'title caseNumber')
     .populate('blockedBy', '_id title')
     .sort({ dueDate: 1 }),
 
-    // Reminders query
+    // Reminders query - spread firmQuery + user access check
     Reminder.find({
-      $and: [
-        // User access check
-        {
-          $or: [
-            { userId: userId },
-            { createdBy: userId },
-            { delegatedTo: userId }
-          ]
-        },
-        // Exclude dismissed reminders
-        { status: { $ne: 'dismissed' } },
-        // Date filter on reminderDateTime
-        ...(Object.keys(dateFilters).length > 0 ? [{ reminderDateTime: dateFilters }] : [])
-      ]
+      ...req.firmQuery,
+      $or: [
+        { userId: userId },
+        { createdBy: userId },
+        { delegatedTo: userId }
+      ],
+      status: { $ne: 'dismissed' },
+      ...(Object.keys(dateFilters).length > 0 ? { reminderDateTime: dateFilters } : {})
     })
     .populate('relatedCase', 'title caseNumber')
     .populate('relatedTask', 'title')
     .sort({ reminderDateTime: 1 }),
 
-    // Events query - use req.firmQuery for proper tenant isolation
+    // Events query - spread firmQuery at top level for plugin detection
     Event.find({
-      $and: [
-        // Firm/lawyer filter using req.firmQuery for proper tenant isolation
-        req.firmQuery,
-        // Exclude canceled events
-        { status: { $nin: ['canceled', 'cancelled'] } },
-        // Date filter on startDateTime
-        ...(Object.keys(dateFilters).length > 0 ? [{ startDateTime: dateFilters }] : [])
-      ]
+      ...req.firmQuery,
+      status: { $nin: ['canceled', 'cancelled'] },
+      ...(Object.keys(dateFilters).length > 0 ? { startDateTime: dateFilters } : {})
     })
     .populate('caseId', 'title caseNumber')
     .populate('organizer', 'name email avatar')
@@ -990,7 +974,8 @@ const getUserWorkload = asyncHandler(async (req, res) => {
     end: req.query.endDate
   } : null;
 
-  const workload = await ganttService.getAssigneeWorkload(userId, dateRange);
+  // Gold standard: Pass firmQuery for proper tenant isolation (solo lawyers + firms)
+  const workload = await ganttService.getAssigneeWorkload(userId, req.firmQuery, dateRange);
 
   res.status(200).json({
     success: true,
@@ -1009,7 +994,8 @@ const getResourceConflicts = asyncHandler(async (req, res) => {
     throw CustomException('User ID, start date, and end date are required', 400);
   }
 
-  const conflicts = await ganttService.checkResourceConflicts(userId, startDate, endDate);
+  // Gold standard: Pass firmQuery for proper tenant isolation (solo lawyers + firms)
+  const conflicts = await ganttService.checkResourceConflicts(userId, req.firmQuery, startDate, endDate);
 
   res.status(200).json({
     success: true,
@@ -1028,7 +1014,8 @@ const suggestAssignee = asyncHandler(async (req, res) => {
     throw CustomException('Task ID is required', 400);
   }
 
-  const suggestions = await ganttService.suggestOptimalAssignment(taskId);
+  // Gold standard: Pass firmQuery for proper tenant isolation (solo lawyers + firms)
+  const suggestions = await ganttService.suggestOptimalAssignment(taskId, req.firmQuery);
 
   res.status(200).json({
     success: true,
