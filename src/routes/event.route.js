@@ -38,7 +38,18 @@ const {
     bulkDeleteEvents,
     getEventsByClient,
     searchEvents,
-    getEventActivity
+    getEventActivity,
+    // NEW: Bulk operations (Gold Standard)
+    bulkCompleteEvents,
+    bulkArchiveEvents,
+    bulkUnarchiveEvents,
+    // NEW: Single archive operations
+    archiveEvent,
+    unarchiveEvent,
+    // NEW: Utility endpoints
+    getAllEventIds,
+    getArchivedEvents,
+    getEventsByCase
 } = require('../controllers/event.controller');
 
 const app = express.Router();
@@ -75,6 +86,17 @@ app.get('/client/:clientId', userMiddleware, getEventsByClient);
 app.post('/bulk', userMiddleware, bulkCreateEvents);
 app.put('/bulk', userMiddleware, bulkUpdateEvents);
 app.delete('/bulk', userMiddleware, bulkDeleteEvents);
+// NEW: Bulk complete, archive, unarchive (Gold Standard - matches Tasks API)
+app.post('/bulk/complete', userMiddleware, bulkCompleteEvents);
+app.post('/bulk/archive', userMiddleware, bulkArchiveEvents);
+app.post('/bulk/unarchive', userMiddleware, bulkUnarchiveEvents);
+
+// NEW: Export and Select All
+app.get('/ids', userMiddleware, getAllEventIds);
+app.get('/archived', userMiddleware, getArchivedEvents);
+
+// NEW: Filter by case (must be before parameterized routes)
+app.get('/case/:caseId', userMiddleware, getEventsByCase);
 
 // NLP & Voice endpoints
 app.post('/parse', userMiddleware, createEventFromNaturalLanguage);
@@ -96,6 +118,9 @@ app.post('/:id/postpone', userMiddleware, postponeEvent);
 app.post('/:id/clone', userMiddleware, cloneEvent);
 app.post('/:id/reschedule', userMiddleware, rescheduleEvent);
 app.get('/:id/activity', userMiddleware, getEventActivity);
+// NEW: Archive/Unarchive single event
+app.post('/:id/archive', userMiddleware, archiveEvent);
+app.post('/:id/unarchive', userMiddleware, unarchiveEvent);
 
 // Attendee management
 app.post('/:id/attendees', userMiddleware, addAttendee);
