@@ -64,7 +64,7 @@ class MLScoringJobs {
       const leads = await Lead.find({
         convertedToClient: false,
         status: { $nin: ['lost', 'inactive'] }
-      }).setOptions({ bypassFirmFilter: true }.select('_id firmId');.lean()
+      }).setOptions({ bypassFirmFilter: true }).select('_id firmId').lean();
 
       logger.info(`[MLScoring] Found ${leads.length} leads to score`);
 
@@ -275,7 +275,7 @@ class MLScoringJobs {
       const convertedLeads = await Lead.find({
         convertedToClient: true,
         convertedAt: { $gte: weekAgo }
-      }).setOptions({ bypassFirmFilter: true }.select('_id');.lean()
+      }).setOptions({ bypassFirmFilter: true }).select('_id').lean();
 
       const convertedLeadIds = convertedLeads.map(l => l._id);
 
