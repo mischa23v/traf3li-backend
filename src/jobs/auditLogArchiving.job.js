@@ -117,11 +117,13 @@ if (require.main === module) {
       return runAuditLogArchiving();
     })
     .then((result) => {
-      logger.info('\nJob result:', result);
-      process.exit(result.success ? 0 : 1);
+      logger.info('\nStandalone job completed:', result);
+      // Delay exit to allow async operations to complete
+      setTimeout(() => process.exit(result.success ? 0 : 1), 100);
     })
     .catch((error) => {
-      logger.error('Job failed:', error);
-      process.exit(1);
+      logger.error('Standalone job failed:', error);
+      // Delay exit to allow async operations to complete
+      setTimeout(() => process.exit(1), 100);
     });
 }

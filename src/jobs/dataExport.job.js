@@ -485,7 +485,9 @@ if (require.main === module) {
 
   if (!jobId) {
     console.error('Usage: node dataExport.job.js <jobId>');
-    process.exit(1);
+    // Delay exit to allow async operations to complete
+    setTimeout(() => process.exit(1), 100);
+    return;
   }
 
   const mongoose = require('mongoose');
@@ -501,11 +503,13 @@ if (require.main === module) {
       return processExportJob(jobId);
     })
     .then((result) => {
-      logger.info('Job result:', result);
-      process.exit(result.success ? 0 : 1);
+      logger.info('Standalone job completed:', result);
+      // Delay exit to allow async operations to complete
+      setTimeout(() => process.exit(result.success ? 0 : 1), 100);
     })
     .catch((error) => {
-      logger.error('Job failed:', error);
-      process.exit(1);
+      logger.error('Standalone job failed:', error);
+      // Delay exit to allow async operations to complete
+      setTimeout(() => process.exit(1), 100);
     });
 }
