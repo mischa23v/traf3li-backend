@@ -26,7 +26,7 @@ const getRevaluations = asyncHandler(async (req, res) => {
         status
     } = req.query;
 
-    const result = await ExchangeRateRevaluation.getHistory(req.firmId, {
+    const result = await ExchangeRateRevaluation.getHistory(req.firmQuery, {
         year: year ? parseInt(year, 10) : undefined,
         currency,
         status,
@@ -53,7 +53,7 @@ const getRevaluation = asyncHandler(async (req, res) => {
 
     const revaluation = await ExchangeRateRevaluation.findOne({
         _id: id,
-        firmId: req.firmId
+        ...req.firmQuery
     })
         .populate('gainAccountId', 'code name')
         .populate('lossAccountId', 'code name')
@@ -86,14 +86,14 @@ const previewRevaluation = asyncHandler(async (req, res) => {
     // Check if period already has revaluation
     const date = new Date(safeData.revaluationDate);
     const hasExisting = await ExchangeRateRevaluation.hasRevaluationForPeriod(
-        req.firmId,
+        req.firmQuery,
         date.getFullYear(),
         date.getMonth() + 1
     );
 
     // Run revaluation in preview mode
     const revaluation = await ExchangeRateRevaluation.runRevaluation({
-        firmId: req.firmId,
+        ...req.firmQuery,
         revaluationDate: safeData.revaluationDate,
         baseCurrency: safeData.baseCurrency || 'SAR',
         targetCurrencies: safeData.targetCurrencies,
@@ -133,7 +133,7 @@ const runRevaluation = asyncHandler(async (req, res) => {
     if (safeData.gainAccountId) {
         const gainAccount = await Account.findOne({
             _id: sanitizeObjectId(safeData.gainAccountId),
-            firmId: req.firmId,
+            ...req.firmQuery,
             isActive: true
         });
         if (!gainAccount) {
@@ -144,7 +144,7 @@ const runRevaluation = asyncHandler(async (req, res) => {
     if (safeData.lossAccountId) {
         const lossAccount = await Account.findOne({
             _id: sanitizeObjectId(safeData.lossAccountId),
-            firmId: req.firmId,
+            ...req.firmQuery,
             isActive: true
         });
         if (!lossAccount) {
@@ -155,7 +155,7 @@ const runRevaluation = asyncHandler(async (req, res) => {
     // Check for existing revaluation in period
     const date = new Date(safeData.revaluationDate);
     const hasExisting = await ExchangeRateRevaluation.hasRevaluationForPeriod(
-        req.firmId,
+        req.firmQuery,
         date.getFullYear(),
         date.getMonth() + 1
     );
@@ -170,7 +170,7 @@ const runRevaluation = asyncHandler(async (req, res) => {
 
     // Run revaluation
     const revaluation = await ExchangeRateRevaluation.runRevaluation({
-        firmId: req.firmId,
+        ...req.firmQuery,
         revaluationDate: safeData.revaluationDate,
         baseCurrency: safeData.baseCurrency || 'SAR',
         targetCurrencies: safeData.targetCurrencies,
@@ -203,7 +203,7 @@ const postRevaluation = asyncHandler(async (req, res) => {
 
     const revaluation = await ExchangeRateRevaluation.findOne({
         _id: id,
-        firmId: req.firmId
+        ...req.firmQuery
     });
 
     if (!revaluation) {
@@ -258,7 +258,7 @@ const reverseRevaluation = asyncHandler(async (req, res) => {
 
     const revaluation = await ExchangeRateRevaluation.findOne({
         _id: id,
-        firmId: req.firmId
+        ...req.firmQuery
     });
 
     if (!revaluation) {
@@ -293,7 +293,7 @@ const deleteRevaluation = asyncHandler(async (req, res) => {
 
     const revaluation = await ExchangeRateRevaluation.findOne({
         _id: id,
-        firmId: req.firmId
+        ...req.firmQuery
     });
 
     if (!revaluation) {
@@ -323,7 +323,7 @@ const getRevaluationReport = asyncHandler(async (req, res) => {
     const { year, startDate, endDate } = req.query;
 
     const query = {
-        firmId: req.firmId,
+        ...req.firmQuery,
         status: 'posted'
     };
 
@@ -401,7 +401,7 @@ const getRevaluationAccounts = asyncHandler(async (req, res) => {
     const accounts = await GeneralLedger.aggregate([
         {
             $match: {
-                firmId: req.firmId,
+                ...req.firmQuery,
                 status: 'posted',
                 'meta.currency': { $exists: true, $ne: 'SAR' }
             }
@@ -437,7 +437,7 @@ const getRevaluationAccounts = asyncHandler(async (req, res) => {
 
     // Also get gain/loss accounts (income/expense type)
     const gainLossAccounts = await Account.find({
-        firmId: req.firmId,
+        ...req.firmQuery,
         isActive: true,
         type: { $in: ['Income', 'Expense'] },
         $or: [
