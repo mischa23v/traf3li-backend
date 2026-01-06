@@ -1,0 +1,1703 @@
+{
+  "generatedAt": "2026-01-06T09:17:59.118Z",
+  "summary": {
+    "totalRouteFiles": 256,
+    "totalEndpoints": 3958,
+    "totalModules": 247,
+    "documentedModules": 107,
+    "undocumentedModules": 140,
+    "moduleCoveragePercent": 43.3,
+    "endpointCoveragePercent": 40.9
+  },
+  "undocumentedModulesList": [
+    {
+      "module": "task",
+      "endpointCount": 86,
+      "sampleEndpoints": [
+        "GET /api/task/templates",
+        "POST /api/task/templates",
+        "GET /api/task/templates/:templateId"
+      ]
+    },
+    {
+      "module": "sales",
+      "endpointCount": 75,
+      "sampleEndpoints": [
+        "GET /api/sales/orders",
+        "GET /api/sales/orders/statistics",
+        "GET /api/sales/orders/by-salesperson"
+      ]
+    },
+    {
+      "module": "case",
+      "endpointCount": 54,
+      "sampleEndpoints": [
+        "GET /api/case/overview",
+        "GET /api/case/statistics",
+        "POST /api/case"
+      ]
+    },
+    {
+      "module": "event",
+      "endpointCount": 51,
+      "sampleEndpoints": [
+        "GET /api/event/stats",
+        "GET /api/event/calendar",
+        "GET /api/event/upcoming"
+      ]
+    },
+    {
+      "module": "hr-extended",
+      "endpointCount": 49,
+      "sampleEndpoints": [
+        "GET /api/hr-extended/leave-encashment",
+        "POST /api/hr-extended/leave-encashment",
+        "POST /api/hr-extended/leave-encashment/:id/approve"
+      ]
+    },
+    {
+      "module": "reminder",
+      "endpointCount": 48,
+      "sampleEndpoints": [
+        "GET /api/reminder/location/summary",
+        "GET /api/reminder/location/locations",
+        "POST /api/reminder/location"
+      ]
+    },
+    {
+      "module": "firm",
+      "endpointCount": 46,
+      "sampleEndpoints": [
+        "GET /api/firm",
+        "GET /api/firm/roles",
+        "POST /api/firm"
+      ]
+    },
+    {
+      "module": "integrations",
+      "endpointCount": 45,
+      "sampleEndpoints": [
+        "GET /api/integrations/quickbooks/auth",
+        "GET /api/integrations/quickbooks/callback",
+        "POST /api/integrations/quickbooks/disconnect"
+      ]
+    },
+    {
+      "module": "recruitment",
+      "endpointCount": 39,
+      "sampleEndpoints": [
+        "GET /api/recruitment/stats",
+        "GET /api/recruitment/talent-pool",
+        "GET /api/recruitment/jobs/nearing-deadline"
+      ]
+    },
+    {
+      "module": "inventory",
+      "endpointCount": 38,
+      "sampleEndpoints": [
+        "GET /api/inventory/stats",
+        "GET /api/inventory/reports/stock-balance",
+        "GET /api/inventory/reports/low-stock"
+      ]
+    },
+    {
+      "module": "invoice",
+      "endpointCount": 34,
+      "sampleEndpoints": [
+        "GET /api/invoice/stats",
+        "GET /api/invoice/overdue",
+        "GET /api/invoice/billable-items"
+      ]
+    },
+    {
+      "module": "audit-log",
+      "endpointCount": 33,
+      "sampleEndpoints": [
+        "GET /api/audit-log",
+        "GET /api/audit-log/entity/:type/:id",
+        "GET /api/audit-log/user/:id"
+      ]
+    },
+    {
+      "module": "biometric",
+      "endpointCount": 32,
+      "sampleEndpoints": [
+        "POST /api/biometric/devices",
+        "GET /api/biometric/devices",
+        "GET /api/biometric/devices/:id"
+      ]
+    },
+    {
+      "module": "expense-claim",
+      "endpointCount": 32,
+      "sampleEndpoints": [
+        "GET /api/expense-claim/stats",
+        "GET /api/expense-claim/pending-approvals",
+        "GET /api/expense-claim/pending-payments"
+      ]
+    },
+    {
+      "module": "permission",
+      "endpointCount": 32,
+      "sampleEndpoints": [
+        "POST /api/permission/check",
+        "POST /api/permission/check-batch",
+        "GET /api/permission/my-permissions"
+      ]
+    },
+    {
+      "module": "report",
+      "endpointCount": 31,
+      "sampleEndpoints": [
+        "GET /api/report/profit-loss",
+        "GET /api/report/balance-sheet",
+        "GET /api/report/case-profitability"
+      ]
+    },
+    {
+      "module": "admin-tools",
+      "endpointCount": 30,
+      "sampleEndpoints": [
+        "GET /api/admin-tools/users/:id/data",
+        "DELETE /api/admin-tools/users/:id/data",
+        "GET /api/admin-tools/firms/:id/export"
+      ]
+    },
+    {
+      "module": "training",
+      "endpointCount": 29,
+      "sampleEndpoints": [
+        "GET /api/training/stats",
+        "GET /api/training/pending-approvals",
+        "GET /api/training/upcoming"
+      ]
+    },
+    {
+      "module": "appointment",
+      "endpointCount": 28,
+      "sampleEndpoints": [
+        "POST /api/appointment/book/:firmId",
+        "GET /api/appointment/available-slots",
+        "GET /api/appointment/:id/calendar.ics"
+      ]
+    },
+    {
+      "module": "attendance",
+      "endpointCount": 28,
+      "sampleEndpoints": [
+        "GET /api/attendance/today",
+        "GET /api/attendance/violations",
+        "GET /api/attendance/corrections/pending"
+      ]
+    },
+    {
+      "module": "manufacturing",
+      "endpointCount": 28,
+      "sampleEndpoints": [
+        "GET /api/manufacturing/stats",
+        "GET /api/manufacturing/settings",
+        "PUT /api/manufacturing/settings"
+      ]
+    },
+    {
+      "module": "performance-review",
+      "endpointCount": 28,
+      "sampleEndpoints": [
+        "GET /api/performance-review/stats",
+        "GET /api/performance-review/overdue",
+        "GET /api/performance-review/templates"
+      ]
+    },
+    {
+      "module": "succession-plan",
+      "endpointCount": 27,
+      "sampleEndpoints": [
+        "GET /api/succession-plan/stats",
+        "GET /api/succession-plan/review-due",
+        "GET /api/succession-plan/high-risk"
+      ]
+    },
+    {
+      "module": "analytics",
+      "endpointCount": 26,
+      "sampleEndpoints": [
+        "POST /api/analytics/events",
+        "GET /api/analytics/events/counts",
+        "GET /api/analytics/app/dashboard"
+      ]
+    },
+    {
+      "module": "leave-management",
+      "endpointCount": 26,
+      "sampleEndpoints": [
+        "GET /api/leave-management/leave-periods",
+        "GET /api/leave-management/leave-periods/current",
+        "GET /api/leave-management/leave-periods/:id"
+      ]
+    },
+    {
+      "module": "job-position",
+      "endpointCount": 25,
+      "sampleEndpoints": [
+        "GET /api/job-position/stats",
+        "GET /api/job-position/vacant",
+        "GET /api/job-position/org-chart"
+      ]
+    },
+    {
+      "module": "whatsapp",
+      "endpointCount": 24,
+      "sampleEndpoints": [
+        "POST /api/whatsapp/send/template",
+        "POST /api/whatsapp/send/text",
+        "POST /api/whatsapp/send/media"
+      ]
+    },
+    {
+      "module": "client",
+      "endpointCount": 23,
+      "sampleEndpoints": [
+        "POST /api/client",
+        "GET /api/client",
+        "GET /api/client/search"
+      ]
+    },
+    {
+      "module": "admin-api",
+      "endpointCount": 22,
+      "sampleEndpoints": [
+        "GET /api/admin-api/dashboard/summary",
+        "GET /api/admin-api/dashboard/revenue",
+        "GET /api/admin-api/dashboard/active-users"
+      ]
+    },
+    {
+      "module": "onboarding",
+      "endpointCount": 22,
+      "sampleEndpoints": [
+        "GET /api/onboarding/stats",
+        "GET /api/onboarding/upcoming-reviews",
+        "POST /api/onboarding/bulk-delete"
+      ]
+    },
+    {
+      "module": "status",
+      "endpointCount": 22,
+      "sampleEndpoints": [
+        "GET /api/status",
+        "GET /api/status/components",
+        "GET /api/status/components/:id"
+      ]
+    },
+    {
+      "module": "assets",
+      "endpointCount": 21,
+      "sampleEndpoints": [
+        "GET /api/assets/stats",
+        "GET /api/assets/categories",
+        "POST /api/assets/categories"
+      ]
+    },
+    {
+      "module": "lead",
+      "endpointCount": 21,
+      "sampleEndpoints": [
+        "GET /api/lead/overview",
+        "POST /api/lead/bulk-delete",
+        "POST /api/lead"
+      ]
+    },
+    {
+      "module": "offboarding",
+      "endpointCount": 21,
+      "sampleEndpoints": [
+        "GET /api/offboarding/stats",
+        "GET /api/offboarding/pending-clearances",
+        "GET /api/offboarding/pending-settlements"
+      ]
+    },
+    {
+      "module": "analytics-report",
+      "endpointCount": 20,
+      "sampleEndpoints": [
+        "GET /api/analytics-report/stats",
+        "GET /api/analytics-report/favorites",
+        "GET /api/analytics-report/pinned"
+      ]
+    },
+    {
+      "module": "bill",
+      "endpointCount": 20,
+      "sampleEndpoints": [
+        "POST /api/bill",
+        "GET /api/bill",
+        "GET /api/bill/overdue"
+      ]
+    },
+    {
+      "module": "leave-request",
+      "endpointCount": 20,
+      "sampleEndpoints": [
+        "GET /api/leave-request/types",
+        "GET /api/leave-request/stats",
+        "GET /api/leave-request/calendar"
+      ]
+    },
+    {
+      "module": "payment",
+      "endpointCount": 20,
+      "sampleEndpoints": [
+        "GET /api/payment/new",
+        "GET /api/payment/stats",
+        "GET /api/payment/summary"
+      ]
+    },
+    {
+      "module": "payroll-run",
+      "endpointCount": 20,
+      "sampleEndpoints": [
+        "GET /api/payroll-run/stats",
+        "POST /api/payroll-run/bulk-delete",
+        "GET /api/payroll-run"
+      ]
+    },
+    {
+      "module": "approval",
+      "endpointCount": 19,
+      "sampleEndpoints": [
+        "GET /api/approval/rules",
+        "PUT /api/approval/rules",
+        "GET /api/approval/pending"
+      ]
+    },
+    {
+      "module": "document",
+      "endpointCount": 19,
+      "sampleEndpoints": [
+        "POST /api/document/upload",
+        "POST /api/document/confirm",
+        "GET /api/document/search"
+      ]
+    },
+    {
+      "module": "lead-scoring",
+      "endpointCount": 19,
+      "sampleEndpoints": [
+        "POST /api/lead-scoring/calculate/:leadId",
+        "POST /api/lead-scoring/calculate-all",
+        "POST /api/lead-scoring/calculate-batch"
+      ]
+    },
+    {
+      "module": "quality",
+      "endpointCount": 19,
+      "sampleEndpoints": [
+        "GET /api/quality/stats",
+        "GET /api/quality/settings",
+        "PUT /api/quality/settings"
+      ]
+    },
+    {
+      "module": "verify",
+      "endpointCount": 19,
+      "sampleEndpoints": [
+        "POST /api/verify/yakeen",
+        "POST /api/verify/yakeen/address",
+        "GET /api/verify/yakeen/status"
+      ]
+    },
+    {
+      "module": "activity",
+      "endpointCount": 18,
+      "sampleEndpoints": [
+        "GET /api/activity/summary",
+        "GET /api/activity/overview",
+        "GET /api/activity/entity/:entityType/:entityId"
+      ]
+    },
+    {
+      "module": "data-export",
+      "endpointCount": 18,
+      "sampleEndpoints": [
+        "POST /api/data-export/export",
+        "GET /api/data-export/jobs",
+        "GET /api/data-export/jobs/:id"
+      ]
+    },
+    {
+      "module": "gmail",
+      "endpointCount": 18,
+      "sampleEndpoints": [
+        "GET /api/gmail/auth",
+        "GET /api/gmail/callback",
+        "POST /api/gmail/disconnect"
+      ]
+    },
+    {
+      "module": "ml-scoring",
+      "endpointCount": 18,
+      "sampleEndpoints": [
+        "GET /api/ml-scoring/scores",
+        "GET /api/ml-scoring/scores/:leadId",
+        "POST /api/ml-scoring/scores/:leadId/calculate"
+      ]
+    },
+    {
+      "module": "contact",
+      "endpointCount": 17,
+      "sampleEndpoints": [
+        "GET /api/contact/search",
+        "GET /api/contact/case/:caseId",
+        "GET /api/contact/client/:clientId"
+      ]
+    },
+    {
+      "module": "custom-field",
+      "endpointCount": 17,
+      "sampleEndpoints": [
+        "GET /api/custom-field/export",
+        "POST /api/custom-field/import",
+        "POST /api/custom-field/search"
+      ]
+    },
+    {
+      "module": "docusign",
+      "endpointCount": 17,
+      "sampleEndpoints": [
+        "GET /api/docusign/auth-url",
+        "GET /api/docusign/callback",
+        "POST /api/docusign/disconnect"
+      ]
+    },
+    {
+      "module": "expense",
+      "endpointCount": 17,
+      "sampleEndpoints": [
+        "GET /api/expense/new",
+        "POST /api/expense/suggest-category",
+        "GET /api/expense/categories"
+      ]
+    },
+    {
+      "module": "shift",
+      "endpointCount": 17,
+      "sampleEndpoints": [
+        "GET /api/shift/shift-types",
+        "GET /api/shift/shift-types/:id",
+        "POST /api/shift/shift-types"
+      ]
+    },
+    {
+      "module": "billing",
+      "endpointCount": 16,
+      "sampleEndpoints": [
+        "GET /api/billing/plans",
+        "GET /api/billing/subscription",
+        "POST /api/billing/subscription"
+      ]
+    },
+    {
+      "module": "followup",
+      "endpointCount": 16,
+      "sampleEndpoints": [
+        "GET /api/followup/upcoming",
+        "GET /api/followup/overdue",
+        "GET /api/followup/today"
+      ]
+    },
+    {
+      "module": "plugin",
+      "endpointCount": 16,
+      "sampleEndpoints": [
+        "GET /api/plugin/search",
+        "GET /api/plugin/all",
+        "GET /api/plugin/loader/stats"
+      ]
+    },
+    {
+      "module": "support",
+      "endpointCount": 16,
+      "sampleEndpoints": [
+        "GET /api/support/stats",
+        "GET /api/support/settings",
+        "PUT /api/support/settings"
+      ]
+    },
+    {
+      "module": "trello",
+      "endpointCount": 16,
+      "sampleEndpoints": [
+        "GET /api/trello/auth-url",
+        "GET /api/trello/callback",
+        "GET /api/trello/status"
+      ]
+    },
+    {
+      "module": "webhook",
+      "endpointCount": 16,
+      "sampleEndpoints": [
+        "GET /api/webhook/stats",
+        "GET /api/webhook/events",
+        "POST /api/webhook"
+      ]
+    },
+    {
+      "module": "oauth",
+      "endpointCount": 15,
+      "sampleEndpoints": [
+        "GET /api/oauth/providers",
+        "POST /api/oauth/initiate",
+        "POST /api/oauth/callback"
+      ]
+    },
+    {
+      "module": "quote",
+      "endpointCount": 15,
+      "sampleEndpoints": [
+        "GET /api/quote",
+        "GET /api/quote/:id",
+        "POST /api/quote"
+      ]
+    },
+    {
+      "module": "team",
+      "endpointCount": 15,
+      "sampleEndpoints": [
+        "GET /api/team/stats",
+        "GET /api/team/options",
+        "GET /api/team"
+      ]
+    },
+    {
+      "module": "crm-activity",
+      "endpointCount": 14,
+      "sampleEndpoints": [
+        "GET /api/crm-activity/timeline",
+        "GET /api/crm-activity/stats",
+        "GET /api/crm-activity/tasks/upcoming"
+      ]
+    },
+    {
+      "module": "lost-reason",
+      "endpointCount": 14,
+      "sampleEndpoints": [
+        "GET /api/lost-reason",
+        "GET /api/lost-reason/categories",
+        "GET /api/lost-reason/:id"
+      ]
+    },
+    {
+      "module": "walkthrough",
+      "endpointCount": 14,
+      "sampleEndpoints": [
+        "GET /api/walkthrough",
+        "GET /api/walkthrough/progress",
+        "GET /api/walkthrough/:id"
+      ]
+    },
+    {
+      "module": "zoom",
+      "endpointCount": 14,
+      "sampleEndpoints": [
+        "GET /api/zoom/auth-url",
+        "GET /api/zoom/callback",
+        "POST /api/zoom/disconnect"
+      ]
+    },
+    {
+      "module": "competitor",
+      "endpointCount": 13,
+      "sampleEndpoints": [
+        "GET /api/competitor",
+        "GET /api/competitor/top-losses",
+        "GET /api/competitor/:id"
+      ]
+    },
+    {
+      "module": "organization",
+      "endpointCount": 13,
+      "sampleEndpoints": [
+        "GET /api/organization/search",
+        "GET /api/organization/client/:clientId",
+        "DELETE /api/organization/bulk"
+      ]
+    },
+    {
+      "module": "payroll",
+      "endpointCount": 13,
+      "sampleEndpoints": [
+        "GET /api/payroll/stats",
+        "POST /api/payroll/generate",
+        "POST /api/payroll/approve"
+      ]
+    },
+    {
+      "module": "queue",
+      "endpointCount": 13,
+      "sampleEndpoints": [
+        "GET /api/queue",
+        "GET /api/queue/:name",
+        "GET /api/queue/:name/jobs"
+      ]
+    },
+    {
+      "module": "setup-wizard",
+      "endpointCount": 13,
+      "sampleEndpoints": [
+        "GET /api/setup-wizard/status",
+        "GET /api/setup-wizard/sections",
+        "POST /api/setup-wizard/tasks/:taskId/complete"
+      ]
+    },
+    {
+      "module": "user",
+      "endpointCount": 13,
+      "sampleEndpoints": [
+        "GET /api/user/lawyers",
+        "GET /api/user/team",
+        "GET /api/user/vapid-public-key"
+      ]
+    },
+    {
+      "module": "ai-matching",
+      "endpointCount": 12,
+      "sampleEndpoints": [
+        "POST /api/ai-matching/match",
+        "POST /api/ai-matching/batch",
+        "POST /api/ai-matching/auto-match"
+      ]
+    },
+    {
+      "module": "campaign",
+      "endpointCount": 12,
+      "sampleEndpoints": [
+        "POST /api/campaign",
+        "GET /api/campaign",
+        "GET /api/campaign/:id"
+      ]
+    },
+    {
+      "module": "fiscal-period",
+      "endpointCount": 12,
+      "sampleEndpoints": [
+        "GET /api/fiscal-period",
+        "GET /api/fiscal-period/current",
+        "GET /api/fiscal-period/can-post"
+      ]
+    },
+    {
+      "module": "general-ledger",
+      "endpointCount": 12,
+      "sampleEndpoints": [
+        "GET /api/general-ledger/stats",
+        "GET /api/general-ledger/summary",
+        "GET /api/general-ledger/trial-balance"
+      ]
+    },
+    {
+      "module": "github",
+      "endpointCount": 12,
+      "sampleEndpoints": [
+        "GET /api/github/auth",
+        "GET /api/github/callback",
+        "POST /api/github/disconnect"
+      ]
+    },
+    {
+      "module": "notification-preference",
+      "endpointCount": 12,
+      "sampleEndpoints": [
+        "GET /api/notification-preference/defaults",
+        "GET /api/notification-preference/stats",
+        "POST /api/notification-preference/reset"
+      ]
+    },
+    {
+      "module": "slack",
+      "endpointCount": 12,
+      "sampleEndpoints": [
+        "GET /api/slack/auth-url",
+        "GET /api/slack/callback",
+        "GET /api/slack/status"
+      ]
+    },
+    {
+      "module": "cycle",
+      "endpointCount": 11,
+      "sampleEndpoints": [
+        "GET /api/cycle/active",
+        "GET /api/cycle/stats",
+        "GET /api/cycle"
+      ]
+    },
+    {
+      "module": "discord",
+      "endpointCount": 11,
+      "sampleEndpoints": [
+        "GET /api/discord/auth-url",
+        "GET /api/discord/callback",
+        "POST /api/discord/complete-setup"
+      ]
+    },
+    {
+      "module": "notification",
+      "endpointCount": 11,
+      "sampleEndpoints": [
+        "GET /api/notification",
+        "GET /api/notification/unread-count",
+        "PATCH /api/notification/mark-all-read"
+      ]
+    },
+    {
+      "module": "referral",
+      "endpointCount": 11,
+      "sampleEndpoints": [
+        "GET /api/referral/stats",
+        "GET /api/referral/top",
+        "POST /api/referral"
+      ]
+    },
+    {
+      "module": "refund",
+      "endpointCount": 11,
+      "sampleEndpoints": [
+        "GET /api/refund/eligibility/:paymentId",
+        "POST /api/refund/request",
+        "GET /api/refund/history"
+      ]
+    },
+    {
+      "module": "telegram",
+      "endpointCount": 11,
+      "sampleEndpoints": [
+        "POST /api/telegram/webhook/:firmId",
+        "POST /api/telegram/connect",
+        "POST /api/telegram/disconnect"
+      ]
+    },
+    {
+      "module": "view",
+      "endpointCount": 11,
+      "sampleEndpoints": [
+        "GET /api/view",
+        "POST /api/view",
+        "GET /api/view/:id"
+      ]
+    },
+    {
+      "module": "apps",
+      "endpointCount": 10,
+      "sampleEndpoints": [
+        "GET /api/apps/categories",
+        "GET /api/apps",
+        "GET /api/apps/stats"
+      ]
+    },
+    {
+      "module": "automation",
+      "endpointCount": 10,
+      "sampleEndpoints": [
+        "GET /api/automation",
+        "POST /api/automation",
+        "GET /api/automation/:id"
+      ]
+    },
+    {
+      "module": "bank-account",
+      "endpointCount": 10,
+      "sampleEndpoints": [
+        "POST /api/bank-account",
+        "GET /api/bank-account",
+        "GET /api/bank-account/summary"
+      ]
+    },
+    {
+      "module": "credit-note",
+      "endpointCount": 10,
+      "sampleEndpoints": [
+        "GET /api/credit-note",
+        "GET /api/credit-note/stats",
+        "GET /api/credit-note/invoice/:invoiceId"
+      ]
+    },
+    {
+      "module": "dispute",
+      "endpointCount": 10,
+      "sampleEndpoints": [
+        "POST /api/dispute",
+        "GET /api/dispute",
+        "GET /api/dispute/stats"
+      ]
+    },
+    {
+      "module": "payment-terms",
+      "endpointCount": 10,
+      "sampleEndpoints": [
+        "GET /api/payment-terms",
+        "GET /api/payment-terms/default",
+        "POST /api/payment-terms/initialize"
+      ]
+    },
+    {
+      "module": "retainer",
+      "endpointCount": 10,
+      "sampleEndpoints": [
+        "POST /api/retainer",
+        "GET /api/retainer",
+        "GET /api/retainer/stats"
+      ]
+    },
+    {
+      "module": "sla",
+      "endpointCount": 10,
+      "sampleEndpoints": [
+        "GET /api/sla/stats",
+        "GET /api/sla",
+        "POST /api/sla"
+      ]
+    },
+    {
+      "module": "transaction",
+      "endpointCount": 10,
+      "sampleEndpoints": [
+        "POST /api/transaction",
+        "GET /api/transaction",
+        "GET /api/transaction/balance"
+      ]
+    },
+    {
+      "module": "command-palette",
+      "endpointCount": 9,
+      "sampleEndpoints": [
+        "GET /api/command-palette/search",
+        "GET /api/command-palette/commands",
+        "GET /api/command-palette/recent"
+      ]
+    },
+    {
+      "module": "health",
+      "endpointCount": 9,
+      "sampleEndpoints": [
+        "GET /api/health",
+        "GET /api/health/live",
+        "GET /api/health/ready"
+      ]
+    },
+    {
+      "module": "keyboard-shortcut",
+      "endpointCount": 9,
+      "sampleEndpoints": [
+        "GET /api/keyboard-shortcut/defaults",
+        "POST /api/keyboard-shortcut/check-conflict",
+        "POST /api/keyboard-shortcut/reset-all"
+      ]
+    },
+    {
+      "module": "mfa",
+      "endpointCount": 9,
+      "sampleEndpoints": [
+        "POST /api/mfa/setup",
+        "POST /api/mfa/verify-setup",
+        "POST /api/mfa/verify"
+      ]
+    },
+    {
+      "module": "product",
+      "endpointCount": 9,
+      "sampleEndpoints": [
+        "GET /api/product/stats",
+        "GET /api/product/search",
+        "GET /api/product/category/:category"
+      ]
+    },
+    {
+      "module": "sandbox",
+      "endpointCount": 9,
+      "sampleEndpoints": [
+        "GET /api/sandbox/templates",
+        "GET /api/sandbox/stats",
+        "POST /api/sandbox"
+      ]
+    },
+    {
+      "module": "staff",
+      "endpointCount": 9,
+      "sampleEndpoints": [
+        "GET /api/staff/team",
+        "GET /api/staff/stats",
+        "POST /api/staff/bulk-delete"
+      ]
+    },
+    {
+      "module": "tag",
+      "endpointCount": 9,
+      "sampleEndpoints": [
+        "GET /api/tag/popular",
+        "POST /api/tag/merge",
+        "POST /api/tag/bulk"
+      ]
+    },
+    {
+      "module": "billing-rate",
+      "endpointCount": 8,
+      "sampleEndpoints": [
+        "POST /api/billing-rate",
+        "GET /api/billing-rate",
+        "GET /api/billing-rate/stats"
+      ]
+    },
+    {
+      "module": "conflict-check",
+      "endpointCount": 8,
+      "sampleEndpoints": [
+        "POST /api/conflict-check/quick",
+        "GET /api/conflict-check/stats",
+        "GET /api/conflict-check"
+      ]
+    },
+    {
+      "module": "consolidated-reports",
+      "endpointCount": 8,
+      "sampleEndpoints": [
+        "GET /api/consolidated-reports/profit-loss",
+        "GET /api/consolidated-reports/balance-sheet",
+        "GET /api/consolidated-reports/cash-flow"
+      ]
+    },
+    {
+      "module": "journal-entry",
+      "endpointCount": 8,
+      "sampleEndpoints": [
+        "POST /api/journal-entry/simple",
+        "GET /api/journal-entry",
+        "GET /api/journal-entry/:id"
+      ]
+    },
+    {
+      "module": "plan",
+      "endpointCount": 8,
+      "sampleEndpoints": [
+        "GET /api/plan",
+        "GET /api/plan/features",
+        "GET /api/plan/current"
+      ]
+    },
+    {
+      "module": "saml",
+      "endpointCount": 8,
+      "sampleEndpoints": [
+        "GET /api/saml/metadata/:firmId",
+        "GET /api/saml/login/:firmId",
+        "POST /api/saml/acs/:firmId"
+      ]
+    },
+    {
+      "module": "security-incident",
+      "endpointCount": 8,
+      "sampleEndpoints": [
+        "POST /api/security-incident/incidents/report",
+        "GET /api/security-incident/incidents",
+        "PATCH /api/security-incident/incidents/:id/status"
+      ]
+    },
+    {
+      "module": "account",
+      "endpointCount": 7,
+      "sampleEndpoints": [
+        "GET /api/account/types",
+        "GET /api/account",
+        "GET /api/account/:id"
+      ]
+    },
+    {
+      "module": "ai-chat",
+      "endpointCount": 7,
+      "sampleEndpoints": [
+        "GET /api/ai-chat/providers",
+        "POST /api/ai-chat",
+        "POST /api/ai-chat/stream"
+      ]
+    },
+    {
+      "module": "ai-settings",
+      "endpointCount": 7,
+      "sampleEndpoints": [
+        "GET /api/ai-settings",
+        "GET /api/ai-settings/features",
+        "GET /api/ai-settings/usage"
+      ]
+    },
+    {
+      "module": "api-key",
+      "endpointCount": 7,
+      "sampleEndpoints": [
+        "GET /api/api-key",
+        "GET /api/api-key/stats",
+        "GET /api/api-key/:id"
+      ]
+    },
+    {
+      "module": "statement",
+      "endpointCount": 7,
+      "sampleEndpoints": [
+        "POST /api/statement",
+        "GET /api/statement",
+        "GET /api/statement/:id"
+      ]
+    },
+    {
+      "module": "webauthn",
+      "endpointCount": 7,
+      "sampleEndpoints": [
+        "POST /api/webauthn/register/start",
+        "POST /api/webauthn/register/finish",
+        "POST /api/webauthn/authenticate/start"
+      ]
+    },
+    {
+      "module": "answer",
+      "endpointCount": 6,
+      "sampleEndpoints": [
+        "POST /api/answer",
+        "GET /api/answer/:questionId",
+        "PATCH /api/answer/:_id"
+      ]
+    },
+    {
+      "module": "ar-aging",
+      "endpointCount": 6,
+      "sampleEndpoints": [
+        "GET /api/ar-aging/report",
+        "GET /api/ar-aging/summary",
+        "GET /api/ar-aging/client/:clientId"
+      ]
+    },
+    {
+      "module": "bank-transaction",
+      "endpointCount": 6,
+      "sampleEndpoints": [
+        "POST /api/bank-transaction",
+        "GET /api/bank-transaction",
+        "GET /api/bank-transaction/:id"
+      ]
+    },
+    {
+      "module": "currency",
+      "endpointCount": 6,
+      "sampleEndpoints": [
+        "GET /api/currency/settings",
+        "GET /api/currency/rates",
+        "POST /api/currency/convert"
+      ]
+    },
+    {
+      "module": "job",
+      "endpointCount": 6,
+      "sampleEndpoints": [
+        "POST /api/job",
+        "GET /api/job",
+        "GET /api/job/my-jobs"
+      ]
+    },
+    {
+      "module": "ldap",
+      "endpointCount": 6,
+      "sampleEndpoints": [
+        "GET /api/ldap/config",
+        "POST /api/ldap/config",
+        "POST /api/ldap/test"
+      ]
+    },
+    {
+      "module": "lead-conversion",
+      "endpointCount": 6,
+      "sampleEndpoints": [
+        "POST /api/lead-conversion/:id/convert",
+        "GET /api/lead-conversion/:id/cases",
+        "PUT /api/lead-conversion/case/:caseId/stage"
+      ]
+    },
+    {
+      "module": "lead-source",
+      "endpointCount": 6,
+      "sampleEndpoints": [
+        "GET /api/lead-source",
+        "GET /api/lead-source/:id",
+        "POST /api/lead-source"
+      ]
+    },
+    {
+      "module": "order",
+      "endpointCount": 6,
+      "sampleEndpoints": [
+        "GET /api/order",
+        "POST /api/order/create-payment-intent/:_id",
+        "POST /api/order/create-proposal-payment-intent/:_id"
+      ]
+    },
+    {
+      "module": "proposal",
+      "endpointCount": 6,
+      "sampleEndpoints": [
+        "POST /api/proposal",
+        "GET /api/proposal/job/:jobId",
+        "GET /api/proposal/my-proposals"
+      ]
+    },
+    {
+      "module": "vendor",
+      "endpointCount": 6,
+      "sampleEndpoints": [
+        "POST /api/vendor",
+        "GET /api/vendor",
+        "GET /api/vendor/:id"
+      ]
+    },
+    {
+      "module": "audit",
+      "endpointCount": 5,
+      "sampleEndpoints": [
+        "GET /api/audit",
+        "GET /api/audit/export",
+        "GET /api/audit/stats"
+      ]
+    },
+    {
+      "module": "question",
+      "endpointCount": 5,
+      "sampleEndpoints": [
+        "POST /api/question",
+        "GET /api/question",
+        "GET /api/question/:_id"
+      ]
+    },
+    {
+      "module": "sso-config",
+      "endpointCount": 5,
+      "sampleEndpoints": [
+        "GET /api/sso-config/:firmId/sso",
+        "PUT /api/sso-config/:firmId/sso",
+        "POST /api/sso-config/:firmId/sso/test"
+      ]
+    },
+    {
+      "module": "bank-transfer",
+      "endpointCount": 4,
+      "sampleEndpoints": [
+        "POST /api/bank-transfer",
+        "GET /api/bank-transfer",
+        "GET /api/bank-transfer/:id"
+      ]
+    },
+    {
+      "module": "bill-payment",
+      "endpointCount": 4,
+      "sampleEndpoints": [
+        "POST /api/bill-payment",
+        "GET /api/bill-payment",
+        "GET /api/bill-payment/:id"
+      ]
+    },
+    {
+      "module": "gig",
+      "endpointCount": 4,
+      "sampleEndpoints": [
+        "POST /api/gig",
+        "DELETE /api/gig/:_id",
+        "GET /api/gig/single/:_id"
+      ]
+    },
+    {
+      "module": "metrics",
+      "endpointCount": 4,
+      "sampleEndpoints": [
+        "GET /api/metrics",
+        "GET /api/metrics/json",
+        "GET /api/metrics/performance"
+      ]
+    },
+    {
+      "module": "captcha",
+      "endpointCount": 3,
+      "sampleEndpoints": [
+        "POST /api/captcha/verify-captcha",
+        "GET /api/captcha/captcha/providers",
+        "GET /api/captcha/captcha/status/:provider"
+      ]
+    },
+    {
+      "module": "invitation",
+      "endpointCount": 3,
+      "sampleEndpoints": [
+        "GET /api/invitation/:code",
+        "GET /api/invitation/:code/validate",
+        "POST /api/invitation/:code/accept"
+      ]
+    },
+    {
+      "module": "lawyer",
+      "endpointCount": 3,
+      "sampleEndpoints": [
+        "GET /api/lawyer/team",
+        "GET /api/lawyer",
+        "GET /api/lawyer/:_id"
+      ]
+    },
+    {
+      "module": "review",
+      "endpointCount": 3,
+      "sampleEndpoints": [
+        "POST /api/review",
+        "GET /api/review/:gigID",
+        "DELETE /api/review/:_id"
+      ]
+    },
+    {
+      "module": "score",
+      "endpointCount": 3,
+      "sampleEndpoints": [
+        "GET /api/score/:lawyerId",
+        "POST /api/score/recalculate/:lawyerId",
+        "GET /api/score/top/lawyers"
+      ]
+    },
+    {
+      "module": "timeline",
+      "endpointCount": 2,
+      "sampleEndpoints": [
+        "GET /api/timeline/:entityType/:entityId",
+        "GET /api/timeline/:entityType/:entityId/summary"
+      ]
+    }
+  ],
+  "documentedModulesList": [
+    {
+      "module": "workflow",
+      "endpointCount": 167
+    },
+    {
+      "module": "case-notion",
+      "endpointCount": 74
+    },
+    {
+      "module": "auth",
+      "endpointCount": 42
+    },
+    {
+      "module": "email-marketing",
+      "endpointCount": 39
+    },
+    {
+      "module": "gantt",
+      "endpointCount": 36
+    },
+    {
+      "module": "bank-reconciliation",
+      "endpointCount": 33
+    },
+    {
+      "module": "buying",
+      "endpointCount": 33
+    },
+    {
+      "module": "legal-contract",
+      "endpointCount": 33
+    },
+    {
+      "module": "saudi-banking",
+      "endpointCount": 31
+    },
+    {
+      "module": "crm-reports",
+      "endpointCount": 27
+    },
+    {
+      "module": "time-tracking",
+      "endpointCount": 26
+    },
+    {
+      "module": "compensation-reward",
+      "endpointCount": 24
+    },
+    {
+      "module": "dunning",
+      "endpointCount": 24
+    },
+    {
+      "module": "employee-loan",
+      "endpointCount": 24
+    },
+    {
+      "module": "grievance",
+      "endpointCount": 24
+    },
+    {
+      "module": "organizational-unit",
+      "endpointCount": 24
+    },
+    {
+      "module": "asset-assignment",
+      "endpointCount": 23
+    },
+    {
+      "module": "employee-advance",
+      "endpointCount": 23
+    },
+    {
+      "module": "employee-benefit",
+      "endpointCount": 23
+    },
+    {
+      "module": "google-calendar",
+      "endpointCount": 21
+    },
+    {
+      "module": "hr-analytics",
+      "endpointCount": 21
+    },
+    {
+      "module": "churn",
+      "endpointCount": 19
+    },
+    {
+      "module": "matter-budget",
+      "endpointCount": 19
+    },
+    {
+      "module": "slo-monitoring",
+      "endpointCount": 18
+    },
+    {
+      "module": "microsoft-calendar",
+      "endpointCount": 17
+    },
+    {
+      "module": "trust-account",
+      "endpointCount": 17
+    },
+    {
+      "module": "automated-action",
+      "endpointCount": 15
+    },
+    {
+      "module": "corporate-card",
+      "endpointCount": 15
+    },
+    {
+      "module": "crm-transaction",
+      "endpointCount": 15
+    },
+    {
+      "module": "pdfme",
+      "endpointCount": 15
+    },
+    {
+      "module": "playbook",
+      "endpointCount": 15
+    },
+    {
+      "module": "saved-report",
+      "endpointCount": 15
+    },
+    {
+      "module": "territory",
+      "endpointCount": 15
+    },
+    {
+      "module": "conversation",
+      "endpointCount": 14
+    },
+    {
+      "module": "email-settings",
+      "endpointCount": 14
+    },
+    {
+      "module": "hr",
+      "endpointCount": 14
+    },
+    {
+      "module": "subcontracting",
+      "endpointCount": 14
+    },
+    {
+      "module": "admin",
+      "endpointCount": 13
+    },
+    {
+      "module": "cloud-storage",
+      "endpointCount": 13
+    },
+    {
+      "module": "expense-policy",
+      "endpointCount": 13
+    },
+    {
+      "module": "organization-template",
+      "endpointCount": 13
+    },
+    {
+      "module": "recurring-invoice",
+      "endpointCount": 13
+    },
+    {
+      "module": "crm-pipeline",
+      "endpointCount": 12
+    },
+    {
+      "module": "dashboard",
+      "endpointCount": 12
+    },
+    {
+      "module": "debit-note",
+      "endpointCount": 12
+    },
+    {
+      "module": "rate-limit",
+      "endpointCount": 12
+    },
+    {
+      "module": "zatca",
+      "endpointCount": 12
+    },
+    {
+      "module": "calendar",
+      "endpointCount": 11
+    },
+    {
+      "module": "deal-room",
+      "endpointCount": 11
+    },
+    {
+      "module": "document-analysis",
+      "endpointCount": 11
+    },
+    {
+      "module": "investments",
+      "endpointCount": 11
+    },
+    {
+      "module": "invoice-template",
+      "endpointCount": 11
+    },
+    {
+      "module": "rate-card",
+      "endpointCount": 11
+    },
+    {
+      "module": "sales-forecast",
+      "endpointCount": 11
+    },
+    {
+      "module": "sales-quota",
+      "endpointCount": 11
+    },
+    {
+      "module": "saved-filter",
+      "endpointCount": 11
+    },
+    {
+      "module": "security",
+      "endpointCount": 11
+    },
+    {
+      "module": "contact-list",
+      "endpointCount": 10
+    },
+    {
+      "module": "email-template",
+      "endpointCount": 10
+    },
+    {
+      "module": "inter-company",
+      "endpointCount": 10
+    },
+    {
+      "module": "lifecycle",
+      "endpointCount": 10
+    },
+    {
+      "module": "payout",
+      "endpointCount": 10
+    },
+    {
+      "module": "recurring-transaction",
+      "endpointCount": 10
+    },
+    {
+      "module": "sales-team",
+      "endpointCount": 10
+    },
+    {
+      "module": "thread-message",
+      "endpointCount": 10
+    },
+    {
+      "module": "trades",
+      "endpointCount": 10
+    },
+    {
+      "module": "exchange-rate-revaluation",
+      "endpointCount": 9
+    },
+    {
+      "module": "income-tax-slab",
+      "endpointCount": 9
+    },
+    {
+      "module": "investment-search",
+      "endpointCount": 9
+    },
+    {
+      "module": "invoice-approval",
+      "endpointCount": 9
+    },
+    {
+      "module": "kyc",
+      "endpointCount": 9
+    },
+    {
+      "module": "macro",
+      "endpointCount": 9
+    },
+    {
+      "module": "rate-group",
+      "endpointCount": 9
+    },
+    {
+      "module": "regional-banks",
+      "endpointCount": 9
+    },
+    {
+      "module": "temporal-case",
+      "endpointCount": 9
+    },
+    {
+      "module": "field-history",
+      "endpointCount": 8
+    },
+    {
+      "module": "lock-date",
+      "endpointCount": 8
+    },
+    {
+      "module": "trading-accounts",
+      "endpointCount": 8
+    },
+    {
+      "module": "chatter-follower",
+      "endpointCount": 7
+    },
+    {
+      "module": "finance-setup",
+      "endpointCount": 7
+    },
+    {
+      "module": "gosi",
+      "endpointCount": 7
+    },
+    {
+      "module": "payment-receipt",
+      "endpointCount": 7
+    },
+    {
+      "module": "prepared-report",
+      "endpointCount": 7
+    },
+    {
+      "module": "price-level",
+      "endpointCount": 7
+    },
+    {
+      "module": "sales-person",
+      "endpointCount": 7
+    },
+    {
+      "module": "sales-stage",
+      "endpointCount": 7
+    },
+    {
+      "module": "temporal-onboarding",
+      "endpointCount": 7
+    },
+    {
+      "module": "activity-plan",
+      "endpointCount": 6
+    },
+    {
+      "module": "brokers",
+      "endpointCount": 6
+    },
+    {
+      "module": "consent",
+      "endpointCount": 6
+    },
+    {
+      "module": "deal-health",
+      "endpointCount": 6
+    },
+    {
+      "module": "deduplication",
+      "endpointCount": 6
+    },
+    {
+      "module": "interest-area",
+      "endpointCount": 6
+    },
+    {
+      "module": "legal-document",
+      "endpointCount": 6
+    },
+    {
+      "module": "notification-settings",
+      "endpointCount": 6
+    },
+    {
+      "module": "offline-sync",
+      "endpointCount": 6
+    },
+    {
+      "module": "smart-scheduling",
+      "endpointCount": 6
+    },
+    {
+      "module": "temporal-invoice",
+      "endpointCount": 6
+    },
+    {
+      "module": "unified-data",
+      "endpointCount": 6
+    },
+    {
+      "module": "user-settings",
+      "endpointCount": 6
+    },
+    {
+      "module": "bulk-actions",
+      "endpointCount": 5
+    },
+    {
+      "module": "temporal-offboarding",
+      "endpointCount": 5
+    },
+    {
+      "module": "kpi-analytics",
+      "endpointCount": 4
+    },
+    {
+      "module": "message",
+      "endpointCount": 4
+    },
+    {
+      "module": "crm-settings",
+      "endpointCount": 3
+    },
+    {
+      "module": "peer-review",
+      "endpointCount": 3
+    },
+    {
+      "module": "smart-button",
+      "endpointCount": 2
+    }
+  ]
+}
