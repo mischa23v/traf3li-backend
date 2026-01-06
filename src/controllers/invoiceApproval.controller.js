@@ -19,10 +19,10 @@ const submitForApproval = asyncHandler(async (req, res) => {
     // Sanitize invoice ID
     const sanitizedId = sanitizeObjectId(id);
 
-    // IDOR protection - verify firmId ownership
+    // IDOR protection - verify ownership
     const invoice = await Invoice.findOne({
         _id: sanitizedId,
-        firmId: req.firmId
+        ...req.firmQuery
     });
 
     if (!invoice) {
@@ -66,8 +66,7 @@ const submitForApproval = asyncHandler(async (req, res) => {
 
     // Notify first approver
     const firstApprover = approval.approvers[0];
-    await Notification.createNotification({
-        firmId: req.firmId,
+    await Notification.createNotification(req.addFirmId({
         userId: firstApprover.userId,
         type: 'invoice_approval_required',
         title: 'Invoice Pending Approval',
@@ -79,7 +78,7 @@ const submitForApproval = asyncHandler(async (req, res) => {
         link: `/invoices/${invoice._id}`,
         priority: 'high',
         actionRequired: true
-    });
+    }));
 
     res.status(201).json({
         success: true,
@@ -95,7 +94,7 @@ const submitForApproval = asyncHandler(async (req, res) => {
  */
 const getPendingApprovals = asyncHandler(async (req, res) => {
     const approvals = await InvoiceApproval.getPendingForUser(
-        req.firmId,
+        req.firmQuery,
         req.userID
     );
 
@@ -114,8 +113,8 @@ const getInvoiceApprovals = asyncHandler(async (req, res) => {
     const allowedFields = pickAllowedFields(req.query, ['status', 'limit', 'offset']);
     const { status, limit = 50, offset = 0 } = allowedFields;
 
-    // IDOR protection - always filter by firmId
-    const query = { firmId: req.firmId };
+    // IDOR protection - always filter by firmQuery
+    const query = { ...req.firmQuery };
     if (status) {
         // Validate status value
         const validStatuses = ['pending', 'approved', 'rejected', 'cancelled'];
@@ -163,10 +162,10 @@ const getInvoiceApproval = asyncHandler(async (req, res) => {
     // Sanitize approval ID
     const sanitizedId = sanitizeObjectId(req.params.id);
 
-    // IDOR protection - verify firmId ownership
+    // IDOR protection - verify ownership
     const approval = await InvoiceApproval.findOne({
         _id: sanitizedId,
-        firmId: req.firmId
+        ...req.firmQuery
     })
         .populate('invoiceId')
         .populate('submittedBy', 'name email')
@@ -199,10 +198,10 @@ const approveInvoice = asyncHandler(async (req, res) => {
     // Sanitize approval ID
     const sanitizedId = sanitizeObjectId(req.params.id);
 
-    // IDOR protection - verify firmId ownership
+    // IDOR protection - verify ownership
     const approval = await InvoiceApproval.findOne({
         _id: sanitizedId,
-        firmId: req.firmId
+        ...req.firmQuery
     });
 
     if (!approval) {
@@ -234,8 +233,7 @@ const approveInvoice = asyncHandler(async (req, res) => {
 
     // Notify submitter if fully approved
     if (approval.status === 'approved') {
-        await Notification.createNotification({
-            firmId: req.firmId,
+        await Notification.createNotification(req.addFirmId({
             userId: approval.submittedBy,
             type: 'invoice_approved',
             title: 'Invoice Approved',
@@ -245,13 +243,12 @@ const approveInvoice = asyncHandler(async (req, res) => {
             entityType: 'invoice',
             entityId: invoice._id,
             link: `/invoices/${invoice._id}`
-        });
+        }));
     } else {
         // Notify next approver
         const nextApprover = approval.currentApprover;
         if (nextApprover) {
-            await Notification.createNotification({
-                firmId: req.firmId,
+            await Notification.createNotification(req.addFirmId({
                 userId: nextApprover.userId,
                 type: 'invoice_approval_required',
                 title: 'Invoice Pending Your Approval',
@@ -263,7 +260,7 @@ const approveInvoice = asyncHandler(async (req, res) => {
                 link: `/invoices/${invoice._id}`,
                 priority: 'high',
                 actionRequired: true
-            });
+            }));
         }
     }
 
@@ -300,10 +297,10 @@ const rejectInvoice = asyncHandler(async (req, res) => {
     // Sanitize approval ID
     const sanitizedId = sanitizeObjectId(req.params.id);
 
-    // IDOR protection - verify firmId ownership
+    // IDOR protection - verify ownership
     const approval = await InvoiceApproval.findOne({
         _id: sanitizedId,
-        firmId: req.firmId
+        ...req.firmQuery
     });
 
     if (!approval) {
@@ -333,8 +330,7 @@ const rejectInvoice = asyncHandler(async (req, res) => {
     // Get invoice and notify submitter
     const invoice = await Invoice.findById(approval.invoiceId);
 
-    await Notification.createNotification({
-        firmId: req.firmId,
+    await Notification.createNotification(req.addFirmId({
         userId: approval.submittedBy,
         type: 'invoice_rejected',
         title: 'Invoice Rejected',
@@ -345,7 +341,7 @@ const rejectInvoice = asyncHandler(async (req, res) => {
         entityId: invoice._id,
         link: `/invoices/${invoice._id}`,
         priority: 'high'
-    });
+    }));
 
     res.status(200).json({
         success: true,
@@ -377,10 +373,10 @@ const escalateApproval = asyncHandler(async (req, res) => {
     const sanitizedId = sanitizeObjectId(req.params.id);
     const sanitizedEscalateToUserId = sanitizeObjectId(escalateToUserId);
 
-    // IDOR protection - verify firmId ownership
+    // IDOR protection - verify ownership
     const approval = await InvoiceApproval.findOne({
         _id: sanitizedId,
-        firmId: req.firmId
+        ...req.firmQuery
     });
 
     if (!approval) {
@@ -409,8 +405,7 @@ const escalateApproval = asyncHandler(async (req, res) => {
     // Notify escalation target
     const invoice = await Invoice.findById(approval.invoiceId);
 
-    await Notification.createNotification({
-        firmId: req.firmId,
+    await Notification.createNotification(req.addFirmId({
         userId: sanitizedEscalateToUserId,
         type: 'invoice_approval_required',
         title: 'Escalated Invoice Approval',
@@ -422,7 +417,7 @@ const escalateApproval = asyncHandler(async (req, res) => {
         link: `/invoices/${invoice._id}`,
         priority: 'urgent',
         actionRequired: true
-    });
+    }));
 
     res.status(200).json({
         success: true,
@@ -444,10 +439,10 @@ const cancelApproval = asyncHandler(async (req, res) => {
     // Sanitize approval ID
     const sanitizedId = sanitizeObjectId(req.params.id);
 
-    // IDOR protection - verify firmId ownership
+    // IDOR protection - verify ownership
     const approval = await InvoiceApproval.findOne({
         _id: sanitizedId,
-        firmId: req.firmId
+        ...req.firmQuery
     });
 
     if (!approval) {
@@ -503,8 +498,8 @@ const getApprovalStats = asyncHandler(async (req, res) => {
         );
     }
 
-    // IDOR protection - stats are filtered by firmId
-    const stats = await InvoiceApproval.getStats(req.firmId, startDate, endDate);
+    // IDOR protection - stats are filtered by firmQuery
+    const stats = await InvoiceApproval.getStats(req.firmQuery, startDate, endDate);
 
     res.status(200).json({
         success: true,
@@ -517,7 +512,7 @@ const getApprovalStats = asyncHandler(async (req, res) => {
  * GET /api/invoice-approvals/needing-escalation
  */
 const getNeedingEscalation = asyncHandler(async (req, res) => {
-    const approvals = await InvoiceApproval.getNeedingEscalation(req.firmId);
+    const approvals = await InvoiceApproval.getNeedingEscalation(req.firmQuery);
 
     res.status(200).json({
         success: true,
