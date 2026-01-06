@@ -1,6 +1,7 @@
 const express = require('express');
 const multer = require('multer');
 const { userMiddleware } = require('../middlewares');
+const malwareScanMiddleware = require('../middlewares/malwareScan.middleware');
 const {
     createTransaction,
     getTransactions,
@@ -44,6 +45,7 @@ app.post('/:transactionId/unmatch', userMiddleware, unmatchTransaction);
 // Import route (attached to bank account)
 // This will be mounted under /bank-accounts/:accountId/import in server.js
 // But we also expose it here for flexibility
-app.post('/import/:accountId', userMiddleware, upload.single('file'), importTransactions);
+// Gold Standard: Malware scan before processing bank transaction files
+app.post('/import/:accountId', userMiddleware, upload.single('file'), malwareScanMiddleware, importTransactions);
 
 module.exports = app;
