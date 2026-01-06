@@ -81,6 +81,7 @@ const ALLOWED_FIELDS = {
     BULK_ASSIGN: ['taskIds', 'assignedTo'],
     BULK_ARCHIVE: ['taskIds'],
     BULK_UNARCHIVE: ['taskIds'],
+    BULK_REOPEN: ['taskIds'],
     REORDER: ['taskId', 'newSortOrder', 'reorderItems'],
     RESCHEDULE: ['newDueDate', 'newDueTime', 'reason']
 };
@@ -3605,6 +3606,82 @@ const bulkUnarchiveTasks = asyncHandler(async (req, res) => {
 });
 
 /**
+ * Bulk Reopen Tasks
+ * POST /api/tasks/bulk/reopen
+ * Gold Standard: Bulk reopen completed/canceled tasks
+ */
+const bulkReopenTasks = asyncHandler(async (req, res) => {
+    // Mass assignment protection
+    const data = pickAllowedFields(req.body, ALLOWED_FIELDS.BULK_REOPEN);
+    const { taskIds } = data;
+
+    // Input validation
+    if (!taskIds || !Array.isArray(taskIds) || taskIds.length === 0) {
+        throw CustomException('Task IDs are required | معرفات المهام مطلوبة', 400);
+    }
+
+    if (taskIds.length > 100) {
+        throw CustomException('Cannot reopen more than 100 tasks at once | لا يمكن إعادة فتح أكثر من 100 مهمة في وقت واحد', 400);
+    }
+
+    const userId = req.userID;
+
+    // IDOR protection - sanitize all task IDs
+    const sanitizedTaskIds = taskIds.map(id => sanitizeObjectId(id));
+
+    // Use req.firmQuery for proper tenant isolation
+    // Only reopen tasks that are done or canceled
+    const accessQuery = {
+        _id: { $in: sanitizedTaskIds },
+        ...req.firmQuery,
+        status: { $in: ['done', 'canceled'] }
+    };
+
+    const tasks = await Task.find(accessQuery).select('_id status');
+    const foundTaskIds = tasks.map(t => t._id.toString());
+
+    if (foundTaskIds.length === 0) {
+        return res.status(200).json({
+            success: true,
+            message: 'No tasks to reopen (not completed/canceled or not accessible) | لا توجد مهام لإعادة فتحها',
+            data: { reopened: 0, failed: sanitizedTaskIds.length }
+        });
+    }
+
+    // Reopen all accessible tasks
+    const now = new Date();
+    const updateResult = await Task.updateMany(
+        { _id: { $in: foundTaskIds }, ...req.firmQuery },
+        {
+            $set: {
+                status: 'in_progress',
+                completedAt: null,
+                completedBy: null
+            },
+            $push: {
+                history: {
+                    action: 'reopened',
+                    userId,
+                    oldValue: { status: 'done/canceled' },
+                    newValue: { status: 'in_progress' },
+                    details: 'Bulk reopened',
+                    timestamp: now
+                }
+            }
+        }
+    );
+
+    res.status(200).json({
+        success: true,
+        message: `${updateResult.modifiedCount} task(s) reopened successfully | تم إعادة فتح ${updateResult.modifiedCount} مهمة بنجاح`,
+        data: {
+            reopened: updateResult.modifiedCount,
+            failed: sanitizedTaskIds.length - foundTaskIds.length
+        }
+    });
+});
+
+/**
  * Archive Single Task
  * POST /api/tasks/:id/archive
  */
@@ -4432,6 +4509,7 @@ module.exports = {
     bulkAssignTasks,
     bulkArchiveTasks,
     bulkUnarchiveTasks,
+    bulkReopenTasks,
     archiveTask,
     unarchiveTask,
     reorderTasks,

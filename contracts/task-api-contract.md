@@ -170,6 +170,7 @@
 | POST | /bulk/assign | bulkAssignTasks |
 | POST | /bulk/archive | bulkArchiveTasks |
 | POST | /bulk/unarchive | bulkUnarchiveTasks |
+| POST | /bulk/reopen | bulkReopenTasks |
 
 ### Export & Select All
 | Method | Endpoint | Handler |
@@ -355,6 +356,7 @@ node --check src/controllers/task.controller.js
 | 2026-01-05 | Added isArchived, archivedAt, archivedBy, sortOrder fields to Task model | No |
 | 2026-01-06 | Added POST /:id/reopen endpoint for reopening completed/canceled tasks | No |
 | 2026-01-06 | Fixed enum values in contract to match actual model (priority: none/critical, status: backlog) | No |
+| 2026-01-06 | Added POST /bulk/reopen endpoint for bulk reopening tasks | No |
 
 ---
 
@@ -449,6 +451,29 @@ Bulk restore archived tasks.
     "data": {
         "unarchived": 10,
         "failed": 0
+    }
+}
+```
+
+### POST /api/tasks/bulk/reopen
+Bulk reopen completed/canceled tasks.
+```javascript
+// Request body
+{
+    "taskIds": ["id1", "id2", ...]
+}
+// Max 100 tasks per request
+// Only reopens tasks with status 'done' or 'canceled'
+```
+
+**Response:**
+```json
+{
+    "success": true,
+    "message": "X task(s) reopened successfully | تم إعادة فتح X مهمة بنجاح",
+    "data": {
+        "reopened": 10,
+        "failed": 2
     }
 }
 ```
