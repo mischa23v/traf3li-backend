@@ -578,10 +578,9 @@ exports.getTemplates = async (req, res) => {
     const lawyerId = req.userID;
     const { category, isActive, page = 1, limit = 20 } = req.query;
 
-    const isSoloLawyer = req.isSoloLawyer;
     const query = {
       $or: [
-        isSoloLawyer || !firmId ? { lawyerId: lawyerId } : { firmId: firmId },
+        { ...req.firmQuery },
         { isPublic: true }
       ]
     };
@@ -649,7 +648,7 @@ exports.getTemplate = async (req, res) => {
     const template = await EmailTemplate.findOne({
       _id: id,
       $or: [
-        { firmId: firmId },
+        { ...req.firmQuery },
         { isPublic: true }
       ]
     }).populate('createdBy', 'firstName lastName');
@@ -762,7 +761,7 @@ exports.previewTemplate = async (req, res) => {
     const template = await EmailTemplate.findOne({
       _id: id,
       $or: [
-        { firmId: firmId },
+        { ...req.firmQuery },
         { isPublic: true }
       ]
     });

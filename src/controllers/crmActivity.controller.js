@@ -503,8 +503,7 @@ exports.getEntityActivities = async (req, res) => {
         const ownershipCheck = await verifyEntityOwnership(
             entityType,
             entityId,
-            lawyerId,
-            firmId
+            req.firmQuery
         );
 
         if (!ownershipCheck.valid) {
@@ -729,8 +728,7 @@ exports.logCall = async (req, res) => {
         const ownershipCheck = await verifyEntityOwnership(
             entityType,
             entityId,
-            lawyerId,
-            firmId
+            req.firmQuery
         );
 
         if (!ownershipCheck.valid) {
@@ -806,8 +804,7 @@ exports.logEmail = async (req, res) => {
         const ownershipCheck = await verifyEntityOwnership(
             entityType,
             entityId,
-            lawyerId,
-            firmId
+            req.firmQuery
         );
 
         if (!ownershipCheck.valid) {
@@ -906,8 +903,7 @@ exports.logMeeting = async (req, res) => {
         const ownershipCheck = await verifyEntityOwnership(
             entityType,
             entityId,
-            lawyerId,
-            firmId
+            req.firmQuery
         );
 
         if (!ownershipCheck.valid) {
@@ -987,8 +983,7 @@ exports.addNote = async (req, res) => {
         const ownershipCheck = await verifyEntityOwnership(
             entityType,
             entityId,
-            lawyerId,
-            firmId
+            req.firmQuery
         );
 
         if (!ownershipCheck.valid) {

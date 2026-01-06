@@ -809,7 +809,7 @@ const removeLawyer = async (request, response) => {
 
         // IDOR PROTECTION: Remove firm reference from lawyer profile, verify they're in this firm
         await User.findOneAndUpdate(
-            { _id: lawyerId, firmId: firmId },
+            { _id: lawyerId, ...req.firmQuery },
             {
                 'lawyerProfile.firmID': null,
                 $unset: { firmId: 1, firmRole: 1 }
