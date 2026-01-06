@@ -2244,6 +2244,465 @@ const revokeTemporaryIP = asyncHandler(async (req, res) => {
     });
 });
 
+// ═══════════════════════════════════════════════════════════════
+// COMPANY HIERARCHY MANAGEMENT
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Get company hierarchy tree
+ * GET /api/firms/tree
+ *
+ * Returns the full hierarchy tree for the user's firm and its descendants
+ */
+const getHierarchyTree = asyncHandler(async (req, res) => {
+    const userId = req.userID;
+    const firmId = req.firmId;
+
+    // Get the user's firm
+    const userFirm = await Firm.findOne({ _id: firmId }).lean();
+    if (!userFirm) {
+        throw CustomException('لم يتم العثور على المكتب', 404);
+    }
+
+    // Find the root of this user's hierarchy
+    let rootFirmId = userFirm._id;
+    if (userFirm.parentFirmId) {
+        const ancestors = await Firm.getAncestors(userFirm._id);
+        if (ancestors.length > 0) {
+            rootFirmId = ancestors[ancestors.length - 1]._id;
+        }
+    }
+
+    // Build the tree from the root
+    const tree = await Firm.buildTree(rootFirmId);
+
+    res.json({
+        success: true,
+        data: tree
+    });
+});
+
+/**
+ * Get child companies of a specific firm
+ * GET /api/firms/:id/children
+ */
+const getChildCompanies = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const userId = req.userID;
+
+    // Validate access to parent firm
+    const parentFirm = await Firm.findOne({ _id: id, 'members.userId': userId });
+    if (!parentFirm) {
+        // Check if user has cross-company access
+        const UserCompanyAccess = require('../models/userCompanyAccess.model');
+        const hasAccess = await UserCompanyAccess.hasAccess(userId, id);
+        if (!hasAccess) {
+            throw CustomException('ليس لديك صلاحية للوصول إلى هذا المكتب', 403);
+        }
+    }
+
+    const children = await Firm.getChildren(id);
+
+    res.json({
+        success: true,
+        data: children
+    });
+});
+
+/**
+ * Move company to different parent
+ * PUT /api/firms/:id/move
+ *
+ * Body: { parentFirmId: ObjectId | null }
+ */
+const moveCompany = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { parentFirmId } = req.body;
+    const userId = req.userID;
+
+    // Only owner/admin of the firm being moved can move it
+    const firm = await Firm.findOne({ _id: id });
+    if (!firm) {
+        throw CustomException('المكتب غير موجود', 404);
+    }
+
+    const member = firm.members.find(m => m.userId.toString() === userId);
+    if (!member || !['owner', 'admin'].includes(member.role)) {
+        throw CustomException('ليس لديك صلاحية لنقل هذا المكتب', 403);
+    }
+
+    // If moving to a parent, validate access to the new parent
+    if (parentFirmId) {
+        const newParent = await Firm.findOne({ _id: parentFirmId });
+        if (!newParent) {
+            throw CustomException('المكتب الأب غير موجود', 404);
+        }
+
+        const parentMember = newParent.members.find(m => m.userId.toString() === userId);
+        if (!parentMember || !['owner', 'admin'].includes(parentMember.role)) {
+            throw CustomException('ليس لديك صلاحية للإضافة إلى هذا المكتب الأب', 403);
+        }
+    }
+
+    try {
+        const updatedFirm = await Firm.moveToParent(id, parentFirmId, userId);
+        res.json({
+            success: true,
+            message: 'تم نقل المكتب بنجاح',
+            data: {
+                _id: updatedFirm._id,
+                name: updatedFirm.name,
+                parentFirmId: updatedFirm.parentFirmId,
+                level: updatedFirm.level
+            }
+        });
+    } catch (error) {
+        throw CustomException(error.message, 400);
+    }
+});
+
+/**
+ * Get user's accessible companies
+ * GET /api/firms/user/accessible
+ *
+ * Returns all firms the user has access to (via membership or cross-company access)
+ */
+const getAccessibleCompanies = asyncHandler(async (req, res) => {
+    const userId = req.userID;
+
+    // Get firms where user is a direct member
+    const memberFirms = await Firm.find({
+        'members.userId': userId,
+        'members.status': 'active',
+        status: 'active'
+    }).select('_id name nameArabic nameEnglish code logo level status industry parentFirmId members').lean();
+
+    // Get the user's role in each firm
+    const memberCompanies = memberFirms.map(firm => {
+        const member = firm.members.find(m => m.userId.toString() === userId);
+        return {
+            _id: firm._id,
+            name: firm.name,
+            nameArabic: firm.nameArabic,
+            nameEnglish: firm.nameEnglish,
+            code: firm.code,
+            logo: firm.logo,
+            level: firm.level,
+            status: firm.status,
+            industry: firm.industry,
+            parentFirmId: firm.parentFirmId,
+            accessRole: member?.role || 'viewer',
+            accessType: 'member',
+            isDefault: firm._id.toString() === req.firmId?.toString()
+        };
+    });
+
+    // Get cross-company access
+    const UserCompanyAccess = require('../models/userCompanyAccess.model');
+    const crossCompanyAccess = await UserCompanyAccess.getAccessibleCompanies(userId);
+
+    // Filter out firms that are already in memberCompanies
+    const memberFirmIds = new Set(memberCompanies.map(f => f._id.toString()));
+    const additionalAccess = crossCompanyAccess
+        .filter(c => !memberFirmIds.has(c._id.toString()))
+        .map(c => ({
+            ...c,
+            accessType: 'cross-company'
+        }));
+
+    const allCompanies = [...memberCompanies, ...additionalAccess];
+
+    res.json({
+        success: true,
+        data: allCompanies
+    });
+});
+
+/**
+ * Get active company context
+ * GET /api/firms/active
+ *
+ * Returns the user's currently active firm context
+ */
+const getActiveCompany = asyncHandler(async (req, res) => {
+    const userId = req.userID;
+    const firmId = req.firmId;
+
+    if (!firmId) {
+        // User might be a solo lawyer without firmId
+        const user = await User.findById(userId).select('firstName lastName email').lean();
+        return res.json({
+            success: true,
+            data: {
+                type: 'solo',
+                user
+            }
+        });
+    }
+
+    const firm = await Firm.findById(firmId)
+        .select('_id name nameArabic nameEnglish code logo level status industry parentFirmId hierarchySettings members')
+        .lean();
+
+    if (!firm) {
+        throw CustomException('المكتب غير موجود', 404);
+    }
+
+    // Get user's role in this firm
+    const member = firm.members.find(m => m.userId.toString() === userId);
+
+    res.json({
+        success: true,
+        data: {
+            type: 'firm',
+            firm: {
+                _id: firm._id,
+                name: firm.name,
+                nameArabic: firm.nameArabic,
+                nameEnglish: firm.nameEnglish,
+                code: firm.code,
+                logo: firm.logo,
+                level: firm.level,
+                status: firm.status,
+                industry: firm.industry,
+                parentFirmId: firm.parentFirmId,
+                hierarchySettings: firm.hierarchySettings
+            },
+            role: member?.role || null,
+            permissions: member?.permissions || null
+        }
+    });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// USER ACCESS CONTROL (Cross-Company Access)
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Grant user access to a company
+ * POST /api/firms/:id/access
+ *
+ * Body: { userId, role, permissions, canAccessChildren, canAccessParent, expiresAt, notes }
+ */
+const grantUserAccess = asyncHandler(async (req, res) => {
+    const { id: firmId } = req.params;
+    const grantingUserId = req.userID;
+
+    // MASS ASSIGNMENT PROTECTION
+    const allowedFields = ['userId', 'role', 'permissions', 'canAccessChildren', 'canAccessParent', 'expiresAt', 'notes'];
+    const safeInput = pickAllowedFields(req.body, allowedFields);
+    const { userId, role, permissions, canAccessChildren, canAccessParent, expiresAt, notes } = safeInput;
+
+    if (!userId) {
+        throw CustomException('معرف المستخدم مطلوب', 400);
+    }
+
+    // Validate granting user is owner/admin of this firm
+    const firm = await Firm.findOne({ _id: firmId, 'members.userId': grantingUserId });
+    if (!firm) {
+        throw CustomException('المكتب غير موجود', 404);
+    }
+
+    const grantingMember = firm.members.find(m => m.userId.toString() === grantingUserId);
+    if (!grantingMember || !['owner', 'admin'].includes(grantingMember.role)) {
+        throw CustomException('ليس لديك صلاحية لمنح الوصول', 403);
+    }
+
+    // Validate target user exists
+    const targetUser = await User.findById(userId);
+    if (!targetUser) {
+        throw CustomException('المستخدم غير موجود', 404);
+    }
+
+    // Grant access
+    const UserCompanyAccess = require('../models/userCompanyAccess.model');
+    const access = await UserCompanyAccess.grantAccess(userId, firmId, {
+        role: role || 'viewer',
+        permissions: permissions || [],
+        canAccessChildren: canAccessChildren || false,
+        canAccessParent: canAccessParent || false,
+        grantedBy: grantingUserId,
+        expiresAt,
+        notes
+    });
+
+    res.status(201).json({
+        success: true,
+        message: 'تم منح الوصول بنجاح',
+        data: access
+    });
+});
+
+/**
+ * Update user access to a company
+ * PUT /api/firms/:id/access/:userId
+ */
+const updateUserAccess = asyncHandler(async (req, res) => {
+    const { id: firmId, userId: targetUserId } = req.params;
+    const updatingUserId = req.userID;
+
+    // MASS ASSIGNMENT PROTECTION
+    const allowedFields = ['role', 'permissions', 'canAccessChildren', 'canAccessParent', 'isDefault', 'status', 'expiresAt', 'notes'];
+    const safeInput = pickAllowedFields(req.body, allowedFields);
+
+    // Validate updating user is owner/admin
+    const firm = await Firm.findOne({ _id: firmId, 'members.userId': updatingUserId });
+    if (!firm) {
+        throw CustomException('المكتب غير موجود', 404);
+    }
+
+    const updatingMember = firm.members.find(m => m.userId.toString() === updatingUserId);
+    if (!updatingMember || !['owner', 'admin'].includes(updatingMember.role)) {
+        throw CustomException('ليس لديك صلاحية لتعديل الوصول', 403);
+    }
+
+    const UserCompanyAccess = require('../models/userCompanyAccess.model');
+    const access = await UserCompanyAccess.updateAccess(targetUserId, firmId, safeInput);
+
+    if (!access) {
+        throw CustomException('الوصول غير موجود', 404);
+    }
+
+    res.json({
+        success: true,
+        message: 'تم تحديث الوصول بنجاح',
+        data: access
+    });
+});
+
+/**
+ * Revoke user access to a company
+ * DELETE /api/firms/:id/access/:userId
+ */
+const revokeUserAccess = asyncHandler(async (req, res) => {
+    const { id: firmId, userId: targetUserId } = req.params;
+    const revokingUserId = req.userID;
+
+    // Validate revoking user is owner/admin
+    const firm = await Firm.findOne({ _id: firmId, 'members.userId': revokingUserId });
+    if (!firm) {
+        throw CustomException('المكتب غير موجود', 404);
+    }
+
+    const revokingMember = firm.members.find(m => m.userId.toString() === revokingUserId);
+    if (!revokingMember || !['owner', 'admin'].includes(revokingMember.role)) {
+        throw CustomException('ليس لديك صلاحية لإلغاء الوصول', 403);
+    }
+
+    const UserCompanyAccess = require('../models/userCompanyAccess.model');
+    const access = await UserCompanyAccess.revokeAccess(targetUserId, firmId);
+
+    if (!access) {
+        throw CustomException('الوصول غير موجود', 404);
+    }
+
+    res.json({
+        success: true,
+        message: 'تم إلغاء الوصول بنجاح'
+    });
+});
+
+/**
+ * Get company access list
+ * GET /api/firms/:id/access
+ *
+ * Returns all users who have cross-company access to this firm
+ */
+const getCompanyAccessList = asyncHandler(async (req, res) => {
+    const { id: firmId } = req.params;
+    const userId = req.userID;
+
+    // Validate user has access to view this firm's access list
+    const firm = await Firm.findOne({ _id: firmId, 'members.userId': userId });
+    if (!firm) {
+        throw CustomException('المكتب غير موجود أو ليس لديك صلاحية', 404);
+    }
+
+    const member = firm.members.find(m => m.userId.toString() === userId);
+    if (!member || !['owner', 'admin'].includes(member.role)) {
+        throw CustomException('ليس لديك صلاحية لعرض قائمة الوصول', 403);
+    }
+
+    const UserCompanyAccess = require('../models/userCompanyAccess.model');
+    const accessList = await UserCompanyAccess.getCompanyAccessList(firmId);
+
+    res.json({
+        success: true,
+        data: accessList
+    });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// DELETE FIRM
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Delete a firm
+ * DELETE /api/firms/:id
+ *
+ * Only owner can delete. Requires confirmation.
+ * Will fail if firm has children companies.
+ */
+const deleteFirm = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const userId = req.userID;
+    const { confirmDelete } = req.body;
+
+    // Validate user is owner
+    const firm = await Firm.findOne({ _id: id });
+    if (!firm) {
+        throw CustomException('المكتب غير موجود', 404);
+    }
+
+    if (firm.ownerId.toString() !== userId) {
+        throw CustomException('فقط مالك المكتب يمكنه حذفه', 403);
+    }
+
+    // Check for children
+    const children = await Firm.getChildren(id);
+    if (children.length > 0) {
+        throw CustomException('لا يمكن حذف مكتب لديه فروع. احذف الفروع أولاً أو انقلها', 400);
+    }
+
+    // Require confirmation
+    if (confirmDelete !== true && confirmDelete !== 'true') {
+        throw CustomException('يجب تأكيد الحذف. أرسل confirmDelete: true', 400);
+    }
+
+    // Get counts for response
+    const clientCount = await Client.countDocuments({ firmId: id });
+    const caseCount = await Case.countDocuments({ firmId: id });
+    const invoiceCount = await Invoice.countDocuments({ firmId: id });
+
+    // Soft delete - set status to inactive
+    firm.status = 'inactive';
+    await firm.save();
+
+    // Remove firmId from all members
+    const memberIds = firm.members.map(m => m.userId);
+    await User.updateMany(
+        { _id: { $in: memberIds } },
+        { $unset: { firmId: 1, firmRole: 1 } }
+    );
+
+    // Delete cross-company access
+    const UserCompanyAccess = require('../models/userCompanyAccess.model');
+    await UserCompanyAccess.deleteMany({ firmId: id });
+
+    res.json({
+        success: true,
+        message: 'تم حذف المكتب بنجاح',
+        data: {
+            deletedFirmId: id,
+            affectedMembers: memberIds.length,
+            clientCount,
+            caseCount,
+            invoiceCount,
+            note: 'تم إلغاء تنشيط المكتب. البيانات محفوظة لكنها غير متاحة.'
+        }
+    });
+});
+
 module.exports = {
     // Marketplace (backwards compatible)
     getFirms,
@@ -2263,6 +2722,7 @@ module.exports = {
     leaveFirmWithSolo,
     transferOwnership,
     getFirmStats,
+    deleteFirm,
 
     // Team management (فريق العمل)
     getTeam,
@@ -2271,6 +2731,19 @@ module.exports = {
     getDepartedMembers,
     getMyPermissions,
     getAvailableRoles,
+
+    // Company hierarchy
+    getHierarchyTree,
+    getChildCompanies,
+    moveCompany,
+    getAccessibleCompanies,
+    getActiveCompany,
+
+    // User access control
+    grantUserAccess,
+    updateUserAccess,
+    revokeUserAccess,
+    getCompanyAccessList,
 
     // Invitation system
     createInvitation,

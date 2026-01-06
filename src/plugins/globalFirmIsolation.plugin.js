@@ -45,6 +45,7 @@ const SKIP_MODELS = new Set([
     'Account',           // Chart of accounts (shared)
     'SubscriptionPlan',  // Global subscription plans
     'Plugin',            // Global plugins
+    'UserCompanyAccess', // Cross-company access control (has its own userId+firmId filtering)
 ]);
 
 // Fields that indicate the model needs firm isolation
