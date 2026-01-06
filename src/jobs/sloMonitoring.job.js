@@ -44,7 +44,7 @@ const collectSLOMeasurements = async () => {
 
     // Get all active SLOs
     // NOTE: Bypass firmIsolation filter - system job operates across all firms
-    const slos = await SLO.find({ isActive: true }).setOptions({ bypassFirmFilter: true });
+    const slos = await SLO.find({ isActive: true }).setOptions({ bypassFirmFilter: true }).lean();
 
     if (slos.length === 0) {
       logger.debug('[SLO Monitoring Job] No active SLOs found');
@@ -147,7 +147,7 @@ const updateErrorBudgets = async () => {
       logger.debug(`[SLO Monitoring Job] Starting error budget update at ${now.toISOString()}`);
 
       // NOTE: Bypass firmIsolation filter - system job operates across all firms
-      const slos = await SLO.find({ isActive: true }).setOptions({ bypassFirmFilter: true });
+      const slos = await SLO.find({ isActive: true }).setOptions({ bypassFirmFilter: true }).lean();
 
     let successCount = 0;
     let failCount = 0;
@@ -189,8 +189,8 @@ function startSLOMonitoringJob() {
     checkSLOAlerts();
   });
 
-  // Every 15 minutes: Update error budgets
-  cron.schedule('*/15 * * * *', () => {
+  // Every 15 minutes at :05, :20, :35, :50: Update error budgets (staggered to avoid :00, :15, :30, :45 spike)
+  cron.schedule('5,20,35,50 * * * *', () => {
     updateErrorBudgets();
   });
 

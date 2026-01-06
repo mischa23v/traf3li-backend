@@ -462,11 +462,11 @@ const processWeeklyDigest = async () => {
 function startNotificationDigestJobs() {
   logger.info('🚀 Starting notification digest job scheduler...');
 
-  // Every hour: Process daily digests
-  cron.schedule('0 * * * *', () => {
+  // Every hour at :05: Process daily digests (staggered to avoid :00 spike)
+  cron.schedule('5 * * * *', () => {
     processDailyDigest();
   });
-  logger.info('✓ Daily digest job: every hour (checks digestTime)');
+  logger.info('✓ Daily digest job: every hour at :05 (checks digestTime)');
 
   // Every Monday at 9:00 AM: Send weekly digests
   cron.schedule('0 9 * * 1', () => {

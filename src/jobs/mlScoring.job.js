@@ -64,7 +64,7 @@ class MLScoringJobs {
       const leads = await Lead.find({
         convertedToClient: false,
         status: { $nin: ['lost', 'inactive'] }
-      }).setOptions({ bypassFirmFilter: true }).select('_id firmId');
+      }).setOptions({ bypassFirmFilter: true }.select('_id firmId');.lean()
 
       logger.info(`[MLScoring] Found ${leads.length} leads to score`);
 
@@ -128,10 +128,10 @@ class MLScoringJobs {
   }
 
   /**
-   * Schedule nightly batch scoring at 3 AM
+   * Schedule nightly batch scoring at 3:10 AM (staggered after data retention at 3:00 AM)
    */
   scheduleNightlyScoring() {
-    const job = cron.schedule('0 3 * * *', async () => {
+    const job = cron.schedule('10 3 * * *', async () => {
       logger.info('[MLScoring] Nightly batch scoring job triggered');
       try {
         await this.nightlyBatchScoring();
@@ -275,7 +275,7 @@ class MLScoringJobs {
       const convertedLeads = await Lead.find({
         convertedToClient: true,
         convertedAt: { $gte: weekAgo }
-      }).setOptions({ bypassFirmFilter: true }).select('_id');
+      }).setOptions({ bypassFirmFilter: true }.select('_id');.lean()
 
       const convertedLeadIds = convertedLeads.map(l => l._id);
 
@@ -495,8 +495,8 @@ class MLScoringJobs {
    * Schedule daily SLA breach check
    */
   scheduleDailySLACheck() {
-    // Run every 4 hours to catch breaches quickly
-    const job = cron.schedule('0 */4 * * *', async () => {
+    // Run every 4 hours at :10 to catch breaches quickly (staggered to avoid :00 spike)
+    const job = cron.schedule('10 */4 * * *', async () => {
       logger.info('[MLScoring] SLA breach check triggered');
       try {
         await this.dailySLACheck();

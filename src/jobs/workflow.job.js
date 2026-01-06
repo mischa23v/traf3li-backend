@@ -27,7 +27,7 @@ const { acquireLock } = require('../services/distributedLock.service');
 // Job configuration
 const WORKFLOW_JOB_CONFIG = {
     processScheduled: {
-        cron: process.env.WORKFLOW_SCHEDULED_CRON || '*/15 * * * *', // Every 15 minutes
+        cron: process.env.WORKFLOW_SCHEDULED_CRON || '10,25,40,55 * * * *', // Every 15 minutes at :10, :25, :40, :55 (staggered)
         timeout: 30 * 60 * 1000, // 30 minutes
         retries: parseInt(process.env.WORKFLOW_MAX_RETRIES) || 3,
         timezone: process.env.TZ || 'Asia/Riyadh'

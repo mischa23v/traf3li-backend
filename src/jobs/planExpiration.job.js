@@ -381,8 +381,8 @@ const startPlanJobs = () => {
         timezone: 'Asia/Riyadh'
     });
 
-    // Send trial warnings - daily at 9 AM
-    cron.schedule('0 9 * * *', sendTrialWarnings, {
+    // Send trial warnings - daily at 9:30 AM (staggered to avoid 9 AM spike)
+    cron.schedule('30 9 * * *', sendTrialWarnings, {
         timezone: 'Asia/Riyadh'
     });
 

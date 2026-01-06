@@ -404,8 +404,8 @@ function startEmailCampaignJobs() {
   });
   logger.info(' ✓ Segments & inactivity job: every hour');
 
-  // Daily at 2 AM: Cleanup and maintenance
-  cron.schedule('0 2 * * *', () => {
+  // Daily at 2:50 AM: Cleanup and maintenance (staggered to avoid 2 AM thundering herd)
+  cron.schedule('50 2 * * *', () => {
     dailyCleanup();
   });
   logger.info(' ✓ Daily cleanup job: 2:00 AM');

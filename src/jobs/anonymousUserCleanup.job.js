@@ -61,7 +61,7 @@ async function cleanupInactiveAnonymousUsers() {
             lastActivityAt: { $lt: thirtyDaysAgo }
         })
             .select('_id username lastActivityAt createdAt')
-            .setOptions({ bypassFirmFilter: true });
+            .setOptions({ bypassFirmFilter: true }).lean();
 
         if (inactiveUsers.length === 0) {
             logger.info('[AnonymousCleanup] No inactive anonymous users found');

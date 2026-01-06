@@ -41,7 +41,7 @@ const WEBHOOK_JOB_CONFIG = {
         timezone: process.env.TZ || 'Asia/Riyadh'
     },
     cleanup: {
-        cron: process.env.WEBHOOK_CLEANUP_CRON || '0 2 * * *', // Daily at 2 AM
+        cron: process.env.WEBHOOK_CLEANUP_CRON || '30 2 * * *', // Daily at 2:30 AM (staggered to avoid 2 AM thundering herd)
         retentionDays: parseInt(process.env.WEBHOOK_RETENTION_DAYS) || 90,
         timezone: process.env.TZ || 'Asia/Riyadh'
     },

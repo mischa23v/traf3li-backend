@@ -46,7 +46,7 @@ const lockEntriesForClosedPeriods = async () => {
         logger.info('[Time Entry Jobs] Checking for entries to lock...');
 
         // Find all closed fiscal periods
-        const closedPeriods = await FiscalPeriod.find({ status: 'closed' });
+        const closedPeriods = await FiscalPeriod.find({ status: 'closed' }).lean();
 
         if (closedPeriods.length === 0) {
             logger.info('[Time Entry Jobs] No closed fiscal periods found');
@@ -241,17 +241,17 @@ const checkPendingApprovals = async () => {
 function startTimeEntryJobs() {
     logger.info('[Time Entry Jobs] Starting time entry job scheduler...');
 
-    // Daily at midnight: Lock entries for closed periods
-    cron.schedule('0 0 * * *', () => {
+    // Daily at 12:20 AM: Lock entries for closed periods (staggered to avoid midnight thundering herd)
+    cron.schedule('20 0 * * *', () => {
         lockEntriesForClosedPeriods();
     });
-    logger.info('[Time Entry Jobs] ✓ Period locking job: daily at midnight');
+    logger.info('[Time Entry Jobs] ✓ Period locking job: daily at 12:20 AM');
 
-    // Daily at 9 AM: Check for stale pending approvals
-    cron.schedule('0 9 * * *', () => {
+    // Daily at 9:20 AM: Check for stale pending approvals (staggered to avoid 9 AM spike)
+    cron.schedule('20 9 * * *', () => {
         checkPendingApprovals();
     });
-    logger.info('[Time Entry Jobs] ✓ Pending approvals check: daily at 9:00 AM');
+    logger.info('[Time Entry Jobs] ✓ Pending approvals check: daily at 9:20 AM');
 
     // Weekly on Sunday at 2 AM: Cleanup old entries
     cron.schedule('0 2 * * 0', () => {

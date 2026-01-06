@@ -128,8 +128,8 @@ async function runAllCleanupTasks() {
  * Runs daily at 2:00 AM
  */
 function scheduleSandboxCleanup() {
-    // Run every day at 2:00 AM
-    cron.schedule('0 2 * * *', async () => {
+    // Run every day at 2:10 AM (staggered to avoid 2 AM thundering herd)
+    cron.schedule('10 2 * * *', async () => {
         logger.info('[SandboxCleanup] Running scheduled cleanup job');
         await runAllCleanupTasks();
     });

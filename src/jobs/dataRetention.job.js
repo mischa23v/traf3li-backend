@@ -108,7 +108,7 @@ async function cleanupDepartedUsers() {
     dataAnonymized: { $ne: true },
   })
     .select('_id email departedAt')
-    .setOptions({ bypassFirmFilter: true });
+    .setOptions({ bypassFirmFilter: true }).lean();
 
   if (departedUsers.length === 0) {
     logger.info('[DataRetention] No departed users to process');
@@ -346,8 +346,8 @@ async function runDataRetentionJob() {
  * Schedule the job to run daily at 2 AM
  */
 function startDataRetentionJob() {
-  // Run daily at 2:00 AM
-  cron.schedule('0 2 * * *', async () => {
+  // Run daily at 3:00 AM (staggered to avoid 2 AM thundering herd, runs after cleanups)
+  cron.schedule('0 3 * * *', async () => {
     logger.info('[DataRetention] Scheduled job triggered');
     try {
       await runDataRetentionJob();
