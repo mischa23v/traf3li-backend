@@ -262,7 +262,7 @@ const createTask = asyncHandler(async (req, res) => {
         .populate('createdBy', 'firstName lastName username email image')
         .populate('caseId', 'title caseNumber')
         .populate('clientId', 'firstName lastName')
-        .populate('linkedEventId', 'eventId title startDateTime');
+        .populate({ path: 'linkedEventId', select: 'eventId title startDateTime', options: { bypassFirmFilter: true } });
 
     res.status(201).json({
         success: true,
@@ -476,7 +476,7 @@ const getTask = asyncHandler(async (req, res) => {
         .populate('completedBy', 'firstName lastName')
         .populate('comments.userId', 'firstName lastName image')
         .populate('timeTracking.sessions.userId', 'firstName lastName')
-        .populate('linkedEventId', 'eventId title startDateTime status')
+        .populate({ path: 'linkedEventId', select: 'eventId title startDateTime status', options: { bypassFirmFilter: true } })
         .lean();
 
     if (!task) {
@@ -679,7 +679,7 @@ const updateTask = asyncHandler(async (req, res) => {
         .populate('assignedTo', 'firstName lastName username email image')
         .populate('createdBy', 'firstName lastName username email image')
         .populate('caseId', 'title caseNumber')
-        .populate('linkedEventId', 'eventId title startDateTime');
+        .populate({ path: 'linkedEventId', select: 'eventId title startDateTime', options: { bypassFirmFilter: true } });
 
     res.status(200).json({
         success: true,
