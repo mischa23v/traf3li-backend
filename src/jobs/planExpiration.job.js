@@ -38,9 +38,8 @@ const processExpiredTrials = async () => {
     }
 
     try {
-    logger.info('[Plan Job] Checking for expired trials...');
+        logger.info('[Plan Job] Checking for expired trials...');
 
-    try {
         const expiredTrials = await Firm.find({
             'subscription.status': 'trial',
             'subscription.trialEndsAt': { $lt: new Date() },
