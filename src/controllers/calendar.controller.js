@@ -498,13 +498,14 @@ const getCalendarView = asyncHandler(async (req, res) => {
 
     // Fetch case rich documents with calendar dates
     if (!type || type === 'case-document') {
+        // Use req.firmQuery for proper tenant isolation (solo lawyers + firm members)
         const caseQuery = {
-            lawyerId: userId,
+            ...req.firmQuery,
             'richDocuments.showOnCalendar': true
         };
 
-        if (caseId) {
-            caseQuery._id = caseId;
+        if (sanitizedCaseId) {
+            caseQuery._id = sanitizedCaseId;
         }
 
         const cases = await Case.find(caseQuery)
@@ -623,16 +624,11 @@ const getCalendarByDate = asyncHandler(async (req, res) => {
         .lean();
 
     // Fetch case rich documents
-    // SECURITY: Include firmId check to prevent cross-firm data access
-    const firmId = req.firmId || req.user?.firmId;
+    // Use req.firmQuery for proper tenant isolation (solo lawyers + firm members)
     const caseFilter = {
-        lawyerId: userId,
+        ...req.firmQuery,
         'richDocuments.showOnCalendar': true
     };
-    // Add firm scope if user has firmId
-    if (firmId) {
-        caseFilter.firmId = firmId;
-    }
     const cases = await Case.find(caseFilter).select('_id title caseNumber richDocuments').lean();
 
     const caseDocuments = [];
@@ -730,16 +726,12 @@ const getCalendarByMonth = asyncHandler(async (req, res) => {
         .lean();
 
     // Fetch case rich documents
-    // SECURITY: Include firmId check to prevent cross-firm data access
-    const firmId = req.firmId || req.user?.firmId;
-    const caseFilter = {
-        lawyerId: userId,
+    // Use req.firmQuery for proper tenant isolation (solo lawyers + firm members)
+    const caseFilterGrouped = {
+        ...req.firmQuery,
         'richDocuments.showOnCalendar': true
     };
-    if (firmId) {
-        caseFilter.firmId = firmId;
-    }
-    const casesWithDocs = await Case.find(caseFilter).select('_id title caseNumber richDocuments').lean();
+    const casesWithDocs = await Case.find(caseFilterGrouped).select('_id title caseNumber richDocuments').lean();
 
     const caseDocuments = [];
     casesWithDocs.forEach(caseDoc => {
@@ -879,16 +871,12 @@ const getUpcomingItems = asyncHandler(async (req, res) => {
         .lean();
 
     // Fetch upcoming case rich documents
-    // SECURITY: Include firmId check to prevent cross-firm data access
-    const firmId = req.firmId || req.user?.firmId;
-    const caseFilter = {
-        lawyerId: userId,
+    // Use req.firmQuery for proper tenant isolation (solo lawyers + firm members)
+    const caseFilterUpcoming = {
+        ...req.firmQuery,
         'richDocuments.showOnCalendar': true
     };
-    if (firmId) {
-        caseFilter.firmId = firmId;
-    }
-    const casesWithUpcomingDocs = await Case.find(caseFilter).select('_id title caseNumber richDocuments').lean();
+    const casesWithUpcomingDocs = await Case.find(caseFilterUpcoming).select('_id title caseNumber richDocuments').lean();
 
     const caseDocuments = [];
     casesWithUpcomingDocs.forEach(caseDoc => {
@@ -1610,14 +1598,15 @@ const getCalendarGridItems = asyncHandler(async (req, res) => {
 
     // Fetch minimal case document data
     if (requestedTypes.has('case-document')) {
-        const caseQuery = {
-            lawyerId: userId,
+        // Use req.firmQuery for proper tenant isolation (solo lawyers + firm members)
+        const caseQueryMinimal = {
+            ...req.firmQuery,
             'richDocuments.showOnCalendar': true
         };
-        if (sanitizedCaseId) caseQuery._id = sanitizedCaseId;
+        if (sanitizedCaseId) caseQueryMinimal._id = sanitizedCaseId;
 
         promises.push(
-            Case.find(caseQuery)
+            Case.find(caseQueryMinimal)
                 .select('_id title caseNumber richDocuments._id richDocuments.title richDocuments.calendarDate richDocuments.calendarColor richDocuments.showOnCalendar richDocuments.documentType')
                 .lean()
                 .then(cases => {
@@ -1850,11 +1839,10 @@ const getCalendarItemDetails = asyncHandler(async (req, res) => {
             break;
 
         case 'case-document':
-            // SECURITY: Use req.firmQuery for multi-tenant isolation
+            // SECURITY: Use req.firmQuery for multi-tenant isolation (solo lawyers + firm members)
             const caseDoc = await Case.findOne({
-                lawyerId: userId,
-                'richDocuments._id': sanitizedId,
-                ...req.firmQuery
+                ...req.firmQuery,
+                'richDocuments._id': sanitizedId
             })
                 .populate('richDocuments.createdBy', 'firstName lastName')
                 .select('_id title caseNumber category richDocuments.$')

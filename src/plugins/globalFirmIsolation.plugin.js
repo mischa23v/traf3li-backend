@@ -35,6 +35,7 @@ const SKIP_MODELS = new Set([
     'MagicLink',         // Auth magic links
     'EmailVerification', // Auth verification
     'PasswordHistory',   // Auth password history
+    'LoginHistory',      // Geo-anomaly detection queries during login (before firm context)
     'Counter',           // System counters
     'MigrationLog',      // System migrations
     'SsoProvider',       // SSO configuration
