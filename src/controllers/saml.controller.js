@@ -3,7 +3,7 @@ const { Firm, User } = require('../models');
 const { CustomException } = require('../utils');
 const jwt = require('jsonwebtoken');
 const auditLogService = require('../services/auditLog.service');
-const { getCookieConfig } = require('../utils/cookieConfig');
+const { getCookieConfig, getHttpOnlyRefreshCookieConfig } = require('../utils/cookieConfig');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const logger = require('../utils/logger');
 const { generateAccessToken } = require('../utils/generateToken');
@@ -263,7 +263,7 @@ const assertionConsumerService = async (request, response) => {
 
                 // Get cookie config
                 const cookieConfig = getCookieConfig(request);
-                const refreshCookieConfig = getCookieConfig(request, 'refresh');
+                const refreshCookieConfig = getHttpOnlyRefreshCookieConfig(request);
 
                 // Build user data with firm information
                 const userData = await buildUserData(user);

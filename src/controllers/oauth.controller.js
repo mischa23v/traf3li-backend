@@ -1,7 +1,7 @@
 const oauthService = require('../services/oauth.service');
 const { CustomException } = require('../utils');
 const logger = require('../utils/contextLogger');
-const { getCookieConfig } = require('../utils/cookieConfig');
+const { getCookieConfig, getHttpOnlyRefreshCookieConfig } = require('../utils/cookieConfig');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const authWebhookService = require('../services/authWebhook.service');
 
@@ -729,7 +729,7 @@ const callbackPost = async (request, response) => {
         // For existing users, set both accessToken and refreshToken cookies (matching regular login)
         if (!result.isNewUser && result.token) {
             const accessCookieConfig = getCookieConfig(request, 'access');
-            const refreshCookieConfig = getCookieConfig(request, 'refresh');
+            const refreshCookieConfig = getHttpOnlyRefreshCookieConfig(request);
             // eslint-disable-next-line no-console
             console.log('[SSO CALLBACK] Setting cookies:', {
                 accessTokenLength: result.token.length,

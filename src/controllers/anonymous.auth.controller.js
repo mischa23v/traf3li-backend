@@ -8,6 +8,7 @@ const { recordActivity } = require('../middlewares/sessionTimeout.middleware');
 const refreshTokenService = require('../services/refreshToken.service');
 const { generateAccessToken } = require('../utils/generateToken');
 const emailVerificationService = require('../services/emailVerification.service');
+const { getCookieConfig, getHttpOnlyRefreshCookieConfig } = require('../utils/cookieConfig');
 
 // Password hashing rounds
 const saltRounds = 12;
@@ -76,10 +77,9 @@ const anonymousLogin = async (request, response) => {
             null // No firmId for anonymous users
         );
 
-        // Import getCookieConfig from auth.controller
-        const { getCookieConfig } = require('./auth.controller');
+        // Use centralized cookie config
         const cookieConfig = getCookieConfig(request, 'access');
-        const refreshCookieConfig = getCookieConfig(request, 'refresh');
+        const refreshCookieConfig = getHttpOnlyRefreshCookieConfig(request);
 
         // Prepare user data (exclude password)
         const userData = {
@@ -288,10 +288,9 @@ const convertAnonymousUser = async (request, response) => {
             null
         );
 
-        // Import getCookieConfig from auth.controller
-        const { getCookieConfig } = require('./auth.controller');
+        // Use centralized cookie config
         const cookieConfig = getCookieConfig(request, 'access');
-        const refreshCookieConfig = getCookieConfig(request, 'refresh');
+        const refreshCookieConfig = getHttpOnlyRefreshCookieConfig(request);
 
         // Log conversion
         await auditLogService.log(

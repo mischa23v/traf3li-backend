@@ -5,7 +5,7 @@ const authWebhookService = require('../services/authWebhook.service');
 const geoAnomalyDetectionService = require('../services/geoAnomalyDetection.service');
 const stepUpAuthService = require('../services/stepUpAuth.service');
 const { generateAccessToken } = require('../utils/generateToken');
-const { getCookieConfig } = require('../utils/cookieConfig');
+const { getCookieConfig, getHttpOnlyRefreshCookieConfig } = require('../utils/cookieConfig');
 const { recordActivity } = require('../middlewares/sessionTimeout.middleware');
 const { CustomException } = require('../utils');
 const logger = require('../utils/contextLogger');
@@ -242,7 +242,7 @@ const authenticateWithOneTap = async (request, response) => {
 
         // Get cookie config based on request context (same-origin proxy vs cross-origin)
         const accessCookieConfig = getCookieConfig(request, 'access');
-        const refreshCookieConfig = getCookieConfig(request, 'refresh');
+        const refreshCookieConfig = getHttpOnlyRefreshCookieConfig(request);
 
         // Trigger authentication webhook (fire-and-forget)
         (async () => {

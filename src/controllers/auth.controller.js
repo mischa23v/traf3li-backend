@@ -21,7 +21,7 @@ const authWebhookService = require('../services/authWebhook.service');
 const csrfService = require('../services/csrf.service');
 const geoAnomalyDetectionService = require('../services/geoAnomalyDetection.service');
 const stepUpAuthService = require('../services/stepUpAuth.service');
-const { getCookieConfig, getCSRFCookieConfig, isProductionEnv } = require('../utils/cookieConfig');
+const { getCookieConfig, getCSRFCookieConfig, getHttpOnlyRefreshCookieConfig, getClearRefreshCookieConfig, isProductionEnv } = require('../utils/cookieConfig');
 
 const { JWT_SECRET, NODE_ENV } = process.env;
 
@@ -516,10 +516,10 @@ const authRegister = async (request, response) => {
                 user.firmId
             );
 
-            const cookieConfig = getCookieConfig(request);
-            const refreshCookieConfig = getCookieConfig(request, 'refresh');
+            const accessCookieConfig = getCookieConfig(request, 'access');
+            const refreshCookieConfig = getHttpOnlyRefreshCookieConfig(request);
 
-            response.cookie('accessToken', accessToken, cookieConfig);
+            response.cookie('accessToken', accessToken, accessCookieConfig);
             response.cookie('refreshToken', refreshToken, refreshCookieConfig);
 
             // OAuth 2.0 standard format (snake_case)
@@ -1064,8 +1064,9 @@ const authLogin = async (request, response) => {
                 }
             );
 
-            // Get refresh token cookie config with proper expiry (extended for "Remember Me")
-            const refreshCookieConfig = getCookieConfig(request, 'refresh', { rememberMe: effectiveRememberMe });
+            // Get httpOnly refresh token cookie config (Gold Standard: httpOnly, Secure, SameSite)
+            // Uses restricted path for security (configurable via REFRESH_TOKEN_PATH env var)
+            const refreshCookieConfig = getHttpOnlyRefreshCookieConfig(request, { rememberMe: effectiveRememberMe });
 
             // Generate CSRF token for the session (if enabled)
             let csrfTokenData = null;
@@ -1277,12 +1278,14 @@ const authLogout = async (request, response) => {
             })();
         }
 
-        // Use same cookie config as login to ensure cookie is properly cleared
-        const cookieConfig = getCookieConfig(request);
+        // Use separate configs for access and refresh tokens
+        // (refresh token may use restricted path like /api/auth)
+        const accessCookieConfig = getCookieConfig(request);
+        const refreshClearConfig = getClearRefreshCookieConfig(request);
 
         return response
-            .clearCookie('accessToken', cookieConfig)
-            .clearCookie('refreshToken', cookieConfig)
+            .clearCookie('accessToken', accessCookieConfig)
+            .clearCookie('refreshToken', refreshClearConfig)
             .send({
                 error: false,
                 message: 'User have been logged out!'
@@ -1291,11 +1294,12 @@ const authLogout = async (request, response) => {
         logger.error('Logout failed', { error: error.message });
 
         // Even if token revocation fails, still clear the cookies
-        const cookieConfig = getCookieConfig(request);
+        const accessCookieConfig = getCookieConfig(request);
+        const refreshClearConfig = getClearRefreshCookieConfig(request);
 
         return response
-            .clearCookie('accessToken', cookieConfig)
-            .clearCookie('refreshToken', cookieConfig)
+            .clearCookie('accessToken', accessCookieConfig)
+            .clearCookie('refreshToken', refreshClearConfig)
             .send({
                 error: false,
                 message: 'User have been logged out!'
@@ -1906,8 +1910,8 @@ const verifyMagicLink = async (request, response) => {
             }
         );
 
-        // Get refresh token cookie config with proper expiry
-        const refreshCookieConfig = getCookieConfig(request, 'refresh');
+        // Get httpOnly refresh token cookie config
+        const refreshCookieConfig = getHttpOnlyRefreshCookieConfig(request);
 
         return response
             .cookie('accessToken', accessToken, getCookieConfig(request, 'access'))
@@ -2062,10 +2066,16 @@ const resendVerificationEmail = async (request, response) => {
 /**
  * Refresh access token using refresh token
  * POST /api/auth/refresh
+ *
+ * Gold Standard (AWS, Google, Microsoft):
+ * - Read refresh_token from httpOnly cookie (not from request body)
+ * - Return new access_token in response body
+ * - Rotate refresh token and set new httpOnly cookie
  */
 const refreshAccessToken = async (request, response) => {
     try {
-        // Get refresh token from cookie or body
+        // SECURITY: Prioritize httpOnly cookie over body for refresh token
+        // This prevents token exposure through request bodies/logs
         const refreshToken = request.cookies?.refreshToken || request.body?.refreshToken;
 
         if (!refreshToken) {
@@ -2080,9 +2090,9 @@ const refreshAccessToken = async (request, response) => {
         // Refresh the access token (with rotation)
         const result = await refreshTokenService.refreshAccessToken(refreshToken);
 
-        // Get cookie configs for access and refresh tokens (with proper expiry)
+        // Get cookie configs for access and httpOnly refresh tokens
         const accessCookieConfig = getCookieConfig(request, 'access');
-        const refreshCookieConfig = getCookieConfig(request, 'refresh');
+        const refreshCookieConfig = getHttpOnlyRefreshCookieConfig(request);
 
         // Log successful refresh
         await auditLogService.log(
