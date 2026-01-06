@@ -9,12 +9,12 @@
 
 ### Priority
 ```javascript
-['low', 'medium', 'high', 'urgent']
+['none', 'low', 'medium', 'high', 'critical']
 ```
 
 ### Status
 ```javascript
-['todo', 'pending', 'in_progress', 'done', 'canceled']
+['backlog', 'todo', 'in_progress', 'done', 'canceled']
 ```
 
 ---
@@ -203,6 +203,7 @@
 | Method | Endpoint | Handler |
 |--------|----------|---------|
 | POST | /:id/complete | completeTask |
+| POST | /:id/reopen | reopenTask |
 | POST | /:id/clone | cloneTask |
 | POST | /:id/reschedule | rescheduleTask |
 | POST | /:id/archive | archiveTask |
@@ -352,6 +353,8 @@ node --check src/controllers/task.controller.js
 | 2026-01-05 | Added getAllTaskIds for "Select All" feature | No |
 | 2026-01-05 | Added drag & drop reorder endpoint | No |
 | 2026-01-05 | Added isArchived, archivedAt, archivedBy, sortOrder fields to Task model | No |
+| 2026-01-06 | Added POST /:id/reopen endpoint for reopening completed/canceled tasks | No |
+| 2026-01-06 | Fixed enum values in contract to match actual model (priority: none/critical, status: backlog) | No |
 
 ---
 
@@ -935,3 +938,161 @@ Bulk check all user's tasks against current location.
 | POST | /:id/location/check | checkLocationTrigger | Check single task location |
 | GET | /location-triggers | getTasksWithLocationTriggers | Get all location-enabled tasks |
 | POST | /location/check | bulkCheckLocationTriggers | Bulk check all tasks |
+
+---
+
+## NEW: Task Reopen Endpoint (2026-01-06)
+
+### POST /api/tasks/:id/reopen
+
+Reopen a completed or canceled task, setting its status back to `in_progress`.
+
+**Use Cases:**
+- Task was marked complete by mistake
+- Additional work is required on a completed task
+- Canceled task needs to be revisited
+
+**Constraints:**
+- Only tasks with status `done` or `canceled` can be reopened
+- Progress value is preserved (not reset to 0)
+- History is updated with `reopened` action
+
+**Request Body:**
+```javascript
+// No body required - empty object acceptable
+{}
+```
+
+**Success Response (200):**
+```json
+{
+    "success": true,
+    "message": "Task reopened successfully | تم إعادة فتح المهمة بنجاح",
+    "data": {
+        "_id": "...",
+        "title": "...",
+        "status": "in_progress",
+        "completedAt": null,
+        "completedBy": null,
+        "progress": 75,
+        "history": [
+            {
+                "action": "reopened",
+                "userId": "...",
+                "oldValue": { "status": "done" },
+                "newValue": { "status": "in_progress" },
+                "timestamp": "2026-01-06T..."
+            }
+        ],
+        "assignedTo": { "_id": "...", "firstName": "...", "lastName": "..." },
+        "createdBy": { "_id": "...", "firstName": "...", "lastName": "..." }
+    }
+}
+```
+
+**Error Response (400) - Invalid Status:**
+```json
+{
+    "success": false,
+    "message": "Only completed or canceled tasks can be reopened | يمكن إعادة فتح المهام المكتملة أو الملغاة فقط"
+}
+```
+
+**Error Response (404) - Task Not Found:**
+```json
+{
+    "success": false,
+    "message": "Task not found | المهمة غير موجودة"
+}
+```
+
+### Related Endpoints
+
+| Endpoint | Description |
+|----------|-------------|
+| POST /:id/complete | Complete a task (sets status to `done`) |
+| POST /:id/reopen | Reopen a completed/canceled task (sets status to `in_progress`) |
+| PATCH /:id/status | Update task status to any valid value |
+
+---
+
+## NEW: Time Tracking Business Rules (2026-01-06)
+
+### Gold Standard: Block Time Tracking on Completed Tasks
+
+Time tracking operations are **blocked** on tasks with status `done` or `canceled`. Users must **reopen** the task first.
+
+### Blocked Operations (on completed/canceled tasks)
+
+| Endpoint | Error Message |
+|----------|---------------|
+| POST /:id/timer/start | "Cannot start timer on completed or canceled task. Reopen the task first." |
+| PATCH /:id/timer/resume | "Cannot resume timer on completed or canceled task. Reopen the task first." |
+| POST /:id/time | "Cannot add time to completed or canceled task. Reopen the task first." |
+
+### Allowed Operations (on completed/canceled tasks)
+
+| Endpoint | Reason |
+|----------|--------|
+| POST /:id/timer/stop | Allow stopping accidental timers |
+| PATCH /:id/timer/pause | Allow pausing accidental timers |
+
+### NEW: Reset Time Tracking Endpoint
+
+**DELETE /api/tasks/:id/time-tracking/reset**
+
+Clear all time tracking sessions and reset counters to zero.
+
+**Constraints:**
+- Timer must be stopped first (cannot reset while tracking)
+- Estimated minutes are preserved
+- History is updated with `time_reset` action
+
+**Request:** No body required
+
+**Success Response (200):**
+```json
+{
+    "success": true,
+    "message": "Time tracking reset successfully | تم إعادة تعيين تتبع الوقت بنجاح",
+    "data": {
+        "timeTracking": {
+            "estimatedMinutes": 120,
+            "actualMinutes": 0,
+            "sessions": [],
+            "isTracking": false
+        },
+        "previousMinutes": 240,
+        "previousSessions": 5
+    }
+}
+```
+
+**Error Response (400) - Timer Running:**
+```json
+{
+    "success": false,
+    "message": "Cannot reset time tracking while timer is running. Stop the timer first. | لا يمكن إعادة تعيين تتبع الوقت أثناء تشغيل المؤقت. أوقف المؤقت أولاً."
+}
+```
+
+### Updated Time Tracking Endpoints Summary
+
+| Method | Endpoint | Handler | Blocked on Completed? |
+|--------|----------|---------|----------------------|
+| POST | /:id/timer/start | startTimer | ✅ Yes |
+| POST | /:id/timer/stop | stopTimer | ❌ No (allow stop) |
+| PATCH | /:id/timer/pause | pauseTimer | ❌ No (allow pause) |
+| PATCH | /:id/timer/resume | resumeTimer | ✅ Yes |
+| POST | /:id/time | addManualTime | ✅ Yes |
+| DELETE | /:id/time-tracking/reset | resetTimeTracking | ❌ No (allow reset) |
+
+### Change Log Update
+
+| Date | Change | Breaking? |
+|------|--------|-----------|
+| 2026-01-06 | Added status check to startTimer - blocks on done/canceled tasks | Yes (returns 400) |
+| 2026-01-06 | Added status check to resumeTimer - blocks on done/canceled tasks | Yes (returns 400) |
+| 2026-01-06 | Added status check to addManualTime - blocks on done/canceled tasks | Yes (returns 400) |
+| 2026-01-06 | Added DELETE /:id/time-tracking/reset endpoint | No |
+| 2026-01-06 | Added timer_paused, timer_resumed, time_reset to history action enum | No |

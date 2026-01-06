@@ -40,7 +40,7 @@ const TIME_TYPES = ['billable', 'non_billable', 'pro_bono', 'internal'];
 const BILL_STATUSES = ['draft', 'unbilled', 'billed', 'written_off'];
 
 // Entry status (extended for full workflow)
-const ENTRY_STATUSES = ['draft', 'pending', 'submitted', 'approved', 'rejected', 'billed', 'locked'];
+const ENTRY_STATUSES = ['draft', 'pending', 'submitted', 'changes_requested', 'approved', 'rejected', 'billed', 'locked'];
 
 // Legacy activity codes for backwards compatibility
 const LEGACY_ACTIVITY_CODES = [
@@ -374,6 +374,22 @@ const timeEntrySchema = new mongoose.Schema({
         type: String,
         maxlength: 500
     },
+    // Changes requested tracking (reviewer asks for modifications)
+    changesRequestedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    },
+    changesRequestedAt: Date,
+    changesRequestedReason: {
+        type: String,
+        maxlength: 500
+    },
+    requestedChanges: [{
+        field: String,
+        currentValue: mongoose.Schema.Types.Mixed,
+        suggestedValue: mongoose.Schema.Types.Mixed,
+        note: String
+    }],
     // Locking tracking (for closed fiscal periods)
     lockedAt: Date,
     lockedBy: {
@@ -850,8 +866,8 @@ timeEntrySchema.methods.reject = async function(reason, userId) {
  * Submit this time entry for approval
  */
 timeEntrySchema.methods.submit = async function(userId, managerId = null) {
-    if (this.status !== 'draft' && this.status !== 'rejected') {
-        throw new Error('Only draft or rejected entries can be submitted');
+    if (this.status !== 'draft' && this.status !== 'rejected' && this.status !== 'changes_requested') {
+        throw new Error('Only draft, rejected, or changes_requested entries can be submitted');
     }
 
     this.status = 'submitted';

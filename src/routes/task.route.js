@@ -9,12 +9,14 @@ const {
     updateTask,
     deleteTask,
     completeTask,
+    reopenTask,
     addSubtask,
     toggleSubtask,
     deleteSubtask,
     updateSubtask,
     startTimer,
     stopTimer,
+    resetTimeTracking,
     addManualTime,
     addComment,
     updateComment,
@@ -186,6 +188,7 @@ app.delete('/:id', deleteTask);
 
 // Task actions
 app.post('/:id/complete', completeTask);
+app.post('/:id/reopen', reopenTask);
 app.post('/:id/clone', cloneTask);
 app.post('/:id/reschedule', rescheduleTask);
 app.get('/:id/activity', getTaskActivity);
@@ -208,6 +211,7 @@ app.post('/:id/timer/stop', stopTimer);
 app.patch('/:id/timer/pause', pauseTimer);
 app.patch('/:id/timer/resume', resumeTimer);
 app.post('/:id/time', addManualTime);
+app.delete('/:id/time-tracking/reset', resetTimeTracking);
 
 // Comments
 app.post('/:id/comments', addComment);
