@@ -10,7 +10,14 @@ const cron = require('node-cron');
 const NotificationPreferenceService = require('../services/notificationPreference.service');
 const NotificationDeliveryService = require('../services/notificationDelivery.service');
 const NotificationPreference = require('../models/notificationPreference.model');
+const { acquireLock } = require('../services/distributedLock.service');
 const logger = require('../utils/contextLogger').child({ module: 'NotificationDigestJob' });
+
+// Distributed lock names
+const LOCK_NAMES = {
+  dailyDigest: 'notification_digest_daily',
+  weeklyDigest: 'notification_digest_weekly'
+};
 
 // Track running jobs
 let jobsRunning = {
@@ -266,12 +273,13 @@ function generateDigestEmailHTML(user, notifications, digestType) {
  * Sends digests to users whose digestTime matches the current hour
  */
 const processDailyDigest = async () => {
-  if (jobsRunning.dailyDigest) {
-    logger.info('⏩ Daily digest job still running, skipping...');
-    return;
-  }
+  // Acquire distributed lock
+  const lock = await acquireLock(LOCK_NAMES.dailyDigest);
 
-  jobsRunning.dailyDigest = true;
+  if (!lock.acquired) {
+    logger.info(`⏩ Daily digest job already running on another instance (TTL: ${lock.ttlRemaining}s), skipping...`);
+    return { skipped: true, reason: 'already_running_distributed' };
+  }
 
   try {
     const now = new Date();
@@ -354,7 +362,7 @@ const processDailyDigest = async () => {
   } catch (error) {
     logger.error('❌ Daily digest job error:', error);
   } finally {
-    jobsRunning.dailyDigest = false;
+    await lock.release();
   }
 };
 
@@ -363,12 +371,13 @@ const processDailyDigest = async () => {
  * Runs every Monday at 9 AM
  */
 const processWeeklyDigest = async () => {
-  if (jobsRunning.weeklyDigest) {
-    logger.info('⏩ Weekly digest job still running, skipping...');
-    return;
-  }
+  // Acquire distributed lock
+  const lock = await acquireLock(LOCK_NAMES.weeklyDigest);
 
-  jobsRunning.weeklyDigest = true;
+  if (!lock.acquired) {
+    logger.info(`⏩ Weekly digest job already running on another instance (TTL: ${lock.ttlRemaining}s), skipping...`);
+    return { skipped: true, reason: 'already_running_distributed' };
+  }
 
   try {
     logger.info('📅 Processing weekly digests...');
@@ -443,7 +452,7 @@ const processWeeklyDigest = async () => {
   } catch (error) {
     logger.error('❌ Weekly digest job error:', error);
   } finally {
-    jobsRunning.weeklyDigest = false;
+    await lock.release();
   }
 };
 

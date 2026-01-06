@@ -23,7 +23,17 @@
 const cron = require('node-cron');
 const { Firm, User, Notification } = require('../models');
 const customerHealthQueue = require('../queues/customerHealth.queue');
+const { acquireLock } = require('../services/distributedLock.service');
 const logger = require('../utils/logger');
+
+// Distributed lock names
+const LOCK_NAMES = {
+  calculateAll: 'customer_health_calculate',
+  processInterventions: 'customer_health_interventions',
+  weeklyReport: 'customer_health_weekly_report',
+  cleanup: 'customer_health_cleanup',
+  syncMetrics: 'customer_health_sync_metrics'
+};
 
 // Job configuration
 const HEALTH_SCORE_JOB_CONFIG = {
@@ -68,12 +78,13 @@ let jobsRunning = {
  * Runs daily at 2 AM
  */
 const calculateAllHealthScores = async () => {
-  if (jobsRunning.calculateAll) {
-    logger.info('[CustomerHealth] Calculate all job still running, skipping...');
-    return;
-  }
+  // Acquire distributed lock
+  const lock = await acquireLock(LOCK_NAMES.calculateAll);
 
-  jobsRunning.calculateAll = true;
+  if (!lock.acquired) {
+    logger.info(`[CustomerHealth] Calculate all job already running on another instance (TTL: ${lock.ttlRemaining}s), skipping...`);
+    return { skipped: true, reason: 'already_running_distributed' };
+  }
 
   try {
     const startTime = Date.now();
@@ -139,7 +150,7 @@ const calculateAllHealthScores = async () => {
     logger.error('[CustomerHealth] Calculate all job error:', error);
     throw error;
   } finally {
-    jobsRunning.calculateAll = false;
+    await lock.release();
   }
 };
 
@@ -149,12 +160,13 @@ const calculateAllHealthScores = async () => {
  * Runs twice daily at 9 AM and 2 PM
  */
 const processAtRiskInterventions = async () => {
-  if (jobsRunning.processInterventions) {
-    logger.info('[CustomerHealth] Interventions job still running, skipping...');
-    return;
-  }
+  // Acquire distributed lock
+  const lock = await acquireLock(LOCK_NAMES.processInterventions);
 
-  jobsRunning.processInterventions = true;
+  if (!lock.acquired) {
+    logger.info(`[CustomerHealth] Interventions job already running on another instance (TTL: ${lock.ttlRemaining}s), skipping...`);
+    return { skipped: true, reason: 'already_running_distributed' };
+  }
 
   try {
     const startTime = Date.now();
@@ -240,7 +252,7 @@ const processAtRiskInterventions = async () => {
     logger.error('[CustomerHealth] Interventions job error:', error);
     throw error;
   } finally {
-    jobsRunning.processInterventions = false;
+    await lock.release();
   }
 };
 
@@ -296,12 +308,13 @@ function determineInterventionType(firm) {
  * Runs every Monday at 9 AM
  */
 const generateWeeklyChurnReport = async () => {
-  if (jobsRunning.weeklyReport) {
-    logger.info('[CustomerHealth] Weekly report job still running, skipping...');
-    return;
-  }
+  // Acquire distributed lock
+  const lock = await acquireLock(LOCK_NAMES.weeklyReport);
 
-  jobsRunning.weeklyReport = true;
+  if (!lock.acquired) {
+    logger.info(`[CustomerHealth] Weekly report job already running on another instance (TTL: ${lock.ttlRemaining}s), skipping...`);
+    return { skipped: true, reason: 'already_running_distributed' };
+  }
 
   try {
     const startTime = Date.now();
@@ -341,7 +354,7 @@ const generateWeeklyChurnReport = async () => {
     logger.error('[CustomerHealth] Weekly report job error:', error);
     throw error;
   } finally {
-    jobsRunning.weeklyReport = false;
+    await lock.release();
   }
 };
 
@@ -351,12 +364,13 @@ const generateWeeklyChurnReport = async () => {
  * Runs weekly on Sundays at 3 AM
  */
 const cleanupOldHealthScores = async () => {
-  if (jobsRunning.cleanup) {
-    logger.info('[CustomerHealth] Cleanup job still running, skipping...');
-    return;
-  }
+  // Acquire distributed lock
+  const lock = await acquireLock(LOCK_NAMES.cleanup);
 
-  jobsRunning.cleanup = true;
+  if (!lock.acquired) {
+    logger.info(`[CustomerHealth] Cleanup job already running on another instance (TTL: ${lock.ttlRemaining}s), skipping...`);
+    return { skipped: true, reason: 'already_running_distributed' };
+  }
 
   try {
     const startTime = Date.now();
@@ -393,7 +407,7 @@ const cleanupOldHealthScores = async () => {
     logger.error('[CustomerHealth] Cleanup job error:', error);
     throw error;
   } finally {
-    jobsRunning.cleanup = false;
+    await lock.release();
   }
 };
 
@@ -403,12 +417,13 @@ const cleanupOldHealthScores = async () => {
  * Runs every hour
  */
 const syncChurnMetrics = async () => {
-  if (jobsRunning.syncMetrics) {
-    logger.info('[CustomerHealth] Sync metrics job still running, skipping...');
-    return;
-  }
+  // Acquire distributed lock
+  const lock = await acquireLock(LOCK_NAMES.syncMetrics);
 
-  jobsRunning.syncMetrics = true;
+  if (!lock.acquired) {
+    logger.info(`[CustomerHealth] Sync metrics job already running on another instance (TTL: ${lock.ttlRemaining}s), skipping...`);
+    return { skipped: true, reason: 'already_running_distributed' };
+  }
 
   try {
     const startTime = Date.now();
@@ -433,7 +448,7 @@ const syncChurnMetrics = async () => {
     logger.error('[CustomerHealth] Sync metrics job error:', error);
     throw error;
   } finally {
-    jobsRunning.syncMetrics = false;
+    await lock.release();
   }
 };
 

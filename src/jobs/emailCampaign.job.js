@@ -14,7 +14,18 @@ const EmailSubscriber = require('../models/emailSubscriber.model');
 const EmailSegment = require('../models/emailSegment.model');
 const EmailEvent = require('../models/emailEvent.model');
 const EmailMarketingService = require('../services/emailMarketing.service');
+const { acquireLock } = require('../services/distributedLock.service');
 const logger = require('../utils/contextLogger').child({ module: 'EmailCampaignJob' });
+
+// Distributed lock names
+const LOCK_NAMES = {
+  scheduledCampaigns: 'email_campaign_scheduled',
+  dripCampaigns: 'email_campaign_drip',
+  segments: 'email_campaign_segments',
+  inactivity: 'email_campaign_inactivity',
+  cleanup: 'email_campaign_cleanup',
+  abTest: 'email_campaign_ab_test'
+};
 
 // Track running jobs
 let jobsRunning = {
@@ -30,12 +41,13 @@ let jobsRunning = {
  * Runs every minute to check for campaigns that need to be sent
  */
 const processScheduledCampaigns = async () => {
-  if (jobsRunning.scheduledCampaigns) {
-    logger.info(' Scheduled campaigns job still running, skipping...');
-    return;
-  }
+  // Acquire distributed lock
+  const lock = await acquireLock(LOCK_NAMES.scheduledCampaigns);
 
-  jobsRunning.scheduledCampaigns = true;
+  if (!lock.acquired) {
+    logger.info(` Scheduled campaigns job already running on another instance (TTL: ${lock.ttlRemaining}s), skipping...`);
+    return { skipped: true, reason: 'already_running_distributed' };
+  }
 
   try {
     const now = new Date();
@@ -73,7 +85,7 @@ const processScheduledCampaigns = async () => {
   } catch (error) {
     logger.error(' Scheduled campaigns job error:', error);
   } finally {
-    jobsRunning.scheduledCampaigns = false;
+    await lock.release();
   }
 };
 
@@ -82,12 +94,13 @@ const processScheduledCampaigns = async () => {
  * Runs every 5 minutes to send next drip emails
  */
 const processDripCampaigns = async () => {
-  if (jobsRunning.dripCampaigns) {
-    logger.info(' Drip campaigns job still running, skipping...');
-    return;
-  }
+  // Acquire distributed lock
+  const lock = await acquireLock(LOCK_NAMES.dripCampaigns);
 
-  jobsRunning.dripCampaigns = true;
+  if (!lock.acquired) {
+    logger.info(` Drip campaigns job already running on another instance (TTL: ${lock.ttlRemaining}s), skipping...`);
+    return { skipped: true, reason: 'already_running_distributed' };
+  }
 
   try {
     logger.info(' Processing drip campaigns...');
@@ -156,7 +169,7 @@ const processDripCampaigns = async () => {
   } catch (error) {
     logger.error(' Drip campaigns job error:', error);
   } finally {
-    jobsRunning.dripCampaigns = false;
+    await lock.release();
   }
 };
 
@@ -165,12 +178,13 @@ const processDripCampaigns = async () => {
  * Runs every hour to refresh dynamic segments
  */
 const calculateSegments = async () => {
-  if (jobsRunning.segments) {
-    logger.info(' Segments job still running, skipping...');
-    return;
-  }
+  // Acquire distributed lock
+  const lock = await acquireLock(LOCK_NAMES.segments);
 
-  jobsRunning.segments = true;
+  if (!lock.acquired) {
+    logger.info(` Segments job already running on another instance (TTL: ${lock.ttlRemaining}s), skipping...`);
+    return { skipped: true, reason: 'already_running_distributed' };
+  }
 
   try {
     logger.info(' Calculating segment counts...');
@@ -206,7 +220,7 @@ const calculateSegments = async () => {
   } catch (error) {
     logger.error(' Segments job error:', error);
   } finally {
-    jobsRunning.segments = false;
+    await lock.release();
   }
 };
 
@@ -215,12 +229,13 @@ const calculateSegments = async () => {
  * Runs every hour
  */
 const checkInactivityTriggers = async () => {
-  if (jobsRunning.inactivity) {
-    logger.info(' Inactivity job still running, skipping...');
-    return;
-  }
+  // Acquire distributed lock
+  const lock = await acquireLock(LOCK_NAMES.inactivity);
 
-  jobsRunning.inactivity = true;
+  if (!lock.acquired) {
+    logger.info(` Inactivity job already running on another instance (TTL: ${lock.ttlRemaining}s), skipping...`);
+    return { skipped: true, reason: 'already_running_distributed' };
+  }
 
   try {
     logger.info(' Checking inactivity triggers...');
@@ -231,7 +246,7 @@ const checkInactivityTriggers = async () => {
   } catch (error) {
     logger.error(' Inactivity job error:', error);
   } finally {
-    jobsRunning.inactivity = false;
+    await lock.release();
   }
 };
 
@@ -242,12 +257,13 @@ const checkInactivityTriggers = async () => {
  * - Clean hard bounced emails
  */
 const dailyCleanup = async () => {
-  if (jobsRunning.cleanup) {
-    logger.info(' Cleanup job still running, skipping...');
-    return;
-  }
+  // Acquire distributed lock
+  const lock = await acquireLock(LOCK_NAMES.cleanup);
 
-  jobsRunning.cleanup = true;
+  if (!lock.acquired) {
+    logger.info(` Cleanup job already running on another instance (TTL: ${lock.ttlRemaining}s), skipping...`);
+    return { skipped: true, reason: 'already_running_distributed' };
+  }
 
   try {
     logger.info(' Running daily cleanup...');
@@ -308,7 +324,7 @@ const dailyCleanup = async () => {
   } catch (error) {
     logger.error(' Cleanup job error:', error);
   } finally {
-    jobsRunning.cleanup = false;
+    await lock.release();
   }
 };
 
@@ -317,6 +333,14 @@ const dailyCleanup = async () => {
  * Runs every 30 minutes to check if test duration has passed
  */
 const updateABTestWinners = async () => {
+  // Acquire distributed lock
+  const lock = await acquireLock(LOCK_NAMES.abTest);
+
+  if (!lock.acquired) {
+    logger.info(` A/B test job already running on another instance (TTL: ${lock.ttlRemaining}s), skipping...`);
+    return { skipped: true, reason: 'already_running_distributed' };
+  }
+
   try {
     const now = new Date();
 
@@ -344,6 +368,8 @@ const updateABTestWinners = async () => {
     }
   } catch (error) {
     logger.error(' A/B test winner job error:', error);
+  } finally {
+    await lock.release();
   }
 };
 

@@ -20,12 +20,21 @@ const { User } = require('../models');
 const sessionManager = require('../services/sessionManager.service');
 const auditLogService = require('../services/auditLog.service');
 const logger = require('../utils/logger');
+const { acquireLock } = require('../services/distributedLock.service');
 
 /**
  * Clean up inactive anonymous users
  * Deletes anonymous users with no activity for 30+ days
  */
 async function cleanupInactiveAnonymousUsers() {
+    // Acquire distributed lock
+    const lock = await acquireLock('anonymous_user_cleanup');
+
+    if (!lock.acquired) {
+        logger.info(`[AnonymousCleanup] Cleanup already running on another instance (TTL: ${lock.ttlRemaining}s), skipping...`);
+        return { skipped: true, reason: 'already_running_distributed' };
+    }
+
     try {
         // Check if anonymous auth is enabled
         const ENABLE_ANONYMOUS_AUTH = process.env.ENABLE_ANONYMOUS_AUTH === 'true';
@@ -123,6 +132,8 @@ async function cleanupInactiveAnonymousUsers() {
             success: false,
             error: error.message
         };
+    } finally {
+        await lock.release();
     }
 }
 

@@ -14,18 +14,28 @@
 
 const auditLogArchivingService = require('../services/auditLogArchiving.service');
 const logger = require('../utils/logger');
+const { acquireLock } = require('../services/distributedLock.service');
 
 /**
  * Execute audit log archiving job
  * @returns {Promise<void>}
  */
 async function runAuditLogArchiving() {
-  logger.info('='.repeat(80));
-  logger.info('AUDIT LOG ARCHIVING JOB STARTED');
-  logger.info(`Timestamp: ${new Date().toISOString()}`);
-  logger.info('='.repeat(80));
+  // Acquire distributed lock
+  const lock = await acquireLock('audit_log_archiving');
+
+  if (!lock.acquired) {
+    logger.info(`[AuditLogArchiving] Archiving already running on another instance (TTL: ${lock.ttlRemaining}s), skipping...`);
+    return { skipped: true, reason: 'already_running_distributed' };
+  }
 
   try {
+    logger.info('='.repeat(80));
+    logger.info('AUDIT LOG ARCHIVING JOB STARTED');
+    logger.info(`Timestamp: ${new Date().toISOString()}`);
+    logger.info('='.repeat(80));
+
+    try {
     // Step 1: Get current stats before archiving
     logger.info('\n[1/4] Getting current archiving statistics...');
     const statsBefore = await auditLogArchivingService.getArchivingStats();
@@ -75,27 +85,30 @@ async function runAuditLogArchiving() {
       logger.info(`Total logs: ${statsAfter.data.totalLogs}`);
     }
 
-    logger.info('\n' + '='.repeat(80));
-    logger.info('AUDIT LOG ARCHIVING JOB COMPLETED SUCCESSFULLY');
-    logger.info('='.repeat(80));
+      logger.info('\n' + '='.repeat(80));
+      logger.info('AUDIT LOG ARCHIVING JOB COMPLETED SUCCESSFULLY');
+      logger.info('='.repeat(80));
 
-    return {
-      success: true,
-      archived: archiveResult.archived || 0,
-      duration: archiveResult.duration || 0,
-      integrityScore: verifyResult.integrityScore || 100,
-    };
-  } catch (error) {
-    logger.error('\n' + '='.repeat(80));
-    logger.error('AUDIT LOG ARCHIVING JOB FAILED');
-    logger.error(`Error: ${error.message}`);
-    logger.error('='.repeat(80));
-    logger.error(error.stack);
+      return {
+        success: true,
+        archived: archiveResult.archived || 0,
+        duration: archiveResult.duration || 0,
+        integrityScore: verifyResult.integrityScore || 100,
+      };
+    } catch (error) {
+      logger.error('\n' + '='.repeat(80));
+      logger.error('AUDIT LOG ARCHIVING JOB FAILED');
+      logger.error(`Error: ${error.message}`);
+      logger.error('='.repeat(80));
+      logger.error(error.stack);
 
-    return {
-      success: false,
-      error: error.message,
-    };
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  } finally {
+    await lock.release();
   }
 }
 
