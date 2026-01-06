@@ -96,27 +96,8 @@ services:
       - key: TEST_MODE
         value: false
 
-    # ⚠️ IMPORTANT: DO NOT add CORS headers here!
-    # We handle CORS in Express (src/server.js) for better control
-    # Adding CORS headers here would cause duplicate headers and break requests
-
-    # ✅ Static Security Headers (safe - don't conflict with Express)
-    headers:
-      - path: /*
-        name: X-Frame-Options
-        value: DENY
-      - path: /*
-        name: X-Content-Type-Options
-        value: nosniff
-      - path: /*
-        name: X-XSS-Protection
-        value: 1; mode=block
-      - path: /*
-        name: Referrer-Policy
-        value: strict-origin-when-cross-origin
-      - path: /*
-        name: Permissions-Policy
-        value: geolocation=(), microphone=(), camera=()
+    # Note: Security headers (X-Frame-Options, etc.) are set in Express middleware
+    # Render's headers config is only for static sites, not Node.js services
 
     # Auto-Deploy
     autoDeploy: true
