@@ -7,7 +7,7 @@
 const { Task, User } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
-const { deleteFile, listFileVersions, logFileAccess } = require('../configs/s3');
+const { deleteFile, listFileVersions, logFileAccess } = require('../configs/storage');
 const { isS3Configured, getTaskFilePresignedUrl } = require('../configs/taskUpload');
 const { sanitizeObjectId } = require('../utils/securityUtils');
 const fs = require('fs');

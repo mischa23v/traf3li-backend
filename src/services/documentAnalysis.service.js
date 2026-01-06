@@ -1,7 +1,7 @@
 const Anthropic = require('@anthropic-ai/sdk');
 const DocumentAnalysis = require('../models/documentAnalysis.model');
 const Document = require('../models/document.model');
-const { getSignedUrl, BUCKETS } = require('../configs/s3');
+const { getDownloadPresignedUrl, BUCKETS } = require('../configs/storage');
 const axios = require('axios');
 const logger = require('../utils/logger');
 
@@ -125,11 +125,10 @@ class DocumentAnalysisService {
   async _extractDocumentText(document) {
     try {
       // Get download URL
-      const downloadUrl = await getSignedUrl(
-        BUCKETS.general,
+      const downloadUrl = await getDownloadPresignedUrl(
         document.fileKey,
-        document.fileType,
-        'getObject'
+        'documents',
+        document.originalName
       );
 
       // For text-based files, download and return content

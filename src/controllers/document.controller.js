@@ -3,7 +3,7 @@ const DocumentVersion = require('../models/documentVersion.model');
 const DocumentVersionService = require('../services/documentVersionService');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
-const { s3, getSignedUrl, deleteObject, BUCKETS, logFileAccess } = require('../configs/s3');
+const { r2Client, getUploadPresignedUrl, getDownloadPresignedUrl, deleteObject, BUCKETS, logFileAccess } = require('../configs/storage');
 const { sanitizeObjectId } = require('../utils/securityUtils');
 const crypto = require('crypto');
 const path = require('path');
@@ -128,7 +128,7 @@ const getUploadUrl = asyncHandler(async (req, res) => {
         throw CustomException('اسم الملف يحتوي على أحرف غير صالحة', 400);
     }
 
-    const uploadUrl = await getSignedUrl(bucket, fileKey, fileType, 'putObject');
+    const uploadUrl = await getUploadPresignedUrl(fileKey, fileType, bucket);
 
     res.status(200).json({
         success: true,
@@ -187,7 +187,7 @@ const confirmUpload = asyncHandler(async (req, res) => {
         originalName: originalName || fileName,
         fileType,
         fileSize,
-        url: url || `https://${actualBucket}.s3.amazonaws.com/${fileKey}`,
+        url: url || fileKey, // Store fileKey instead of URL - use presigned URLs for access
         fileKey,
         bucket: actualBucket,
         module: module || 'documents',
@@ -542,7 +542,7 @@ const downloadDocument = asyncHandler(async (req, res) => {
 
     // Use stored bucket or fallback to general
     const bucket = document.bucket || getBucketForModule(document.module) || BUCKETS.general;
-    const downloadUrl = await getSignedUrl(bucket, document.fileKey, document.fileType, 'getObject');
+    const downloadUrl = await getDownloadPresignedUrl(document.fileKey, bucket, document.originalName);
 
     // Log file download (Gold Standard - AWS/Google/Microsoft pattern)
     logFileAccess(document.fileKey, document.module || 'documents', lawyerId, 'download', {
