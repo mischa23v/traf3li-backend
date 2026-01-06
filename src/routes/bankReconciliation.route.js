@@ -1,6 +1,7 @@
 const express = require('express');
 const multer = require('multer');
 const { userMiddleware } = require('../middlewares');
+const malwareScanMiddleware = require('../middlewares/malwareScan.middleware');
 const {
     createReconciliation,
     getReconciliations,
@@ -60,8 +61,9 @@ app.put('/feeds/:id', userMiddleware, updateBankFeed);
 app.delete('/feeds/:id', userMiddleware, deleteBankFeed);
 
 // ============ IMPORT ROUTES ============
-app.post('/import/csv', userMiddleware, upload.single('file'), importCSV);
-app.post('/import/ofx', userMiddleware, upload.single('file'), importOFX);
+// Gold Standard: Malware scan before processing bank reconciliation files
+app.post('/import/csv', userMiddleware, upload.single('file'), malwareScanMiddleware, importCSV);
+app.post('/import/ofx', userMiddleware, upload.single('file'), malwareScanMiddleware, importOFX);
 app.get('/import/template', userMiddleware, getCSVTemplate);
 
 // ============ MATCHING ROUTES ============

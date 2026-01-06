@@ -99,19 +99,19 @@ const validateRequiredEnvVars = () => {
     logger.info('Redis URL configured');
   }
 
-  // AWS S3 Configuration (File Storage)
-  const awsAccessKey = process.env.AWS_ACCESS_KEY_ID;
-  const awsSecretKey = process.env.AWS_SECRET_ACCESS_KEY;
-  const awsRegion = process.env.AWS_REGION;
-  const s3Bucket = process.env.S3_BUCKET_DOCUMENTS || process.env.AWS_S3_BUCKET;
+  // Cloudflare R2 Configuration (File Storage)
+  const r2AccessKey = process.env.R2_ACCESS_KEY_ID;
+  const r2SecretKey = process.env.R2_SECRET_ACCESS_KEY;
+  const r2Endpoint = process.env.R2_ENDPOINT;
+  const r2Bucket = process.env.R2_BUCKET_DOCUMENTS;
 
-  if (!awsAccessKey || !awsSecretKey || !awsRegion || !s3Bucket) {
+  if (!r2AccessKey || !r2SecretKey || !r2Endpoint || !r2Bucket) {
     warnings.push(
-      'AWS S3 is not fully configured (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION, S3_BUCKET_DOCUMENTS). ' +
+      'Cloudflare R2 is not fully configured (R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_ENDPOINT, R2_BUCKET_DOCUMENTS). ' +
       'File storage features may be limited.'
     );
   } else {
-    logger.info('AWS S3 configured');
+    logger.info('Cloudflare R2 configured');
   }
 
   // Email Configuration (Resend)
@@ -303,7 +303,7 @@ const displayConfigSummary = () => {
   logger.info(`   Redis: ${process.env.REDIS_URL ? 'Configured' : 'Not configured'}`);
   logger.info(`   Sentry: ${process.env.SENTRY_DSN ? 'Configured' : 'Not configured'}`);
   logger.info(`   Email: ${process.env.RESEND_API_KEY ? 'Configured' : 'Not configured'}`);
-  logger.info(`   AWS S3: ${process.env.AWS_ACCESS_KEY_ID ? 'Configured' : 'Not configured'}`);
+  logger.info(`   Cloudflare R2: ${process.env.R2_ACCESS_KEY_ID ? 'Configured' : 'Not configured'}`);
   logger.info(`   JWT Secrets: ${process.env.JWT_SECRET ? 'Set' : 'Not set'}`);
   logger.info(`   Encryption Key: ${process.env.ENCRYPTION_KEY ? 'Set' : 'Not set'}`);
   logger.info('');

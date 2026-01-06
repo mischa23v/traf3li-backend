@@ -7,7 +7,7 @@
 const { Task, User } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
-const { deleteFile, listFileVersions, logFileAccess } = require('../configs/s3');
+const { deleteFile, listFileVersions, logFileAccess } = require('../configs/storage');
 const { isS3Configured, getTaskFilePresignedUrl } = require('../configs/taskUpload');
 const { sanitizeObjectId } = require('../utils/securityUtils');
 const fs = require('fs');
@@ -85,6 +85,20 @@ const addAttachment = asyncHandler(async (req, res) => {
 
     const newAttachment = task.attachments[task.attachments.length - 1];
 
+    // Log file upload (Gold Standard - AWS CloudTrail pattern)
+    if (newAttachment.storageType === 's3' && newAttachment.fileKey) {
+        logFileAccess(newAttachment.fileKey, 'tasks', userId, 'upload', {
+            firmId: req.firmId,
+            taskId: taskId,
+            attachmentId: newAttachment._id,
+            fileName: newAttachment.fileName,
+            fileSize: newAttachment.fileSize,
+            fileType: newAttachment.fileType,
+            remoteIp: req.ip,
+            userAgent: req.get('user-agent')
+        }).catch(err => logger.error('Failed to log file upload:', err.message));
+    }
+
     // If S3, generate a presigned URL for immediate access
     let downloadUrl = newAttachment.fileUrl;
     if (newAttachment.storageType === 's3' && newAttachment.fileKey) {
@@ -142,8 +156,18 @@ const deleteAttachment = asyncHandler(async (req, res) => {
     // Delete the actual file from storage
     try {
         if (storageType === 's3' && fileKey) {
-            // Delete from S3
+            // Delete from S3/R2
             await deleteFile(fileKey, 'tasks');
+
+            // Log file deletion (Gold Standard - AWS CloudTrail pattern)
+            logFileAccess(fileKey, 'tasks', userId, 'delete', {
+                firmId: req.firmId,
+                taskId: taskId,
+                attachmentId: sanitizedAttachmentId,
+                fileName: fileName,
+                remoteIp: req.ip,
+                userAgent: req.get('user-agent')
+            }).catch(err => logger.error('Failed to log file deletion:', err.message));
         } else if (storageType === 'local' || !storageType) {
             // Delete from local storage
             const localPath = path.join(process.cwd(), fileUrl);

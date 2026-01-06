@@ -10,7 +10,7 @@
 
 const mongoose = require('mongoose');
 const { getRedisClient, isRedisConnected } = require('../configs/redis');
-const { isS3Configured, s3Client, BUCKETS } = require('../configs/s3');
+const { isS3Configured, s3Client, BUCKETS } = require('../configs/storage');
 const { HeadBucketCommand } = require('@aws-sdk/client-s3');
 const malwareScanService = require('./malwareScan.service');
 const os = require('os');

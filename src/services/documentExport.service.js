@@ -71,7 +71,7 @@ const getPuppeteer = () => {
     }
     return puppeteer;
 };
-const { getUploadPresignedUrl, getDownloadPresignedUrl, BUCKETS } = require('../configs/s3');
+const { getUploadPresignedUrl, getDownloadPresignedUrl, BUCKETS } = require('../configs/storage');
 const crypto = require('crypto');
 
 // Arabic-friendly HTML template

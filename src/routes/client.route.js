@@ -4,6 +4,7 @@ const { auditAction } = require('../middlewares/auditLog.middleware');
 const { cacheResponse, invalidateCache } = require('../middlewares/cache.middleware');
 const { sanitizeObjectId } = require('../utils/securityUtils');
 const upload = require('../configs/multer');
+const malwareScanMiddleware = require('../middlewares/malwareScan.middleware');
 const {
     validateCreateClient,
     validateUpdateClient,
@@ -572,10 +573,12 @@ app.post('/:id/verify/address',
 // ─────────────────────────────────────────────────────────
 // ATTACHMENTS
 // ─────────────────────────────────────────────────────────
+// Gold Standard: Malware scan before storing client attachments
 app.post('/:id/attachments',
     userMiddleware,
     validateIdParam,
     upload.array('files', 10),
+    malwareScanMiddleware,
     invalidateCache(['client:firm:{firmId}:{id}:*']),
     uploadAttachments
 );

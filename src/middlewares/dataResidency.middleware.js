@@ -168,8 +168,9 @@ function validateDataOperation(operationType) {
 }
 
 /**
- * Get region-aware S3 configuration for a firm
- * Attaches the correct S3 client and bucket to the request
+ * Get region-aware storage configuration for a firm
+ * Attaches the correct R2 client and bucket to the request
+ * Note: R2 uses a single global endpoint (no regional variants like AWS S3)
  */
 async function attachRegionConfig(req, res, next) {
     try {
@@ -179,22 +180,22 @@ async function attachRegionConfig(req, res, next) {
             return next();
         }
 
-        const [s3Client, bucket, config] = await Promise.all([
-            dataResidencyService.getS3ClientForFirm(firmId),
+        const [storageClient, bucket, config] = await Promise.all([
+            dataResidencyService.getStorageClientForFirm(firmId),
             dataResidencyService.getBucketForFirm(firmId),
             dataResidencyService.getFirmResidencyConfig(firmId)
         ]);
 
         req.regionConfig = {
-            s3Client,
+            storageClient, // R2 client (global, not regional)
             bucket,
-            region: config.primaryRegion,
-            kmsKeyArn: config.kmsKeyArn
+            region: config.primaryRegion, // 'cloudflare-global'
+            storageProvider: 'cloudflare-r2'
         };
 
         next();
     } catch (error) {
-        logger.error('Region config attachment error:', error);
+        logger.error('Storage config attachment error:', error);
         next();
     }
 }

@@ -1,8 +1,9 @@
 const { Employee } = require('../models');
 const { CustomException } = require('../utils');
 const asyncHandler = require('../utils/asyncHandler');
-const { pickAllowedFields, sanitizeString, sanitizeEmail, sanitizePhone, sanitizePagination } = require('../utils/securityUtils');
+const { pickAllowedFields, sanitizeString, sanitizeEmail, sanitizePhone, sanitizePagination, sanitizeObjectId } = require('../utils/securityUtils');
 const logger = require('../utils/logger');
+const { logFileAccess, deleteFile: deleteFromStorage } = require('../configs/storage');
 
 // ═══════════════════════════════════════════════════════════════
 // ALLOWED FIELDS FOR MASS ASSIGNMENT PROTECTION
@@ -953,6 +954,18 @@ const uploadEmployeeDocument = asyncHandler(async (req, res) => {
         };
     }
 
+    // Log file access (Gold Standard - AWS CloudTrail pattern)
+    logFileAccess(safeData.fileKey, safeData.bucket || 'documents', lawyerId, 'upload', {
+        firmId,
+        employeeId: sanitizedId,
+        documentId: document._id,
+        fileName: safeData.fileName,
+        fileSize: safeData.fileSize,
+        documentType: safeData.documentType || 'other',
+        remoteIp: req.ip,
+        userAgent: req.get('user-agent')
+    }).catch(err => logger.error('Failed to log HR document upload:', err.message));
+
     return res.status(201).json({
         success: true,
         message: 'Document uploaded successfully | تم رفع المستند بنجاح',
@@ -1014,8 +1027,25 @@ const deleteEmployeeDocument = asyncHandler(async (req, res) => {
         throw CustomException('Document not found | المستند غير موجود', 404);
     }
 
-    // TODO: Delete file from S3/R2 using fileKey
-    // await deleteFromStorage(deletedDocument.fileKey, deletedDocument.bucket);
+    // Delete file from R2 storage (Gold Standard - proper cleanup)
+    if (deletedDocument?.fileKey) {
+        try {
+            await deleteFromStorage(deletedDocument.fileKey, deletedDocument.bucket || 'documents');
+
+            // Log file deletion (Gold Standard - AWS CloudTrail pattern)
+            logFileAccess(deletedDocument.fileKey, deletedDocument.bucket || 'documents', lawyerId, 'delete', {
+                firmId,
+                employeeId: sanitizedId,
+                documentId: sanitizedDocId,
+                fileName: deletedDocument.fileName,
+                remoteIp: req.ip,
+                userAgent: req.get('user-agent')
+            }).catch(err => logger.error('Failed to log HR document deletion:', err.message));
+        } catch (storageError) {
+            logger.error('Failed to delete file from storage:', storageError.message);
+            // Continue - document record was deleted, storage cleanup is non-blocking
+        }
+    }
 
     return res.json({
         success: true,

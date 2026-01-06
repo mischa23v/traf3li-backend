@@ -11,6 +11,7 @@
 
 const express = require('express');
 const { userMiddleware } = require('../middlewares');
+const malwareScanMiddleware = require('../middlewares/malwareScan.middleware');
 const {
     getProviders,
     getAuthUrl,
@@ -90,8 +91,9 @@ router.get('/:provider/files', userMiddleware, listFiles);
  * POST /api/storage/:provider/files
  * Body: file (multipart/form-data), path
  * Requires authentication
+ * Gold Standard: Malware scan before uploading to external providers
  */
-router.post('/:provider/files', userMiddleware, upload.single('file'), uploadFile);
+router.post('/:provider/files', userMiddleware, upload.single('file'), malwareScanMiddleware, uploadFile);
 
 /**
  * Get file metadata

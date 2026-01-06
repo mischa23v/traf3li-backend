@@ -1,12 +1,16 @@
 # Render Deployment Configuration
 # Documentation: https://render.com/docs/yaml-spec
+# Total Cost: ~$14/month (Backend $7 + ClamAV $7)
 
 services:
+  # =============================================================
+  # Main Backend API ($7/month - Starter plan)
+  # =============================================================
   - type: web
     name: traf3li-backend
     env: node
     region: oregon # Choose: oregon, frankfurt, singapore
-    plan: free # or: starter, standard, pro
+    plan: starter # $7/month for production
 
     # Build Configuration
     buildCommand: npm install
@@ -20,12 +24,27 @@ services:
       - key: NODE_ENV
         value: production
 
+      # ClamAV Malware Scanner (connects to internal clamav service)
+      - key: CLAMAV_HOST
+        fromService:
+          name: clamav
+          type: pserv
+          property: host
+      - key: CLAMAV_PORT
+        value: 3310
+      - key: MALWARE_SCAN_PROVIDER
+        value: clamav
+
       # Database (set in Render dashboard - secret)
       - key: MONGODB_URI
         sync: false
 
-      # JWT Secret (set in Render dashboard - secret)
+      # JWT Secrets (set in Render dashboard - secret)
       - key: JWT_SECRET
+        sync: false
+      - key: JWT_REFRESH_SECRET
+        sync: false
+      - key: ENCRYPTION_KEY
         sync: false
 
       # Stripe (set in Render dashboard - secret)
@@ -111,6 +130,45 @@ services:
       mountPath: /opt/render/project/src/uploads
       sizeGB: 1
 
-# Note: Secret environment variables (MONGODB_URI, JWT_SECRET, STRIPE_SECRET_KEY)
-# should be set in Render Dashboard under Environment for security.
-# Do not commit secrets to git!
+  # =============================================================
+  # ClamAV Antivirus Service ($7/month - Starter plan)
+  # Internal service - not exposed to internet
+  # =============================================================
+  - type: pserv
+    name: clamav
+    env: docker
+    region: oregon # Same region as backend for low latency
+    plan: starter # $7/month
+    dockerfilePath: ./docker/clamav/Dockerfile
+    dockerContext: ./docker/clamav
+
+    # Disk for virus definitions (~400MB, updates daily)
+    disk:
+      name: clamav-definitions
+      mountPath: /var/lib/clamav
+      sizeGB: 1
+
+# =============================================================
+# SETUP INSTRUCTIONS
+# =============================================================
+#
+# 1. Push this file to your repo
+# 2. In Render Dashboard, click "New" → "Blueprint"
+# 3. Connect your GitHub repo
+# 4. Render will create both services automatically
+# 5. Set secret environment variables in the Dashboard:
+#    - MONGODB_URI
+#    - JWT_SECRET
+#    - JWT_REFRESH_SECRET
+#    - ENCRYPTION_KEY
+#    - R2_ACCESS_KEY_ID
+#    - R2_SECRET_ACCESS_KEY
+#    - R2_ENDPOINT
+#
+# ClamAV will automatically:
+# - Download virus definitions on startup (~2-3 minutes first time)
+# - Update definitions daily
+# - Accept scan requests from backend on port 3310
+#
+# Total Monthly Cost: ~$14 (Backend $7 + ClamAV $7)
+# =============================================================

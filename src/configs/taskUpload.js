@@ -1,71 +1,76 @@
+/**
+ * Task Upload Configuration
+ * =============================================================================
+ *
+ * Handles file uploads for task attachments using Cloudflare R2.
+ *
+ * Features:
+ * - Cloudflare R2 storage (S3-compatible)
+ * - File type validation (documents, images, audio)
+ * - File size limits (50MB for cloud, 10MB for local fallback)
+ * - Presigned URLs for secure downloads
+ * - Access logging integration
+ *
+ * IMPORTANT: AWS S3 is DEPRECATED. Only Cloudflare R2 is supported.
+ */
+
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const logger = require('../utils/logger');
 
-// Import R2 config first (preferred), fall back to S3 if not available
-let storageClient = null;
-let BUCKETS = { tasks: 'traf3li-documents', documents: 'traf3li-documents' };
-let PRESIGNED_URL_EXPIRY = 3600;
+// Import unified storage configuration
+const storage = require('./storage');
+const {
+    r2Client,
+    BUCKETS,
+    PRESIGNED_URL_EXPIRY,
+    isR2Configured,
+    logFileAccess,
+    sanitizeFilename
+} = storage;
+
+// AWS SDK for presigned URLs
 let multerS3 = null;
 let getSignedUrl = null;
 let GetObjectCommand = null;
-let logFileAccess = null;
-let storageType = 'local';
 
-// Try R2 first (Cloudflare)
-try {
-    const r2Config = require('./r2');
-    if (r2Config.isR2Configured() && r2Config.r2Client) {
-        storageClient = r2Config.r2Client;
-        BUCKETS = r2Config.BUCKETS;
-        PRESIGNED_URL_EXPIRY = r2Config.PRESIGNED_URL_EXPIRY;
-        logFileAccess = r2Config.logFileAccess;
-        storageType = 'r2';
+// Storage type
+const storageType = isR2Configured() ? 'r2' : 'local';
 
+// Initialize cloud storage dependencies if R2 is configured
+if (isR2Configured() && r2Client) {
+    try {
         multerS3 = require('multer-s3');
         const presigner = require('@aws-sdk/s3-request-presigner');
         const s3Commands = require('@aws-sdk/client-s3');
         getSignedUrl = presigner.getSignedUrl;
         GetObjectCommand = s3Commands.GetObjectCommand;
-        logger.info('Using Cloudflare R2 for task uploads');
-    }
-} catch (err) {
-    logger.info('R2 not available, trying S3...');
-}
-
-// Fall back to S3 if R2 not configured
-if (!storageClient) {
-    try {
-        const s3Config = require('./s3');
-        if (s3Config.isS3Configured && s3Config.isS3Configured() && s3Config.s3Client) {
-            storageClient = s3Config.s3Client;
-            BUCKETS = s3Config.BUCKETS;
-            PRESIGNED_URL_EXPIRY = s3Config.PRESIGNED_URL_EXPIRY;
-            logFileAccess = s3Config.logFileAccess;
-            storageType = 's3';
-
-            multerS3 = require('multer-s3');
-            const presigner = require('@aws-sdk/s3-request-presigner');
-            const s3Commands = require('@aws-sdk/client-s3');
-            getSignedUrl = presigner.getSignedUrl;
-            GetObjectCommand = s3Commands.GetObjectCommand;
-            logger.info('Using AWS S3 for task uploads');
-        }
+        logger.info('✅ Task uploads configured with Cloudflare R2');
     } catch (err) {
-        logger.info('S3 modules not available, using local storage only');
+        logger.error('Failed to load R2 dependencies:', err.message);
     }
+} else {
+    logger.info('⚠️ Task uploads using local storage (R2 not configured)');
 }
 
-// Check if cloud storage is configured and available
+// =============================================================================
+// CONFIGURATION
+// =============================================================================
+
+/**
+ * Check if cloud storage is configured
+ */
 const isStorageConfigured = () => {
-    return !!(storageClient && storageType !== 'local');
+    return !!(isR2Configured() && r2Client && multerS3);
 };
 
-// Backward compatibility alias
+// Backwards compatibility alias
 const isS3Configured = isStorageConfigured;
 
-// Allowed file types for task attachments
+/**
+ * Allowed MIME types for task attachments
+ */
 const allowedMimeTypes = [
     // Documents
     'application/pdf',
@@ -76,14 +81,17 @@ const allowedMimeTypes = [
     'application/vnd.ms-powerpoint',
     'application/vnd.openxmlformats-officedocument.presentationml.presentation',
     'text/plain',
+    'application/rtf',
     // Images
     'image/jpeg',
     'image/png',
     'image/gif',
     'image/webp',
+    'image/tiff',
     // Archives
     'application/zip',
     'application/x-rar-compressed',
+    'application/x-7z-compressed',
     // Audio (for voice memos)
     'audio/webm',
     'audio/mp3',
@@ -94,7 +102,9 @@ const allowedMimeTypes = [
     'audio/x-m4a'
 ];
 
-// File filter
+/**
+ * File filter for multer
+ */
 const fileFilter = (req, file, cb) => {
     if (allowedMimeTypes.includes(file.mimetype)) {
         cb(null, true);
@@ -103,16 +113,22 @@ const fileFilter = (req, file, cb) => {
     }
 };
 
-// Generate unique file key for S3
-const generateS3Key = (req, file) => {
+/**
+ * Generate unique file key for R2 storage
+ */
+const generateStorageKey = (req, file) => {
     const timestamp = Date.now();
     const randomString = Math.random().toString(36).substring(2, 8);
-    const sanitizedFilename = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+    const sanitizedFilename = sanitizeFilename(file.originalname);
     const taskId = req.params.id || 'general';
     return `tasks/${taskId}/${timestamp}-${randomString}-${sanitizedFilename}`;
 };
 
-// Ensure uploads directory exists
+// =============================================================================
+// STORAGE SETUP
+// =============================================================================
+
+// Ensure uploads directory exists for local fallback
 const uploadDir = 'uploads/tasks';
 if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
@@ -121,22 +137,14 @@ if (!fs.existsSync(uploadDir)) {
 
 let taskUpload;
 
-// Server-side encryption configuration (for S3 only, R2 handles encryption automatically)
-const SSE_CONFIG = {
-    enabled: storageType === 's3' && process.env.S3_SSE_ENABLED !== 'false',
-    algorithm: process.env.S3_SSE_ALGORITHM || 'AES256',
-    kmsKeyId: process.env.S3_KMS_KEY_ID || null,
-    bucketKeyEnabled: process.env.S3_BUCKET_KEY_ENABLED !== 'false'
-};
-
-if (isStorageConfigured() && multerS3) {
-    // Cloud Storage Configuration (R2 or S3)
-    const cloudStorageConfig = {
-        s3: storageClient,
+if (isStorageConfigured()) {
+    // Cloudflare R2 Storage Configuration
+    const r2StorageConfig = {
+        s3: r2Client,
         bucket: BUCKETS.tasks || BUCKETS.documents,
         contentType: multerS3.AUTO_CONTENT_TYPE,
         key: (req, file, cb) => {
-            const key = generateS3Key(req, file);
+            const key = generateStorageKey(req, file);
             cb(null, key);
         },
         metadata: (req, file, cb) => {
@@ -144,24 +152,12 @@ if (isStorageConfigured() && multerS3) {
                 fieldName: file.fieldname,
                 originalName: file.originalname,
                 uploadedBy: req.userID || 'unknown',
-                storageType: storageType
+                storageType: 'r2'
             });
         }
     };
 
-    // Apply server-side encryption if enabled (S3 only)
-    if (SSE_CONFIG.enabled && storageType === 's3') {
-        cloudStorageConfig.serverSideEncryption = SSE_CONFIG.algorithm;
-
-        // If using SSE-KMS with Bucket Key
-        if (SSE_CONFIG.algorithm === 'aws:kms') {
-            if (SSE_CONFIG.kmsKeyId) {
-                cloudStorageConfig.sseKmsKeyId = SSE_CONFIG.kmsKeyId;
-            }
-        }
-    }
-
-    const cloudStorage = multerS3(cloudStorageConfig);
+    const cloudStorage = multerS3(r2StorageConfig);
 
     taskUpload = multer({
         storage: cloudStorage,
@@ -170,13 +166,10 @@ if (isStorageConfigured() && multerS3) {
         },
         fileFilter
     });
-
-    logger.info(`Task uploads configured with ${storageType.toUpperCase()} storage`);
 } else {
     // Local Storage Configuration (fallback)
     const localStorage = multer.diskStorage({
         destination: (req, file, cb) => {
-            // Ensure directory exists before each upload
             if (!fs.existsSync(uploadDir)) {
                 fs.mkdirSync(uploadDir, { recursive: true });
             }
@@ -192,23 +185,26 @@ if (isStorageConfigured() && multerS3) {
     taskUpload = multer({
         storage: localStorage,
         limits: {
-            fileSize: 10 * 1024 * 1024 // 10MB limit for local
+            fileSize: 10 * 1024 * 1024 // 10MB limit for local storage
         },
         fileFilter
     });
-
-    logger.info('Task uploads configured with local storage');
 }
 
+// =============================================================================
+// PRESIGNED URL FUNCTIONS
+// =============================================================================
+
 /**
- * Get a presigned URL for downloading a file from cloud storage (R2 or S3)
+ * Get a presigned URL for downloading a task file from R2
+ *
  * @param {string} fileKey - The storage key for the file
  * @param {string} filename - Original filename for Content-Disposition
  * @param {string} versionId - Optional version ID for versioned buckets
- * @param {string} disposition - 'inline' for preview, 'attachment' for download (default)
- * @param {string} contentType - Optional content type for proper browser handling
+ * @param {string} disposition - 'inline' for preview, 'attachment' for download
+ * @param {string} contentType - Optional content type for browser handling
  * @param {Object} logOptions - Optional logging options { userId, remoteIp, userAgent }
- * @returns {Promise<string>} - The presigned URL
+ * @returns {Promise<string|null>} - The presigned URL or null if not configured
  */
 const getTaskFilePresignedUrl = async (fileKey, filename = null, versionId = null, disposition = 'attachment', contentType = null, logOptions = {}) => {
     if (!isStorageConfigured() || !getSignedUrl || !GetObjectCommand) {
@@ -225,12 +221,11 @@ const getTaskFilePresignedUrl = async (fileKey, filename = null, versionId = nul
         commandOptions.VersionId = versionId;
     }
 
-    // Set Content-Disposition based on disposition parameter
-    // 'inline' - opens in browser (for preview)
-    // 'attachment' - triggers download dialog
+    // Set Content-Disposition for browser handling
     if (filename) {
         const dispositionType = disposition === 'inline' ? 'inline' : 'attachment';
-        commandOptions.ResponseContentDisposition = `${dispositionType}; filename="${encodeURIComponent(filename)}"`;
+        const safeFilename = sanitizeFilename(filename);
+        commandOptions.ResponseContentDisposition = `${dispositionType}; filename="${encodeURIComponent(safeFilename)}"`;
     }
 
     // Set Content-Type for proper browser handling (especially for preview)
@@ -239,7 +234,7 @@ const getTaskFilePresignedUrl = async (fileKey, filename = null, versionId = nul
     }
 
     const command = new GetObjectCommand(commandOptions);
-    const url = await getSignedUrl(storageClient, command, {
+    const url = await getSignedUrl(r2Client, command, {
         expiresIn: PRESIGNED_URL_EXPIRY
     });
 
@@ -249,23 +244,26 @@ const getTaskFilePresignedUrl = async (fileKey, filename = null, versionId = nul
         logFileAccess(fileKey, 'tasks', logOptions.userId, action, {
             remoteIp: logOptions.remoteIp,
             userAgent: logOptions.userAgent,
-            versionId
+            versionId,
+            fileName: filename
         }).catch(err => logger.error('Failed to log file access:', err.message));
     }
 
     return url;
 };
 
+// =============================================================================
+// URL UTILITIES
+// =============================================================================
+
 /**
- * Check if a URL is a cloud storage URL (R2 or S3)
+ * Check if a URL is a cloud storage URL (R2)
  * @param {string} url - The URL to check
  * @returns {boolean}
  */
 const isCloudStorageUrl = (url) => {
     if (!url) return false;
     return (
-        url.includes('.amazonaws.com') ||
-        url.includes('s3://') ||
         url.includes('.r2.cloudflarestorage.com') ||
         url.includes('r2://') ||
         url.startsWith('tasks/') ||
@@ -273,13 +271,13 @@ const isCloudStorageUrl = (url) => {
     );
 };
 
-// Backward compatibility alias
+// Backwards compatibility alias
 const isS3Url = isCloudStorageUrl;
 
 /**
  * Extract storage key from URL or return the key if already a key
  * @param {string} urlOrKey - Cloud storage URL or key
- * @returns {string} - The storage key
+ * @returns {string|null} - The storage key
  */
 const extractStorageKey = (urlOrKey) => {
     if (!urlOrKey) return null;
@@ -287,12 +285,6 @@ const extractStorageKey = (urlOrKey) => {
     // If it's already a key (starts with tasks/ or cases/)
     if (urlOrKey.startsWith('tasks/') || urlOrKey.startsWith('cases/')) {
         return urlOrKey;
-    }
-
-    // If it's an S3 URL, extract the key
-    if (urlOrKey.includes('.amazonaws.com/')) {
-        const parts = urlOrKey.split('.amazonaws.com/');
-        return parts[1] ? decodeURIComponent(parts[1].split('?')[0]) : null;
     }
 
     // If it's an R2 URL, extract the key
@@ -304,8 +296,12 @@ const extractStorageKey = (urlOrKey) => {
     return null;
 };
 
-// Backward compatibility alias
+// Backwards compatibility alias
 const extractS3Key = extractStorageKey;
+
+// =============================================================================
+// MIDDLEWARE IMPORTS
+// =============================================================================
 
 // Import malware scan middleware for easy integration
 const malwareScanMiddleware = require('../middlewares/malwareScan.middleware');
@@ -317,6 +313,10 @@ const {
     createFileValidationMiddleware
 } = require('../middlewares/fileValidation.middleware');
 
+// =============================================================================
+// EXPORTS
+// =============================================================================
+
 module.exports = taskUpload;
 module.exports.isS3Configured = isS3Configured;
 module.exports.isStorageConfigured = isStorageConfigured;
@@ -327,7 +327,7 @@ module.exports.extractS3Key = extractS3Key;
 module.exports.extractStorageKey = extractStorageKey;
 module.exports.BUCKETS = BUCKETS;
 module.exports.storageType = storageType;
-module.exports.malwareScan = malwareScanMiddleware; // Export malware scan middleware
+module.exports.malwareScan = malwareScanMiddleware;
 
 // Export file validation middleware for use in routes
 module.exports.validateFile = validateFileMiddleware;

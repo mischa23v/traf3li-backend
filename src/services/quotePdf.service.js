@@ -1,7 +1,7 @@
 const PDFDocument = require('pdfkit');
 const path = require('path');
 const fs = require('fs');
-const { s3Client, BUCKETS } = require('../configs/s3');
+const { s3Client, BUCKETS } = require('../configs/storage');
 const { PutObjectCommand } = require('@aws-sdk/client-s3');
 const logger = require('../utils/logger');
 

@@ -811,7 +811,7 @@ clientSchema.post('findOneAndDelete', async function(doc) {
     if (doc) {
         try {
             const Document = mongoose.model('Document');
-            const { deleteObject, BUCKETS } = require('../configs/s3');
+            const { deleteObject, BUCKETS } = require('../configs/storage');
 
             // Find all documents associated with this client
             const documents = await Document.find({ clientId: doc._id });
@@ -841,7 +841,7 @@ clientSchema.post('findOneAndDelete', async function(doc) {
 clientSchema.pre('deleteMany', async function() {
     try {
         const Document = mongoose.model('Document');
-        const { deleteObject, BUCKETS } = require('../configs/s3');
+        const { deleteObject, BUCKETS } = require('../configs/storage');
 
         // Get the filter conditions used in deleteMany
         const filter = this.getFilter();

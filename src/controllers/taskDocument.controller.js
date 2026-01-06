@@ -10,6 +10,7 @@ const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
 const { sanitizeRichText, hasDangerousContent } = require('../utils/sanitize');
 const { getTaskFilePresignedUrl } = require('../configs/taskUpload');
+const { logFileAccess } = require('../configs/storage');
 const logger = require('../utils/logger');
 
 // =============================================================================
@@ -291,6 +292,17 @@ const getDocument = asyncHandler(async (req, res) => {
     if (document.storageType === 's3' && document.fileKey) {
         try {
             downloadUrl = await getTaskFilePresignedUrl(document.fileKey, document.fileName);
+
+            // Log file access (Gold Standard - AWS CloudTrail pattern)
+            logFileAccess(document.fileKey, 'tasks', req.userID, 'download', {
+                firmId: req.firmId,
+                taskId: id,
+                documentId: documentId,
+                fileName: document.fileName,
+                fileSize: document.fileSize,
+                remoteIp: req.ip,
+                userAgent: req.get('user-agent')
+            }).catch(err => logger.error('Failed to log file access:', err.message));
         } catch (err) {
             logger.error('Error generating presigned URL', { error: err.message });
         }

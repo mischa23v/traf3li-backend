@@ -10,6 +10,7 @@ const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
 const { sanitizeRichText } = require('../utils/sanitize');
 const { isS3Configured, getTaskFilePresignedUrl } = require('../configs/taskUpload');
+const { logFileAccess } = require('../configs/storage');
 const logger = require('../utils/logger');
 
 // =============================================================================
@@ -87,6 +88,21 @@ const addVoiceMemo = asyncHandler(async (req, res) => {
     await task.save();
 
     const newVoiceMemo = task.attachments[task.attachments.length - 1];
+
+    // Log voice memo upload (Gold Standard - AWS CloudTrail pattern)
+    if (newVoiceMemo.fileKey) {
+        logFileAccess(newVoiceMemo.fileKey, 'tasks', userId, 'upload', {
+            firmId: req.firmId,
+            taskId: id,
+            documentId: newVoiceMemo._id,
+            fileName: newVoiceMemo.fileName,
+            fileSize: newVoiceMemo.fileSize,
+            fileType: 'voice_memo',
+            duration: duration,
+            remoteIp: req.ip,
+            userAgent: req.get('user-agent')
+        }).catch(err => logger.error('Failed to log voice memo upload:', err.message));
+    }
 
     // Generate download URL if S3
     let downloadUrl = newVoiceMemo.fileUrl;

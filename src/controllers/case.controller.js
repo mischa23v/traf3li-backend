@@ -5,7 +5,7 @@ const CaseAuditService = require('../services/caseAuditService');
 const QueueService = require('../services/queue.service');
 const { CustomException } = require('../utils');
 const { calculateLawyerScore } = require('./score.controller');
-const { getUploadPresignedUrl, getDownloadPresignedUrl, deleteFile, generateFileKey } = require('../configs/s3');
+const { getUploadPresignedUrl, getDownloadPresignedUrl, deleteFile, generateFileKey, logFileAccess } = require('../configs/storage');
 const documentExportService = require('../services/documentExport.service');
 const logger = require('../utils/contextLogger');
 const { pickAllowedFields, sanitizeString } = require('../utils/securityUtils');
@@ -1954,6 +1954,18 @@ const confirmDocumentUpload = async (request, response) => {
 
         await caseDoc.save();
 
+        // Log file upload (Gold Standard - AWS CloudTrail pattern)
+        logFileAccess(fileKey, bucket || 'documents', request.userID, 'upload', {
+            firmId,
+            caseId: _id,
+            documentId: caseDoc.documents[caseDoc.documents.length - 1]._id,
+            fileName: filename,
+            fileSize: size,
+            category,
+            remoteIp: request.ip,
+            userAgent: request.get('user-agent')
+        }).catch(err => logger.error('Failed to log file upload:', err.message));
+
         return response.status(201).send({
             error: false,
             message: 'Document uploaded successfully!',
@@ -2001,13 +2013,24 @@ const getDocumentDownloadUrl = async (request, response) => {
             throw CustomException('Document not found!', 404);
         }
 
-        // If document has fileKey, generate presigned URL from S3
+        // If document has fileKey, generate presigned URL from R2
         if (doc.fileKey) {
             const downloadUrl = await getDownloadPresignedUrl(
                 doc.fileKey,
                 doc.bucket || 'general',
                 doc.filename
             );
+
+            // Log file download (Gold Standard - AWS CloudTrail pattern)
+            logFileAccess(doc.fileKey, doc.bucket || 'documents', request.userID, 'download', {
+                firmId,
+                caseId: _id,
+                documentId: docId,
+                fileName: doc.filename,
+                fileSize: doc.size,
+                remoteIp: request.ip,
+                userAgent: request.get('user-agent')
+            }).catch(err => logger.error('Failed to log file download:', err.message));
 
             return response.status(200).send({
                 error: false,
@@ -2064,15 +2087,26 @@ const deleteDocumentWithS3 = async (request, response) => {
             throw CustomException('Document not found!', 404);
         }
 
-        // Delete from S3 if fileKey exists
+        // Delete from R2 if fileKey exists
         if (doc.fileKey) {
             try {
                 await deleteFile(doc.fileKey, doc.bucket || 'general');
-            } catch (s3Error) {
-                logger.error('Failed to delete file from S3', { error: s3Error.message });
-                // Continue even if S3 delete fails
+            } catch (storageError) {
+                logger.error('Failed to delete file from R2', { error: storageError.message });
+                // Continue even if R2 delete fails
             }
         }
+
+        // Log file deletion (Gold Standard - AWS CloudTrail pattern)
+        logFileAccess(doc.fileKey || docId, doc.bucket || 'documents', request.userID, 'delete', {
+            firmId,
+            caseId: _id,
+            documentId: docId,
+            fileName: doc.filename,
+            fileSize: doc.size,
+            remoteIp: request.ip,
+            userAgent: request.get('user-agent')
+        }).catch(err => logger.error('Failed to log file deletion:', err.message));
 
         caseDoc.documents.pull(docId);
         await caseDoc.save();
