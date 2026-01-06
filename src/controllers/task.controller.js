@@ -720,7 +720,8 @@ const deleteTask = asyncHandler(async (req, res) => {
 
     res.status(200).json({
         success: true,
-        message: 'Task deleted successfully'
+        message: 'Task deleted successfully',
+        data: { id: taskId.toString() }
     });
 });
 
@@ -1227,7 +1228,8 @@ const deleteComment = asyncHandler(async (req, res) => {
 
     res.status(200).json({
         success: true,
-        message: 'Comment deleted'
+        message: 'Comment deleted',
+        data: { id: sanitizedCommentId.toString() }
     });
 });
 
@@ -1333,7 +1335,8 @@ const bulkDeleteTasks = asyncHandler(async (req, res) => {
     res.status(200).json({
         success: true,
         message: `${tasks.length} tasks deleted successfully`,
-        count: tasks.length
+        count: tasks.length,
+        data: { deletedIds: foundTaskIds }
     });
 });
 
