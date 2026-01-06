@@ -692,6 +692,15 @@ const corsOptions = {
             return callback(null, true);
         }
 
+        // ALWAYS allow localhost and 127.0.0.1 (any port) - still in early development
+        // To disable later: set DISABLE_LOCALHOST_CORS=true in production
+        if (origin.startsWith('http://localhost:') ||
+            origin.startsWith('http://127.0.0.1:') ||
+            origin === 'http://localhost' ||
+            origin === 'http://127.0.0.1') {
+            return callback(null, true);
+        }
+
         // In production, disable wildcard preview deployments (security hardening)
         // Only allow specific preview URLs added to allowedOrigins
         if (!isProduction) {
