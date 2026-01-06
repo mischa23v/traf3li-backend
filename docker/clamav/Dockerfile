@@ -7,9 +7,9 @@ FROM clamav/clamav:stable
 COPY clamd.conf /etc/clamav/clamd.conf
 COPY freshclam.conf /etc/clamav/freshclam.conf
 
-# Copy and set up entrypoint script
+# Copy entrypoint script and fix line endings (in case of Windows CRLF)
 COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+RUN sed -i 's/\r$//' /entrypoint.sh && chmod +x /entrypoint.sh
 
 # Ensure database directory exists with correct permissions
 RUN mkdir -p /var/lib/clamav && \
