@@ -9,6 +9,7 @@ const {
     updateTask,
     deleteTask,
     completeTask,
+    reopenTask,
     addSubtask,
     toggleSubtask,
     deleteSubtask,
@@ -186,6 +187,7 @@ app.delete('/:id', deleteTask);
 
 // Task actions
 app.post('/:id/complete', completeTask);
+app.post('/:id/reopen', reopenTask);
 app.post('/:id/clone', cloneTask);
 app.post('/:id/reschedule', rescheduleTask);
 app.get('/:id/activity', getTaskActivity);

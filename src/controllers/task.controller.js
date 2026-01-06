@@ -847,6 +847,57 @@ const completeTask = asyncHandler(async (req, res) => {
     });
 });
 
+// Reopen task (reverse of complete)
+const reopenTask = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const userId = req.userID;
+
+    // IDOR protection
+    const taskId = sanitizeObjectId(id);
+
+    // Use req.firmQuery for proper tenant isolation (solo + firm)
+    const task = await Task.findOne({ _id: taskId, ...req.firmQuery });
+
+    if (!task) {
+        throw CustomException('Task not found | المهمة غير موجودة', 404);
+    }
+
+    // Only completed or canceled tasks can be reopened
+    if (task.status !== 'done' && task.status !== 'canceled') {
+        throw CustomException('Only completed or canceled tasks can be reopened | يمكن إعادة فتح المهام المكتملة أو الملغاة فقط', 400);
+    }
+
+    // Store old status for history
+    const oldStatus = task.status;
+
+    // Reopen the task - set to in_progress (most common workflow)
+    task.status = 'in_progress';
+    task.completedAt = null;
+    task.completedBy = null;
+    // Don't reset progress - user might want to continue from where they left off
+
+    task.history.push({
+        action: 'reopened',
+        userId,
+        oldValue: { status: oldStatus },
+        newValue: { status: 'in_progress' },
+        timestamp: new Date()
+    });
+
+    await task.save();
+
+    // Use req.firmQuery for proper tenant isolation (solo lawyers + firm members)
+    const populatedTask = await Task.findOne({ _id: task._id, ...req.firmQuery })
+        .populate('assignedTo', 'firstName lastName username email image')
+        .populate('createdBy', 'firstName lastName username email image');
+
+    res.status(200).json({
+        success: true,
+        message: 'Task reopened successfully | تم إعادة فتح المهمة بنجاح',
+        data: populatedTask
+    });
+});
+
 // === SUBTASK MANAGEMENT ===
 
 // Add subtask
@@ -4248,6 +4299,7 @@ module.exports = {
     updateTask,
     deleteTask,
     completeTask,
+    reopenTask,
     addSubtask,
     toggleSubtask,
     deleteSubtask,
