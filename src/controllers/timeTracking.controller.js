@@ -1768,6 +1768,190 @@ const bulkApproveTimeEntries = asyncHandler(async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════
+// LOCK / UNLOCK OPERATIONS (Gold Standard - Fiscal Period Control)
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Lock a time entry (for closed fiscal periods)
+ * POST /api/time-tracking/entries/:id/lock
+ * Body: { reason: string }
+ *
+ * SECURITY: Uses req.firmQuery for multi-tenant isolation
+ * Only approved or billed entries can be locked
+ */
+const lockTimeEntry = asyncHandler(async (req, res) => {
+    // Permission check - only admins/managers can lock entries
+    if (!req.hasPermission || !req.hasPermission('billing', 'full')) {
+        throw new CustomException('Permission denied. Only billing admins can lock time entries.', 403);
+    }
+
+    const { id } = req.params;
+    const sanitizedId = sanitizeObjectId(id);
+
+    // Mass assignment protection
+    const allowedFields = ['reason'];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+    const { reason } = sanitizedData;
+
+    if (!reason || reason.trim().length < 5) {
+        throw new CustomException('Lock reason is required (min 5 characters)', 400);
+    }
+
+    const userId = req.userID || req.user?._id;
+
+    // SECURITY: Use req.firmQuery for multi-tenant isolation (Gold Standard)
+    const timeEntry = await TimeEntry.findOne({
+        _id: sanitizedId,
+        ...req.firmQuery
+    });
+
+    if (!timeEntry) {
+        throw new CustomException('Time entry not found', 404);
+    }
+
+    // Use model's lock method
+    await timeEntry.lock(reason.trim(), userId);
+
+    // Fire-and-forget: Queue the billing activity log
+    QueueService.logBillingActivity({
+        activityType: 'time_entry_locked',
+        userId,
+        firmId: req.firmId,
+        relatedModel: 'TimeEntry',
+        relatedId: timeEntry._id,
+        description: `Time entry ${timeEntry.entryId} locked: ${reason}`,
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+    });
+
+    res.status(200).json({
+        success: true,
+        message: 'Time entry locked successfully',
+        data: timeEntry
+    });
+});
+
+/**
+ * Unlock a time entry (admin only)
+ * POST /api/time-tracking/entries/:id/unlock
+ *
+ * SECURITY: Uses req.firmQuery for multi-tenant isolation
+ * Only locked entries can be unlocked
+ */
+const unlockTimeEntry = asyncHandler(async (req, res) => {
+    // Permission check - only admins can unlock entries
+    if (!req.hasPermission || !req.hasPermission('billing', 'full')) {
+        throw new CustomException('Permission denied. Only billing admins can unlock time entries.', 403);
+    }
+
+    const { id } = req.params;
+    const sanitizedId = sanitizeObjectId(id);
+
+    const userId = req.userID || req.user?._id;
+
+    // SECURITY: Use req.firmQuery for multi-tenant isolation (Gold Standard)
+    const timeEntry = await TimeEntry.findOne({
+        _id: sanitizedId,
+        ...req.firmQuery
+    });
+
+    if (!timeEntry) {
+        throw new CustomException('Time entry not found', 404);
+    }
+
+    // Use model's unlock method
+    await timeEntry.unlock(userId);
+
+    // Fire-and-forget: Queue the billing activity log
+    QueueService.logBillingActivity({
+        activityType: 'time_entry_unlocked',
+        userId,
+        firmId: req.firmId,
+        relatedModel: 'TimeEntry',
+        relatedId: timeEntry._id,
+        description: `Time entry ${timeEntry.entryId} unlocked`,
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+    });
+
+    res.status(200).json({
+        success: true,
+        message: 'Time entry unlocked successfully',
+        data: timeEntry
+    });
+});
+
+/**
+ * Bulk lock time entries for a fiscal period
+ * POST /api/time-tracking/entries/bulk-lock
+ * Body: { startDate: Date, endDate: Date, reason: string }
+ *
+ * SECURITY: Uses firmId for multi-tenant isolation
+ * Locks all approved/billed entries within the date range
+ */
+const bulkLockTimeEntries = asyncHandler(async (req, res) => {
+    // Permission check - only admins can bulk lock
+    if (!req.hasPermission || !req.hasPermission('billing', 'full')) {
+        throw new CustomException('Permission denied. Only billing admins can lock time entries.', 403);
+    }
+
+    // Mass assignment protection
+    const allowedFields = ['startDate', 'endDate', 'reason'];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+    const { startDate, endDate, reason } = sanitizedData;
+
+    if (!startDate || !endDate) {
+        throw new CustomException('Start date and end date are required', 400);
+    }
+
+    if (!reason || reason.trim().length < 5) {
+        throw new CustomException('Lock reason is required (min 5 characters)', 400);
+    }
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+        throw new CustomException('Invalid date format', 400);
+    }
+
+    if (start > end) {
+        throw new CustomException('Start date must be before end date', 400);
+    }
+
+    const userId = req.userID || req.user?._id;
+    const firmId = req.firmId;
+
+    if (!firmId) {
+        throw new CustomException('Firm context required for bulk lock operation', 400);
+    }
+
+    // Use model's static method for bulk locking
+    const result = await TimeEntry.lockForPeriod(firmId, start, end, reason.trim(), userId);
+
+    // Fire-and-forget: Queue the billing activity log
+    QueueService.logBillingActivity({
+        activityType: 'time_entries_bulk_locked',
+        userId,
+        firmId,
+        relatedModel: 'TimeEntry',
+        description: `Bulk locked ${result.modifiedCount} time entries for period ${startDate} to ${endDate}: ${reason}`,
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+    });
+
+    res.status(200).json({
+        success: true,
+        message: `${result.modifiedCount} time entries locked for the period`,
+        count: result.modifiedCount,
+        period: {
+            startDate: start,
+            endDate: end
+        }
+    });
+});
+
+// ═══════════════════════════════════════════════════════════════
 // HELPER FUNCTIONS
 // ═══════════════════════════════════════════════════════════════
 
@@ -1795,6 +1979,11 @@ module.exports = {
     // Write-off / Write-down
     writeOffTimeEntry,
     writeDownTimeEntry,
+
+    // Lock / Unlock (Gold Standard - Fiscal Period Control)
+    lockTimeEntry,
+    unlockTimeEntry,
+    bulkLockTimeEntries,
 
     // Approval workflow
     getPendingApprovalEntries,
