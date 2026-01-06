@@ -21,7 +21,7 @@ const authWebhookService = require('../services/authWebhook.service');
 const csrfService = require('../services/csrf.service');
 const geoAnomalyDetectionService = require('../services/geoAnomalyDetection.service');
 const stepUpAuthService = require('../services/stepUpAuth.service');
-const { getCookieConfig, getCSRFCookieConfig, getHttpOnlyRefreshCookieConfig, getClearRefreshCookieConfig, isProductionEnv } = require('../utils/cookieConfig');
+const { getCookieConfig, getCSRFCookieConfig, getHttpOnlyRefreshCookieConfig, getClearRefreshCookieConfig, isProductionEnv, REFRESH_TOKEN_COOKIE_NAME } = require('../utils/cookieConfig');
 
 const { JWT_SECRET, NODE_ENV } = process.env;
 
@@ -520,11 +520,11 @@ const authRegister = async (request, response) => {
             const refreshCookieConfig = getHttpOnlyRefreshCookieConfig(request);
 
             response.cookie('accessToken', accessToken, accessCookieConfig);
-            response.cookie('refreshToken', refreshToken, refreshCookieConfig);
+            response.cookie(REFRESH_TOKEN_COOKIE_NAME, refreshToken, refreshCookieConfig);
 
             // OAuth 2.0 standard format (snake_case)
             responseData.access_token = accessToken;
-            responseData.refresh_token = refreshToken;
+            // Note: refresh_token NOT in body - it's httpOnly cookie only (security best practice)
             responseData.token_type = 'Bearer';
             responseData.expires_in = 900; // 15 minutes
             // Backwards compatibility
@@ -1097,10 +1097,21 @@ const authLogin = async (request, response) => {
                 }
             })();
 
+            // Build login response per frontend contract
+            // SECURITY: refresh_token is httpOnly cookie ONLY - never in response body
             const loginResponse = {
                 error: false,
                 message: 'Success!',
-                user: userData
+                // Access token in body (frontend stores in memory)
+                accessToken,
+                expiresIn: 900, // 15 minutes in seconds
+                // User data with MFA status for frontend routing
+                user: {
+                    ...userData,
+                    // MFA flags per frontend contract
+                    mfaEnabled: userWithMFA?.mfaEnabled || false,
+                    mfaPending: false // Login succeeded, MFA was verified if enabled
+                }
             };
 
             // Include CSRF token in response if generated
@@ -1111,19 +1122,9 @@ const authLogin = async (request, response) => {
                 response.cookie('csrfToken', csrfTokenData.token, getCSRFCookieConfig(request));
             }
 
-            // Add tokens to response body (in addition to cookies)
-            // OAuth 2.0 standard format (snake_case)
-            loginResponse.access_token = accessToken;
-            loginResponse.refresh_token = refreshToken;
-            loginResponse.token_type = 'Bearer';
-            loginResponse.expires_in = 900; // 15 minutes in seconds
-            // Backwards compatibility (camelCase)
-            loginResponse.accessToken = accessToken;
-            loginResponse.refreshToken = refreshToken;
-
             return response
                 .cookie('accessToken', accessToken, getCookieConfig(request, 'access'))
-                .cookie('refreshToken', refreshToken, refreshCookieConfig)
+                .cookie(REFRESH_TOKEN_COOKIE_NAME, refreshToken, refreshCookieConfig)
                 .status(202).send(loginResponse);
         }
 
@@ -1183,7 +1184,7 @@ const authLogout = async (request, response) => {
     try {
         // Get tokens from request (set by JWT middleware or cookies)
         const accessToken = request.token || request.cookies?.accessToken;
-        const refreshToken = request.cookies?.refreshToken;
+        const refreshToken = request.cookies?.[REFRESH_TOKEN_COOKIE_NAME];
 
         // Extract user info (may come from JWT middleware or request.user)
         const userId = request.userId || request.userID || request.user?._id || request.user?.id;
@@ -1285,7 +1286,7 @@ const authLogout = async (request, response) => {
 
         return response
             .clearCookie('accessToken', accessCookieConfig)
-            .clearCookie('refreshToken', refreshClearConfig)
+            .clearCookie(REFRESH_TOKEN_COOKIE_NAME, refreshClearConfig)
             .send({
                 error: false,
                 message: 'User have been logged out!'
@@ -1299,7 +1300,7 @@ const authLogout = async (request, response) => {
 
         return response
             .clearCookie('accessToken', accessCookieConfig)
-            .clearCookie('refreshToken', refreshClearConfig)
+            .clearCookie(REFRESH_TOKEN_COOKIE_NAME, refreshClearConfig)
             .send({
                 error: false,
                 message: 'User have been logged out!'
@@ -1915,19 +1916,15 @@ const verifyMagicLink = async (request, response) => {
 
         return response
             .cookie('accessToken', accessToken, getCookieConfig(request, 'access'))
-            .cookie('refreshToken', refreshToken, refreshCookieConfig)
+            .cookie(REFRESH_TOKEN_COOKIE_NAME, refreshToken, refreshCookieConfig)
             .status(200).json({
                 error: false,
                 message: 'تم تسجيل الدخول بنجاح',
                 messageEn: 'Login successful',
-                // OAuth 2.0 standard format (snake_case)
-                access_token: accessToken,
-                refresh_token: refreshToken,
-                token_type: 'Bearer',
-                expires_in: 900, // 15 minutes in seconds
-                // Backwards compatibility (camelCase)
-                accessToken: accessToken,
-                refreshToken: refreshToken,
+                // Access token in body (frontend stores in memory)
+                accessToken,
+                expiresIn: 900, // 15 minutes in seconds
+                // SECURITY: refresh_token is httpOnly cookie ONLY
                 user: userData,
                 redirectUrl: result.redirectUrl
             });
@@ -2068,15 +2065,20 @@ const resendVerificationEmail = async (request, response) => {
  * POST /api/auth/refresh
  *
  * Gold Standard (AWS, Google, Microsoft):
- * - Read refresh_token from httpOnly cookie (not from request body)
+ * - Read refresh_token from httpOnly cookie ONLY (not from request body)
  * - Return new access_token in response body
  * - Rotate refresh token and set new httpOnly cookie
+ *
+ * Frontend Contract:
+ * - Request: No body required - reads refresh_token from cookie
+ * - Response: { accessToken, expiresIn }
+ * - Cookie: Set-Cookie: refresh_token=<new_token>; HttpOnly; Secure; SameSite=Strict; Path=/api/auth
  */
 const refreshAccessToken = async (request, response) => {
     try {
-        // SECURITY: Prioritize httpOnly cookie over body for refresh token
-        // This prevents token exposure through request bodies/logs
-        const refreshToken = request.cookies?.refreshToken || request.body?.refreshToken;
+        // SECURITY: Read ONLY from httpOnly cookie - never from body
+        // This ensures refresh token can't be intercepted via request logs/proxies
+        const refreshToken = request.cookies?.[REFRESH_TOKEN_COOKIE_NAME];
 
         if (!refreshToken) {
             return response.status(401).json({
@@ -2091,6 +2093,7 @@ const refreshAccessToken = async (request, response) => {
         const result = await refreshTokenService.refreshAccessToken(refreshToken);
 
         // Get cookie configs for access and httpOnly refresh tokens
+        // TODO: Preserve rememberMe from original login session
         const accessCookieConfig = getCookieConfig(request, 'access');
         const refreshCookieConfig = getHttpOnlyRefreshCookieConfig(request);
 
@@ -2109,27 +2112,22 @@ const refreshAccessToken = async (request, response) => {
             }
         );
 
-        // Return new tokens (OAuth 2.0 standard format + backwards compatibility)
+        // Response per frontend contract:
+        // - accessToken in body (frontend stores in memory)
+        // - refresh_token as httpOnly cookie ONLY (rotated)
         return response
             .cookie('accessToken', result.accessToken, accessCookieConfig)
-            .cookie('refreshToken', result.refreshToken, refreshCookieConfig)
+            .cookie(REFRESH_TOKEN_COOKIE_NAME, result.refreshToken, refreshCookieConfig)
             .status(200).json({
                 error: false,
-                message: 'Token refreshed successfully',
-                messageAr: 'تم تحديث الرمز بنجاح',
-                // OAuth 2.0 standard format (snake_case)
-                access_token: result.accessToken,
-                refresh_token: result.refreshToken,
-                token_type: 'Bearer',
-                expires_in: 900, // 15 minutes in seconds
-                // Backwards compatibility (camelCase)
+                // Access token in body per frontend contract
                 accessToken: result.accessToken,
-                refreshToken: result.refreshToken,
-                user: result.user
+                expiresIn: 900 // 15 minutes in seconds
+                // SECURITY: refresh_token is httpOnly cookie ONLY - never in response body
             });
     } catch (error) {
         // Sanitize error logging - don't log sensitive token data
-        const hasToken = !!(request.cookies?.refreshToken || request.body?.refreshToken);
+        const hasToken = !!request.cookies?.[REFRESH_TOKEN_COOKIE_NAME];
         logger.error('Token refresh failed', {
             error: error.message,
             hasRefreshToken: hasToken

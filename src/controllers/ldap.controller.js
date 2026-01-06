@@ -17,7 +17,7 @@ const auditLogService = require('../services/auditLog.service');
 const { encryptField } = require('../utils/encryption');
 const { CustomException } = require('../utils');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
-const { getCookieConfig, getHttpOnlyRefreshCookieConfig } = require('../utils/cookieConfig');
+const { getCookieConfig, getHttpOnlyRefreshCookieConfig, REFRESH_TOKEN_COOKIE_NAME } = require('../utils/cookieConfig');
 const Firm = require('../models/firm.model');
 const logger = require('../utils/logger');
 
@@ -740,7 +740,7 @@ const login = async (request, response) => {
         const refreshCookieConfig = getHttpOnlyRefreshCookieConfig(request);
 
         response.cookie('accessToken', result.token, accessCookieConfig);
-        response.cookie('refreshToken', result.refreshToken, refreshCookieConfig);
+        response.cookie(REFRESH_TOKEN_COOKIE_NAME, result.refreshToken, refreshCookieConfig);
 
         return response.status(200).json({
             error: false,

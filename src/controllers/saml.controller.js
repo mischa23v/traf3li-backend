@@ -3,7 +3,7 @@ const { Firm, User } = require('../models');
 const { CustomException } = require('../utils');
 const jwt = require('jsonwebtoken');
 const auditLogService = require('../services/auditLog.service');
-const { getCookieConfig, getHttpOnlyRefreshCookieConfig } = require('../utils/cookieConfig');
+const { getCookieConfig, getHttpOnlyRefreshCookieConfig, REFRESH_TOKEN_COOKIE_NAME } = require('../utils/cookieConfig');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const logger = require('../utils/logger');
 const { generateAccessToken } = require('../utils/generateToken');
@@ -290,7 +290,7 @@ const assertionConsumerService = async (request, response) => {
 
                 // Set cookies and redirect to frontend
                 response.cookie('accessToken', token, cookieConfig);
-                response.cookie('refreshToken', refreshToken, refreshCookieConfig);
+                response.cookie(REFRESH_TOKEN_COOKIE_NAME, refreshToken, refreshCookieConfig);
 
                 const frontendUrl = process.env.DASHBOARD_URL || 'https://dashboard.traf3li.com';
                 return response.redirect(`${frontendUrl}${relayState}?sso=success`);

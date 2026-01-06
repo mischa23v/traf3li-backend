@@ -5,7 +5,7 @@ const authWebhookService = require('../services/authWebhook.service');
 const geoAnomalyDetectionService = require('../services/geoAnomalyDetection.service');
 const stepUpAuthService = require('../services/stepUpAuth.service');
 const { generateAccessToken } = require('../utils/generateToken');
-const { getCookieConfig, getHttpOnlyRefreshCookieConfig } = require('../utils/cookieConfig');
+const { getCookieConfig, getHttpOnlyRefreshCookieConfig, REFRESH_TOKEN_COOKIE_NAME } = require('../utils/cookieConfig');
 const { recordActivity } = require('../middlewares/sessionTimeout.middleware');
 const { CustomException } = require('../utils');
 const logger = require('../utils/contextLogger');
@@ -269,7 +269,7 @@ const authenticateWithOneTap = async (request, response) => {
         // Return success response with OAuth 2.0 standard format
         return response
             .cookie('accessToken', accessToken, accessCookieConfig)
-            .cookie('refreshToken', refreshToken, refreshCookieConfig)
+            .cookie(REFRESH_TOKEN_COOKIE_NAME, refreshToken, refreshCookieConfig)
             .status(200).json({
                 error: false,
                 message: isNewUser

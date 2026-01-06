@@ -39,13 +39,88 @@ const REFRESH_TOKEN_COOKIE_MAX_AGE = REFRESH_TOKEN_DAYS * 24 * 60 * 60 * 1000; /
 const REFRESH_TOKEN_REMEMBERED_MAX_AGE = REMEMBER_ME_DAYS * 24 * 60 * 60 * 1000; // Default: 30 days for "Remember Me"
 const CSRF_TOKEN_COOKIE_MAX_AGE = parseInt(process.env.CSRF_TOKEN_TTL || '3600', 10) * 1000; // Default: 1 hour
 
-// Refresh token path restriction (Gold Standard: limit cookie exposure)
-// Set REFRESH_TOKEN_PATH=/api/auth to restrict refresh token cookies to auth endpoints only
-const REFRESH_TOKEN_PATH = process.env.REFRESH_TOKEN_PATH || '/';
+// ═══════════════════════════════════════════════════════════════
+// REFRESH TOKEN COOKIE CONFIGURATION (Frontend Contract)
+// ═══════════════════════════════════════════════════════════════
 
-// SameSite policy for refresh tokens (Gold Standard: Strict for maximum security)
-// Options: 'strict', 'lax', 'none', 'auto' (auto = current adaptive behavior)
-const REFRESH_TOKEN_SAMESITE = process.env.REFRESH_TOKEN_SAMESITE || 'auto';
+/**
+ * Cookie name for refresh token - MUST match frontend expectations
+ * Frontend expects: 'refresh_token' (snake_case per OAuth 2.0 convention)
+ */
+const REFRESH_TOKEN_COOKIE_NAME = 'refresh_token';
+
+/**
+ * Refresh token path - defaults to /api/auth (restricted to auth endpoints only)
+ * This reduces attack surface by not sending refresh token on every request
+ */
+const REFRESH_TOKEN_PATH_RAW = process.env.REFRESH_TOKEN_PATH || '/api/auth';
+
+/**
+ * Validate and normalize the refresh token path
+ * @param {string} path - Raw path from env
+ * @returns {string} - Validated path
+ */
+const validateRefreshTokenPath = (path) => {
+    if (!path || typeof path !== 'string') {
+        logger.warn('[CookieConfig] Invalid REFRESH_TOKEN_PATH, defaulting to /api/auth');
+        return '/api/auth';
+    }
+
+    // Normalize: ensure leading slash, remove trailing slash
+    let normalized = path.trim();
+    if (!normalized.startsWith('/')) {
+        normalized = '/' + normalized;
+    }
+    if (normalized.length > 1 && normalized.endsWith('/')) {
+        normalized = normalized.slice(0, -1);
+    }
+
+    // Warn if using root path (less secure)
+    if (normalized === '/') {
+        logger.warn('[CookieConfig] REFRESH_TOKEN_PATH=/ sends refresh token on ALL requests. Consider /api/auth for better security.');
+    }
+
+    return normalized;
+};
+
+const REFRESH_TOKEN_PATH = validateRefreshTokenPath(REFRESH_TOKEN_PATH_RAW);
+
+/**
+ * SameSite policy for refresh tokens
+ * Default: 'strict' for maximum CSRF protection
+ *
+ * ⚠️  WARNING: 'strict' will break OAuth/SSO redirect flows!
+ * If using OAuth (Google, Microsoft, etc.) or magic links, use 'lax' instead.
+ *
+ * Options:
+ * - 'strict': Maximum security, breaks cross-site navigations (OAuth redirects, magic links)
+ * - 'lax': Secure default, allows top-level navigations (recommended for OAuth/SSO)
+ * - 'none': Required for cross-origin requests (use with caution)
+ * - 'auto': Adaptive behavior based on same-origin detection
+ */
+const REFRESH_TOKEN_SAMESITE_RAW = process.env.REFRESH_TOKEN_SAMESITE || 'strict';
+
+/**
+ * Validate SameSite value
+ */
+const validateSameSite = (value) => {
+    const normalized = (value || '').toLowerCase().trim();
+    const valid = ['strict', 'lax', 'none', 'auto'];
+
+    if (!valid.includes(normalized)) {
+        logger.warn(`[CookieConfig] Invalid REFRESH_TOKEN_SAMESITE="${value}", defaulting to strict`);
+        return 'strict';
+    }
+
+    // Warn about strict mode implications
+    if (normalized === 'strict') {
+        logger.info('[CookieConfig] SameSite=Strict enabled. OAuth/SSO redirects and magic links will NOT include the refresh token cookie.');
+    }
+
+    return normalized;
+};
+
+const REFRESH_TOKEN_SAMESITE = validateSameSite(REFRESH_TOKEN_SAMESITE_RAW);
 
 // ═══════════════════════════════════════════════════════════════
 // HELPER FUNCTIONS
@@ -136,6 +211,30 @@ const getCookieDomain = (request) => {
     }
 
     return undefined;
+};
+
+/**
+ * Compute the effective SameSite value based on config and request context
+ * @param {Object} request - Express request object
+ * @returns {string} - The sameSite value to use
+ */
+const getEffectiveSameSite = (request) => {
+    const isSameOrigin = isSameOriginProxy(request);
+
+    switch (REFRESH_TOKEN_SAMESITE) {
+        case 'strict':
+            return 'strict';
+        case 'lax':
+            return 'lax';
+        case 'none':
+            return 'none';
+        case 'auto':
+        default:
+            // Auto mode: Use adaptive behavior
+            // Same-origin: lax (better browser compatibility)
+            // Cross-origin: none (required for cross-origin cookies)
+            return isSameOrigin ? 'lax' : (isProductionEnv ? 'none' : 'lax');
+    }
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -256,12 +355,11 @@ const getCSRFCookieConfig = (request) => {
  * GOLD STANDARD (AWS, Google, Microsoft):
  * - httpOnly: true - Prevents XSS attacks by blocking JavaScript access
  * - secure: true - HTTPS only in production
- * - sameSite: 'strict' - Maximum CSRF protection (configurable via REFRESH_TOKEN_SAMESITE)
- * - path: '/api/auth' - Only sent to auth endpoints (configurable via REFRESH_TOKEN_PATH)
+ * - sameSite: 'strict' - Maximum CSRF protection (default, configurable)
+ * - path: '/api/auth' - Only sent to auth endpoints (default, configurable)
  *
- * This is a security-hardened configuration specifically for refresh tokens:
- * - Restricted path reduces attack surface (refresh token not sent on every request)
- * - Strict SameSite prevents any cross-origin requests from including the cookie
+ * ⚠️  WARNING: Default SameSite=Strict breaks OAuth/SSO and magic links!
+ * Set REFRESH_TOKEN_SAMESITE=lax if using OAuth providers or magic links.
  *
  * @param {Object} request - Express request object
  * @param {Object} options - Additional options
@@ -272,30 +370,10 @@ const getHttpOnlyRefreshCookieConfig = (request, options = {}) => {
     const { rememberMe = false } = options;
     const cookieDomain = getCookieDomain(request);
     const isSameOrigin = isSameOriginProxy(request);
+    const sameSite = getEffectiveSameSite(request);
 
     // Determine maxAge based on rememberMe option
     const maxAge = rememberMe ? REFRESH_TOKEN_REMEMBERED_MAX_AGE : REFRESH_TOKEN_COOKIE_MAX_AGE;
-
-    // Determine SameSite policy
-    let sameSite;
-    switch (REFRESH_TOKEN_SAMESITE.toLowerCase()) {
-        case 'strict':
-            sameSite = 'strict';
-            break;
-        case 'lax':
-            sameSite = 'lax';
-            break;
-        case 'none':
-            sameSite = 'none';
-            break;
-        case 'auto':
-        default:
-            // Auto mode: Use current adaptive behavior
-            // Same-origin: lax (better browser compatibility)
-            // Cross-origin: none (required for cross-origin cookies)
-            sameSite = isSameOrigin ? 'lax' : (isProductionEnv ? 'none' : 'lax');
-            break;
-    }
 
     // Build base config
     const config = {
@@ -303,7 +381,7 @@ const getHttpOnlyRefreshCookieConfig = (request, options = {}) => {
         secure: isProductionEnv,  // HTTPS only in production
         sameSite,
         maxAge,
-        path: REFRESH_TOKEN_PATH, // Restricted path (default: '/', recommended: '/api/auth')
+        path: REFRESH_TOKEN_PATH, // Restricted path (default: '/api/auth')
         domain: cookieDomain
     };
 
@@ -317,18 +395,19 @@ const getHttpOnlyRefreshCookieConfig = (request, options = {}) => {
 
 /**
  * Get configuration for clearing the refresh token cookie
- * Must match the path/domain used when setting the cookie
+ * MUST match the path/domain/sameSite used when setting the cookie
  *
  * @param {Object} request - Express request object
  * @returns {Object} - Cookie configuration for clearing refresh token
  */
 const getClearRefreshCookieConfig = (request) => {
     const cookieDomain = getCookieDomain(request);
+    const sameSite = getEffectiveSameSite(request);
 
     return {
         httpOnly: true,
         secure: isProductionEnv,
-        sameSite: 'lax', // SameSite doesn't matter for clearing, but include for consistency
+        sameSite, // MUST match the sameSite used when setting the cookie
         path: REFRESH_TOKEN_PATH,
         domain: cookieDomain
     };
@@ -340,6 +419,9 @@ module.exports = {
     getHttpOnlyRefreshCookieConfig,
     getClearRefreshCookieConfig,
     isProductionEnv,
+    // Export cookie name for controllers
+    REFRESH_TOKEN_COOKIE_NAME,
+    REFRESH_TOKEN_PATH,
     // Export constants for testing
     ACCESS_TOKEN_COOKIE_MAX_AGE,
     REFRESH_TOKEN_COOKIE_MAX_AGE,
