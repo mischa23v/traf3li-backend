@@ -7,7 +7,7 @@ const { PhoneOTP, User, Firm } = require('../models');
 const { generateOTP } = require('../utils/otp.utils');
 const smsService = require('../services/sms.service');
 const jwt = require('jsonwebtoken');
-const { getCookieConfig } = require('../utils/cookieConfig');
+const { getCookieConfig, getHttpOnlyRefreshCookieConfig } = require('../utils/cookieConfig');
 const logger = require('../utils/logger');
 const { generateAccessToken } = require('../utils/generateToken');
 const refreshTokenService = require('../services/refreshToken.service');
@@ -266,7 +266,7 @@ const verifyPhoneOTP = async (req, res) => {
 
     // Get cookie config based on request context
     const cookieConfig = getCookieConfig(req);
-    const refreshCookieConfig = getCookieConfig(req, 'refresh');
+    const refreshCookieConfig = getHttpOnlyRefreshCookieConfig(req);
 
     // Set cookies and return response
     res.cookie('accessToken', accessToken, cookieConfig)

@@ -17,7 +17,7 @@ const auditLogService = require('../services/auditLog.service');
 const { encryptField } = require('../utils/encryption');
 const { CustomException } = require('../utils');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
-const { getCookieConfig } = require('../utils/cookieConfig');
+const { getCookieConfig, getHttpOnlyRefreshCookieConfig } = require('../utils/cookieConfig');
 const Firm = require('../models/firm.model');
 const logger = require('../utils/logger');
 
@@ -737,7 +737,7 @@ const login = async (request, response) => {
 
         // Set cookies using secure centralized configuration
         const accessCookieConfig = getCookieConfig(request, 'access');
-        const refreshCookieConfig = getCookieConfig(request, 'refresh');
+        const refreshCookieConfig = getHttpOnlyRefreshCookieConfig(request);
 
         response.cookie('accessToken', result.token, accessCookieConfig);
         response.cookie('refreshToken', result.refreshToken, refreshCookieConfig);

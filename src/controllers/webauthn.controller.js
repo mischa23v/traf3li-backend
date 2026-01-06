@@ -20,7 +20,7 @@ const { CustomException } = require('../utils');
 const jwt = require('jsonwebtoken');
 const { User, Firm } = require('../models');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
-const { getCookieConfig } = require('../utils/cookieConfig');
+const { getCookieConfig, getHttpOnlyRefreshCookieConfig } = require('../utils/cookieConfig');
 const crypto = require('crypto');
 const { generateAccessToken } = require('../utils/generateToken');
 const refreshTokenService = require('../services/refreshToken.service');
@@ -377,7 +377,7 @@ const finishAuthentication = asyncHandler(async (req, res) => {
 
     // Set HTTP-only cookies for JWT using secure centralized configuration
     const accessCookieConfig = getCookieConfig(req, 'access');
-    const refreshCookieConfig = getCookieConfig(req, 'refresh');
+    const refreshCookieConfig = getHttpOnlyRefreshCookieConfig(req);
     res.cookie('accessToken', token, accessCookieConfig);
     res.cookie('refreshToken', refreshToken, refreshCookieConfig);
 

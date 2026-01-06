@@ -39,6 +39,14 @@ const REFRESH_TOKEN_COOKIE_MAX_AGE = REFRESH_TOKEN_DAYS * 24 * 60 * 60 * 1000; /
 const REFRESH_TOKEN_REMEMBERED_MAX_AGE = REMEMBER_ME_DAYS * 24 * 60 * 60 * 1000; // Default: 30 days for "Remember Me"
 const CSRF_TOKEN_COOKIE_MAX_AGE = parseInt(process.env.CSRF_TOKEN_TTL || '3600', 10) * 1000; // Default: 1 hour
 
+// Refresh token path restriction (Gold Standard: limit cookie exposure)
+// Set REFRESH_TOKEN_PATH=/api/auth to restrict refresh token cookies to auth endpoints only
+const REFRESH_TOKEN_PATH = process.env.REFRESH_TOKEN_PATH || '/';
+
+// SameSite policy for refresh tokens (Gold Standard: Strict for maximum security)
+// Options: 'strict', 'lax', 'none', 'auto' (auto = current adaptive behavior)
+const REFRESH_TOKEN_SAMESITE = process.env.REFRESH_TOKEN_SAMESITE || 'auto';
+
 // ═══════════════════════════════════════════════════════════════
 // HELPER FUNCTIONS
 // ═══════════════════════════════════════════════════════════════
@@ -242,9 +250,95 @@ const getCSRFCookieConfig = (request) => {
     };
 };
 
+/**
+ * Get httpOnly refresh token cookie configuration
+ *
+ * GOLD STANDARD (AWS, Google, Microsoft):
+ * - httpOnly: true - Prevents XSS attacks by blocking JavaScript access
+ * - secure: true - HTTPS only in production
+ * - sameSite: 'strict' - Maximum CSRF protection (configurable via REFRESH_TOKEN_SAMESITE)
+ * - path: '/api/auth' - Only sent to auth endpoints (configurable via REFRESH_TOKEN_PATH)
+ *
+ * This is a security-hardened configuration specifically for refresh tokens:
+ * - Restricted path reduces attack surface (refresh token not sent on every request)
+ * - Strict SameSite prevents any cross-origin requests from including the cookie
+ *
+ * @param {Object} request - Express request object
+ * @param {Object} options - Additional options
+ * @param {boolean} options.rememberMe - If true, extends cookie to 30 days
+ * @returns {Object} - Cookie configuration object for httpOnly refresh tokens
+ */
+const getHttpOnlyRefreshCookieConfig = (request, options = {}) => {
+    const { rememberMe = false } = options;
+    const cookieDomain = getCookieDomain(request);
+    const isSameOrigin = isSameOriginProxy(request);
+
+    // Determine maxAge based on rememberMe option
+    const maxAge = rememberMe ? REFRESH_TOKEN_REMEMBERED_MAX_AGE : REFRESH_TOKEN_COOKIE_MAX_AGE;
+
+    // Determine SameSite policy
+    let sameSite;
+    switch (REFRESH_TOKEN_SAMESITE.toLowerCase()) {
+        case 'strict':
+            sameSite = 'strict';
+            break;
+        case 'lax':
+            sameSite = 'lax';
+            break;
+        case 'none':
+            sameSite = 'none';
+            break;
+        case 'auto':
+        default:
+            // Auto mode: Use current adaptive behavior
+            // Same-origin: lax (better browser compatibility)
+            // Cross-origin: none (required for cross-origin cookies)
+            sameSite = isSameOrigin ? 'lax' : (isProductionEnv ? 'none' : 'lax');
+            break;
+    }
+
+    // Build base config
+    const config = {
+        httpOnly: true,           // JS cannot access - prevents XSS theft
+        secure: isProductionEnv,  // HTTPS only in production
+        sameSite,
+        maxAge,
+        path: REFRESH_TOKEN_PATH, // Restricted path (default: '/', recommended: '/api/auth')
+        domain: cookieDomain
+    };
+
+    // Add partitioned flag for cross-origin in production (CHIPS support)
+    if (isProductionEnv && !isSameOrigin && sameSite === 'none') {
+        config.partitioned = true;
+    }
+
+    return config;
+};
+
+/**
+ * Get configuration for clearing the refresh token cookie
+ * Must match the path/domain used when setting the cookie
+ *
+ * @param {Object} request - Express request object
+ * @returns {Object} - Cookie configuration for clearing refresh token
+ */
+const getClearRefreshCookieConfig = (request) => {
+    const cookieDomain = getCookieDomain(request);
+
+    return {
+        httpOnly: true,
+        secure: isProductionEnv,
+        sameSite: 'lax', // SameSite doesn't matter for clearing, but include for consistency
+        path: REFRESH_TOKEN_PATH,
+        domain: cookieDomain
+    };
+};
+
 module.exports = {
     getCookieConfig,
     getCSRFCookieConfig,
+    getHttpOnlyRefreshCookieConfig,
+    getClearRefreshCookieConfig,
     isProductionEnv,
     // Export constants for testing
     ACCESS_TOKEN_COOKIE_MAX_AGE,
