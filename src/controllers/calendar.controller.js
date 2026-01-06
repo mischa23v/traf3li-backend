@@ -639,7 +639,7 @@ const getCalendarByDate = asyncHandler(async (req, res) => {
                     const docDate = new Date(doc.calendarDate);
                     if (docDate >= startOfDay && docDate <= endOfDay) {
                         caseDocuments.push({
-                            ...doc.toObject(),
+                            ...doc, // Already plain object from .lean()
                             type: 'case-document',
                             caseId: caseDoc._id,
                             caseName: caseDoc.title,
@@ -655,9 +655,9 @@ const getCalendarByDate = asyncHandler(async (req, res) => {
         success: true,
         data: {
             date: startOfDay,
-            events: events.map(e => ({ ...e.toObject(), type: 'event' })),
-            tasks: tasks.map(t => ({ ...t.toObject(), type: 'task' })),
-            reminders: reminders.map(r => ({ ...r.toObject(), type: 'reminder' })),
+            events: events.map(e => ({ ...e, type: 'event' })), // Already plain object from .lean()
+            tasks: tasks.map(t => ({ ...t, type: 'task' })), // Already plain object from .lean()
+            reminders: reminders.map(r => ({ ...r, type: 'reminder' })), // Already plain object from .lean()
             caseDocuments,
             summary: {
                 total: events.length + tasks.length + reminders.length + caseDocuments.length,
@@ -741,7 +741,7 @@ const getCalendarByMonth = asyncHandler(async (req, res) => {
                     const docDate = new Date(doc.calendarDate);
                     if (docDate >= startDate && docDate <= endDate) {
                         caseDocuments.push({
-                            ...doc.toObject(),
+                            ...doc, // Already plain object from .lean()
                             _caseId: caseDoc._id,
                             _caseName: caseDoc.title,
                             _caseNumber: caseDoc.caseNumber,
@@ -886,7 +886,7 @@ const getUpcomingItems = asyncHandler(async (req, res) => {
                     const docDate = new Date(doc.calendarDate);
                     if (docDate >= today && docDate <= futureDate) {
                         caseDocuments.push({
-                            ...doc.toObject(),
+                            ...doc, // Already plain object from .lean()
                             type: 'case-document',
                             date: doc.calendarDate,
                             caseId: caseDoc._id,
@@ -899,11 +899,11 @@ const getUpcomingItems = asyncHandler(async (req, res) => {
         }
     });
 
-    // Combine and sort
+    // Combine and sort (all objects are already plain from .lean())
     const allItems = [
-        ...events.map(e => ({ ...e.toObject(), type: 'event', date: e.startDateTime })),
-        ...tasks.map(t => ({ ...t.toObject(), type: 'task', date: t.dueDate })),
-        ...reminders.map(r => ({ ...r.toObject(), type: 'reminder', date: r.reminderDateTime })),
+        ...events.map(e => ({ ...e, type: 'event', date: e.startDateTime })),
+        ...tasks.map(t => ({ ...t, type: 'task', date: t.dueDate })),
+        ...reminders.map(r => ({ ...r, type: 'reminder', date: r.reminderDateTime })),
         ...caseDocuments
     ].sort((a, b) => new Date(a.date) - new Date(b.date));
 
@@ -1854,7 +1854,7 @@ const getCalendarItemDetails = asyncHandler(async (req, res) => {
             }
 
             item = {
-                ...caseDoc.richDocuments[0].toObject(),
+                ...caseDoc.richDocuments[0], // Already plain object from .lean()
                 caseId: caseDoc._id,
                 caseName: caseDoc.title,
                 caseNumber: caseDoc.caseNumber,
