@@ -1,6 +1,6 @@
 # Render Deployment Configuration
 # Documentation: https://render.com/docs/yaml-spec
-# Total Cost: ~$14/month (Backend $7 + ClamAV $7)
+# Total Cost: ~$32/month (Backend $7 + ClamAV $25)
 
 services:
   # =============================================================
@@ -112,14 +112,15 @@ services:
       sizeGB: 1
 
   # =============================================================
-  # ClamAV Antivirus Service ($7/month - Starter plan)
+  # ClamAV Antivirus Service ($25/month - Standard plan)
   # Internal service - not exposed to internet
+  # Requires 2GB RAM for virus definitions (~400MB loaded into memory)
   # =============================================================
   - type: pserv
     name: clamav
     env: docker
     # region: same as backend (inherited from project)
-    plan: starter # $7/month
+    plan: standard # $25/month - 2GB RAM required for virus definitions
     dockerfilePath: ./docker/clamav/Dockerfile
     dockerContext: ./docker/clamav
 
@@ -151,5 +152,5 @@ services:
 # - Update definitions daily
 # - Accept scan requests from backend on port 3310
 #
-# Total Monthly Cost: ~$14 (Backend $7 + ClamAV $7)
+# Total Monthly Cost: ~$32 (Backend $7 + ClamAV $25)
 # =============================================================
