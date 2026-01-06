@@ -7,7 +7,7 @@
 const { Task, User } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
-const { deleteFile, listFileVersions, logFileAccess } = require('../configs/storage');
+const { deleteFile, listFileVersions, logFileAccess, PRESIGNED_URL_EXPIRY } = require('../configs/storage');
 const { isS3Configured, getTaskFilePresignedUrl } = require('../configs/taskUpload');
 const { sanitizeObjectId } = require('../utils/securityUtils');
 const fs = require('fs');
@@ -170,6 +170,7 @@ const deleteAttachment = asyncHandler(async (req, res) => {
     const storageType = attachment.storageType;
 
     // Delete the actual file from storage
+    let storageDeleteFailed = false;
     try {
         if (storageType === 's3' && fileKey) {
             // Delete from S3/R2
@@ -192,6 +193,7 @@ const deleteAttachment = asyncHandler(async (req, res) => {
             }
         }
     } catch (err) {
+        storageDeleteFailed = true;
         logger.error('Error deleting file from storage', { error: err.message });
         docLogger.logDelete(req, attachment, false, err);
         // Continue with database removal even if file deletion fails
@@ -213,8 +215,10 @@ const deleteAttachment = asyncHandler(async (req, res) => {
 
     await task.save();
 
-    // Log successful deletion
-    docLogger.logDelete(req, { _id: sanitizedAttachmentId, fileName, fileKey }, true);
+    // Log successful deletion (only if storage delete didn't fail - avoid double logging)
+    if (!storageDeleteFailed) {
+        docLogger.logDelete(req, { _id: sanitizedAttachmentId, fileName, fileKey }, true);
+    }
 
     res.status(200).json({
         success: true,
@@ -285,7 +289,7 @@ const getAttachmentDownloadUrl = asyncHandler(async (req, res) => {
     }
 
     // Log download success
-    docLogger.logDownloadSuccess(req, attachment, 900); // 15 min expiry
+    docLogger.logDownloadSuccess(req, attachment, PRESIGNED_URL_EXPIRY);
 
     // Return downloadUrl at top level for frontend compatibility
     res.status(200).json({
