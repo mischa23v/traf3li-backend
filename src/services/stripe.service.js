@@ -20,6 +20,7 @@
 const Stripe = require('stripe');
 const { withCircuitBreaker } = require('../utils/circuitBreaker');
 const logger = require('../utils/logger');
+const { getRedisClient, isRedisConnected } = require('../configs/redis');
 
 // Initialize Stripe with API key
 let stripe = null;
@@ -36,12 +37,14 @@ if (process.env.STRIPE_SECRET_KEY) {
 // WEBHOOK IDEMPOTENCY
 // ═══════════════════════════════════════════════════════════════
 // Track processed webhook events to prevent duplicate processing
-// In production, this should use Redis or a database for persistence
+// Primary: Redis with automatic TTL expiration (24 hours)
+// Fallback: In-memory Map when Redis is unavailable
 const processedWebhookEvents = new Map();
 const WEBHOOK_EVENT_TTL = 24 * 60 * 60 * 1000; // 24 hours
 const MAX_PROCESSED_EVENTS = 10000;
 
-// Cleanup old processed events periodically
+// Cleanup old processed events periodically (for in-memory fallback only)
+// Redis handles TTL expiration automatically
 const webhookCleanupInterval = setInterval(() => {
     const now = Date.now();
     let cleanedCount = 0;
@@ -74,6 +77,61 @@ const webhookCleanupInterval = setInterval(() => {
 }, 60 * 60 * 1000); // Every hour
 
 webhookCleanupInterval.unref();
+
+// ═══════════════════════════════════════════════════════════════
+// WEBHOOK IDEMPOTENCY HELPERS (REDIS-BASED WITH IN-MEMORY FALLBACK)
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Check if a webhook event has already been processed
+ * Uses Redis when available, falls back to in-memory Map
+ * @param {string} eventId - Stripe event ID
+ * @returns {Promise<boolean>} - True if already processed
+ */
+async function isWebhookProcessed(eventId) {
+    if (!isRedisConnected()) {
+        // Fallback to in-memory for graceful degradation
+        return processedWebhookEvents.has(eventId);
+    }
+
+    try {
+        const client = getRedisClient();
+        const exists = await client.exists(`stripe_webhook:${eventId}`);
+        return exists === 1;
+    } catch (error) {
+        logger.warn('Redis check failed for webhook idempotency, falling back to in-memory', {
+            eventId,
+            error: error.message
+        });
+        return processedWebhookEvents.has(eventId);
+    }
+}
+
+/**
+ * Mark a webhook event as processed
+ * Uses Redis when available, falls back to in-memory Map
+ * @param {string} eventId - Stripe event ID
+ * @returns {Promise<void>}
+ */
+async function markWebhookProcessed(eventId) {
+    if (!isRedisConnected()) {
+        // Fallback to in-memory
+        processedWebhookEvents.set(eventId, Date.now());
+        return;
+    }
+
+    try {
+        const client = getRedisClient();
+        // Set with 24-hour TTL (Redis automatically handles expiration)
+        await client.setex(`stripe_webhook:${eventId}`, 86400, Date.now().toString());
+    } catch (error) {
+        logger.warn('Redis set failed for webhook idempotency, falling back to in-memory', {
+            eventId,
+            error: error.message
+        });
+        processedWebhookEvents.set(eventId, Date.now());
+    }
+}
 
 // ═══════════════════════════════════════════════════════════════
 // HELPER FUNCTIONS
@@ -744,8 +802,8 @@ class StripeService {
         const eventId = event.id;
         const eventData = event.data.object;
 
-        // Idempotency check - prevent duplicate processing
-        if (processedWebhookEvents.has(eventId)) {
+        // Idempotency check - prevent duplicate processing (Redis-based with fallback)
+        if (await isWebhookProcessed(eventId)) {
             logger.info('Webhook event already processed (idempotency check)', {
                 eventType,
                 eventId
@@ -758,8 +816,8 @@ class StripeService {
             };
         }
 
-        // Mark event as being processed
-        processedWebhookEvents.set(eventId, Date.now());
+        // Mark event as being processed (Redis-based with fallback)
+        await markWebhookProcessed(eventId);
 
         logger.info('Processing webhook event', {
             eventType,
