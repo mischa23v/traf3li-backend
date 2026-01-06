@@ -4,7 +4,7 @@ const DocumentVersionService = require('../services/documentVersionService');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
 const { r2Client, getUploadPresignedUrl, getDownloadPresignedUrl, deleteObject, BUCKETS, logFileAccess, PRESIGNED_URL_EXPIRY, PRESIGNED_URL_UPLOAD_EXPIRY } = require('../configs/storage');
-const { sanitizeObjectId } = require('../utils/securityUtils');
+const { sanitizeObjectId, sanitizePagination } = require('../utils/securityUtils');
 const crypto = require('crypto');
 const path = require('path');
 const logger = require('../utils/logger');
@@ -264,10 +264,16 @@ const getDocuments = asyncHandler(async (req, res) => {
         ];
     }
 
+    // Sanitize pagination to prevent DoS attacks
+    const { page: safePage, limit: safeLimit, skip } = sanitizePagination(req.query, {
+        maxLimit: 100,
+        defaultLimit: 20
+    });
+
     const documents = await Document.find(query)
         .sort({ createdAt: -1 })
-        .limit(parseInt(limit))
-        .skip((parseInt(page) - 1) * parseInt(limit))
+        .limit(safeLimit)
+        .skip(skip)
         .populate('uploadedBy', 'firstName lastName')
         .populate('caseId', 'title caseNumber')
         .populate('clientId', 'name fullName')
@@ -279,10 +285,10 @@ const getDocuments = asyncHandler(async (req, res) => {
         success: true,
         data: documents,
         pagination: {
-            page: parseInt(page),
-            limit: parseInt(limit),
+            page: safePage,
+            limit: safeLimit,
             total,
-            pages: Math.ceil(total / parseInt(limit))
+            pages: Math.ceil(total / safeLimit)
         }
     });
 });
@@ -793,12 +799,16 @@ const searchDocuments = asyncHandler(async (req, res) => {
  * GET /api/documents/recent
  */
 const getRecentDocuments = asyncHandler(async (req, res) => {
-    const { limit = 10 } = req.query;
+    // Sanitize pagination to prevent DoS attacks
+    const { limit } = sanitizePagination(req.query, {
+        maxLimit: 50,
+        defaultLimit: 10
+    });
 
     // SECURITY FIX: Use req.firmQuery for proper tenant isolation
     const documents = await Document.find(req.firmQuery)
         .sort({ createdAt: -1 })
-        .limit(parseInt(limit))
+        .limit(limit)
         .populate('uploadedBy', 'firstName lastName')
         .populate('caseId', 'title caseNumber')
         .lean();

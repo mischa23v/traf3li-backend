@@ -5,7 +5,7 @@ const CustomException = require('../utils/CustomException');
 const { deleteFile, listFileVersions, logFileAccess } = require('../configs/storage');
 const { isS3Configured, getTaskFilePresignedUrl, isS3Url, extractS3Key } = require('../configs/taskUpload');
 const { sanitizeRichText, sanitizeComment, stripHtml, hasDangerousContent } = require('../utils/sanitize');
-const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+const { pickAllowedFields, sanitizeObjectId, sanitizePagination } = require('../utils/securityUtils');
 const fs = require('fs');
 const path = require('path');
 const logger = require('../utils/logger');
@@ -371,6 +371,12 @@ const getTasks = asyncHandler(async (req, res) => {
     const sortOptions = {};
     sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
 
+    // Sanitize pagination to prevent DoS attacks
+    const { limit: safeLimit, skip } = sanitizePagination(req.query, {
+        maxLimit: 200,
+        defaultLimit: 50
+    });
+
     // Gold Standard: Try $text search first, fallback to regex if index missing
     let tasks;
     let total;
@@ -381,8 +387,8 @@ const getTasks = asyncHandler(async (req, res) => {
             .populate('caseId', 'title caseNumber')
             .populate('clientId', 'firstName lastName')
             .sort(sortOptions)
-            .limit(parseInt(limit))
-            .skip((parseInt(page) - 1) * parseInt(limit))
+            .limit(safeLimit)
+            .skip(skip)
             .lean();
 
         total = await Task.countDocuments(query);
@@ -445,8 +451,8 @@ const getTasks = asyncHandler(async (req, res) => {
                 .populate('caseId', 'title caseNumber')
                 .populate('clientId', 'firstName lastName')
                 .sort(sortOptions)
-                .limit(parseInt(limit))
-                .skip((parseInt(page) - 1) * parseInt(limit))
+                .limit(safeLimit)
+                .skip(skip)
                 .lean();
 
             total = await Task.countDocuments(fallbackQuery);
@@ -460,9 +466,9 @@ const getTasks = asyncHandler(async (req, res) => {
         data: tasks,
         pagination: {
             page: parseInt(page),
-            limit: parseInt(limit),
+            limit: safeLimit,
             total,
-            pages: Math.ceil(total / parseInt(limit))
+            pages: Math.ceil(total / safeLimit)
         }
     });
 });
@@ -2721,13 +2727,17 @@ const getTaskActivity = asyncHandler(async (req, res) => {
         throw CustomException('Task not found', 404);
     }
 
-    // Get history entries with pagination
+    // Get history entries with pagination - sanitize to prevent DoS
+    const { limit: safeLimit, skip } = sanitizePagination(req.query, {
+        maxLimit: 200,
+        defaultLimit: 50
+    });
+
     const history = task.history || [];
     const total = history.length;
-    const startIndex = (parseInt(page) - 1) * parseInt(limit);
     const paginatedHistory = history
         .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-        .slice(startIndex, startIndex + parseInt(limit));
+        .slice(skip, skip + safeLimit);
 
     // Populate user info for each history entry
     const userIds = [...new Set(paginatedHistory.map(h => h.userId).filter(Boolean))];
@@ -2745,9 +2755,9 @@ const getTaskActivity = asyncHandler(async (req, res) => {
         data: enrichedHistory,
         pagination: {
             page: parseInt(page),
-            limit: parseInt(limit),
+            limit: safeLimit,
             total,
-            pages: Math.ceil(total / parseInt(limit))
+            pages: Math.ceil(total / safeLimit)
         }
     });
 });
@@ -2772,13 +2782,19 @@ const getTasksByClient = asyncHandler(async (req, res) => {
     if (status) query.status = status;
     if (priority) query.priority = priority;
 
+    // Sanitize pagination to prevent DoS attacks
+    const { limit: safeLimit, skip } = sanitizePagination(req.query, {
+        maxLimit: 200,
+        defaultLimit: 50
+    });
+
     const tasks = await Task.find(query)
         .populate('assignedTo', 'firstName lastName image')
         .populate('createdBy', 'firstName lastName')
         .populate('caseId', 'title caseNumber')
         .sort({ dueDate: 1, priority: -1 })
-        .limit(parseInt(limit))
-        .skip((parseInt(page) - 1) * parseInt(limit))
+        .limit(safeLimit)
+        .skip(skip)
         .lean();
 
     const total = await Task.countDocuments(query);
@@ -2788,9 +2804,9 @@ const getTasksByClient = asyncHandler(async (req, res) => {
         data: tasks,
         pagination: {
             page: parseInt(page),
-            limit: parseInt(limit),
+            limit: safeLimit,
             total,
-            pages: Math.ceil(total / parseInt(limit))
+            pages: Math.ceil(total / safeLimit)
         }
     });
 });
@@ -2969,14 +2985,20 @@ const searchTasks = asyncHandler(async (req, res) => {
     const effectiveSortBy = sortBy === 'relevance' ? 'updatedAt' : sortBy;
     sortOptions[effectiveSortBy] = sortOrder === 'desc' ? -1 : 1;
 
+    // Sanitize pagination to prevent DoS attacks
+    const { limit: safeLimit, skip } = sanitizePagination(req.query, {
+        maxLimit: 200,
+        defaultLimit: 50
+    });
+
     const tasks = await Task.find(query)
         .populate('assignedTo', 'firstName lastName image')
         .populate('createdBy', 'firstName lastName')
         .populate('caseId', 'title caseNumber')
         .populate('clientId', 'firstName lastName')
         .sort(sortOptions)
-        .limit(parseInt(limit))
-        .skip((parseInt(page) - 1) * parseInt(limit))
+        .limit(safeLimit)
+        .skip(skip)
         .lean();
 
     const total = await Task.countDocuments(query);
@@ -2988,9 +3010,9 @@ const searchTasks = asyncHandler(async (req, res) => {
         filters: { status, priority, assignedTo, caseId, clientId, startDate, endDate, overdue },
         pagination: {
             page: parseInt(page),
-            limit: parseInt(limit),
+            limit: safeLimit,
             total,
-            pages: Math.ceil(total / parseInt(limit))
+            pages: Math.ceil(total / safeLimit)
         }
     });
 });
@@ -4221,6 +4243,12 @@ const getArchivedTasks = asyncHandler(async (req, res) => {
     const sortOptions = {};
     sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
 
+    // Sanitize pagination to prevent DoS attacks
+    const { limit: safeLimit, skip } = sanitizePagination(req.query, {
+        maxLimit: 200,
+        defaultLimit: 50
+    });
+
     const [tasks, total] = await Promise.all([
         Task.find(query)
             .populate('assignedTo', 'firstName lastName email image')
@@ -4229,8 +4257,8 @@ const getArchivedTasks = asyncHandler(async (req, res) => {
             .populate('clientId', 'firstName lastName')
             .populate('archivedBy', 'firstName lastName')
             .sort(sortOptions)
-            .skip((parseInt(page) - 1) * parseInt(limit))
-            .limit(parseInt(limit)),
+            .skip(skip)
+            .limit(safeLimit),
         Task.countDocuments(query)
     ]);
 
@@ -4239,9 +4267,9 @@ const getArchivedTasks = asyncHandler(async (req, res) => {
         data: tasks,
         pagination: {
             page: parseInt(page),
-            limit: parseInt(limit),
+            limit: safeLimit,
             total,
-            pages: Math.ceil(total / parseInt(limit))
+            pages: Math.ceil(total / safeLimit)
         }
     });
 });

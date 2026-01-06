@@ -1,5 +1,5 @@
 const CrmActivity = require('../models/crmActivity.model');
-const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+const { pickAllowedFields, sanitizeObjectId, sanitizePagination } = require('../utils/securityUtils');
 const mongoose = require('mongoose');
 const logger = require('../utils/logger');
 
@@ -253,12 +253,18 @@ exports.getActivities = async (req, res) => {
             if (endDate) query.createdAt.$lte = new Date(endDate);
         }
 
+        // Sanitize pagination to prevent DoS attacks
+        const { page: safePage, limit: safeLimit, skip } = sanitizePagination(req.query, {
+            maxLimit: 200,
+            defaultLimit: 50
+        });
+
         const activities = await CrmActivity.find(query)
             .populate('performedBy', 'firstName lastName avatar')
             .populate('assignedTo', 'firstName lastName avatar')
             .sort({ createdAt: -1 })
-            .limit(parseInt(limit))
-            .skip((parseInt(page) - 1) * parseInt(limit));
+            .limit(safeLimit)
+            .skip(skip);
 
         const total = await CrmActivity.countDocuments(query);
 
@@ -266,10 +272,10 @@ exports.getActivities = async (req, res) => {
             success: true,
             data: activities,
             pagination: {
-                page: parseInt(page),
-                limit: parseInt(limit),
+                page: safePage,
+                limit: safeLimit,
                 total,
-                pages: Math.ceil(total / parseInt(limit))
+                pages: Math.ceil(total / safeLimit)
             }
         });
     } catch (error) {
@@ -513,10 +519,16 @@ exports.getEntityActivities = async (req, res) => {
             });
         }
 
+        // Sanitize pagination to prevent DoS attacks
+        const { page: safePage, limit: safeLimit, skip } = sanitizePagination(req.query, {
+            maxLimit: 200,
+            defaultLimit: 50
+        });
+
         const activities = await CrmActivity.getEntityActivities(entityType, entityId, {
             type,
-            limit: parseInt(limit),
-            skip: (parseInt(page) - 1) * parseInt(limit)
+            limit: safeLimit,
+            skip
         });
 
         const total = await CrmActivity.countDocuments({
@@ -529,10 +541,10 @@ exports.getEntityActivities = async (req, res) => {
             success: true,
             data: activities,
             pagination: {
-                page: parseInt(page),
-                limit: parseInt(limit),
+                page: safePage,
+                limit: safeLimit,
                 total,
-                pages: Math.ceil(total / parseInt(limit))
+                pages: Math.ceil(total / safeLimit)
             }
         });
     } catch (error) {
@@ -553,14 +565,20 @@ exports.getEntityActivities = async (req, res) => {
 exports.getTimeline = async (req, res) => {
     try {
         const lawyerId = req.userID;
-        const { entityTypes, types, startDate, endDate, limit = 50 } = req.query;
+        const { entityTypes, types, startDate, endDate } = req.query;
+
+        // Sanitize pagination to prevent DoS attacks
+        const { limit } = sanitizePagination(req.query, {
+            maxLimit: 100,
+            defaultLimit: 50
+        });
 
         const activities = await CrmActivity.getTimeline(lawyerId, {
             entityTypes: entityTypes ? entityTypes.split(',') : undefined,
             types: types ? types.split(',') : undefined,
             startDate,
             endDate,
-            limit: parseInt(limit)
+            limit
         });
 
         res.json({
@@ -610,12 +628,18 @@ exports.getStats = async (req, res) => {
 exports.getUpcomingTasks = async (req, res) => {
     try {
         const lawyerId = req.userID;
-        const { assignedTo, endDate, limit = 20 } = req.query;
+        const { assignedTo, endDate } = req.query;
+
+        // Sanitize pagination to prevent DoS attacks
+        const { limit } = sanitizePagination(req.query, {
+            maxLimit: 100,
+            defaultLimit: 20
+        });
 
         const tasks = await CrmActivity.getUpcomingTasks(lawyerId, {
             assignedTo,
             endDate: endDate ? new Date(endDate) : undefined,
-            limit: parseInt(limit)
+            limit
         });
 
         res.json({

@@ -356,34 +356,54 @@ const sanitizePhone = (phone) => {
 
 /**
  * Validate and sanitize pagination parameters
+ * Prevents DoS attacks from unbounded limit/skip/page values
  *
  * @param {Object} params - Query parameters
  * @param {Object} options - Options with defaults
  * @returns {Object} - Safe pagination parameters
+ *
+ * @example
+ * // Page-based pagination
+ * const { page, limit, skip } = sanitizePagination(req.query);
+ * const items = await Model.find({}).skip(skip).limit(limit);
+ *
+ * @example
+ * // Skip-based pagination with custom limits
+ * const { limit, skip } = sanitizePagination(req.query, { maxLimit: 50, defaultLimit: 10 });
+ * const items = await Model.find({}).skip(skip).limit(limit);
  */
 const sanitizePagination = (params, options = {}) => {
     const {
         maxLimit = 100,
         defaultLimit = 20,
-        defaultPage = 1
+        defaultPage = 1,
+        maxSkip = 10000  // Prevent excessive skip values
     } = options;
 
     let page = parseInt(params.page, 10);
     let limit = parseInt(params.limit, 10);
+    let skip = parseInt(params.skip, 10);
 
-    // Validate page
-    if (isNaN(page) || page < 1) {
-        page = defaultPage;
-    }
-
-    // Validate and cap limit
+    // Validate and cap limit (MUST be between 1 and maxLimit)
     if (isNaN(limit) || limit < 1) {
         limit = defaultLimit;
     } else if (limit > maxLimit) {
         limit = maxLimit;
     }
 
-    const skip = (page - 1) * limit;
+    // Validate page
+    if (isNaN(page) || page < 1) {
+        page = defaultPage;
+    }
+
+    // Calculate skip from page if skip not provided directly
+    // If skip is provided directly, validate it
+    if (isNaN(skip)) {
+        skip = (page - 1) * limit;
+    } else {
+        // Validate skip bounds (prevent negative or excessive skip)
+        skip = Math.max(0, Math.min(skip, maxSkip));
+    }
 
     return { page, limit, skip };
 };

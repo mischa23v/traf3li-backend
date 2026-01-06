@@ -1,7 +1,7 @@
 const { Activity, ActivityType, User } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
-const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+const { pickAllowedFields, sanitizeObjectId, sanitizePagination } = require('../utils/securityUtils');
 
 /**
  * Schedule activity
@@ -95,13 +95,19 @@ const getActivities = asyncHandler(async (req, res) => {
     if (user_id) query.user_id = user_id;
     if (state) query.state = state;
 
+    // Sanitize pagination to prevent DoS attacks
+    const { page: safePage, limit: safeLimit, skip } = sanitizePagination(req.query, {
+        maxLimit: 100,
+        defaultLimit: 20
+    });
+
     const activities = await Activity.find(query)
         .populate('activity_type_id', 'name nameAr icon color')
         .populate('user_id', 'firstName lastName email avatar')
         .populate('createdBy', 'firstName lastName')
         .sort({ date_deadline: 1, createdAt: -1 })
-        .limit(parseInt(limit))
-        .skip((parseInt(page) - 1) * parseInt(limit));
+        .limit(safeLimit)
+        .skip(skip);
 
     const total = await Activity.countDocuments(query);
 
@@ -109,10 +115,10 @@ const getActivities = asyncHandler(async (req, res) => {
         success: true,
         data: activities,
         pagination: {
-            page: parseInt(page),
-            limit: parseInt(limit),
+            page: safePage,
+            limit: safeLimit,
             total,
-            pages: Math.ceil(total / parseInt(limit))
+            pages: Math.ceil(total / safeLimit)
         }
     });
 });
@@ -167,12 +173,18 @@ const getMyActivities = asyncHandler(async (req, res) => {
         if (date_to) query.date_deadline.$lte = new Date(date_to);
     }
 
+    // Sanitize pagination to prevent DoS attacks
+    const { page: safePage, limit: safeLimit, skip } = sanitizePagination(req.query, {
+        maxLimit: 100,
+        defaultLimit: 20
+    });
+
     const activities = await Activity.find(query)
         .populate('activity_type_id', 'name nameAr icon color')
         .populate('createdBy', 'firstName lastName')
         .sort({ date_deadline: 1, createdAt: -1 })
-        .limit(parseInt(limit))
-        .skip((parseInt(page) - 1) * parseInt(limit));
+        .limit(safeLimit)
+        .skip(skip);
 
     const total = await Activity.countDocuments(query);
 
@@ -180,10 +192,10 @@ const getMyActivities = asyncHandler(async (req, res) => {
         success: true,
         data: activities,
         pagination: {
-            page: parseInt(page),
-            limit: parseInt(limit),
+            page: safePage,
+            limit: safeLimit,
             total,
-            pages: Math.ceil(total / parseInt(limit))
+            pages: Math.ceil(total / safeLimit)
         }
     });
 });
@@ -703,14 +715,20 @@ const getEntityActivities = asyncHandler(async (req, res) => {
         query.state = state;
     }
 
+    // Sanitize pagination to prevent DoS attacks
+    const { page: safePage, limit: safeLimit, skip } = sanitizePagination(req.query, {
+        maxLimit: 100,
+        defaultLimit: 20
+    });
+
     const activities = await Activity.find(query)
         .populate('activity_type_id', 'name nameAr icon color')
         .populate('user_id', 'firstName lastName email avatar')
         .populate('createdBy', 'firstName lastName')
         .populate('done_by', 'firstName lastName')
         .sort({ date_deadline: 1, createdAt: -1 })
-        .limit(parseInt(limit))
-        .skip((parseInt(page) - 1) * parseInt(limit));
+        .limit(safeLimit)
+        .skip(skip);
 
     const total = await Activity.countDocuments(query);
 
@@ -718,10 +736,10 @@ const getEntityActivities = asyncHandler(async (req, res) => {
         success: true,
         data: activities,
         pagination: {
-            page: parseInt(page),
-            limit: parseInt(limit),
+            page: safePage,
+            limit: safeLimit,
             total,
-            pages: Math.ceil(total / parseInt(limit))
+            pages: Math.ceil(total / safeLimit)
         }
     });
 });

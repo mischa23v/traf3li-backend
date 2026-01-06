@@ -11,7 +11,7 @@ const Joi = require('joi');
 const { Invoice, Case, Order, User, Payment, Retainer } = require('../models');
 const { CustomException } = require('../utils');
 const asyncHandler = require('../utils/asyncHandler');
-const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+const { pickAllowedFields, sanitizeObjectId, sanitizePagination } = require('../utils/securityUtils');
 const { sanitizeFilename } = require('../utils/sanitize');
 const webhookService = require('../services/webhook.service');
 const stripe = require('stripe')(process.env.STRIPE_SECRET);
@@ -464,7 +464,12 @@ const getInvoices = asyncHandler(async (req, res) => {
         ];
     }
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    // Sanitize pagination to prevent DoS attacks
+    const { limit: safeLimit, skip } = sanitizePagination(req.query, {
+        maxLimit: 200,
+        defaultLimit: 50
+    });
+
     const sort = { [sortBy]: sortOrder === 'desc' ? -1 : 1 };
 
     // Build promises array - invoices + total count
@@ -476,7 +481,7 @@ const getInvoices = asyncHandler(async (req, res) => {
             .populate('responsibleAttorneyId', 'firstName lastName')
             .sort(sort)
             .skip(skip)
-            .limit(parseInt(limit))
+            .limit(safeLimit)
             .lean(),
         Invoice.countDocuments(filters)
     ];
@@ -531,9 +536,9 @@ const getInvoices = asyncHandler(async (req, res) => {
         data: invoices,
         pagination: {
             page: parseInt(page),
-            limit: parseInt(limit),
+            limit: safeLimit,
             total,
-            pages: Math.ceil(total / parseInt(limit))
+            pages: Math.ceil(total / safeLimit)
         }
     };
 

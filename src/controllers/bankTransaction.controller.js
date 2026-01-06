@@ -2,7 +2,7 @@ const { BankTransaction, BankAccount } = require('../models');
 const QueueService = require('../services/queue.service');
 const { CustomException } = require('../utils');
 const asyncHandler = require('../utils/asyncHandler');
-const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+const { pickAllowedFields, sanitizeObjectId, sanitizePagination } = require('../utils/securityUtils');
 const mongoose = require('mongoose');
 
 // Helper function to escape regex special characters
@@ -196,11 +196,17 @@ const getTransactions = asyncHandler(async (req, res) => {
         ];
     }
 
+    // Sanitize pagination to prevent DoS attacks
+    const { limit: safeLimit, skip } = sanitizePagination(req.query, {
+        maxLimit: 200,
+        defaultLimit: 50
+    });
+
     const transactions = await BankTransaction.find(filters)
         .populate('accountId', 'name bankName accountNumber')
         .sort({ date: -1, createdAt: -1 })
-        .limit(parseInt(limit))
-        .skip((parseInt(page) - 1) * parseInt(limit));
+        .limit(safeLimit)
+        .skip(skip);
 
     const total = await BankTransaction.countDocuments(filters);
 
