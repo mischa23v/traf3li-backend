@@ -8,7 +8,7 @@ const { recordActivity } = require('../middlewares/sessionTimeout.middleware');
 const refreshTokenService = require('../services/refreshToken.service');
 const { generateAccessToken } = require('../utils/generateToken');
 const emailVerificationService = require('../services/emailVerification.service');
-const { getCookieConfig, getHttpOnlyRefreshCookieConfig } = require('../utils/cookieConfig');
+const { getCookieConfig, getHttpOnlyRefreshCookieConfig, REFRESH_TOKEN_COOKIE_NAME } = require('../utils/cookieConfig');
 
 // Password hashing rounds
 const saltRounds = 12;
@@ -123,7 +123,7 @@ const anonymousLogin = async (request, response) => {
 
         return response
             .cookie('accessToken', accessToken, cookieConfig)
-            .cookie('refreshToken', refreshToken, refreshCookieConfig)
+            .cookie(REFRESH_TOKEN_COOKIE_NAME, refreshToken, refreshCookieConfig)
             .status(201).json({
                 error: false,
                 message: 'تم إنشاء جلسة مجهولة بنجاح',
@@ -330,7 +330,7 @@ const convertAnonymousUser = async (request, response) => {
 
         return response
             .cookie('accessToken', accessToken, cookieConfig)
-            .cookie('refreshToken', refreshToken, refreshCookieConfig)
+            .cookie(REFRESH_TOKEN_COOKIE_NAME, refreshToken, refreshCookieConfig)
             .status(200).json({
                 error: false,
                 message: 'تم تحويل الحساب بنجاح',

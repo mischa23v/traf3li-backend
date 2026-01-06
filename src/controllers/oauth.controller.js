@@ -1,7 +1,7 @@
 const oauthService = require('../services/oauth.service');
 const { CustomException } = require('../utils');
 const logger = require('../utils/contextLogger');
-const { getCookieConfig, getHttpOnlyRefreshCookieConfig } = require('../utils/cookieConfig');
+const { getCookieConfig, getHttpOnlyRefreshCookieConfig, REFRESH_TOKEN_COOKIE_NAME } = require('../utils/cookieConfig');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const authWebhookService = require('../services/authWebhook.service');
 
@@ -738,7 +738,7 @@ const callbackPost = async (request, response) => {
             });
             response.cookie('accessToken', result.token, accessCookieConfig);
             if (result.refreshToken) {
-                response.cookie('refreshToken', result.refreshToken, refreshCookieConfig);
+                response.cookie(REFRESH_TOKEN_COOKIE_NAME, result.refreshToken, refreshCookieConfig);
             }
         } else {
             // eslint-disable-next-line no-console

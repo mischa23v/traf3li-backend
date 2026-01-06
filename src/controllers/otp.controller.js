@@ -7,7 +7,7 @@ const { EmailOTP, User, Firm } = require('../models');
 const { generateOTP, hashOTP } = require('../utils/otp.utils');
 const NotificationDeliveryService = require('../services/notificationDelivery.service');
 const crypto = require('crypto');
-const { getCookieConfig, getHttpOnlyRefreshCookieConfig } = require('../utils/cookieConfig');
+const { getCookieConfig, getHttpOnlyRefreshCookieConfig, REFRESH_TOKEN_COOKIE_NAME } = require('../utils/cookieConfig');
 const { sanitizeObjectId, timingSafeEqual } = require('../utils/securityUtils');
 const logger = require('../utils/logger');
 const refreshTokenService = require('../services/refreshToken.service');
@@ -279,7 +279,7 @@ const verifyOTP = async (req, res) => {
 
     // Set cookies and return response (same pattern as SSO login)
     res.cookie('accessToken', accessToken, cookieConfig)
-      .cookie('refreshToken', refreshToken, refreshCookieConfig)
+      .cookie(REFRESH_TOKEN_COOKIE_NAME, refreshToken, refreshCookieConfig)
       .status(200).json({
         success: true,
         message: 'Login successful',
