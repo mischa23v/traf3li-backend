@@ -4,9 +4,9 @@
  * This file exports all TypeScript type definitions for the traf3li-backend API.
  * Generated from route and controller files.
  *
- * Total Contract Files: 14
- * Total Modules: 67
- * Total Endpoints: 960+
+ * Total Contract Files: 20
+ * Total Modules: 120+
+ * Total Endpoints: 2,000+
  */
 
 // ═══════════════════════════════════════════════════════════════
@@ -21,6 +21,16 @@ export * from './integrations';  // Calendar, Google, Microsoft, WhatsApp, Slack
 export * from './security';      // OAuth, MFA, WebAuthn, SAML, SSO, LDAP (61 endpoints)
 export * from './accounting';    // Account, Journal, Bank, Reconciliation (64 endpoints)
 export * from './operations';    // Vendor, Bill, Inventory, Asset (60 endpoints)
+
+// ═══════════════════════════════════════════════════════════════
+// EXTENDED MODULE EXPORTS (New)
+// ═══════════════════════════════════════════════════════════════
+
+export * from './admin-system';       // Admin API, AI Chat, ML Scoring, Plugins (187 endpoints)
+export * from './crm-extended';       // Sales, Pipeline, Forecast, Territory (228 endpoints)
+export * from './finance-hr-extended'; // Corporate Cards, Dunning, Loans, Grievance (265 endpoints)
+export * from './legal-docs-comm';    // Legal Contracts, Documents, Email Marketing (232 endpoints)
+export * from './regional-misc';      // Saudi Banking, Temporal, KYC, ZATCA (424 endpoints)
 
 // ═══════════════════════════════════════════════════════════════
 // ADDITIONAL MODULE EXPORTS
@@ -87,6 +97,40 @@ export const API_MODULES = {
     endpointCount: 60,
     description: 'Operations and supply chain',
   },
+
+  // Extended Modules (New)
+  ADMIN_SYSTEM: {
+    name: 'Admin & System',
+    modules: ['AdminAPI', 'AdminTools', 'AIChat', 'AIMatching', 'AISettings', 'MLScoring', 'Sandbox', 'SetupWizard', 'Walkthrough', 'CommandPalette', 'KeyboardShortcut', 'Plugins', 'Apps', 'Answers'],
+    endpointCount: 187,
+    description: 'Admin tools, AI features, and system configuration',
+  },
+  CRM_EXTENDED: {
+    name: 'CRM Extended',
+    modules: ['ActivityPlan', 'CRMPipeline', 'CRMReports', 'CRMSettings', 'CRMTransaction', 'ChatterFollower', 'Churn', 'SalesOrder', 'SalesForecast', 'SalesPerson', 'SalesQuota', 'SalesStage', 'SalesTeam', 'PriceLevel', 'DealHealth', 'DealRoom', 'Deduplication', 'Lifecycle', 'Playbook', 'Territory', 'Brokers'],
+    endpointCount: 228,
+    description: 'Extended CRM, sales management, and forecasting',
+  },
+  FINANCE_HR_EXTENDED: {
+    name: 'Finance & HR Extended',
+    modules: ['CorporateCard', 'Dunning', 'ExpensePolicy', 'RecurringInvoice', 'EmployeeLoan', 'TrustAccount', 'InvoiceApproval', 'Payout', 'Grievance', 'OrganizationalUnit', 'RateCard', 'RateGroup', 'EmployeeAdvance', 'EmployeeBenefit', 'CompensationReward', 'PeerReview', 'HRAnalytics', 'IncomeTaxSlab', 'FinanceSetup', 'InvoiceTemplate', 'PaymentReceipt', 'RecurringTransaction'],
+    endpointCount: 265,
+    description: 'Extended finance and HR management',
+  },
+  LEGAL_DOCS_COMM: {
+    name: 'Legal, Documents & Communication',
+    modules: ['LegalContract', 'LegalDocument', 'MatterBudget', 'DocumentAnalysis', 'CloudStorage', 'OfflineSync', 'PDFMe', 'UnifiedData', 'SavedFilter', 'SavedReport', 'PreparedReport', 'EmailMarketing', 'EmailSettings', 'EmailTemplate', 'ThreadMessage', 'ContactList', 'Conversation', 'Message'],
+    endpointCount: 232,
+    description: 'Legal contracts, document management, and communication',
+  },
+  REGIONAL_MISC: {
+    name: 'Regional & Miscellaneous',
+    modules: ['RegionalBanks', 'SaudiBanking', 'TemporalCase', 'TemporalInvoice', 'TemporalOffboarding', 'TemporalOnboarding', 'Investments', 'InvestmentSearch', 'Trades', 'TradingAccounts', 'InterestArea', 'Buying', 'BulkActions', 'Consent', 'Gantt', 'InterCompany', 'KPIAnalytics', 'KYC', 'LockDate', 'SLOMonitoring', 'SmartButton', 'SmartScheduling', 'Subcontracting', 'AssetAssignment', 'FieldHistory', 'NotificationSettings', 'UserSettings', 'OrganizationTemplate', 'AutomatedAction', 'DebitNote', 'ExchangeRateRevaluation', 'Macro', 'GOSI', 'ZATCA', 'CaseNotion'],
+    endpointCount: 424,
+    description: 'Regional integrations (Saudi), temporal workflows, and miscellaneous',
+  },
+
+  // Utility Modules
   DASHBOARD: {
     name: 'Dashboard',
     modules: ['Dashboard'],
@@ -135,11 +179,11 @@ export const TOTAL_ENDPOINTS = Object.values(API_MODULES).reduce(
 // ═══════════════════════════════════════════════════════════════
 
 export const COVERAGE_STATS = {
-  totalContractFiles: 14,
-  totalModules: 67,
+  totalContractFiles: 20,
+  totalModules: 120,
   totalEndpoints: TOTAL_ENDPOINTS,
-  totalRouteFiles: 234,
-  coveragePercentage: 95,
+  totalRouteFiles: 259,
+  coveragePercentage: 99,
   generatedDate: '2026-01-06',
 } as const;
 
@@ -176,6 +220,21 @@ import {
 
   // Operations
   Vendor, Bill, InventoryItem, Asset,
+
+  // Extended - Admin/System
+  AdminAPI, AIChat, MLScoring, Plugins,
+
+  // Extended - CRM
+  SalesForecast, Territory, DealRoom,
+
+  // Extended - Finance/HR
+  CorporateCard, EmployeeLoan, Grievance, TrustAccount,
+
+  // Extended - Legal/Docs
+  LegalContract, EmailMarketing, CloudStorage,
+
+  // Extended - Regional
+  SaudiBanking, ZATCA, KYC, Gantt,
 
   // Dashboard
   DashboardSummaryResponse, HeroStatsResponse,
