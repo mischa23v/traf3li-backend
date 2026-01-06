@@ -167,6 +167,8 @@ const markAllAsRead = async (request, response) => {
             query.firmId = sanitizeObjectId(firmId);
         }
 
+        // NOTE: No transaction needed - this is a standalone operation updating only the Notification collection.
+        // No related collections are affected, and partial updates are acceptable (non-critical operation).
         const result = await Notification.updateMany(
             query,
             { $set: { read: true, readAt: new Date() } }
@@ -413,6 +415,8 @@ const createBulkNotifications = async (notifications) => {
         const allowedEntityTypes = ['invoice', 'payment', 'case', 'task', 'time_entry', 'expense', 'client', 'document', 'event', 'order', 'proposal'];
         const allowedPriorities = ['low', 'normal', 'high', 'urgent'];
 
+        // NOTE: No transaction needed for insertMany - this is a single collection insert operation.
+        // MongoDB insertMany is atomic at the document level. Partial inserts are acceptable for notifications.
         // Sanitize and validate each notification
         const sanitizedNotifications = notifications.map((notificationData, index) => {
             // Mass assignment protection
@@ -581,6 +585,8 @@ const markMultipleAsRead = async (request, response) => {
             query.firmId = sanitizeObjectId(firmId);
         }
 
+        // NOTE: No transaction needed - this is a standalone operation updating only the Notification collection.
+        // No related collections are affected, and partial updates are acceptable (non-critical operation).
         const result = await Notification.updateMany(
             query,
             { $set: { read: true, readAt: new Date() } }
@@ -650,6 +656,8 @@ const bulkDeleteNotifications = async (request, response) => {
             query.firmId = sanitizeObjectId(firmId);
         }
 
+        // NOTE: No transaction needed - this is a standalone operation deleting from only the Notification collection.
+        // No related collections are affected, and notifications are independent records.
         const result = await Notification.deleteMany(query);
 
         // Get updated unread count with firmId filter
@@ -699,6 +707,8 @@ const clearReadNotifications = async (request, response) => {
             query.firmId = sanitizeObjectId(firmId);
         }
 
+        // NOTE: No transaction needed - this is a standalone operation deleting from only the Notification collection.
+        // No related collections are affected, and notifications are independent records.
         const result = await Notification.deleteMany(query);
 
         return response.status(200).json({

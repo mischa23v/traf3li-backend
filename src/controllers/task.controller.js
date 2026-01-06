@@ -1434,6 +1434,8 @@ const bulkUpdateTasks = asyncHandler(async (req, res) => {
         throw CustomException('Some tasks are not accessible', 403);
     }
 
+    // NOTE: No transaction needed - this is a standalone operation updating only the Task collection.
+    // No related collections are affected by these field updates (status, priority, etc.).
     // Use req.firmQuery in updateMany for tenant isolation
     await Task.updateMany(
         { _id: { $in: sanitizedTaskIds }, ...req.firmQuery },
@@ -1448,6 +1450,10 @@ const bulkUpdateTasks = asyncHandler(async (req, res) => {
 });
 
 // Bulk delete tasks
+//
+// NOTE: Uses MongoDB transaction to ensure atomicity between unlinking/deleting linked events and deleting tasks.
+// If either operation fails, both are rolled back to prevent data inconsistency.
+// This mirrors the behavior of single task delete which also removes linked events.
 const bulkDeleteTasks = asyncHandler(async (req, res) => {
     // Mass assignment protection
     const data = pickAllowedFields(req.body, ALLOWED_FIELDS.BULK_DELETE);
@@ -1468,7 +1474,8 @@ const bulkDeleteTasks = asyncHandler(async (req, res) => {
     // Use req.firmQuery for proper tenant isolation (solo + firm)
     const accessQuery = { _id: { $in: sanitizedTaskIds }, ...req.firmQuery };
 
-    const tasks = await Task.find(accessQuery).select('_id');
+    // Fetch tasks with linkedEventId to know which events to delete
+    const tasks = await Task.find(accessQuery).select('_id linkedEventId');
     const foundTaskIds = tasks.map(t => t._id.toString());
 
     // Find which IDs failed authorization
@@ -1484,15 +1491,51 @@ const bulkDeleteTasks = asyncHandler(async (req, res) => {
         });
     }
 
-    // SECURITY: Use accessQuery with req.firmQuery to ensure tenant isolation
-    await Task.deleteMany(accessQuery);
+    // Collect event IDs that need to be deleted (mirroring single task delete behavior)
+    const eventIdsToDelete = tasks
+        .filter(task => task.linkedEventId)
+        .map(task => task.linkedEventId);
 
-    res.status(200).json({
-        success: true,
-        message: `${tasks.length} tasks deleted successfully`,
-        count: tasks.length,
-        data: { deletedIds: foundTaskIds }
-    });
+    // Use transaction to ensure atomicity
+    // Rationale: We're modifying two collections (Task and Event).
+    // If Task.deleteMany fails after events are deleted, we'd have orphaned events.
+    // Transaction ensures both operations succeed or both are rolled back.
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+        // Delete all linked events in bulk
+        if (eventIdsToDelete.length > 0) {
+            await Event.deleteMany(
+                {
+                    _id: { $in: eventIdsToDelete },
+                    ...req.firmQuery
+                },
+                { session }
+            );
+        }
+
+        // Delete all tasks
+        await Task.deleteMany(accessQuery, { session });
+
+        await session.commitTransaction();
+
+        res.status(200).json({
+            success: true,
+            message: `${tasks.length} tasks deleted successfully`,
+            count: tasks.length,
+            data: {
+                deletedIds: foundTaskIds,
+                deletedLinkedEvents: eventIdsToDelete.length
+            }
+        });
+    } catch (error) {
+        await session.abortTransaction();
+        logger.error('Bulk delete tasks transaction failed', { error: error.message });
+        throw error;
+    } finally {
+        session.endSession();
+    }
 });
 
 // === STATS & ANALYTICS ===
@@ -3353,6 +3396,8 @@ const bulkCompleteTasks = asyncHandler(async (req, res) => {
         });
     }
 
+    // NOTE: No transaction needed - this is a standalone operation updating only the Task collection.
+    // No related collections are affected by completing tasks. History is tracked within the same document.
     // Complete all accessible tasks
     const now = new Date();
     const updateResult = await Task.updateMany(
@@ -3440,6 +3485,8 @@ const bulkAssignTasks = asyncHandler(async (req, res) => {
         });
     }
 
+    // NOTE: No transaction needed - this is a standalone operation updating only the Task collection.
+    // No related collections are affected by reassigning tasks. History is tracked within the same document.
     // Assign all accessible tasks
     const now = new Date();
     const updateResult = await Task.updateMany(
@@ -3521,6 +3568,8 @@ const bulkArchiveTasks = asyncHandler(async (req, res) => {
         });
     }
 
+    // NOTE: No transaction needed - this is a standalone operation updating only the Task collection.
+    // No related collections are affected by archiving tasks. History is tracked within the same document.
     // Archive all accessible tasks
     const now = new Date();
     const updateResult = await Task.updateMany(
@@ -3596,6 +3645,8 @@ const bulkUnarchiveTasks = asyncHandler(async (req, res) => {
         });
     }
 
+    // NOTE: No transaction needed - this is a standalone operation updating only the Task collection.
+    // No related collections are affected by unarchiving tasks. History is tracked within the same document.
     // Unarchive all accessible tasks
     const now = new Date();
     const updateResult = await Task.updateMany(
@@ -3670,6 +3721,8 @@ const bulkReopenTasks = asyncHandler(async (req, res) => {
         });
     }
 
+    // NOTE: No transaction needed - this is a standalone operation updating only the Task collection.
+    // No related collections are affected by reopening tasks. History is tracked within the same document.
     // Reopen all accessible tasks
     const now = new Date();
     const updateResult = await Task.updateMany(
