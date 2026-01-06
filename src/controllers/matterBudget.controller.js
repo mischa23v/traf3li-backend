@@ -13,8 +13,6 @@ const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils'
  * POST /api/matter-budgets
  */
 const createBudget = asyncHandler(async (req, res) => {
-    const lawyerId = req.userID;
-
     // Mass assignment protection
     const allowedFields = ['caseId', 'clientId', 'name', 'nameAr', 'totalBudget', 'phases', 'alertThresholds', 'notes', 'templateId'];
     const data = pickAllowedFields(req.body, allowedFields);
@@ -32,7 +30,8 @@ const createBudget = asyncHandler(async (req, res) => {
 
     // Sanitize and verify case ownership (IDOR protection)
     const sanitizedCaseId = sanitizeObjectId(caseId);
-    const caseDoc = await Case.findOne({ _id: sanitizedCaseId, lawyerId });
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const caseDoc = await Case.findOne({ _id: sanitizedCaseId, ...req.firmQuery });
     if (!caseDoc) {
         throw CustomException('القضية غير موجودة', 404);
     }
@@ -40,14 +39,16 @@ const createBudget = asyncHandler(async (req, res) => {
     // Verify client ownership if clientId provided (IDOR protection)
     if (clientId) {
         const sanitizedClientId = sanitizeObjectId(clientId);
-        const clientDoc = await Client.findOne({ _id: sanitizedClientId, lawyerId });
+        // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+        const clientDoc = await Client.findOne({ _id: sanitizedClientId, ...req.firmQuery });
         if (!clientDoc) {
             throw CustomException('العميل غير موجود', 400);
         }
     }
 
     // Check if budget already exists for case
-    const existing = await MatterBudget.findOne({ caseId, lawyerId });
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const existing = await MatterBudget.findOne({ caseId: sanitizedCaseId, ...req.firmQuery });
     if (existing) {
         throw CustomException('ميزانية القضية موجودة بالفعل', 400);
     }
@@ -55,7 +56,9 @@ const createBudget = asyncHandler(async (req, res) => {
     // If using template, get phases from template
     let budgetPhases = phases || [];
     if (templateId) {
-        const template = await BudgetTemplate.findOne({ _id: templateId, lawyerId });
+        const sanitizedTemplateId = sanitizeObjectId(templateId);
+        // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+        const template = await BudgetTemplate.findOne({ _id: sanitizedTemplateId, ...req.firmQuery });
         if (template) {
             budgetPhases = template.phases;
         }
@@ -76,9 +79,9 @@ const createBudget = asyncHandler(async (req, res) => {
         }
     }
 
-    const budget = await MatterBudget.create({
-        lawyerId,
-        caseId,
+    // SECURITY FIX: Use req.addFirmId for proper tenant context
+    const budget = await MatterBudget.create(req.addFirmId({
+        caseId: sanitizedCaseId,
         clientId: clientId || caseDoc.clientId,
         name: name || `ميزانية ${caseDoc.title}`,
         nameAr,
@@ -89,8 +92,8 @@ const createBudget = asyncHandler(async (req, res) => {
             critical: 95
         },
         notes,
-        createdBy: lawyerId
-    });
+        createdBy: req.userID
+    }));
 
     res.status(201).json({
         success: true,
@@ -105,11 +108,11 @@ const createBudget = asyncHandler(async (req, res) => {
  */
 const getBudgets = asyncHandler(async (req, res) => {
     const { caseId, clientId, status, page = 1, limit = 20 } = req.query;
-    const lawyerId = req.userID;
 
-    const query = { lawyerId };
-    if (caseId) query.caseId = caseId;
-    if (clientId) query.clientId = clientId;
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const query = { ...req.firmQuery };
+    if (caseId) query.caseId = sanitizeObjectId(caseId);
+    if (clientId) query.clientId = sanitizeObjectId(clientId);
     if (status) query.status = status;
 
     const budgets = await MatterBudget.find(query)
@@ -139,9 +142,10 @@ const getBudgets = asyncHandler(async (req, res) => {
  */
 const getBudget = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const lawyerId = req.userID;
+    const sanitizedId = sanitizeObjectId(id);
 
-    const budget = await MatterBudget.findOne({ _id: id, lawyerId })
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const budget = await MatterBudget.findOne({ _id: sanitizedId, ...req.firmQuery })
         .populate('caseId', 'title caseNumber status')
         .populate('clientId', 'firstName lastName companyName email');
 
@@ -149,8 +153,8 @@ const getBudget = asyncHandler(async (req, res) => {
         throw CustomException('الميزانية غير موجودة', 404);
     }
 
-    // Get entries for this budget
-    const entries = await BudgetEntry.find({ budgetId: id })
+    // Get entries for this budget - also use req.firmQuery
+    const entries = await BudgetEntry.find({ budgetId: sanitizedId, ...req.firmQuery })
         .sort({ date: -1 })
         .limit(20);
 
@@ -169,9 +173,10 @@ const getBudget = asyncHandler(async (req, res) => {
  */
 const getBudgetByCase = asyncHandler(async (req, res) => {
     const { caseId } = req.params;
-    const lawyerId = req.userID;
+    const sanitizedCaseId = sanitizeObjectId(caseId);
 
-    const budget = await MatterBudget.findOne({ caseId, lawyerId })
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const budget = await MatterBudget.findOne({ caseId: sanitizedCaseId, ...req.firmQuery })
         .populate('caseId', 'title caseNumber')
         .populate('clientId', 'firstName lastName companyName');
 
@@ -187,9 +192,10 @@ const getBudgetByCase = asyncHandler(async (req, res) => {
  */
 const updateBudget = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const lawyerId = req.userID;
+    const sanitizedId = sanitizeObjectId(id);
 
-    const budget = await MatterBudget.findOne({ _id: id, lawyerId });
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const budget = await MatterBudget.findOne({ _id: sanitizedId, ...req.firmQuery });
 
     if (!budget) {
         throw CustomException('الميزانية غير موجودة', 404);
@@ -240,19 +246,17 @@ const updateBudget = asyncHandler(async (req, res) => {
  */
 const deleteBudget = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const lawyerId = req.userID;
+    const sanitizedId = sanitizeObjectId(id);
 
-    const budget = await MatterBudget.findOne({ _id: id, lawyerId });
+    // SECURITY FIX: Use atomic findOneAndDelete with req.firmQuery for TOCTOU-safe operation
+    const budget = await MatterBudget.findOneAndDelete({ _id: sanitizedId, ...req.firmQuery });
 
     if (!budget) {
         throw CustomException('الميزانية غير موجودة', 404);
     }
 
-    // Delete all entries
-    await BudgetEntry.deleteMany({ budgetId: id });
-
-    // Delete budget
-    await MatterBudget.findOneAndDelete({ _id: id, lawyerId });
+    // Delete all entries for this budget
+    await BudgetEntry.deleteMany({ budgetId: sanitizedId, ...req.firmQuery });
 
     res.status(200).json({
         success: true,
@@ -268,7 +272,7 @@ const deleteBudget = asyncHandler(async (req, res) => {
  */
 const addEntry = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const lawyerId = req.userID;
+    const sanitizedId = sanitizeObjectId(id);
 
     // Mass assignment protection
     const allowedFields = ['type', 'category', 'phaseId', 'description', 'amount', 'date', 'reference', 'billable'];
@@ -285,8 +289,8 @@ const addEntry = asyncHandler(async (req, res) => {
         throw CustomException('المبلغ يجب أن يكون رقمًا موجبًا', 400);
     }
 
-    // IDOR protection - verify budget ownership
-    const budget = await MatterBudget.findOne({ _id: id, lawyerId });
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const budget = await MatterBudget.findOne({ _id: sanitizedId, ...req.firmQuery });
 
     if (!budget) {
         throw CustomException('الميزانية غير موجودة', 404);
@@ -300,9 +304,9 @@ const addEntry = asyncHandler(async (req, res) => {
         }
     }
 
-    const entry = await BudgetEntry.create({
-        lawyerId,
-        budgetId: id,
+    // SECURITY FIX: Use req.addFirmId for proper tenant context
+    const entry = await BudgetEntry.create(req.addFirmId({
+        budgetId: sanitizedId,
         caseId: budget.caseId,
         type,
         category,
@@ -312,8 +316,8 @@ const addEntry = asyncHandler(async (req, res) => {
         date: date || new Date(),
         reference,
         billable: billable !== false,
-        createdBy: lawyerId
-    });
+        createdBy: req.userID
+    }));
 
     // Update budget totals
     budget.actualSpent += amount;
@@ -358,9 +362,10 @@ const addEntry = asyncHandler(async (req, res) => {
 const getEntries = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { type, category, phaseId, startDate, endDate, page = 1, limit = 50 } = req.query;
-    const lawyerId = req.userID;
+    const sanitizedId = sanitizeObjectId(id);
 
-    const query = { lawyerId, budgetId: id };
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const query = { ...req.firmQuery, budgetId: sanitizedId };
     if (type) query.type = type;
     if (category) query.category = category;
     if (phaseId) query.phaseId = phaseId;
@@ -377,9 +382,13 @@ const getEntries = asyncHandler(async (req, res) => {
 
     const total = await BudgetEntry.countDocuments(query);
 
-    // Calculate totals
+    // Calculate totals - SECURITY FIX: Include firmQuery in aggregate
+    const aggregateMatch = { budgetId: new mongoose.Types.ObjectId(sanitizedId) };
+    if (req.firmId) aggregateMatch.firmId = new mongoose.Types.ObjectId(req.firmId);
+    else if (req.userID) aggregateMatch.lawyerId = new mongoose.Types.ObjectId(req.userID);
+
     const totals = await BudgetEntry.aggregate([
-        { $match: { budgetId: new mongoose.Types.ObjectId(id), lawyerId } },
+        { $match: aggregateMatch },
         {
             $group: {
                 _id: '$type',
@@ -411,12 +420,14 @@ const getEntries = asyncHandler(async (req, res) => {
  */
 const updateEntry = asyncHandler(async (req, res) => {
     const { id, entryId } = req.params;
-    const lawyerId = req.userID;
+    const sanitizedId = sanitizeObjectId(id);
+    const sanitizedEntryId = sanitizeObjectId(entryId);
 
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
     const entry = await BudgetEntry.findOne({
-        _id: entryId,
-        budgetId: id,
-        lawyerId
+        _id: sanitizedEntryId,
+        budgetId: sanitizedId,
+        ...req.firmQuery
     });
 
     if (!entry) {
@@ -437,8 +448,8 @@ const updateEntry = asyncHandler(async (req, res) => {
 
     // Update budget totals if amount changed
     if (req.body.amount !== undefined && req.body.amount !== oldAmount) {
-        // IDOR Protection: Use findOne with lawyerId
-        const budget = await MatterBudget.findOne({ _id: id, lawyerId });
+        // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+        const budget = await MatterBudget.findOne({ _id: sanitizedId, ...req.firmQuery });
         const difference = entry.amount - oldAmount;
         budget.actualSpent += difference;
         budget.percentUsed = (budget.actualSpent / budget.totalBudget) * 100;
@@ -469,12 +480,14 @@ const updateEntry = asyncHandler(async (req, res) => {
  */
 const deleteEntry = asyncHandler(async (req, res) => {
     const { id, entryId } = req.params;
-    const lawyerId = req.userID;
+    const sanitizedId = sanitizeObjectId(id);
+    const sanitizedEntryId = sanitizeObjectId(entryId);
 
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
     const entry = await BudgetEntry.findOne({
-        _id: entryId,
-        budgetId: id,
-        lawyerId
+        _id: sanitizedEntryId,
+        budgetId: sanitizedId,
+        ...req.firmQuery
     });
 
     if (!entry) {
@@ -482,8 +495,8 @@ const deleteEntry = asyncHandler(async (req, res) => {
     }
 
     // Update budget totals
-    // IDOR Protection: Use findOne with lawyerId
-    const budget = await MatterBudget.findOne({ _id: id, lawyerId });
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const budget = await MatterBudget.findOne({ _id: sanitizedId, ...req.firmQuery });
     if (!budget) {
         throw CustomException('الميزانية غير موجودة', 404);
     }
@@ -497,7 +510,8 @@ const deleteEntry = asyncHandler(async (req, res) => {
     }
 
     await budget.save();
-    await BudgetEntry.findOneAndDelete({ _id: entryId, budgetId: id, lawyerId });
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    await BudgetEntry.findOneAndDelete({ _id: sanitizedEntryId, budgetId: sanitizedId, ...req.firmQuery });
 
     res.status(200).json({
         success: true,
@@ -514,13 +528,14 @@ const deleteEntry = asyncHandler(async (req, res) => {
 const addPhase = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { name, nameAr, budget: phaseBudget, startDate, endDate, description } = req.body;
-    const lawyerId = req.userID;
+    const sanitizedId = sanitizeObjectId(id);
 
     if (!name || !phaseBudget) {
         throw CustomException('اسم المرحلة والميزانية مطلوبان', 400);
     }
 
-    const budget = await MatterBudget.findOne({ _id: id, lawyerId });
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const budget = await MatterBudget.findOne({ _id: sanitizedId, ...req.firmQuery });
 
     if (!budget) {
         throw CustomException('الميزانية غير موجودة', 404);
@@ -558,9 +573,10 @@ const addPhase = asyncHandler(async (req, res) => {
  */
 const updatePhase = asyncHandler(async (req, res) => {
     const { id, phaseId } = req.params;
-    const lawyerId = req.userID;
+    const sanitizedId = sanitizeObjectId(id);
 
-    const budget = await MatterBudget.findOne({ _id: id, lawyerId });
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const budget = await MatterBudget.findOne({ _id: sanitizedId, ...req.firmQuery });
 
     if (!budget) {
         throw CustomException('الميزانية غير موجودة', 404);
@@ -593,9 +609,10 @@ const updatePhase = asyncHandler(async (req, res) => {
  */
 const deletePhase = asyncHandler(async (req, res) => {
     const { id, phaseId } = req.params;
-    const lawyerId = req.userID;
+    const sanitizedId = sanitizeObjectId(id);
 
-    const budget = await MatterBudget.findOne({ _id: id, lawyerId });
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const budget = await MatterBudget.findOne({ _id: sanitizedId, ...req.firmQuery });
 
     if (!budget) {
         throw CustomException('الميزانية غير موجودة', 404);
@@ -606,8 +623,8 @@ const deletePhase = asyncHandler(async (req, res) => {
         throw CustomException('المرحلة غير موجودة', 404);
     }
 
-    // Check if phase has entries
-    const hasEntries = await BudgetEntry.exists({ budgetId: id, phaseId });
+    // Check if phase has entries - SECURITY FIX: Include req.firmQuery
+    const hasEntries = await BudgetEntry.exists({ budgetId: sanitizedId, phaseId, ...req.firmQuery });
     if (hasEntries) {
         throw CustomException('لا يمكن حذف مرحلة بها مصروفات', 400);
     }
@@ -630,21 +647,20 @@ const deletePhase = asyncHandler(async (req, res) => {
  */
 const createTemplate = asyncHandler(async (req, res) => {
     const { name, nameAr, description, caseType, phases, isDefault } = req.body;
-    const lawyerId = req.userID;
 
     if (!name) {
         throw CustomException('اسم القالب مطلوب', 400);
     }
 
-    const template = await BudgetTemplate.create({
-        lawyerId,
+    // SECURITY FIX: Use req.addFirmId for proper tenant context
+    const template = await BudgetTemplate.create(req.addFirmId({
         name,
         nameAr,
         description,
         caseType,
         phases: phases || [],
         isDefault: isDefault || false
-    });
+    }));
 
     res.status(201).json({
         success: true,
@@ -659,9 +675,9 @@ const createTemplate = asyncHandler(async (req, res) => {
  */
 const getTemplates = asyncHandler(async (req, res) => {
     const { caseType } = req.query;
-    const lawyerId = req.userID;
 
-    const query = { lawyerId };
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const query = { ...req.firmQuery };
     if (caseType) query.caseType = caseType;
 
     const templates = await BudgetTemplate.find(query)
@@ -679,9 +695,10 @@ const getTemplates = asyncHandler(async (req, res) => {
  */
 const updateTemplate = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const lawyerId = req.userID;
+    const sanitizedId = sanitizeObjectId(id);
 
-    const template = await BudgetTemplate.findOne({ _id: id, lawyerId });
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const template = await BudgetTemplate.findOne({ _id: sanitizedId, ...req.firmQuery });
 
     if (!template) {
         throw CustomException('قالب الميزانية غير موجود', 404);
@@ -709,9 +726,10 @@ const updateTemplate = asyncHandler(async (req, res) => {
  */
 const deleteTemplate = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const lawyerId = req.userID;
+    const sanitizedId = sanitizeObjectId(id);
 
-    const template = await BudgetTemplate.findOneAndDelete({ _id: id, lawyerId });
+    // SECURITY FIX: Use atomic findOneAndDelete with req.firmQuery
+    const template = await BudgetTemplate.findOneAndDelete({ _id: sanitizedId, ...req.firmQuery });
 
     if (!template) {
         throw CustomException('قالب الميزانية غير موجود', 404);
@@ -731,9 +749,10 @@ const deleteTemplate = asyncHandler(async (req, res) => {
  */
 const getBudgetAnalysis = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const lawyerId = req.userID;
+    const sanitizedId = sanitizeObjectId(id);
 
-    const budget = await MatterBudget.findOne({ _id: id, lawyerId })
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const budget = await MatterBudget.findOne({ _id: sanitizedId, ...req.firmQuery })
         .populate('caseId', 'title caseNumber');
 
     if (!budget) {
@@ -815,11 +834,10 @@ const getBudgetAnalysis = asyncHandler(async (req, res) => {
  * GET /api/matter-budgets/alerts
  */
 const getBudgetAlerts = asyncHandler(async (req, res) => {
-    const lawyerId = req.userID;
-
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
     // Get budgets that are at warning or critical levels
     const alerts = await MatterBudget.find({
-        lawyerId,
+        ...req.firmQuery,
         $or: [
             { status: 'at_risk' },
             { status: 'over_budget' }
