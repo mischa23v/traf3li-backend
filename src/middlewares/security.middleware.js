@@ -170,6 +170,15 @@ const originCheck = (req, res, next) => {
         return next();
     }
 
+    // ALWAYS allow localhost and 127.0.0.1 (any port) - matches CORS config
+    // This allows local frontend development against production API
+    if (origin.startsWith('http://localhost:') ||
+        origin.startsWith('http://127.0.0.1:') ||
+        origin === 'http://localhost' ||
+        origin === 'http://127.0.0.1') {
+        return next();
+    }
+
     // Check if origin is allowed
     if (allowedOrigins.length > 0 && !allowedOrigins.includes(origin)) {
         return res.status(403).json({
