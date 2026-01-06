@@ -24,7 +24,7 @@ const submitTimeEntry = asyncHandler(async (req, res) => {
 
     const entry = await TimeEntry.findOne({
         _id: entryId,
-        firmId: req.firmId
+        ...req.firmQuery
     });
 
     if (!entry) {
@@ -49,7 +49,7 @@ const submitTimeEntry = asyncHandler(async (req, res) => {
     // Notify manager
     if (managerId || entry.assignedManager) {
         await Notification.createNotification({
-            firmId: req.firmId,
+            ...req.firmQuery,
             userId: managerId || entry.assignedManager,
             type: 'time_entry_submitted',
             title: 'Time Entry Pending Approval',
@@ -81,7 +81,7 @@ const approveTimeEntry = asyncHandler(async (req, res) => {
 
     const entry = await TimeEntry.findOne({
         _id: entryId,
-        firmId: req.firmId
+        ...req.firmQuery
     });
 
     if (!entry) {
@@ -117,7 +117,7 @@ const approveTimeEntry = asyncHandler(async (req, res) => {
 
     // Notify creator
     await Notification.createNotification({
-        firmId: req.firmId,
+        ...req.firmQuery,
         userId: entry.assigneeId || entry.userId,
         type: 'time_entry_approved',
         title: 'Time Entry Approved',
@@ -169,7 +169,7 @@ const rejectTimeEntry = asyncHandler(async (req, res) => {
 
     const entry = await TimeEntry.findOne({
         _id: entryId,
-        firmId: req.firmId
+        ...req.firmQuery
     });
 
     if (!entry) {
@@ -205,7 +205,7 @@ const rejectTimeEntry = asyncHandler(async (req, res) => {
 
     // Notify creator
     await Notification.createNotification({
-        firmId: req.firmId,
+        ...req.firmQuery,
         userId: entry.assigneeId || entry.userId,
         type: 'time_entry_rejected',
         title: 'Time Entry Rejected',
@@ -261,7 +261,7 @@ const bulkApproveTimeEntries = asyncHandler(async (req, res) => {
     // Verify all entries belong to the same firm
     const entries = await TimeEntry.find({
         _id: { $in: sanitizedIds },
-        firmId: req.firmId
+        ...req.firmQuery
     });
 
     if (entries.length !== sanitizedIds.length) {
@@ -297,7 +297,7 @@ const bulkApproveTimeEntries = asyncHandler(async (req, res) => {
     for (const userId of userIds) {
         if (userId) {
             await Notification.createNotification({
-                firmId: req.firmId,
+                ...req.firmQuery,
                 userId,
                 type: 'time_entry_approved',
                 title: 'Time Entries Approved',
@@ -368,7 +368,7 @@ const bulkRejectTimeEntries = asyncHandler(async (req, res) => {
     // Verify all entries belong to the same firm
     const entries = await TimeEntry.find({
         _id: { $in: sanitizedIds },
-        firmId: req.firmId
+        ...req.firmQuery
     });
 
     if (entries.length !== sanitizedIds.length) {
@@ -418,7 +418,7 @@ const getPendingApproval = asyncHandler(async (req, res) => {
     }
 
     const entries = await TimeEntry.getPendingApproval(
-        req.firmId,
+        req.firmQuery,
         managerId || req.userID
     );
 
@@ -460,7 +460,7 @@ const lockTimeEntry = asyncHandler(async (req, res) => {
 
     const entry = await TimeEntry.findOne({
         _id: entryId,
-        firmId: req.firmId
+        ...req.firmQuery
     });
 
     if (!entry) {
@@ -501,7 +501,7 @@ const unlockTimeEntry = asyncHandler(async (req, res) => {
 
     const entry = await TimeEntry.findOne({
         _id: entryId,
-        firmId: req.firmId
+        ...req.firmQuery
     });
 
     if (!entry) {
@@ -602,7 +602,7 @@ const lockPeriod = asyncHandler(async (req, res) => {
     }
 
     const result = await TimeEntry.lockForPeriod(
-        req.firmId,
+        req.firmQuery,
         start,
         end,
         lockReason.trim(),
