@@ -860,8 +860,14 @@ const { authenticatedApi } = require('./middlewares/authenticatedApi.middleware'
 app.use('/api', authenticatedApi);
 
 // ✅ DOCUMENT LOGGING: Debug logging for document operations (Gold Standard)
+// Mount on specific routes only - NOT globally (performance optimization)
 const { documentLoggingMiddleware } = require('./services/documentLogger.service');
-app.use('/api', documentLoggingMiddleware);
+app.use('/api/documents', documentLoggingMiddleware);
+app.use('/api/v1/documents', documentLoggingMiddleware);
+app.use('/api/tasks', documentLoggingMiddleware); // For task attachments
+app.use('/api/v1/tasks', documentLoggingMiddleware);
+app.use('/api/storage', documentLoggingMiddleware);
+app.use('/api/v1/storage', documentLoggingMiddleware);
 
 // ✅ PERFORMANCE: Static files with caching (optimized for frontend service worker)
 app.use('/uploads', express.static('uploads', {

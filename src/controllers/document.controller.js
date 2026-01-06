@@ -3,7 +3,7 @@ const DocumentVersion = require('../models/documentVersion.model');
 const DocumentVersionService = require('../services/documentVersionService');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
-const { r2Client, getUploadPresignedUrl, getDownloadPresignedUrl, deleteObject, BUCKETS, logFileAccess } = require('../configs/storage');
+const { r2Client, getUploadPresignedUrl, getDownloadPresignedUrl, deleteObject, BUCKETS, logFileAccess, PRESIGNED_URL_EXPIRY, PRESIGNED_URL_UPLOAD_EXPIRY } = require('../configs/storage');
 const { sanitizeObjectId } = require('../utils/securityUtils');
 const crypto = require('crypto');
 const path = require('path');
@@ -138,7 +138,7 @@ const getUploadUrl = asyncHandler(async (req, res) => {
             fileKey,
             bucket,
             module: modulePrefix,
-            expiresIn: 3600
+            expiresIn: PRESIGNED_URL_UPLOAD_EXPIRY
         }
     });
 });
@@ -577,14 +577,14 @@ const downloadDocument = asyncHandler(async (req, res) => {
     await document.save();
 
     // Log download success
-    docLogger.logDownloadSuccess(req, document, 3600);
+    docLogger.logDownloadSuccess(req, document, PRESIGNED_URL_EXPIRY);
 
     res.status(200).json({
         success: true,
         data: {
             downloadUrl,
             fileName: document.originalName,
-            expiresIn: 3600
+            expiresIn: PRESIGNED_URL_EXPIRY
         }
     });
 });
