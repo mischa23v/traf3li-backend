@@ -183,14 +183,12 @@ const createPaymentTerm = asyncHandler(async (req, res) => {
         }
     }
 
-    // IDOR Protection: Enforce firmId from authenticated user
-    const term = new PaymentTerms({
+    // SECURITY FIX: Use req.addFirmId for proper tenant context
+    const term = new PaymentTerms(req.addFirmId({
         ...value,
-        firmId: req.firmId,
-        lawyerId: req.firmId ? null : req.userID,
         isSystem: false,
         createdBy: req.userID
-    });
+    }));
 
     await term.save();
 
