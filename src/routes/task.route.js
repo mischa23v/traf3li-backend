@@ -60,6 +60,7 @@ const {
     bulkAssignTasks,
     bulkArchiveTasks,
     bulkUnarchiveTasks,
+    bulkReopenTasks,
     archiveTask,
     unarchiveTask,
     reorderTasks,
@@ -146,11 +147,12 @@ app.get('/case/:caseId', getTasksByCase);
 app.post('/bulk', bulkCreateTasks);
 app.put('/bulk', bulkUpdateTasks);
 app.delete('/bulk', bulkDeleteTasks);
-// NEW: Bulk complete, assign, archive, unarchive
+// NEW: Bulk complete, assign, archive, unarchive, reopen
 app.post('/bulk/complete', bulkCompleteTasks);
 app.post('/bulk/assign', bulkAssignTasks);
 app.post('/bulk/archive', bulkArchiveTasks);
 app.post('/bulk/unarchive', bulkUnarchiveTasks);
+app.post('/bulk/reopen', bulkReopenTasks);
 
 // NEW: Export and Select All
 app.get('/export', exportTasks);
