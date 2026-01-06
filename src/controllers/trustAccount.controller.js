@@ -58,9 +58,10 @@ const validateTransactionType = (type) => {
 
 /**
  * Verify IDOR - Check if resource belongs to current user
+ * SECURITY FIX: Use firmQuery for proper tenant isolation (supports both firm members and solo lawyers)
  */
-const verifyIDORTrustAccount = async (accountId, lawyerId) => {
-    const account = await TrustAccount.findOne({ _id: accountId, lawyerId });
+const verifyIDORTrustAccount = async (accountId, firmQuery) => {
+    const account = await TrustAccount.findOne({ _id: accountId, ...firmQuery });
     if (!account) {
         throw CustomException('حساب الأمانات غير موجود أو ليس لديك صلاحية', 404);
     }
@@ -69,9 +70,10 @@ const verifyIDORTrustAccount = async (accountId, lawyerId) => {
 
 /**
  * Verify IDOR - Check if client belongs to current lawyer
+ * SECURITY FIX: Use firmQuery for proper tenant isolation (supports both firm members and solo lawyers)
  */
-const verifyIDORClient = async (clientId, lawyerId) => {
-    const client = await Client.findOne({ _id: clientId, lawyerId });
+const verifyIDORClient = async (clientId, firmQuery) => {
+    const client = await Client.findOne({ _id: clientId, ...firmQuery });
     if (!client) {
         throw CustomException('العميل غير موجود أو ليس لديك صلاحية', 404);
     }
@@ -80,9 +82,10 @@ const verifyIDORClient = async (clientId, lawyerId) => {
 
 /**
  * Verify IDOR - Check if case belongs to current lawyer
+ * SECURITY FIX: Use firmQuery for proper tenant isolation (supports both firm members and solo lawyers)
  */
-const verifyIDORCase = async (caseId, lawyerId) => {
-    const caseRecord = await Case.findOne({ _id: caseId, lawyerId });
+const verifyIDORCase = async (caseId, firmQuery) => {
+    const caseRecord = await Case.findOne({ _id: caseId, ...firmQuery });
     if (!caseRecord) {
         throw CustomException('القضية غير موجودة أو ليس لديك صلاحية', 404);
     }
@@ -97,8 +100,6 @@ const verifyIDORCase = async (caseId, lawyerId) => {
  * SECURITY: Mass assignment protection via pickAllowedFields
  */
 const createTrustAccount = asyncHandler(async (req, res) => {
-    const lawyerId = req.userID;
-
     // Mass assignment protection - only allow specific fields
     const safeBody = pickAllowedFields(req.body, TRUST_ACCOUNT_CREATE_FIELDS);
     const { name, accountNumber, bankName } = safeBody;
@@ -113,9 +114,10 @@ const createTrustAccount = asyncHandler(async (req, res) => {
     const sanitizedAccountNumber = sanitizeString(accountNumber);
     const sanitizedBankName = sanitizeString(bankName);
 
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
     // Check for duplicate account number
     const existing = await TrustAccount.findOne({
-        lawyerId,
+        ...req.firmQuery,
         accountNumber: sanitizedAccountNumber
     });
     if (existing) {
@@ -124,11 +126,11 @@ const createTrustAccount = asyncHandler(async (req, res) => {
 
     // If setting as default, remove default from others
     if (safeBody.isDefault) {
-        await TrustAccount.updateMany({ lawyerId }, { isDefault: false });
+        await TrustAccount.updateMany({ ...req.firmQuery }, { isDefault: false });
     }
 
-    const trustAccount = await TrustAccount.create({
-        lawyerId,
+    // SECURITY FIX: Use req.addFirmId for proper tenant context
+    const trustAccount = await TrustAccount.create(req.addFirmId({
         name: sanitizedName,
         nameAr: sanitizeString(safeBody.nameAr || ''),
         accountNumber: sanitizedAccountNumber,
@@ -138,7 +140,7 @@ const createTrustAccount = asyncHandler(async (req, res) => {
         description: sanitizeString(safeBody.description || ''),
         isDefault: safeBody.isDefault || false,
         balance: 0
-    });
+    }));
 
     res.status(201).json({
         success: true,
@@ -153,9 +155,9 @@ const createTrustAccount = asyncHandler(async (req, res) => {
  */
 const getTrustAccounts = asyncHandler(async (req, res) => {
     const { isActive } = req.query;
-    const lawyerId = req.userID;
 
-    const query = { lawyerId };
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const query = { ...req.firmQuery };
     if (isActive !== undefined) query.isActive = isActive === 'true';
 
     const accounts = await TrustAccount.find(query)
@@ -174,7 +176,6 @@ const getTrustAccounts = asyncHandler(async (req, res) => {
  */
 const getTrustAccount = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const lawyerId = req.userID;
 
     // Validate and sanitize ID
     const sanitizedId = sanitizeObjectId(id);
@@ -182,8 +183,9 @@ const getTrustAccount = asyncHandler(async (req, res) => {
         throw CustomException('معرف غير صحيح', 400);
     }
 
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
     // IDOR protection - verify account ownership
-    const account = await TrustAccount.findOne({ _id: sanitizedId, lawyerId });
+    const account = await TrustAccount.findOne({ _id: sanitizedId, ...req.firmQuery });
 
     if (!account) {
         throw CustomException('حساب الأمانات غير موجود أو ليس لديك صلاحية', 404);
@@ -202,7 +204,6 @@ const getTrustAccount = asyncHandler(async (req, res) => {
  */
 const updateTrustAccount = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const lawyerId = req.userID;
 
     // Validate and sanitize ID
     const sanitizedId = sanitizeObjectId(id);
@@ -210,8 +211,9 @@ const updateTrustAccount = asyncHandler(async (req, res) => {
         throw CustomException('معرف غير صحيح', 400);
     }
 
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
     // IDOR protection - verify account ownership
-    const account = await verifyIDORTrustAccount(sanitizedId, lawyerId);
+    const account = await verifyIDORTrustAccount(sanitizedId, req.firmQuery);
 
     // Mass assignment protection - only allow specific fields
     const safeBody = pickAllowedFields(req.body, TRUST_ACCOUNT_UPDATE_FIELDS);
@@ -219,7 +221,7 @@ const updateTrustAccount = asyncHandler(async (req, res) => {
     // If setting as default, remove default from others
     if (safeBody.isDefault && !account.isDefault) {
         await TrustAccount.updateMany(
-            { lawyerId, _id: { $ne: sanitizedId } },
+            { ...req.firmQuery, _id: { $ne: sanitizedId } },
             { isDefault: false }
         );
     }
@@ -266,7 +268,6 @@ const updateTrustAccount = asyncHandler(async (req, res) => {
  */
 const deleteTrustAccount = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const lawyerId = req.userID;
 
     // Validate and sanitize ID
     const sanitizedId = sanitizeObjectId(id);
@@ -274,20 +275,22 @@ const deleteTrustAccount = asyncHandler(async (req, res) => {
         throw CustomException('معرف غير صحيح', 400);
     }
 
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
     // IDOR protection - verify account ownership
-    const account = await verifyIDORTrustAccount(sanitizedId, lawyerId);
+    const account = await verifyIDORTrustAccount(sanitizedId, req.firmQuery);
 
     if (account.balance !== 0) {
         throw CustomException('لا يمكن حذف حساب به رصيد', 400);
     }
 
     // Check for transactions
-    const hasTransactions = await TrustTransaction.exists({ trustAccountId: sanitizedId });
+    const hasTransactions = await TrustTransaction.exists({ trustAccountId: sanitizedId, ...req.firmQuery });
     if (hasTransactions) {
         throw CustomException('لا يمكن حذف حساب به معاملات', 400);
     }
 
-    await TrustAccount.findOneAndDelete({ _id: sanitizedId, lawyerId });
+    // SECURITY FIX: Use req.firmQuery for atomic delete with tenant isolation
+    await TrustAccount.findOneAndDelete({ _id: sanitizedId, ...req.firmQuery });
 
     res.status(200).json({
         success: true,
@@ -305,7 +308,6 @@ const deleteTrustAccount = asyncHandler(async (req, res) => {
  */
 const createTransaction = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const lawyerId = req.userID;
 
     // Validate and sanitize ID
     const sanitizedAccountId = sanitizeObjectId(id);
@@ -348,10 +350,11 @@ const createTransaction = asyncHandler(async (req, res) => {
     session.startTransaction();
 
     try {
+        // SECURITY FIX: Use req.firmQuery for proper tenant isolation
         // IDOR check - verify account ownership
         const account = await TrustAccount.findOne({
             _id: sanitizedAccountId,
-            lawyerId
+            ...req.firmQuery
         }).session(session);
 
         if (!account) {
@@ -361,7 +364,7 @@ const createTransaction = asyncHandler(async (req, res) => {
         // IDOR check - verify client ownership
         const client = await Client.findOne({
             _id: sanitizedClientId,
-            lawyerId
+            ...req.firmQuery
         }).session(session);
 
         if (!client) {
@@ -372,7 +375,7 @@ const createTransaction = asyncHandler(async (req, res) => {
         if (sanitizedCaseId) {
             const caseRecord = await Case.findOne({
                 _id: sanitizedCaseId,
-                lawyerId
+                ...req.firmQuery
             }).session(session);
 
             if (!caseRecord) {
@@ -389,7 +392,7 @@ const createTransaction = asyncHandler(async (req, res) => {
         const updatedAccount = await TrustAccount.findOneAndUpdate(
             {
                 _id: sanitizedAccountId,
-                lawyerId
+                ...req.firmQuery
             },
             { $inc: { balance: balanceChange } },
             { new: true, session }
@@ -405,16 +408,17 @@ const createTransaction = asyncHandler(async (req, res) => {
         let clientBalance = await ClientTrustBalance.findOne({
             trustAccountId: sanitizedAccountId,
             clientId: sanitizedClientId,
-            lawyerId
+            ...req.firmQuery
         }).session(session);
 
         if (!clientBalance) {
-            clientBalance = await ClientTrustBalance.create([{
-                lawyerId,
+            // SECURITY FIX: Use req.addFirmId for proper tenant context
+            const firmData = req.addFirmId({
                 trustAccountId: sanitizedAccountId,
                 clientId: sanitizedClientId,
                 balance: 0
-            }], { session });
+            });
+            clientBalance = await ClientTrustBalance.create([firmData], { session });
             clientBalance = clientBalance[0];
         }
 
@@ -424,7 +428,7 @@ const createTransaction = asyncHandler(async (req, res) => {
         const clientBalanceFilter = {
             trustAccountId: sanitizedAccountId,
             clientId: sanitizedClientId,
-            lawyerId
+            ...req.firmQuery
         };
 
         // For debits, ensure sufficient balance in the atomic operation
@@ -444,7 +448,7 @@ const createTransaction = asyncHandler(async (req, res) => {
         if (!updatedClientBalance) {
             // Rollback account balance since client balance update failed
             await TrustAccount.findOneAndUpdate(
-                { _id: sanitizedAccountId, lawyerId },
+                { _id: sanitizedAccountId, ...req.firmQuery },
                 { $inc: { balance: -balanceChange } },
                 { session }
             );
@@ -454,12 +458,12 @@ const createTransaction = asyncHandler(async (req, res) => {
         const clientBalanceAfter = updatedClientBalance.balance;
 
         // Generate transaction number
-        const transactionCount = await TrustTransaction.countDocuments({ lawyerId });
+        const transactionCount = await TrustTransaction.countDocuments({ ...req.firmQuery });
         const transactionNumber = `TT-${new Date().getFullYear()}-${String(transactionCount + 1).padStart(6, '0')}`;
 
+        // SECURITY FIX: Use req.addFirmId for proper tenant context
         // Create transaction with sanitized inputs
-        const transaction = await TrustTransaction.create([{
-            lawyerId,
+        const transactionData = req.addFirmId({
             trustAccountId: sanitizedAccountId,
             clientId: sanitizedClientId,
             caseId: sanitizedCaseId,
@@ -475,8 +479,9 @@ const createTransaction = asyncHandler(async (req, res) => {
             clientBalanceBefore: clientBalanceBefore,
             clientBalanceAfter: clientBalanceAfter,
             status: 'completed',
-            createdBy: lawyerId
-        }], { session });
+            createdBy: req.userID
+        });
+        const transaction = await TrustTransaction.create([transactionData], { session });
 
         await session.commitTransaction();
 
@@ -501,7 +506,6 @@ const createTransaction = asyncHandler(async (req, res) => {
 const getTransactions = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { clientId, type, startDate, endDate, page = 1, limit = 50 } = req.query;
-    const lawyerId = req.userID;
 
     // Validate and sanitize account ID
     const sanitizedId = sanitizeObjectId(id);
@@ -509,10 +513,11 @@ const getTransactions = asyncHandler(async (req, res) => {
         throw CustomException('معرف غير صحيح', 400);
     }
 
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
     // IDOR protection - verify account ownership
-    await verifyIDORTrustAccount(sanitizedId, lawyerId);
+    await verifyIDORTrustAccount(sanitizedId, req.firmQuery);
 
-    const query = { lawyerId, trustAccountId: sanitizedId };
+    const query = { ...req.firmQuery, trustAccountId: sanitizedId };
 
     // Validate and add clientId filter if provided
     if (clientId) {
@@ -578,7 +583,6 @@ const getTransactions = asyncHandler(async (req, res) => {
  */
 const getTransaction = asyncHandler(async (req, res) => {
     const { id, transactionId } = req.params;
-    const lawyerId = req.userID;
 
     // Validate and sanitize IDs
     const sanitizedAccountId = sanitizeObjectId(id);
@@ -591,14 +595,15 @@ const getTransaction = asyncHandler(async (req, res) => {
         throw CustomException('معرف المعاملة غير صحيح', 400);
     }
 
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
     // IDOR protection - verify account ownership first
-    await verifyIDORTrustAccount(sanitizedAccountId, lawyerId);
+    await verifyIDORTrustAccount(sanitizedAccountId, req.firmQuery);
 
     // IDOR protection - verify transaction belongs to user and account
     const transaction = await TrustTransaction.findOne({
         _id: sanitizedTransactionId,
         trustAccountId: sanitizedAccountId,
-        lawyerId
+        ...req.firmQuery
     })
         .populate('clientId', 'firstName lastName companyName email')
         .populate('caseId', 'title caseNumber');
@@ -620,7 +625,6 @@ const getTransaction = asyncHandler(async (req, res) => {
  */
 const voidTransaction = asyncHandler(async (req, res) => {
     const { id, transactionId } = req.params;
-    const lawyerId = req.userID;
 
     // Validate and sanitize IDs
     const sanitizedAccountId = sanitizeObjectId(id);
@@ -642,11 +646,12 @@ const voidTransaction = asyncHandler(async (req, res) => {
     session.startTransaction();
 
     try {
+        // SECURITY FIX: Use req.firmQuery for proper tenant isolation
         // IDOR check - verify transaction belongs to user
         const transaction = await TrustTransaction.findOne({
             _id: sanitizedTransactionId,
             trustAccountId: sanitizedAccountId,
-            lawyerId
+            ...req.firmQuery
         }).session(session);
 
         if (!transaction) {
@@ -660,7 +665,7 @@ const voidTransaction = asyncHandler(async (req, res) => {
         // IDOR check - verify account ownership
         const account = await TrustAccount.findOne({
             _id: sanitizedAccountId,
-            lawyerId
+            ...req.firmQuery
         }).session(session);
 
         if (!account) {
@@ -675,7 +680,7 @@ const voidTransaction = asyncHandler(async (req, res) => {
         const updatedAccount = await TrustAccount.findOneAndUpdate(
             {
                 _id: sanitizedAccountId,
-                lawyerId
+                ...req.firmQuery
             },
             { $inc: { balance: reverseChange } },
             { new: true, session }
@@ -689,7 +694,7 @@ const voidTransaction = asyncHandler(async (req, res) => {
         const clientBalance = await ClientTrustBalance.findOne({
             trustAccountId: sanitizedAccountId,
             clientId: transaction.clientId,
-            lawyerId
+            ...req.firmQuery
         }).session(session);
 
         if (clientBalance) {
@@ -698,7 +703,7 @@ const voidTransaction = asyncHandler(async (req, res) => {
             const clientBalanceFilter = {
                 trustAccountId: sanitizedAccountId,
                 clientId: transaction.clientId,
-                lawyerId
+                ...req.firmQuery
             };
 
             if (reverseChange < 0) {
@@ -717,7 +722,7 @@ const voidTransaction = asyncHandler(async (req, res) => {
             if (!updatedClientBalance) {
                 // Rollback account balance
                 await TrustAccount.findOneAndUpdate(
-                    { _id: sanitizedAccountId, lawyerId },
+                    { _id: sanitizedAccountId, ...req.firmQuery },
                     { $inc: { balance: -reverseChange } },
                     { session }
                 );
@@ -728,7 +733,7 @@ const voidTransaction = asyncHandler(async (req, res) => {
         // Update transaction status
         transaction.status = 'voided';
         transaction.voidedAt = new Date();
-        transaction.voidedBy = lawyerId;
+        transaction.voidedBy = req.userID;
         transaction.voidReason = reason;
         await transaction.save({ session });
 
@@ -756,7 +761,6 @@ const voidTransaction = asyncHandler(async (req, res) => {
  */
 const getClientBalances = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const lawyerId = req.userID;
 
     // Validate and sanitize ID
     const sanitizedId = sanitizeObjectId(id);
@@ -764,11 +768,12 @@ const getClientBalances = asyncHandler(async (req, res) => {
         throw CustomException('معرف غير صحيح', 400);
     }
 
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
     // IDOR protection - verify account ownership
-    await verifyIDORTrustAccount(sanitizedId, lawyerId);
+    await verifyIDORTrustAccount(sanitizedId, req.firmQuery);
 
     const balances = await ClientTrustBalance.find({
-        lawyerId,
+        ...req.firmQuery,
         trustAccountId: sanitizedId
     })
         .populate('clientId', 'firstName lastName companyName email')
@@ -787,7 +792,6 @@ const getClientBalances = asyncHandler(async (req, res) => {
  */
 const getClientBalance = asyncHandler(async (req, res) => {
     const { id, clientId } = req.params;
-    const lawyerId = req.userID;
 
     // Validate and sanitize IDs
     const sanitizedAccountId = sanitizeObjectId(id);
@@ -800,13 +804,14 @@ const getClientBalance = asyncHandler(async (req, res) => {
         throw CustomException('معرف العميل غير صحيح', 400);
     }
 
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
     // IDOR protection - verify account ownership
-    await verifyIDORTrustAccount(sanitizedAccountId, lawyerId);
+    await verifyIDORTrustAccount(sanitizedAccountId, req.firmQuery);
 
     // IDOR protection - verify client ownership
     const client = await Client.findOne({
         _id: sanitizedClientId,
-        lawyerId
+        ...req.firmQuery
     });
 
     if (!client) {
@@ -814,7 +819,7 @@ const getClientBalance = asyncHandler(async (req, res) => {
     }
 
     const balance = await ClientTrustBalance.findOne({
-        lawyerId,
+        ...req.firmQuery,
         trustAccountId: sanitizedAccountId,
         clientId: sanitizedClientId
     }).populate('clientId', 'firstName lastName companyName email phone');
@@ -834,7 +839,7 @@ const getClientBalance = asyncHandler(async (req, res) => {
 
     // Get recent transactions
     const transactions = await TrustTransaction.find({
-        lawyerId,
+        ...req.firmQuery,
         trustAccountId: sanitizedAccountId,
         clientId: sanitizedClientId
     })
@@ -857,7 +862,6 @@ const getClientBalance = asyncHandler(async (req, res) => {
  */
 const transferBetweenClients = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const lawyerId = req.userID;
 
     // Validate and sanitize account ID
     const sanitizedAccountId = sanitizeObjectId(id);
@@ -901,10 +905,11 @@ const transferBetweenClients = asyncHandler(async (req, res) => {
     session.startTransaction();
 
     try {
+        // SECURITY FIX: Use req.firmQuery for proper tenant isolation
         // IDOR check - verify account ownership
         const account = await TrustAccount.findOne({
             _id: sanitizedAccountId,
-            lawyerId
+            ...req.firmQuery
         }).session(session);
 
         if (!account) {
@@ -914,7 +919,7 @@ const transferBetweenClients = asyncHandler(async (req, res) => {
         // IDOR check - verify source client ownership
         const fromClient = await Client.findOne({
             _id: sanitizedFromClientId,
-            lawyerId
+            ...req.firmQuery
         }).session(session);
 
         if (!fromClient) {
@@ -924,7 +929,7 @@ const transferBetweenClients = asyncHandler(async (req, res) => {
         // IDOR check - verify destination client ownership
         const toClient = await Client.findOne({
             _id: sanitizedToClientId,
-            lawyerId
+            ...req.firmQuery
         }).session(session);
 
         if (!toClient) {
@@ -935,7 +940,7 @@ const transferBetweenClients = asyncHandler(async (req, res) => {
         const fromBalance = await ClientTrustBalance.findOne({
             trustAccountId: sanitizedAccountId,
             clientId: sanitizedFromClientId,
-            lawyerId
+            ...req.firmQuery
         }).session(session);
 
         if (!fromBalance) {
@@ -948,16 +953,17 @@ const transferBetweenClients = asyncHandler(async (req, res) => {
         let toBalance = await ClientTrustBalance.findOne({
             trustAccountId: sanitizedAccountId,
             clientId: sanitizedToClientId,
-            lawyerId
+            ...req.firmQuery
         }).session(session);
 
         if (!toBalance) {
-            toBalance = await ClientTrustBalance.create([{
-                lawyerId,
+            // SECURITY FIX: Use req.addFirmId for proper tenant context
+            const firmData = req.addFirmId({
                 trustAccountId: sanitizedAccountId,
                 clientId: sanitizedToClientId,
                 balance: 0
-            }], { session });
+            });
+            toBalance = await ClientTrustBalance.create([firmData], { session });
             toBalance = toBalance[0];
         }
 
@@ -968,7 +974,7 @@ const transferBetweenClients = asyncHandler(async (req, res) => {
             {
                 trustAccountId: sanitizedAccountId,
                 clientId: sanitizedFromClientId,
-                lawyerId,
+                ...req.firmQuery,
                 balance: { $gte: amount } // Ensure sufficient balance
             },
             {
@@ -989,7 +995,7 @@ const transferBetweenClients = asyncHandler(async (req, res) => {
             {
                 trustAccountId: sanitizedAccountId,
                 clientId: sanitizedToClientId,
-                lawyerId
+                ...req.firmQuery
             },
             {
                 $inc: { balance: amount },
@@ -1004,7 +1010,7 @@ const transferBetweenClients = asyncHandler(async (req, res) => {
                 {
                     trustAccountId: sanitizedAccountId,
                     clientId: sanitizedFromClientId,
-                    lawyerId
+                    ...req.firmQuery
                 },
                 {
                     $inc: { balance: amount },
@@ -1018,13 +1024,13 @@ const transferBetweenClients = asyncHandler(async (req, res) => {
         const toBalanceAfter = updatedToBalance.balance;
 
         // Generate transaction numbers
-        const transactionCount = await TrustTransaction.countDocuments({ lawyerId });
+        const transactionCount = await TrustTransaction.countDocuments({ ...req.firmQuery });
         const outNumber = `TT-${new Date().getFullYear()}-${String(transactionCount + 1).padStart(6, '0')}`;
         const inNumber = `TT-${new Date().getFullYear()}-${String(transactionCount + 2).padStart(6, '0')}`;
 
+        // SECURITY FIX: Use req.addFirmId for proper tenant context
         // Create transfer out transaction with sanitized description
-        await TrustTransaction.create([{
-            lawyerId,
+        const outTransactionData = req.addFirmId({
             trustAccountId: sanitizedAccountId,
             clientId: sanitizedFromClientId,
             transactionNumber: outNumber,
@@ -1035,12 +1041,12 @@ const transferBetweenClients = asyncHandler(async (req, res) => {
             clientBalanceBefore: fromBalanceBefore,
             clientBalanceAfter: fromBalanceAfter,
             status: 'completed',
-            createdBy: lawyerId
-        }], { session });
+            createdBy: req.userID
+        });
+        await TrustTransaction.create([outTransactionData], { session });
 
         // Create transfer in transaction with sanitized description
-        await TrustTransaction.create([{
-            lawyerId,
+        const inTransactionData = req.addFirmId({
             trustAccountId: sanitizedAccountId,
             clientId: sanitizedToClientId,
             transactionNumber: inNumber,
@@ -1051,8 +1057,9 @@ const transferBetweenClients = asyncHandler(async (req, res) => {
             clientBalanceBefore: toBalanceBefore,
             clientBalanceAfter: toBalanceAfter,
             status: 'completed',
-            createdBy: lawyerId
-        }], { session });
+            createdBy: req.userID
+        });
+        await TrustTransaction.create([inTransactionData], { session });
 
         await session.commitTransaction();
 
@@ -1077,7 +1084,6 @@ const transferBetweenClients = asyncHandler(async (req, res) => {
  */
 const createReconciliation = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const lawyerId = req.userID;
 
     // Validate and sanitize ID
     const sanitizedId = sanitizeObjectId(id);
@@ -1097,8 +1103,9 @@ const createReconciliation = asyncHandler(async (req, res) => {
     // Validate amount
     const validatedBalance = validateAmount(bankStatementBalance);
 
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
     // IDOR protection - verify account ownership
-    const account = await TrustAccount.findOne({ _id: sanitizedId, lawyerId });
+    const account = await TrustAccount.findOne({ _id: sanitizedId, ...req.firmQuery });
     if (!account) {
         throw CustomException('حساب الأمانات غير موجود أو ليس لديك صلاحية', 404);
     }
@@ -1120,8 +1127,8 @@ const createReconciliation = asyncHandler(async (req, res) => {
     const adjustedBalance = bookBalance + (validatedAdjustments.reduce((sum, a) => sum + a.amount, 0) || 0);
     const difference = validatedBalance - adjustedBalance;
 
-    const reconciliation = await TrustReconciliation.create({
-        lawyerId,
+    // SECURITY FIX: Use req.addFirmId for proper tenant context
+    const reconciliation = await TrustReconciliation.create(req.addFirmId({
         trustAccountId: sanitizedId,
         statementDate: new Date(statementDate),
         bankStatementBalance: validatedBalance,
@@ -1130,8 +1137,8 @@ const createReconciliation = asyncHandler(async (req, res) => {
         difference,
         status: Math.abs(difference) < 0.01 ? 'balanced' : 'pending',
         notes: sanitizeString(notes || ''),
-        createdBy: lawyerId
-    });
+        createdBy: req.userID
+    }));
 
     res.status(201).json({
         success: true,
@@ -1148,7 +1155,6 @@ const createReconciliation = asyncHandler(async (req, res) => {
 const getReconciliations = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { status, page = 1, limit = 20 } = req.query;
-    const lawyerId = req.userID;
 
     // Validate and sanitize ID
     const sanitizedId = sanitizeObjectId(id);
@@ -1156,10 +1162,11 @@ const getReconciliations = asyncHandler(async (req, res) => {
         throw CustomException('معرف غير صحيح', 400);
     }
 
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
     // IDOR protection - verify account ownership
-    await verifyIDORTrustAccount(sanitizedId, lawyerId);
+    await verifyIDORTrustAccount(sanitizedId, req.firmQuery);
 
-    const query = { lawyerId, trustAccountId: sanitizedId };
+    const query = { ...req.firmQuery, trustAccountId: sanitizedId };
     if (status) query.status = status;
 
     const reconciliations = await TrustReconciliation.find(query)
@@ -1188,7 +1195,6 @@ const getReconciliations = asyncHandler(async (req, res) => {
  */
 const createThreeWayReconciliation = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const lawyerId = req.userID;
 
     // Validate and sanitize ID
     const sanitizedId = sanitizeObjectId(id);
@@ -1208,8 +1214,9 @@ const createThreeWayReconciliation = asyncHandler(async (req, res) => {
     // Validate amount
     const validatedBalance = validateAmount(bankStatementBalance);
 
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
     // IDOR protection - verify account ownership
-    const account = await TrustAccount.findOne({ _id: sanitizedId, lawyerId });
+    const account = await TrustAccount.findOne({ _id: sanitizedId, ...req.firmQuery });
     if (!account) {
         throw CustomException('حساب الأمانات غير موجود أو ليس لديك صلاحية', 404);
     }
@@ -1217,7 +1224,7 @@ const createThreeWayReconciliation = asyncHandler(async (req, res) => {
     // Get all client balances for this account
     const clientBalances = await ClientTrustBalance.find({
         trustAccountId: sanitizedId,
-        lawyerId
+        ...req.firmQuery
     }).populate('clientId', 'firstName lastName companyName');
 
     const clientLedgerTotal = clientBalances.reduce((sum, cb) => sum + cb.balance, 0);
@@ -1232,8 +1239,8 @@ const createThreeWayReconciliation = asyncHandler(async (req, res) => {
         Math.abs(bookToClient) < 0.01 &&
         Math.abs(bankToClient) < 0.01;
 
-    const reconciliation = await ThreeWayReconciliation.create({
-        lawyerId,
+    // SECURITY FIX: Use req.addFirmId for proper tenant context
+    const reconciliation = await ThreeWayReconciliation.create(req.addFirmId({
         trustAccountId: sanitizedId,
         reconciliationDate: new Date(statementDate),
         bankStatementBalance: validatedBalance,
@@ -1250,8 +1257,8 @@ const createThreeWayReconciliation = asyncHandler(async (req, res) => {
         },
         status: isBalanced ? 'balanced' : 'discrepancy',
         notes: sanitizeString(notes || ''),
-        createdBy: lawyerId
-    });
+        createdBy: req.userID
+    }));
 
     res.status(201).json({
         success: true,
@@ -1268,7 +1275,6 @@ const createThreeWayReconciliation = asyncHandler(async (req, res) => {
 const getThreeWayReconciliations = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { page = 1, limit = 20 } = req.query;
-    const lawyerId = req.userID;
 
     // Validate and sanitize ID
     const sanitizedId = sanitizeObjectId(id);
@@ -1276,11 +1282,12 @@ const getThreeWayReconciliations = asyncHandler(async (req, res) => {
         throw CustomException('معرف غير صحيح', 400);
     }
 
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
     // IDOR protection - verify account ownership
-    await verifyIDORTrustAccount(sanitizedId, lawyerId);
+    await verifyIDORTrustAccount(sanitizedId, req.firmQuery);
 
     const reconciliations = await ThreeWayReconciliation.find({
-        lawyerId,
+        ...req.firmQuery,
         trustAccountId: sanitizedId
     })
         .sort({ reconciliationDate: -1 })
@@ -1288,7 +1295,7 @@ const getThreeWayReconciliations = asyncHandler(async (req, res) => {
         .skip((parseInt(page) - 1) * parseInt(limit));
 
     const total = await ThreeWayReconciliation.countDocuments({
-        lawyerId,
+        ...req.firmQuery,
         trustAccountId: sanitizedId
     });
 
@@ -1311,7 +1318,6 @@ const getThreeWayReconciliations = asyncHandler(async (req, res) => {
  */
 const getAccountSummary = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const lawyerId = req.userID;
 
     // Validate and sanitize ID
     const sanitizedId = sanitizeObjectId(id);
@@ -1319,15 +1325,16 @@ const getAccountSummary = asyncHandler(async (req, res) => {
         throw CustomException('معرف غير صحيح', 400);
     }
 
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
     // IDOR protection - verify account ownership
-    const account = await TrustAccount.findOne({ _id: sanitizedId, lawyerId });
+    const account = await TrustAccount.findOne({ _id: sanitizedId, ...req.firmQuery });
     if (!account) {
         throw CustomException('حساب الأمانات غير موجود أو ليس لديك صلاحية', 404);
     }
 
     // Get client count and total with ownership filter
     const clientBalances = await ClientTrustBalance.find({
-        lawyerId,
+        ...req.firmQuery,
         trustAccountId: sanitizedId
     });
     const activeClients = clientBalances.filter(cb => cb.balance > 0).length;
@@ -1335,7 +1342,7 @@ const getAccountSummary = asyncHandler(async (req, res) => {
 
     // Get recent transactions with ownership filter
     const recentTransactions = await TrustTransaction.find({
-        lawyerId,
+        ...req.firmQuery,
         trustAccountId: sanitizedId
     })
         .populate('clientId', 'firstName lastName')
@@ -1344,7 +1351,7 @@ const getAccountSummary = asyncHandler(async (req, res) => {
 
     // Get last reconciliation with ownership filter
     const lastReconciliation = await TrustReconciliation.findOne({
-        lawyerId,
+        ...req.firmQuery,
         trustAccountId: sanitizedId
     })
         .sort({ statementDate: -1 });
@@ -1354,15 +1361,21 @@ const getAccountSummary = asyncHandler(async (req, res) => {
     startOfMonth.setDate(1);
     startOfMonth.setHours(0, 0, 0, 0);
 
+    // Build aggregation match with proper tenant isolation
+    const aggregateMatch = {
+        trustAccountId: new mongoose.Types.ObjectId(sanitizedId),
+        createdAt: { $gte: startOfMonth },
+        status: 'completed'
+    };
+    // SECURITY FIX: Add tenant filter to aggregation
+    if (req.firmQuery.firmId) {
+        aggregateMatch.firmId = new mongoose.Types.ObjectId(req.firmQuery.firmId);
+    } else if (req.firmQuery.lawyerId) {
+        aggregateMatch.lawyerId = new mongoose.Types.ObjectId(req.firmQuery.lawyerId);
+    }
+
     const monthlyStats = await TrustTransaction.aggregate([
-        {
-            $match: {
-                lawyerId: new mongoose.Types.ObjectId(lawyerId),
-                trustAccountId: new mongoose.Types.ObjectId(sanitizedId),
-                createdAt: { $gte: startOfMonth },
-                status: 'completed'
-            }
-        },
+        { $match: aggregateMatch },
         {
             $group: {
                 _id: '$type',
