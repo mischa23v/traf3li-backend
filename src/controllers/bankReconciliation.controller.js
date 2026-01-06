@@ -60,8 +60,7 @@ const createReconciliation = asyncHandler(async (req, res) => {
     // IDOR protection - Validate account exists and belongs to user
     const account = await BankAccount.findOne({
         _id: sanitizedAccountId,
-        lawyerId: lawyerId,
-        ...(req.firmId && { firmId: req.firmId })
+        ...req.firmQuery
     });
 
     if (!account) {
@@ -124,8 +123,7 @@ const getReconciliations = asyncHandler(async (req, res) => {
         // IDOR Protection: Include ownership check in query
         const account = await BankAccount.findOne({
             _id: sanitizedAccountId,
-            lawyerId: lawyerId,
-            ...(req.firmId && { firmId: req.firmId })
+            ...req.firmQuery
         });
 
         if (!account) {
@@ -165,8 +163,7 @@ const getReconciliation = asyncHandler(async (req, res) => {
 
     const reconciliation = await BankReconciliation.findOne({
         _id: id,
-        lawyerId: lawyerId,
-        ...(req.firmId && { firmId: req.firmId })
+        ...req.firmQuery
     })
         .populate('accountId', 'name bankName accountNumber balance')
         .populate('startedBy', 'firstName lastName')
@@ -209,8 +206,7 @@ const clearTransaction = asyncHandler(async (req, res) => {
     // IDOR protection
     const reconciliation = await BankReconciliation.findOne({
         _id: sanitizedId,
-        lawyerId: lawyerId,
-        ...(req.firmId && { firmId: req.firmId })
+        ...req.firmQuery
     });
 
     if (!reconciliation) {
@@ -262,8 +258,7 @@ const unclearTransaction = asyncHandler(async (req, res) => {
     // IDOR protection
     const reconciliation = await BankReconciliation.findOne({
         _id: sanitizedId,
-        lawyerId: lawyerId,
-        ...(req.firmId && { firmId: req.firmId })
+        ...req.firmQuery
     });
 
     if (!reconciliation) {
@@ -304,8 +299,7 @@ const completeReconciliation = asyncHandler(async (req, res) => {
     // IDOR protection
     const reconciliation = await BankReconciliation.findOne({
         _id: sanitizedId,
-        lawyerId: lawyerId,
-        ...(req.firmId && { firmId: req.firmId })
+        ...req.firmQuery
     });
 
     if (!reconciliation) {
@@ -359,8 +353,7 @@ const cancelReconciliation = asyncHandler(async (req, res) => {
     // IDOR protection
     const reconciliation = await BankReconciliation.findOne({
         _id: sanitizedId,
-        lawyerId: lawyerId,
-        ...(req.firmId && { firmId: req.firmId })
+        ...req.firmQuery
     });
 
     if (!reconciliation) {
@@ -435,17 +428,12 @@ const importCSV = asyncHandler(async (req, res) => {
     }
 
     // IDOR protection - Verify account ownership
-    const account = await BankAccount.findById(sanitizedBankAccountId);
+    const account = await BankAccount.findOne({
+        _id: sanitizedBankAccountId,
+        ...req.firmQuery
+    });
     if (!account) {
         throw CustomException('Bank account not found', 404);
-    }
-
-    if (account.lawyerId.toString() !== lawyerId) {
-        throw CustomException('Access denied', 403);
-    }
-
-    if (req.firmId && account.firmId && account.firmId.toString() !== req.firmId.toString()) {
-        throw CustomException('Access denied', 403);
     }
 
     const settings = {
@@ -509,17 +497,12 @@ const importOFX = asyncHandler(async (req, res) => {
     }
 
     // IDOR protection - Verify account ownership
-    const account = await BankAccount.findById(sanitizedBankAccountId);
+    const account = await BankAccount.findOne({
+        _id: sanitizedBankAccountId,
+        ...req.firmQuery
+    });
     if (!account) {
         throw CustomException('Bank account not found', 404);
-    }
-
-    if (account.lawyerId.toString() !== lawyerId) {
-        throw CustomException('Access denied', 403);
-    }
-
-    if (req.firmId && account.firmId && account.firmId.toString() !== req.firmId.toString()) {
-        throw CustomException('Access denied', 403);
     }
 
     const result = await bankReconciliationService.importFromOFX(
@@ -574,17 +557,12 @@ const getMatchSuggestions = asyncHandler(async (req, res) => {
     }
 
     // IDOR protection - Verify account ownership
-    const account = await BankAccount.findById(sanitizedAccountId);
+    const account = await BankAccount.findOne({
+        _id: sanitizedAccountId,
+        ...req.firmQuery
+    });
     if (!account) {
         throw CustomException('Account not found', 404);
-    }
-
-    if (account.lawyerId.toString() !== lawyerId) {
-        throw CustomException('Access denied', 403);
-    }
-
-    if (req.firmId && account.firmId && account.firmId.toString() !== req.firmId.toString()) {
-        throw CustomException('Access denied', 403);
     }
 
     // Input validation
@@ -610,17 +588,12 @@ const autoMatch = asyncHandler(async (req, res) => {
     }
 
     // IDOR protection - Verify account ownership
-    const account = await BankAccount.findById(sanitizedAccountId);
+    const account = await BankAccount.findOne({
+        _id: sanitizedAccountId,
+        ...req.firmQuery
+    });
     if (!account) {
         throw CustomException('Account not found', 404);
-    }
-
-    if (account.lawyerId.toString() !== lawyerId) {
-        throw CustomException('Access denied', 403);
-    }
-
-    if (req.firmId && account.firmId && account.firmId.toString() !== req.firmId.toString()) {
-        throw CustomException('Access denied', 403);
     }
 
     // Input validation
@@ -628,7 +601,7 @@ const autoMatch = asyncHandler(async (req, res) => {
     const minScore = Math.min(Math.max(parseInt(req.query.minScore) || 70, 0), 100);
 
     const options = {
-        firmId: req.firmId,
+        firmQuery: req.firmQuery,
         userId: lawyerId,
         limit,
         minScore
@@ -664,17 +637,12 @@ const confirmMatch = asyncHandler(async (req, res) => {
     }
 
     // IDOR protection - Verify match ownership
-    const existingMatch = await BankTransactionMatch.findById(sanitizedId);
+    const existingMatch = await BankTransactionMatch.findOne({
+        _id: sanitizedId,
+        ...req.firmQuery
+    });
     if (!existingMatch) {
         throw CustomException('Match not found', 404);
-    }
-
-    if (existingMatch.lawyerId && existingMatch.lawyerId.toString() !== lawyerId) {
-        throw CustomException('Access denied', 403);
-    }
-
-    if (req.firmId && existingMatch.firmId && existingMatch.firmId.toString() !== req.firmId.toString()) {
-        throw CustomException('Access denied', 403);
     }
 
     const match = await bankReconciliationService.confirmMatch(sanitizedId, lawyerId);
@@ -702,17 +670,12 @@ const rejectMatch = asyncHandler(async (req, res) => {
     }
 
     // IDOR protection - Verify match ownership
-    const existingMatch = await BankTransactionMatch.findById(sanitizedId);
+    const existingMatch = await BankTransactionMatch.findOne({
+        _id: sanitizedId,
+        ...req.firmQuery
+    });
     if (!existingMatch) {
         throw CustomException('Match not found', 404);
-    }
-
-    if (existingMatch.lawyerId && existingMatch.lawyerId.toString() !== lawyerId) {
-        throw CustomException('Access denied', 403);
-    }
-
-    if (req.firmId && existingMatch.firmId && existingMatch.firmId.toString() !== req.firmId.toString()) {
-        throw CustomException('Access denied', 403);
     }
 
     const match = await bankReconciliationService.rejectMatch(sanitizedId, lawyerId, reason);
@@ -748,17 +711,12 @@ const createSplitMatch = asyncHandler(async (req, res) => {
     }
 
     // IDOR protection - Verify transaction ownership
-    const transaction = await BankTransaction.findById(sanitizedBankTransactionId);
+    const transaction = await BankTransaction.findOne({
+        _id: sanitizedBankTransactionId,
+        ...req.firmQuery
+    });
     if (!transaction) {
         throw CustomException('Bank transaction not found', 404);
-    }
-
-    if (transaction.lawyerId && transaction.lawyerId.toString() !== lawyerId) {
-        throw CustomException('Access denied', 403);
-    }
-
-    if (req.firmId && transaction.firmId && transaction.firmId.toString() !== req.firmId.toString()) {
-        throw CustomException('Access denied', 403);
     }
 
     // Validate splits
@@ -772,7 +730,7 @@ const createSplitMatch = asyncHandler(async (req, res) => {
         sanitizedBankTransactionId,
         splits,
         lawyerId,
-        req.firmId,
+        req.firmQuery,
         lawyerId
     );
 
@@ -795,17 +753,12 @@ const unmatch = asyncHandler(async (req, res) => {
     }
 
     // IDOR protection - Verify match ownership
-    const existingMatch = await BankTransactionMatch.findById(sanitizedId);
+    const existingMatch = await BankTransactionMatch.findOne({
+        _id: sanitizedId,
+        ...req.firmQuery
+    });
     if (!existingMatch) {
         throw CustomException('Match not found', 404);
-    }
-
-    if (existingMatch.lawyerId && existingMatch.lawyerId.toString() !== lawyerId) {
-        throw CustomException('Access denied', 403);
-    }
-
-    if (req.firmId && existingMatch.firmId && existingMatch.firmId.toString() !== req.firmId.toString()) {
-        throw CustomException('Access denied', 403);
     }
 
     await bankReconciliationService.unmatch(sanitizedId, lawyerId);
@@ -845,12 +798,10 @@ const createRule = asyncHandler(async (req, res) => {
         throw CustomException('Action is required', 400);
     }
 
-    const ruleData = {
+    const ruleData = req.addFirmId({
         ...allowedFields,
-        firmId: req.firmId,
-        lawyerId: lawyerId,
         createdBy: lawyerId
-    };
+    });
 
     const rule = new BankMatchRule(ruleData);
     await rule.save();
@@ -864,10 +815,9 @@ const createRule = asyncHandler(async (req, res) => {
 
 // Get all rules
 const getRules = asyncHandler(async (req, res) => {
-    const lawyerId = req.userID;
     const { isActive, bankAccountId } = req.query;
 
-    const query = { lawyerId };
+    const query = { ...req.firmQuery };
     if (isActive !== undefined) {
         query.isActive = isActive === 'true';
     }
@@ -902,8 +852,7 @@ const updateRule = asyncHandler(async (req, res) => {
     // IDOR protection - Verify rule ownership
     const existingRule = await BankMatchRule.findOne({
         _id: sanitizedId,
-        lawyerId: lawyerId,
-        ...(req.firmId && { firmId: req.firmId })
+        ...req.firmQuery
     });
     if (!existingRule) {
         throw CustomException('Rule not found', 404);
@@ -929,8 +878,7 @@ const updateRule = asyncHandler(async (req, res) => {
     const rule = await BankMatchRule.findOneAndUpdate(
         {
             _id: sanitizedId,
-            lawyerId: lawyerId,
-            ...(req.firmId && { firmId: req.firmId })
+            ...req.firmQuery
         },
         updateData,
         { new: true, runValidators: true }
@@ -957,8 +905,7 @@ const deleteRule = asyncHandler(async (req, res) => {
     // IDOR protection - Verify rule ownership
     const rule = await BankMatchRule.findOne({
         _id: sanitizedId,
-        lawyerId: lawyerId,
-        ...(req.firmId && { firmId: req.firmId })
+        ...req.firmQuery
     });
     if (!rule) {
         throw CustomException('Rule not found', 404);
@@ -966,8 +913,7 @@ const deleteRule = asyncHandler(async (req, res) => {
 
     await BankMatchRule.findOneAndDelete({
         _id: sanitizedId,
-        lawyerId: lawyerId,
-        ...(req.firmId && { firmId: req.firmId })
+        ...req.firmQuery
     });
 
     return res.status(200).json({
@@ -988,17 +934,12 @@ const getReconciliationStatus = asyncHandler(async (req, res) => {
     }
 
     // IDOR protection - Verify account ownership
-    const account = await BankAccount.findById(sanitizedAccountId);
+    const account = await BankAccount.findOne({
+        _id: sanitizedAccountId,
+        ...req.firmQuery
+    });
     if (!account) {
         throw CustomException('Account not found', 404);
-    }
-
-    if (account.lawyerId.toString() !== lawyerId) {
-        throw CustomException('Access denied', 403);
-    }
-
-    if (req.firmId && account.firmId && account.firmId.toString() !== req.firmId.toString()) {
-        throw CustomException('Access denied', 403);
     }
 
     const status = await bankReconciliationService.getReconciliationStatus(sanitizedAccountId);
@@ -1021,17 +962,12 @@ const getUnmatchedTransactions = asyncHandler(async (req, res) => {
     }
 
     // IDOR protection - Verify account ownership
-    const account = await BankAccount.findById(sanitizedAccountId);
+    const account = await BankAccount.findOne({
+        _id: sanitizedAccountId,
+        ...req.firmQuery
+    });
     if (!account) {
         throw CustomException('Account not found', 404);
-    }
-
-    if (account.lawyerId.toString() !== lawyerId) {
-        throw CustomException('Access denied', 403);
-    }
-
-    if (req.firmId && account.firmId && account.firmId.toString() !== req.firmId.toString()) {
-        throw CustomException('Access denied', 403);
     }
 
     // Input validation for pagination
@@ -1293,8 +1229,7 @@ const getBankFeeds = asyncHandler(async (req, res) => {
     } = req.query;
 
     // Build query
-    const query = { lawyerId };
-    if (firmId) query.firmId = firmId;
+    const query = { ...req.firmQuery };
     if (status) query.status = status;
     if (provider) query.provider = provider;
     if (bankAccountId) query.bankAccountId = bankAccountId;
@@ -1368,26 +1303,19 @@ const createBankFeed = asyncHandler(async (req, res) => {
     }
 
     // IDOR protection - Verify account ownership
-    const account = await BankAccount.findById(sanitizedBankAccountId);
+    const account = await BankAccount.findOne({
+        _id: sanitizedBankAccountId,
+        ...req.firmQuery
+    });
     if (!account) {
         throw CustomException('Bank account not found', 404);
     }
 
-    if (account.lawyerId.toString() !== lawyerId) {
-        throw CustomException('Access denied', 403);
-    }
-
-    if (firmId && account.firmId && account.firmId.toString() !== firmId.toString()) {
-        throw CustomException('Access denied', 403);
-    }
-
-    const feedData = {
+    const feedData = req.addFirmId({
         ...allowedFields,
         bankAccountId: sanitizedBankAccountId,
-        firmId,
-        lawyerId,
         createdBy: lawyerId
-    };
+    });
 
     const feed = new BankFeed(feedData);
     await feed.save();
@@ -1417,8 +1345,7 @@ const updateBankFeed = asyncHandler(async (req, res) => {
     // IDOR protection - Verify feed ownership
     const feed = await BankFeed.findOne({
         _id: sanitizedId,
-        lawyerId: lawyerId,
-        ...(req.firmId && { firmId: req.firmId })
+        ...req.firmQuery
     });
 
     if (!feed) {
@@ -1444,17 +1371,12 @@ const updateBankFeed = asyncHandler(async (req, res) => {
             throw CustomException('Invalid bank account ID format', 400);
         }
 
-        const account = await BankAccount.findById(sanitizedBankAccountId);
+        const account = await BankAccount.findOne({
+            _id: sanitizedBankAccountId,
+            ...req.firmQuery
+        });
         if (!account) {
             throw CustomException('Bank account not found', 404);
-        }
-
-        if (account.lawyerId.toString() !== lawyerId) {
-            throw CustomException('Access denied to bank account', 403);
-        }
-
-        if (req.firmId && account.firmId && account.firmId.toString() !== req.firmId.toString()) {
-            throw CustomException('Access denied to bank account', 403);
         }
 
         allowedFields.bankAccountId = sanitizedBankAccountId;
@@ -1463,8 +1385,7 @@ const updateBankFeed = asyncHandler(async (req, res) => {
     const updatedFeed = await BankFeed.findOneAndUpdate(
         {
             _id: sanitizedId,
-            lawyerId: lawyerId,
-            ...(req.firmId && { firmId: req.firmId })
+            ...req.firmQuery
         },
         allowedFields,
         { new: true, runValidators: true }
@@ -1493,8 +1414,7 @@ const deleteBankFeed = asyncHandler(async (req, res) => {
     // IDOR protection - Verify feed ownership
     const feed = await BankFeed.findOne({
         _id: sanitizedId,
-        lawyerId: lawyerId,
-        ...(req.firmId && { firmId: req.firmId })
+        ...req.firmQuery
     });
 
     if (!feed) {
@@ -1503,8 +1423,7 @@ const deleteBankFeed = asyncHandler(async (req, res) => {
 
     await BankFeed.findOneAndDelete({
         _id: sanitizedId,
-        lawyerId: lawyerId,
-        ...(req.firmId && { firmId: req.firmId })
+        ...req.firmQuery
     });
 
     return res.status(200).json({
