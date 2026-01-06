@@ -19,6 +19,11 @@ const {
     writeOffTimeEntry,
     writeDownTimeEntry,
 
+    // Lock / Unlock (Gold Standard - Fiscal Period Control)
+    lockTimeEntry,
+    unlockTimeEntry,
+    bulkLockTimeEntries,
+
     // Approval workflow
     getPendingApprovalEntries,
     submitTimeEntry,
@@ -69,6 +74,7 @@ router.delete('/entries/bulk', userMiddleware, bulkDeleteTimeEntries);
 router.post('/entries/bulk-approve', userMiddleware, bulkApproveTimeEntries);
 router.post('/entries/bulk-reject', userMiddleware, bulkRejectTimeEntries);
 router.post('/entries/bulk-submit', userMiddleware, bulkSubmitTimeEntries);
+router.post('/entries/bulk-lock', userMiddleware, bulkLockTimeEntries);
 
 // Pending Approvals (must be before :id routes)
 router.get('/entries/pending-approval', userMiddleware, getPendingApprovalEntries);
@@ -135,5 +141,18 @@ router.post('/entries/:id/approve', userMiddleware, approveTimeEntry);
 // POST /api/time-tracking/entries/:id/reject
 // Body: { reason: string }
 router.post('/entries/:id/reject', userMiddleware, rejectTimeEntry);
+
+// ═══════════════════════════════════════════════════════════════
+// LOCK / UNLOCK ROUTES (Gold Standard - Fiscal Period Control)
+// ═══════════════════════════════════════════════════════════════
+
+// Lock time entry (for closed fiscal periods)
+// POST /api/time-tracking/entries/:id/lock
+// Body: { reason: string }
+router.post('/entries/:id/lock', userMiddleware, lockTimeEntry);
+
+// Unlock time entry (admin only)
+// POST /api/time-tracking/entries/:id/unlock
+router.post('/entries/:id/unlock', userMiddleware, unlockTimeEntry);
 
 module.exports = router;
