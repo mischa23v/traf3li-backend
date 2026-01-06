@@ -20,7 +20,11 @@ const app = express.Router();
 // ═══════════════════════════════════════════════════════════════
 
 // Validate invitation code (public - for checking before registration)
+// Legacy endpoint - GET /api/invitations/:code
 app.get('/:code', validateInvitationCode);
+
+// New validate endpoint - GET /api/invitations/:code/validate
+app.get('/:code/validate', validateInvitationCode);
 
 // ═══════════════════════════════════════════════════════════════
 // AUTHENTICATED ENDPOINTS
