@@ -9,7 +9,7 @@ services:
   - type: web
     name: traf3li-backend
     env: node
-    region: oregon # Choose: oregon, frankfurt, singapore
+    # region: inherited from existing service (cannot change via Blueprint)
     plan: starter # $7/month for production
 
     # Build Configuration
@@ -118,7 +118,7 @@ services:
   - type: pserv
     name: clamav
     env: docker
-    region: oregon # Same region as backend for low latency
+    # region: same as backend (inherited from project)
     plan: starter # $7/month
     dockerfilePath: ./docker/clamav/Dockerfile
     dockerContext: ./docker/clamav
