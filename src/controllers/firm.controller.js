@@ -18,7 +18,7 @@ const escapeRegex = (str) => {
 const asyncHandler = require('../utils/asyncHandler');
 const { CustomException } = require('../utils');
 const { getDefaultPermissions } = require('../config/permissions.config');
-const { pickAllowedFields } = require('../utils/securityUtils');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
 // ═══════════════════════════════════════════════════════════════
 // VALIDATION FUNCTIONS
@@ -2287,21 +2287,21 @@ const getHierarchyTree = asyncHandler(async (req, res) => {
  * GET /api/firms/:id/children
  */
 const getChildCompanies = asyncHandler(async (req, res) => {
-    const { id } = req.params;
+    const sanitizedId = sanitizeObjectId(req.params.id);
     const userId = req.userID;
 
     // Validate access to parent firm
-    const parentFirm = await Firm.findOne({ _id: id, 'members.userId': userId });
+    const parentFirm = await Firm.findOne({ _id: sanitizedId, 'members.userId': userId });
     if (!parentFirm) {
         // Check if user has cross-company access
         const UserCompanyAccess = require('../models/userCompanyAccess.model');
-        const hasAccess = await UserCompanyAccess.hasAccess(userId, id);
+        const hasAccess = await UserCompanyAccess.hasAccess(userId, sanitizedId);
         if (!hasAccess) {
             throw CustomException('ليس لديك صلاحية للوصول إلى هذا المكتب', 403);
         }
     }
 
-    const children = await Firm.getChildren(id);
+    const children = await Firm.getChildren(sanitizedId);
 
     res.json({
         success: true,
@@ -2316,12 +2316,12 @@ const getChildCompanies = asyncHandler(async (req, res) => {
  * Body: { parentFirmId: ObjectId | null }
  */
 const moveCompany = asyncHandler(async (req, res) => {
-    const { id } = req.params;
-    const { parentFirmId } = req.body;
+    const sanitizedId = sanitizeObjectId(req.params.id);
+    const sanitizedParentId = req.body.parentFirmId ? sanitizeObjectId(req.body.parentFirmId) : null;
     const userId = req.userID;
 
     // Only owner/admin of the firm being moved can move it
-    const firm = await Firm.findOne({ _id: id });
+    const firm = await Firm.findOne({ _id: sanitizedId });
     if (!firm) {
         throw CustomException('المكتب غير موجود', 404);
     }
@@ -2332,8 +2332,8 @@ const moveCompany = asyncHandler(async (req, res) => {
     }
 
     // If moving to a parent, validate access to the new parent
-    if (parentFirmId) {
-        const newParent = await Firm.findOne({ _id: parentFirmId });
+    if (sanitizedParentId) {
+        const newParent = await Firm.findOne({ _id: sanitizedParentId });
         if (!newParent) {
             throw CustomException('المكتب الأب غير موجود', 404);
         }
@@ -2345,7 +2345,7 @@ const moveCompany = asyncHandler(async (req, res) => {
     }
 
     try {
-        const updatedFirm = await Firm.moveToParent(id, parentFirmId, userId);
+        const updatedFirm = await Firm.moveToParent(sanitizedId, sanitizedParentId, userId);
         res.json({
             success: true,
             message: 'تم نقل المكتب بنجاح',
@@ -2370,10 +2370,15 @@ const moveCompany = asyncHandler(async (req, res) => {
 const getAccessibleCompanies = asyncHandler(async (req, res) => {
     const userId = req.userID;
 
-    // Get firms where user is a direct member
+    // GOLD STANDARD: Use $elemMatch to ensure SAME member matches both userId AND status
+    // Without $elemMatch, MongoDB would match if ANY member has userId AND ANY member is active
     const memberFirms = await Firm.find({
-        'members.userId': userId,
-        'members.status': 'active',
+        members: {
+            $elemMatch: {
+                userId: userId,
+                status: 'active'
+            }
+        },
         status: 'active'
     }).select('_id name nameArabic nameEnglish code logo level status industry parentFirmId members').lean();
 
@@ -2485,7 +2490,7 @@ const getActiveCompany = asyncHandler(async (req, res) => {
  * Body: { userId, role, permissions, canAccessChildren, canAccessParent, expiresAt, notes }
  */
 const grantUserAccess = asyncHandler(async (req, res) => {
-    const { id: firmId } = req.params;
+    const sanitizedFirmId = sanitizeObjectId(req.params.id);
     const grantingUserId = req.userID;
 
     // MASS ASSIGNMENT PROTECTION
@@ -2497,8 +2502,11 @@ const grantUserAccess = asyncHandler(async (req, res) => {
         throw CustomException('معرف المستخدم مطلوب', 400);
     }
 
+    // Sanitize target userId
+    const sanitizedTargetUserId = sanitizeObjectId(userId);
+
     // Validate granting user is owner/admin of this firm
-    const firm = await Firm.findOne({ _id: firmId, 'members.userId': grantingUserId });
+    const firm = await Firm.findOne({ _id: sanitizedFirmId, 'members.userId': grantingUserId });
     if (!firm) {
         throw CustomException('المكتب غير موجود', 404);
     }
@@ -2508,15 +2516,15 @@ const grantUserAccess = asyncHandler(async (req, res) => {
         throw CustomException('ليس لديك صلاحية لمنح الوصول', 403);
     }
 
-    // Validate target user exists
-    const targetUser = await User.findById(userId);
+    // Validate target user exists (User is in SKIP_MODELS, so findById is OK)
+    const targetUser = await User.findById(sanitizedTargetUserId);
     if (!targetUser) {
         throw CustomException('المستخدم غير موجود', 404);
     }
 
     // Grant access
     const UserCompanyAccess = require('../models/userCompanyAccess.model');
-    const access = await UserCompanyAccess.grantAccess(userId, firmId, {
+    const access = await UserCompanyAccess.grantAccess(sanitizedTargetUserId, sanitizedFirmId, {
         role: role || 'viewer',
         permissions: permissions || [],
         canAccessChildren: canAccessChildren || false,
@@ -2538,7 +2546,8 @@ const grantUserAccess = asyncHandler(async (req, res) => {
  * PUT /api/firms/:id/access/:userId
  */
 const updateUserAccess = asyncHandler(async (req, res) => {
-    const { id: firmId, userId: targetUserId } = req.params;
+    const sanitizedFirmId = sanitizeObjectId(req.params.id);
+    const sanitizedTargetUserId = sanitizeObjectId(req.params.userId);
     const updatingUserId = req.userID;
 
     // MASS ASSIGNMENT PROTECTION
@@ -2546,7 +2555,7 @@ const updateUserAccess = asyncHandler(async (req, res) => {
     const safeInput = pickAllowedFields(req.body, allowedFields);
 
     // Validate updating user is owner/admin
-    const firm = await Firm.findOne({ _id: firmId, 'members.userId': updatingUserId });
+    const firm = await Firm.findOne({ _id: sanitizedFirmId, 'members.userId': updatingUserId });
     if (!firm) {
         throw CustomException('المكتب غير موجود', 404);
     }
@@ -2557,7 +2566,7 @@ const updateUserAccess = asyncHandler(async (req, res) => {
     }
 
     const UserCompanyAccess = require('../models/userCompanyAccess.model');
-    const access = await UserCompanyAccess.updateAccess(targetUserId, firmId, safeInput);
+    const access = await UserCompanyAccess.updateAccess(sanitizedTargetUserId, sanitizedFirmId, safeInput);
 
     if (!access) {
         throw CustomException('الوصول غير موجود', 404);
@@ -2575,11 +2584,12 @@ const updateUserAccess = asyncHandler(async (req, res) => {
  * DELETE /api/firms/:id/access/:userId
  */
 const revokeUserAccess = asyncHandler(async (req, res) => {
-    const { id: firmId, userId: targetUserId } = req.params;
+    const sanitizedFirmId = sanitizeObjectId(req.params.id);
+    const sanitizedTargetUserId = sanitizeObjectId(req.params.userId);
     const revokingUserId = req.userID;
 
     // Validate revoking user is owner/admin
-    const firm = await Firm.findOne({ _id: firmId, 'members.userId': revokingUserId });
+    const firm = await Firm.findOne({ _id: sanitizedFirmId, 'members.userId': revokingUserId });
     if (!firm) {
         throw CustomException('المكتب غير موجود', 404);
     }
@@ -2590,7 +2600,7 @@ const revokeUserAccess = asyncHandler(async (req, res) => {
     }
 
     const UserCompanyAccess = require('../models/userCompanyAccess.model');
-    const access = await UserCompanyAccess.revokeAccess(targetUserId, firmId);
+    const access = await UserCompanyAccess.revokeAccess(sanitizedTargetUserId, sanitizedFirmId);
 
     if (!access) {
         throw CustomException('الوصول غير موجود', 404);
@@ -2609,11 +2619,11 @@ const revokeUserAccess = asyncHandler(async (req, res) => {
  * Returns all users who have cross-company access to this firm
  */
 const getCompanyAccessList = asyncHandler(async (req, res) => {
-    const { id: firmId } = req.params;
+    const sanitizedFirmId = sanitizeObjectId(req.params.id);
     const userId = req.userID;
 
     // Validate user has access to view this firm's access list
-    const firm = await Firm.findOne({ _id: firmId, 'members.userId': userId });
+    const firm = await Firm.findOne({ _id: sanitizedFirmId, 'members.userId': userId });
     if (!firm) {
         throw CustomException('المكتب غير موجود أو ليس لديك صلاحية', 404);
     }
@@ -2624,7 +2634,7 @@ const getCompanyAccessList = asyncHandler(async (req, res) => {
     }
 
     const UserCompanyAccess = require('../models/userCompanyAccess.model');
-    const accessList = await UserCompanyAccess.getCompanyAccessList(firmId);
+    const accessList = await UserCompanyAccess.getCompanyAccessList(sanitizedFirmId);
 
     res.json({
         success: true,
@@ -2644,12 +2654,12 @@ const getCompanyAccessList = asyncHandler(async (req, res) => {
  * Will fail if firm has children companies.
  */
 const deleteFirm = asyncHandler(async (req, res) => {
-    const { id } = req.params;
+    const sanitizedId = sanitizeObjectId(req.params.id);
     const userId = req.userID;
     const { confirmDelete } = req.body;
 
-    // Validate user is owner
-    const firm = await Firm.findOne({ _id: id });
+    // Validate user is owner (Firm is in SKIP_MODELS)
+    const firm = await Firm.findOne({ _id: sanitizedId });
     if (!firm) {
         throw CustomException('المكتب غير موجود', 404);
     }
@@ -2659,7 +2669,7 @@ const deleteFirm = asyncHandler(async (req, res) => {
     }
 
     // Check for children
-    const children = await Firm.getChildren(id);
+    const children = await Firm.getChildren(sanitizedId);
     if (children.length > 0) {
         throw CustomException('لا يمكن حذف مكتب لديه فروع. احذف الفروع أولاً أو انقلها', 400);
     }
@@ -2669,31 +2679,31 @@ const deleteFirm = asyncHandler(async (req, res) => {
         throw CustomException('يجب تأكيد الحذف. أرسل confirmDelete: true', 400);
     }
 
-    // Get counts for response
-    const clientCount = await Client.countDocuments({ firmId: id });
-    const caseCount = await Case.countDocuments({ firmId: id });
-    const invoiceCount = await Invoice.countDocuments({ firmId: id });
+    // Get counts for response (firmId filter is OK - it has firmId in query)
+    const clientCount = await Client.countDocuments({ firmId: sanitizedId });
+    const caseCount = await Case.countDocuments({ firmId: sanitizedId });
+    const invoiceCount = await Invoice.countDocuments({ firmId: sanitizedId });
 
     // Soft delete - set status to inactive
     firm.status = 'inactive';
     await firm.save();
 
-    // Remove firmId from all members
+    // Remove firmId from all members (User is in SKIP_MODELS)
     const memberIds = firm.members.map(m => m.userId);
     await User.updateMany(
         { _id: { $in: memberIds } },
         { $unset: { firmId: 1, firmRole: 1 } }
     );
 
-    // Delete cross-company access
+    // Delete cross-company access (UserCompanyAccess is in SKIP_MODELS)
     const UserCompanyAccess = require('../models/userCompanyAccess.model');
-    await UserCompanyAccess.deleteMany({ firmId: id });
+    await UserCompanyAccess.deleteMany({ firmId: sanitizedId });
 
     res.json({
         success: true,
         message: 'تم حذف المكتب بنجاح',
         data: {
-            deletedFirmId: id,
+            deletedFirmId: sanitizedId,
             affectedMembers: memberIds.length,
             clientCount,
             caseCount,
