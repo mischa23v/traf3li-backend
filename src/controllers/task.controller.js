@@ -262,7 +262,15 @@ const createTask = asyncHandler(async (req, res) => {
         .populate('createdBy', 'firstName lastName username email image')
         .populate('caseId', 'title caseNumber')
         .populate('clientId', 'firstName lastName')
-        .populate('linkedEventId', 'eventId title startDateTime');
+        .lean();
+
+    // GOLD STANDARD: Fetch linked event separately with firm filter (defense in depth)
+    if (populatedTask?.linkedEventId) {
+        populatedTask.linkedEvent = await Event.findOne({
+            _id: populatedTask.linkedEventId,
+            ...req.firmQuery
+        }).select('eventId title startDateTime').lean();
+    }
 
     res.status(201).json({
         success: true,
@@ -476,11 +484,18 @@ const getTask = asyncHandler(async (req, res) => {
         .populate('completedBy', 'firstName lastName')
         .populate('comments.userId', 'firstName lastName image')
         .populate('timeTracking.sessions.userId', 'firstName lastName')
-        .populate('linkedEventId', 'eventId title startDateTime status')
         .lean();
 
     if (!task) {
         throw CustomException('Task not found', 404);
+    }
+
+    // GOLD STANDARD: Fetch linked event separately with firm filter (defense in depth)
+    if (task.linkedEventId) {
+        task.linkedEvent = await Event.findOne({
+            _id: task.linkedEventId,
+            ...req.firmQuery
+        }).select('eventId title startDateTime status').lean();
     }
 
     res.status(200).json({
@@ -679,7 +694,15 @@ const updateTask = asyncHandler(async (req, res) => {
         .populate('assignedTo', 'firstName lastName username email image')
         .populate('createdBy', 'firstName lastName username email image')
         .populate('caseId', 'title caseNumber')
-        .populate('linkedEventId', 'eventId title startDateTime');
+        .lean();
+
+    // GOLD STANDARD: Fetch linked event separately with firm filter (defense in depth)
+    if (populatedTask?.linkedEventId) {
+        populatedTask.linkedEvent = await Event.findOne({
+            _id: populatedTask.linkedEventId,
+            ...req.firmQuery
+        }).select('eventId title startDateTime').lean();
+    }
 
     res.status(200).json({
         success: true,
@@ -720,7 +743,8 @@ const deleteTask = asyncHandler(async (req, res) => {
 
     res.status(200).json({
         success: true,
-        message: 'Task deleted successfully'
+        message: 'Task deleted successfully',
+        data: { id: taskId.toString() }
     });
 });
 
@@ -1227,7 +1251,8 @@ const deleteComment = asyncHandler(async (req, res) => {
 
     res.status(200).json({
         success: true,
-        message: 'Comment deleted'
+        message: 'Comment deleted',
+        data: { id: sanitizedCommentId.toString() }
     });
 });
 
@@ -1333,7 +1358,8 @@ const bulkDeleteTasks = asyncHandler(async (req, res) => {
     res.status(200).json({
         success: true,
         message: `${tasks.length} tasks deleted successfully`,
-        count: tasks.length
+        count: tasks.length,
+        data: { deletedIds: foundTaskIds }
     });
 });
 
