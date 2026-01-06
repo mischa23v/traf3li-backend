@@ -100,6 +100,36 @@ const firmSchema = new mongoose.Schema({
     website: String,
 
     // ═══════════════════════════════════════════════════════════════
+    // COMPANY HIERARCHY (Parent/Child Firm Structure)
+    // ═══════════════════════════════════════════════════════════════
+    parentFirmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        default: null,
+        index: true
+    },
+    level: {
+        type: Number,
+        default: 0,  // 0 = root/independent, 1 = child, 2 = grandchild, etc.
+        index: true
+    },
+    code: {
+        type: String,
+        trim: true,
+        sparse: true,
+        index: true  // Company code for quick reference (e.g., "HQ", "RIYADH-01")
+    },
+    industry: {
+        type: String,
+        trim: true
+    },
+    hierarchySettings: {
+        allowConsolidatedView: { type: Boolean, default: true },  // Parent can view child data
+        allowCrossCompanyTransactions: { type: Boolean, default: false },
+        requireApprovalForCrossCompany: { type: Boolean, default: true }
+    },
+
+    // ═══════════════════════════════════════════════════════════════
     // SAUDI BUSINESS INFO
     // ═══════════════════════════════════════════════════════════════
     crNumber: {
@@ -590,6 +620,8 @@ const firmSchema = new mongoose.Schema({
 firmSchema.index({ name: 'text', nameArabic: 'text', city: 'text', practiceAreas: 'text' });
 firmSchema.index({ 'members.userId': 1 });
 firmSchema.index({ status: 1, 'subscription.status': 1 });
+firmSchema.index({ parentFirmId: 1, status: 1 });  // For hierarchy queries
+firmSchema.index({ level: 1, status: 1 });  // For level-based queries
 
 // ═══════════════════════════════════════════════════════════════
 // INSTANCE METHODS
@@ -855,6 +887,145 @@ firmSchema.methods.getDepartedMembers = function() {
 firmSchema.methods.isDeparted = function(userId) {
     const member = this.members.find(m => m.userId.toString() === userId.toString());
     return member?.status === 'departed';
+};
+
+// ═══════════════════════════════════════════════════════════════
+// HIERARCHY STATIC METHODS
+// ═══════════════════════════════════════════════════════════════
+
+// Get all child companies (direct children only)
+firmSchema.statics.getChildren = async function(firmId) {
+    return this.find({ parentFirmId: firmId, status: 'active' })
+        .select('_id name nameArabic nameEnglish code logo level status industry')
+        .lean();
+};
+
+// Get all descendants (children, grandchildren, etc.) - recursive
+firmSchema.statics.getDescendants = async function(firmId, maxDepth = 10) {
+    const descendants = [];
+    const visited = new Set();
+
+    const getChildrenRecursive = async (parentId, depth = 0) => {
+        if (depth >= maxDepth || visited.has(parentId.toString())) return;
+        visited.add(parentId.toString());
+
+        const children = await this.find({ parentFirmId: parentId, status: 'active' })
+            .select('_id name nameArabic nameEnglish code logo level status industry parentFirmId')
+            .lean();
+
+        for (const child of children) {
+            descendants.push(child);
+            await getChildrenRecursive(child._id, depth + 1);
+        }
+    };
+
+    await getChildrenRecursive(firmId);
+    return descendants;
+};
+
+// Get ancestry chain (parent, grandparent, etc.)
+firmSchema.statics.getAncestors = async function(firmId, maxDepth = 10) {
+    const ancestors = [];
+    let currentFirm = await this.findById(firmId).select('parentFirmId').lean();
+    let depth = 0;
+
+    while (currentFirm?.parentFirmId && depth < maxDepth) {
+        const parent = await this.findById(currentFirm.parentFirmId)
+            .select('_id name nameArabic nameEnglish code logo level status industry parentFirmId')
+            .lean();
+
+        if (parent) {
+            ancestors.push(parent);
+            currentFirm = parent;
+        } else {
+            break;
+        }
+        depth++;
+    }
+
+    return ancestors;
+};
+
+// Build hierarchy tree starting from a firm
+firmSchema.statics.buildTree = async function(firmId = null, maxDepth = 5) {
+    const buildNodeRecursive = async (nodeId, depth = 0) => {
+        if (depth >= maxDepth) return null;
+
+        const firm = await this.findOne({ _id: nodeId, status: 'active' })
+            .select('_id name nameArabic nameEnglish code logo level status industry parentFirmId members')
+            .lean();
+
+        if (!firm) return null;
+
+        const children = await this.find({ parentFirmId: nodeId, status: 'active' })
+            .select('_id')
+            .lean();
+
+        const childNodes = await Promise.all(
+            children.map(child => buildNodeRecursive(child._id, depth + 1))
+        );
+
+        return {
+            ...firm,
+            userCount: firm.members?.filter(m => m.status === 'active').length || 0,
+            childCompanies: childNodes.filter(Boolean)
+        };
+    };
+
+    // If firmId provided, build tree from that firm
+    if (firmId) {
+        return buildNodeRecursive(firmId);
+    }
+
+    // Otherwise, get all root firms
+    const rootFirms = await this.find({ parentFirmId: null, status: 'active' })
+        .select('_id')
+        .lean();
+
+    const trees = await Promise.all(
+        rootFirms.map(firm => buildNodeRecursive(firm._id))
+    );
+
+    return trees.filter(Boolean);
+};
+
+// Move firm to new parent
+firmSchema.statics.moveToParent = async function(firmId, newParentId, userId) {
+    const firm = await this.findById(firmId);
+    if (!firm) throw new Error('Firm not found');
+
+    // Validate new parent exists (if not moving to root)
+    if (newParentId) {
+        const newParent = await this.findById(newParentId);
+        if (!newParent) throw new Error('New parent firm not found');
+
+        // Prevent circular reference
+        const descendants = await this.getDescendants(firmId);
+        const isCircular = descendants.some(d => d._id.toString() === newParentId.toString());
+        if (isCircular) throw new Error('Cannot move firm to its own descendant');
+
+        // Update level based on new parent
+        firm.level = newParent.level + 1;
+    } else {
+        // Moving to root
+        firm.level = 0;
+    }
+
+    firm.parentFirmId = newParentId || null;
+    await firm.save();
+
+    // Update all descendants' levels
+    const descendants = await this.getDescendants(firmId);
+    for (const desc of descendants) {
+        const descFirm = await this.findById(desc._id);
+        if (descFirm.parentFirmId) {
+            const parent = await this.findById(descFirm.parentFirmId);
+            descFirm.level = parent ? parent.level + 1 : 0;
+            await descFirm.save();
+        }
+    }
+
+    return firm;
 };
 
 // Helper function for default permissions by role

@@ -32,6 +32,7 @@ const {
     leaveFirmWithSolo,
     transferOwnership,
     getFirmStats,
+    deleteFirm,
 
     // Team management
     getTeam,
@@ -40,6 +41,19 @@ const {
     getDepartedMembers,
     getMyPermissions,
     getAvailableRoles,
+
+    // Company hierarchy
+    getHierarchyTree,
+    getChildCompanies,
+    moveCompany,
+    getAccessibleCompanies,
+    getActiveCompany,
+
+    // User access control
+    grantUserAccess,
+    updateUserAccess,
+    revokeUserAccess,
+    getCompanyAccessList,
 
     // Invitation system
     createInvitation,
@@ -90,6 +104,19 @@ app.post('/switch', userMiddleware, auditAction('switch_firm', 'firm', { severit
 // Get current user's permissions (صلاحياتي)
 app.get('/my/permissions', userMiddleware, getMyPermissions);
 
+// ═══════════════════════════════════════════════════════════════
+// COMPANY HIERARCHY (هيكل الشركة)
+// ═══════════════════════════════════════════════════════════════
+
+// Get company hierarchy tree
+app.get('/tree', userMiddleware, getHierarchyTree);
+
+// Get user's accessible companies (all firms user has access to)
+app.get('/user/accessible', userMiddleware, getAccessibleCompanies);
+
+// Get active company context
+app.get('/active', userMiddleware, getActiveCompany);
+
 // Get firm by ID
 app.get('/:id', userMiddleware, getFirm);
 // SECURITY: Backwards compatible route now requires auth - was PUBLIC vulnerability
@@ -99,6 +126,31 @@ app.get('/:_id', userMiddleware, getFirm);
 app.put('/:id', userMiddleware, auditAction('update_firm_settings', 'firm', { severity: 'high', captureChanges: true }), updateFirm);
 app.patch('/:id', userMiddleware, auditAction('update_firm_settings', 'firm', { severity: 'high', captureChanges: true }), updateFirm);
 app.patch('/:_id', userMiddleware, auditAction('update_firm_settings', 'firm', { severity: 'high', captureChanges: true }), updateFirm);  // Backwards compatible
+
+// Delete firm (soft delete - owner only)
+app.delete('/:id', firmOwnerOnly, auditAction('delete_firm', 'firm', { severity: 'critical' }), deleteFirm);
+
+// Get child companies
+app.get('/:id/children', userMiddleware, getChildCompanies);
+
+// Move company to different parent
+app.put('/:id/move', firmAdminOnly, auditAction('move_firm', 'firm', { severity: 'high', captureChanges: true }), moveCompany);
+
+// ═══════════════════════════════════════════════════════════════
+// USER ACCESS CONTROL (التحكم في وصول المستخدمين)
+// ═══════════════════════════════════════════════════════════════
+
+// Get company access list
+app.get('/:id/access', firmAdminOnly, getCompanyAccessList);
+
+// Grant user access to company
+app.post('/:id/access', firmAdminOnly, auditAction('grant_company_access', 'firm', { severity: 'high' }), grantUserAccess);
+
+// Update user access
+app.put('/:id/access/:userId', firmAdminOnly, auditAction('update_company_access', 'firm', { severity: 'high', captureChanges: true }), updateUserAccess);
+
+// Revoke user access
+app.delete('/:id/access/:userId', firmAdminOnly, auditAction('revoke_company_access', 'firm', { severity: 'high' }), revokeUserAccess);
 
 // ═══════════════════════════════════════════════════════════════
 // BILLING SETTINGS (Admin only)
