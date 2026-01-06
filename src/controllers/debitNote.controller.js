@@ -172,9 +172,7 @@ const createDebitNote = asyncHandler(async (req, res) => {
         const debitNoteNumber = await DebitNote.generateNumber(req.firmId, req.firmId ? null : req.userID);
 
         // Create debit note
-        const debitNote = new DebitNote({
-            firmId: req.firmId,
-            lawyerId: req.firmId ? null : req.userID,
+        const debitNote = new DebitNote(req.addFirmId({
             debitNoteNumber,
             billId: sanitizedBillId,
             billNumber: bill.billNumber,
@@ -195,7 +193,7 @@ const createDebitNote = asyncHandler(async (req, res) => {
                 performedBy: req.userID,
                 details: { reasonType, reason }
             }]
-        });
+        }));
 
         // Calculate totals
         debitNote.calculateTotals();

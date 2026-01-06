@@ -11,16 +11,9 @@ const activeTimers = new Map();
 // HELPER: Get firm filter for multi-tenancy
 // ═══════════════════════════════════════════════════════════════
 const getFirmFilter = (req) => {
-    if (req.firm && req.firm._id) {
-        return { firmId: req.firm._id };
-    }
-    if (req.firmId) {
-        return { firmId: req.firmId };
-    }
-    if (req.user && req.user._id) {
-        return { lawyerId: req.user._id };
-    }
-    return {};
+    // Use req.firmQuery which is set by authenticatedApi middleware
+    // Handles both firm members (firmId) and solo lawyers (lawyerId)
+    return req.firmQuery || {};
 };
 
 // ═══════════════════════════════════════════════════════════════

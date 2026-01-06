@@ -19,7 +19,7 @@ const logger = require('../utils/logger');
 const getPreparedReports = asyncHandler(async (req, res) => {
     const { reportType, status, page = 1, limit = 20 } = req.query;
 
-    const query = { firmId: req.firmId };
+    const query = { ...req.firmQuery };
     if (reportType) query.reportType = reportType;
     if (status) query.status = status;
 
@@ -59,7 +59,7 @@ const getPreparedReport = asyncHandler(async (req, res) => {
 
     const report = await PreparedReport.findOne({
         _id: id,
-        firmId: req.firmId
+        ...req.firmQuery
     });
 
     if (!report) {
@@ -152,7 +152,7 @@ const refreshPreparedReport = asyncHandler(async (req, res) => {
 
     const report = await PreparedReport.findOne({
         _id: id,
-        firmId: req.firmId
+        ...req.firmQuery
     });
 
     if (!report) {
@@ -187,7 +187,7 @@ const deletePreparedReport = asyncHandler(async (req, res) => {
 
     const report = await PreparedReport.findOne({
         _id: id,
-        firmId: req.firmId
+        ...req.firmQuery
     });
 
     if (!report) {

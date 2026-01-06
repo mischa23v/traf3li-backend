@@ -66,7 +66,7 @@ const generateInternalReference = async (firmId) => {
  * @returns {Object} MongoDB query object with security constraints
  */
 const buildSecureCaseQuery = (caseId, request) => {
-    const { userID, firmId, isSoloLawyer } = request;
+    const { userID, firmId, isSoloLawyer, firmQuery } = request;
     const query = { _id: caseId };
 
     // Solo lawyers can only access cases where they are the lawyer
@@ -81,7 +81,7 @@ const buildSecureCaseQuery = (caseId, request) => {
         // 1. Belong to their firm, OR
         // 2. They are the lawyer/client (for legacy cases without firmId)
         query.$or = [
-            { firmId: firmId },
+            { ...firmQuery },
             { lawyerId: userID },
             { clientId: userID }
         ];
@@ -476,7 +476,7 @@ const getCases = async (request, response) => {
             // Only allow filtering by lawyerId if they're in the same firm
             if (firmId) {
                 const User = require('../models/user.model');
-                const targetLawyer = await User.findOne({ _id: lawyerId, firmId: firmId });
+                const targetLawyer = await User.findOne({ _id: lawyerId, ...req.firmQuery });
                 if (!targetLawyer) {
                     throw CustomException('المحامي غير موجود في مكتبك', 403);
                 }
@@ -489,7 +489,7 @@ const getCases = async (request, response) => {
             // Only allow filtering by clientId if they belong to the same firm
             if (firmId) {
                 const Client = require('../models/client.model');
-                const targetClient = await Client.findOne({ _id: clientId, firmId: firmId });
+                const targetClient = await Client.findOne({ _id: clientId, ...req.firmQuery });
                 if (!targetClient) {
                     throw CustomException('العميل غير موجود في مكتبك', 403);
                 }
@@ -1364,9 +1364,9 @@ const updateHearing = async (request, response) => {
                 }
 
                 if (Object.keys(eventUpdates).length > 0) {
-                    // SECURITY: Include firmId to prevent IDOR when updating linked event
+                    // SECURITY: Include firmQuery to prevent IDOR when updating linked event
                     await Event.findOneAndUpdate(
-                        { _id: hearing.eventId, firmId: firmId },
+                        { _id: hearing.eventId, ...req.firmQuery },
                         eventUpdates
                     );
                 }
@@ -1388,9 +1388,9 @@ const updateHearing = async (request, response) => {
                     description: `موعد الجلسة غداً في ${location || hearing.location || 'المحكمة'}`
                 };
 
-                // SECURITY: Include firmId to prevent IDOR when updating linked reminder
+                // SECURITY: Include firmQuery to prevent IDOR when updating linked reminder
                 await Reminder.findOneAndUpdate(
-                    { _id: hearing.reminderId, firmId: firmId },
+                    { _id: hearing.reminderId, ...req.firmQuery },
                     reminderUpdates
                 );
             } catch (reminderError) {
@@ -1620,8 +1620,8 @@ const deleteHearing = async (request, response) => {
         // Delete linked Event if it exists
         if (eventId) {
             try {
-                // SECURITY: Include firmId to prevent IDOR when deleting linked event
-                await Event.findOneAndDelete({ _id: eventId, firmId: firmId });
+                // SECURITY: Include firmQuery to prevent IDOR when deleting linked event
+                await Event.findOneAndDelete({ _id: eventId, ...req.firmQuery });
             } catch (eventError) {
                 logger.error('Failed to delete linked event', { error: eventError.message });
             }
@@ -1630,8 +1630,8 @@ const deleteHearing = async (request, response) => {
         // Delete linked Reminder if it exists
         if (reminderId) {
             try {
-                // SECURITY: Include firmId to prevent IDOR when deleting linked reminder
-                await Reminder.findOneAndDelete({ _id: reminderId, firmId: firmId });
+                // SECURITY: Include firmQuery to prevent IDOR when deleting linked reminder
+                await Reminder.findOneAndDelete({ _id: reminderId, ...req.firmQuery });
             } catch (reminderError) {
                 logger.error('Failed to delete linked reminder', { error: reminderError.message });
             }

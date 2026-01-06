@@ -122,8 +122,7 @@ const getSetupStatus = asyncHandler(async (req, res) => {
     // IDOR Protection: Verify firm access
     await verifyFirmAccess(req);
 
-    const query = req.firmId ? { firmId: req.firmId } : { lawyerId: req.userID };
-    const setup = await FinanceSetup.findOne(query);
+    const setup = await FinanceSetup.findOne({ ...req.firmQuery });
 
     res.json({
         success: true,
@@ -175,10 +174,8 @@ const updateSetup = asyncHandler(async (req, res) => {
     delete allowedData.lawyerId;
     delete allowedData.createdBy;
 
-    const query = req.firmId ? { firmId: req.firmId } : { lawyerId: req.userID };
-
     const setup = await FinanceSetup.findOneAndUpdate(
-        query,
+        { ...req.firmQuery },
         {
             $set: {
                 ...allowedData,
@@ -212,8 +209,7 @@ const updateStep = asyncHandler(async (req, res) => {
         });
     }
 
-    const query = req.firmId ? { firmId: req.firmId } : { lawyerId: req.userID };
-    let setup = await FinanceSetup.findOne(query);
+    let setup = await FinanceSetup.findOne({ ...req.firmQuery });
 
     if (!setup) {
         setup = await FinanceSetup.getOrCreate(
@@ -276,8 +272,7 @@ const completeSetup = asyncHandler(async (req, res) => {
     // IDOR Protection: Verify firm access
     await verifyFirmAccess(req);
 
-    const query = req.firmId ? { firmId: req.firmId } : { lawyerId: req.userID };
-    const setup = await FinanceSetup.findOne(query);
+    const setup = await FinanceSetup.findOne({ ...req.firmQuery });
 
     if (!setup) {
         throw CustomException('Setup not found. Please start the setup wizard.', 404, {
@@ -334,10 +329,8 @@ const resetSetup = asyncHandler(async (req, res) => {
     // IDOR Protection: Verify firm access
     await verifyFirmAccess(req);
 
-    const query = req.firmId ? { firmId: req.firmId } : { lawyerId: req.userID };
-
     await FinanceSetup.findOneAndUpdate(
-        query,
+        { ...req.firmQuery },
         {
             $set: {
                 setupCompleted: false,

@@ -51,12 +51,11 @@ const createContactList = asyncHandler(async (req, res) => {
     }
 
     // Create with firm context
-    const contactList = new ContactList({
+    const contactList = new ContactList(req.addFirmId({
         ...allowedFields,
-        firmId: req.firmId,
         lawyerId: req.userID,
         createdBy: req.userID
-    });
+    }));
 
     await contactList.save();
 
@@ -460,7 +459,7 @@ const duplicateContactList = asyncHandler(async (req, res) => {
     }
 
     // Create duplicate
-    const duplicate = new ContactList({
+    const duplicate = new ContactList(req.addFirmId({
         name: `${originalList.name} (Copy)`,
         nameAr: originalList.nameAr ? `${originalList.nameAr} (نسخة)` : undefined,
         description: originalList.description,
@@ -472,10 +471,9 @@ const duplicateContactList = asyncHandler(async (req, res) => {
         isPrivate: originalList.isPrivate,
         sharedWith: originalList.sharedWith,
         tags: originalList.tags,
-        firmId: req.firmId,
         lawyerId: req.userID,
         createdBy: req.userID
-    });
+    }));
 
     await duplicate.save();
 

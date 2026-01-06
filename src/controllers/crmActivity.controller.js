@@ -113,7 +113,7 @@ const validateActivityData = (data) => {
  * Verify entity ownership (IDOR protection)
  * Ensures the entity belongs to the user's firm or is assigned to them
  */
-const verifyEntityOwnership = async (entityType, entityId, lawyerId, firmId) => {
+const verifyEntityOwnership = async (entityType, entityId, firmQuery) => {
     try {
         let Model;
         const modelMap = {
@@ -136,17 +136,7 @@ const verifyEntityOwnership = async (entityType, entityId, lawyerId, firmId) => 
             return { valid: true };
         }
 
-        const query = { _id: entityId };
-
-        // Add firmId or lawyerId check based on what's available
-        if (firmId) {
-            query.$or = [
-                { firmId: firmId },
-                { lawyerId: lawyerId }
-            ];
-        } else {
-            query.lawyerId = lawyerId;
-        }
+        const query = { _id: entityId, ...firmQuery };
 
         const entity = await Model.findOne(query).select('_id');
 
@@ -191,8 +181,7 @@ exports.createActivity = async (req, res) => {
         const ownershipCheck = await verifyEntityOwnership(
             filteredData.entityType,
             filteredData.entityId,
-            lawyerId,
-            firmId
+            req.firmQuery
         );
 
         if (!ownershipCheck.valid) {
@@ -207,8 +196,7 @@ exports.createActivity = async (req, res) => {
             const secondaryOwnershipCheck = await verifyEntityOwnership(
                 filteredData.secondaryEntityType,
                 filteredData.secondaryEntityId,
-                lawyerId,
-                firmId
+                req.firmQuery
             );
 
             if (!secondaryOwnershipCheck.valid) {
@@ -376,8 +364,7 @@ exports.updateActivity = async (req, res) => {
             const ownershipCheck = await verifyEntityOwnership(
                 newEntityType,
                 newEntityId,
-                lawyerId,
-                firmId
+                req.firmQuery
             );
 
             if (!ownershipCheck.valid) {
@@ -397,8 +384,7 @@ exports.updateActivity = async (req, res) => {
                 const secondaryOwnershipCheck = await verifyEntityOwnership(
                     newSecondaryType,
                     newSecondaryId,
-                    lawyerId,
-                    firmId
+                    req.firmQuery
                 );
 
                 if (!secondaryOwnershipCheck.valid) {
