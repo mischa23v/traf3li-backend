@@ -262,7 +262,15 @@ const createTask = asyncHandler(async (req, res) => {
         .populate('createdBy', 'firstName lastName username email image')
         .populate('caseId', 'title caseNumber')
         .populate('clientId', 'firstName lastName')
-        .populate({ path: 'linkedEventId', select: 'eventId title startDateTime', options: { bypassFirmFilter: true } });
+        .lean();
+
+    // GOLD STANDARD: Fetch linked event separately with firm filter (defense in depth)
+    if (populatedTask?.linkedEventId) {
+        populatedTask.linkedEvent = await Event.findOne({
+            _id: populatedTask.linkedEventId,
+            ...req.firmQuery
+        }).select('eventId title startDateTime').lean();
+    }
 
     res.status(201).json({
         success: true,
@@ -476,11 +484,18 @@ const getTask = asyncHandler(async (req, res) => {
         .populate('completedBy', 'firstName lastName')
         .populate('comments.userId', 'firstName lastName image')
         .populate('timeTracking.sessions.userId', 'firstName lastName')
-        .populate({ path: 'linkedEventId', select: 'eventId title startDateTime status', options: { bypassFirmFilter: true } })
         .lean();
 
     if (!task) {
         throw CustomException('Task not found', 404);
+    }
+
+    // GOLD STANDARD: Fetch linked event separately with firm filter (defense in depth)
+    if (task.linkedEventId) {
+        task.linkedEvent = await Event.findOne({
+            _id: task.linkedEventId,
+            ...req.firmQuery
+        }).select('eventId title startDateTime status').lean();
     }
 
     res.status(200).json({
@@ -679,7 +694,15 @@ const updateTask = asyncHandler(async (req, res) => {
         .populate('assignedTo', 'firstName lastName username email image')
         .populate('createdBy', 'firstName lastName username email image')
         .populate('caseId', 'title caseNumber')
-        .populate({ path: 'linkedEventId', select: 'eventId title startDateTime', options: { bypassFirmFilter: true } });
+        .lean();
+
+    // GOLD STANDARD: Fetch linked event separately with firm filter (defense in depth)
+    if (populatedTask?.linkedEventId) {
+        populatedTask.linkedEvent = await Event.findOne({
+            _id: populatedTask.linkedEventId,
+            ...req.firmQuery
+        }).select('eventId title startDateTime').lean();
+    }
 
     res.status(200).json({
         success: true,
