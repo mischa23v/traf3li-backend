@@ -3,7 +3,8 @@ const DocumentVersion = require('../models/documentVersion.model');
 const DocumentVersionService = require('../services/documentVersionService');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
-const { s3, getSignedUrl, deleteObject, BUCKETS } = require('../configs/s3');
+const { s3, getSignedUrl, deleteObject, BUCKETS, logFileAccess } = require('../configs/s3');
+const { sanitizeObjectId } = require('../utils/securityUtils');
 const crypto = require('crypto');
 const path = require('path');
 const logger = require('../utils/logger');
@@ -203,6 +204,16 @@ const confirmUpload = asyncHandler(async (req, res) => {
 
     const document = await Document.create(allowedFields);
 
+    // Log file upload (Gold Standard - AWS/Google/Microsoft pattern)
+    logFileAccess(fileKey, module || 'documents', lawyerId, 'upload', {
+        firmId,
+        documentId: document._id,
+        fileName: fileName,
+        fileSize: fileSize,
+        remoteIp: req.ip,
+        userAgent: req.get('user-agent')
+    }).catch(err => logger.error('Failed to log file upload:', err.message));
+
     // Increment usage counter for firm
     if (firmId) {
         const fileSizeMB = fileSize ? fileSize / (1024 * 1024) : 0;
@@ -284,8 +295,11 @@ const getDocument = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId; // IDOR protection
 
+    // IDOR protection: sanitize and validate ID
+    const sanitizedId = sanitizeObjectId(id);
+
     // IDOR protection: document must belong to user's firm
-    const document = await Document.findOne({ _id: id, lawyerId, firmId })
+    const document = await Document.findOne({ _id: sanitizedId, lawyerId, firmId })
         .populate('uploadedBy', 'firstName lastName')
         .populate('caseId', 'title caseNumber')
         .populate('clientId', 'name fullName')
@@ -373,6 +387,16 @@ const deleteDocument = asyncHandler(async (req, res) => {
     } catch (err) {
         logger.error('Storage delete error:', err);
     }
+
+    // Log file deletion (Gold Standard - AWS/Google/Microsoft pattern)
+    logFileAccess(document.fileKey, document.module || 'documents', lawyerId, 'delete', {
+        firmId,
+        documentId: document._id,
+        fileName: document.originalName,
+        fileSize: document.fileSize,
+        remoteIp: req.ip,
+        userAgent: req.get('user-agent')
+    }).catch(err => logger.error('Failed to log file deletion:', err.message));
 
     // Store fileSize before deletion for usage tracking
     const fileSize = document.fileSize || 0;
@@ -520,6 +544,16 @@ const downloadDocument = asyncHandler(async (req, res) => {
     const bucket = document.bucket || getBucketForModule(document.module) || BUCKETS.general;
     const downloadUrl = await getSignedUrl(bucket, document.fileKey, document.fileType, 'getObject');
 
+    // Log file download (Gold Standard - AWS/Google/Microsoft pattern)
+    logFileAccess(document.fileKey, document.module || 'documents', lawyerId, 'download', {
+        firmId,
+        documentId: document._id,
+        fileName: document.originalName,
+        fileSize: document.fileSize,
+        remoteIp: req.ip,
+        userAgent: req.get('user-agent')
+    }).catch(err => logger.error('Failed to log file download:', err.message));
+
     // Update access count
     document.accessCount += 1;
     document.lastAccessedAt = new Date();
@@ -655,6 +689,17 @@ const uploadVersion = asyncHandler(async (req, res) => {
         lawyerId,
         changeNote
     );
+
+    // Log version upload (Gold Standard - AWS/Google/Microsoft pattern)
+    logFileAccess(fileKey, document.module || 'documents', lawyerId, 'upload_version', {
+        firmId,
+        documentId: id,
+        version: updatedDocument.version,
+        fileName: fileName,
+        fileSize: fileSize,
+        remoteIp: req.ip,
+        userAgent: req.get('user-agent')
+    }).catch(err => logger.error('Failed to log version upload:', err.message));
 
     res.status(200).json({
         success: true,
@@ -817,6 +862,20 @@ const bulkDeleteDocuments = asyncHandler(async (req, res) => {
         lawyerId,
         firmId
     });
+
+    // Log bulk file deletions (Gold Standard - AWS/Google/Microsoft pattern)
+    for (const doc of documents) {
+        logFileAccess(doc.fileKey, doc.module || 'documents', lawyerId, 'bulk_delete', {
+            firmId,
+            documentId: doc._id,
+            fileName: doc.originalName,
+            fileSize: doc.fileSize,
+            bulkOperation: true,
+            totalDeleted: result.deletedCount,
+            remoteIp: req.ip,
+            userAgent: req.get('user-agent')
+        }).catch(err => logger.error('Failed to log bulk delete:', err.message));
+    }
 
     res.status(200).json({
         success: true,
