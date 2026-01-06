@@ -278,6 +278,34 @@ function getTokenLast4(token) {
 }
 
 /**
+ * Validate credit card number using Luhn algorithm (ISO/IEC 7812)
+ * Required for PCI-DSS compliance
+ * @param {string} cardNumber - Credit card number (digits only)
+ * @returns {boolean} Whether the card number is valid
+ */
+function validateLuhn(cardNumber) {
+  let sum = 0;
+  let isEven = false;
+
+  // Loop from right to left
+  for (let i = cardNumber.length - 1; i >= 0; i--) {
+    let digit = parseInt(cardNumber[i], 10);
+
+    if (isEven) {
+      digit *= 2;
+      if (digit > 9) {
+        digit -= 9;
+      }
+    }
+
+    sum += digit;
+    isEven = !isEven;
+  }
+
+  return sum % 10 === 0;
+}
+
+/**
  * Tokenize credit card number (PCI compliance)
  * Stores only last 4 digits in token for display
  *
@@ -289,9 +317,14 @@ function tokenizeCreditCard(cardNumber, metadata = {}) {
   // Remove spaces and dashes
   const cleanCardNumber = String(cardNumber).replace(/[\s-]/g, '');
 
-  // Basic validation
+  // Basic format validation
   if (!/^\d{13,19}$/.test(cleanCardNumber)) {
     throw new Error('Invalid credit card number format');
+  }
+
+  // SECURITY FIX: Validate using Luhn algorithm (PCI-DSS requirement)
+  if (!validateLuhn(cleanCardNumber)) {
+    throw new Error('Invalid credit card number (Luhn check failed)');
   }
 
   return tokenize(cleanCardNumber, {
@@ -457,6 +490,7 @@ module.exports = {
   tokenizeCreditCard,
   tokenizeBankAccount,
   tokenizeNationalId,
+  validateLuhn,
 
   // Vault management
   cleanupExpiredTokens,

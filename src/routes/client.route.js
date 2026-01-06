@@ -468,17 +468,9 @@ app.post('/:id/verify/absher',
 
             const Client = require('../models/client.model');
 
-            // SECURITY: Build query with firmId for multi-tenant isolation
-            const firmId = req.firmId;
-            const lawyerId = req.userID;
-            const clientQuery = { _id: sanitizedId };
-            if (firmId) {
-                clientQuery.firmId = firmId;
-            } else {
-                clientQuery.lawyerId = lawyerId;
-            }
-
-            const client = await Client.findOne(clientQuery);
+            // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+            // This supports both firm members (firmQuery = { firmId }) and solo lawyers (firmQuery = { lawyerId })
+            const client = await Client.findOne({ _id: sanitizedId, ...req.firmQuery });
 
             if (!client) {
                 return res.status(404).json({ success: false, message: 'Client not found or access denied' });
@@ -526,17 +518,9 @@ app.post('/:id/verify/address',
 
             const Client = require('../models/client.model');
 
-            // SECURITY: Build query with firmId for multi-tenant isolation
-            const firmId = req.firmId;
-            const lawyerId = req.userID;
-            const clientQuery = { _id: sanitizedId };
-            if (firmId) {
-                clientQuery.firmId = firmId;
-            } else {
-                clientQuery.lawyerId = lawyerId;
-            }
-
-            const client = await Client.findOne(clientQuery);
+            // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+            // This supports both firm members (firmQuery = { firmId }) and solo lawyers (firmQuery = { lawyerId })
+            const client = await Client.findOne({ _id: sanitizedId, ...req.firmQuery });
 
             if (!client) {
                 return res.status(404).json({ success: false, message: 'Client not found or access denied' });

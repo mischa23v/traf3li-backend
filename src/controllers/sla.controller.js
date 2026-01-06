@@ -10,12 +10,8 @@ const escapeRegex = (str) => {
     return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 };
 
-/**
- * Get firmId from user context
- */
-const getFirmId = (req) => {
-    return req.firmId || req.user?.firmId || null;
-};
+// NOTE: Removed getFirmId helper - use req.firmQuery instead for proper tenant isolation
+// See CLAUDE.md and FIRM_ISOLATION.md for patterns
 
 // ═══════════════════════════════════════════════════════════════
 // SLA CONFIGURATION MANAGEMENT
@@ -33,13 +29,9 @@ const listSLAs = asyncHandler(async (req, res) => {
         limit = 50
     } = req.query;
 
-    const firmId = getFirmId(req);
-    if (!firmId) {
-        throw CustomException('معرف الشركة مطلوب', 400);
-    }
-
+    // SECURITY: Use req.firmQuery for proper tenant isolation (supports both firms and solo lawyers)
     // Build query with IDOR protection
-    const query = { firmId };
+    const query = { ...req.firmQuery };
 
     if (priority) {
         query.priority = priority;
@@ -77,12 +69,7 @@ const listSLAs = asyncHandler(async (req, res) => {
  * POST /api/sla
  */
 const createSLA = asyncHandler(async (req, res) => {
-    const firmId = getFirmId(req);
     const userId = req.userID;
-
-    if (!firmId) {
-        throw CustomException('معرف الشركة مطلوب', 400);
-    }
 
     // Mass assignment protection
     const allowedFields = [
@@ -156,9 +143,8 @@ const createSLA = asyncHandler(async (req, res) => {
         }
     }
 
-    // Create SLA
-    const sla = await SLA.create({
-        firmId,
+    // Create SLA - use req.addFirmId for proper tenant context
+    const sla = await SLA.create(req.addFirmId({
         name,
         priority,
         metrics,
@@ -166,7 +152,7 @@ const createSLA = asyncHandler(async (req, res) => {
         pauseConditions,
         appliesTo,
         createdBy: userId
-    });
+    }));
 
     await sla.populate([
         { path: 'createdBy', select: 'username email' }
@@ -185,11 +171,6 @@ const createSLA = asyncHandler(async (req, res) => {
  */
 const getSLA = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const firmId = getFirmId(req);
-
-    if (!firmId) {
-        throw CustomException('معرف الشركة مطلوب', 400);
-    }
 
     // Sanitize ObjectId
     const sanitizedId = sanitizeObjectId(id);
@@ -197,7 +178,8 @@ const getSLA = asyncHandler(async (req, res) => {
         throw CustomException('معرف غير صالح', 400);
     }
 
-    const sla = await SLA.findOne({ _id: sanitizedId, firmId })
+    // SECURITY: Use req.firmQuery for proper tenant isolation
+    const sla = await SLA.findOne({ _id: sanitizedId, ...req.firmQuery })
         .populate('createdBy', 'username email')
         .populate('updatedBy', 'username email');
 
@@ -205,10 +187,7 @@ const getSLA = asyncHandler(async (req, res) => {
         throw CustomException('SLA غير موجود', 404);
     }
 
-    // IDOR protection - firm ownership already verified in query above
-    if (sla.firmId.toString() !== firmId.toString()) {
-        throw CustomException('لا يمكنك الوصول إلى هذا SLA', 403);
-    }
+    // IDOR protection already handled by req.firmQuery in query above
 
     res.status(200).json({
         success: true,
@@ -222,12 +201,7 @@ const getSLA = asyncHandler(async (req, res) => {
  */
 const updateSLA = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const firmId = getFirmId(req);
     const userId = req.userID;
-
-    if (!firmId) {
-        throw CustomException('معرف الشركة مطلوب', 400);
-    }
 
     // Sanitize ObjectId
     const sanitizedId = sanitizeObjectId(id);
@@ -235,16 +209,14 @@ const updateSLA = asyncHandler(async (req, res) => {
         throw CustomException('معرف غير صالح', 400);
     }
 
-    const sla = await SLA.findOne({ _id: sanitizedId, firmId });
+    // SECURITY: Use req.firmQuery for proper tenant isolation
+    const sla = await SLA.findOne({ _id: sanitizedId, ...req.firmQuery });
 
     if (!sla) {
         throw CustomException('SLA غير موجود', 404);
     }
 
-    // IDOR protection - firm ownership already verified in query above
-    if (sla.firmId.toString() !== firmId.toString()) {
-        throw CustomException('لا يمكنك الوصول إلى هذا SLA', 403);
-    }
+    // IDOR protection already handled by req.firmQuery in query above
 
     // Mass assignment protection
     const allowedFields = [
@@ -325,11 +297,6 @@ const updateSLA = asyncHandler(async (req, res) => {
  */
 const deleteSLA = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const firmId = getFirmId(req);
-
-    if (!firmId) {
-        throw CustomException('معرف الشركة مطلوب', 400);
-    }
 
     // Sanitize ObjectId
     const sanitizedId = sanitizeObjectId(id);
@@ -337,20 +304,19 @@ const deleteSLA = asyncHandler(async (req, res) => {
         throw CustomException('معرف غير صالح', 400);
     }
 
-    const sla = await SLA.findOne({ _id: sanitizedId, firmId });
+    // SECURITY: Use req.firmQuery for proper tenant isolation
+    const sla = await SLA.findOne({ _id: sanitizedId, ...req.firmQuery });
 
     if (!sla) {
         throw CustomException('SLA غير موجود', 404);
     }
 
-    // IDOR protection - firm ownership already verified in query above
-    if (sla.firmId.toString() !== firmId.toString()) {
-        throw CustomException('لا يمكنك الوصول إلى هذا SLA', 403);
-    }
+    // IDOR protection already handled by req.firmQuery in query above
 
-    // Check for active instances
+    // Check for active instances (include tenant context)
     const activeInstancesCount = await SLAInstance.countDocuments({
         slaId: sanitizedId,
+        ...req.firmQuery,
         $or: [
             { 'metrics.firstResponse.status': 'pending' },
             { 'metrics.nextResponse.status': 'pending' },
@@ -365,7 +331,8 @@ const deleteSLA = asyncHandler(async (req, res) => {
         );
     }
 
-    await SLA.findOneAndDelete({ _id: sanitizedId, firmId });
+    // SECURITY: Include tenant context in delete query (TOCTOU protection)
+    await SLA.findOneAndDelete({ _id: sanitizedId, ...req.firmQuery });
 
     res.status(200).json({
         success: true,
@@ -383,11 +350,6 @@ const deleteSLA = asyncHandler(async (req, res) => {
  */
 const applySLAToTicket = asyncHandler(async (req, res) => {
     const { id, ticketId } = req.params;
-    const firmId = getFirmId(req);
-
-    if (!firmId) {
-        throw CustomException('معرف الشركة مطلوب', 400);
-    }
 
     // Sanitize ObjectIds
     const sanitizedSlaId = sanitizeObjectId(id);
@@ -397,16 +359,13 @@ const applySLAToTicket = asyncHandler(async (req, res) => {
         throw CustomException('معرف غير صالح', 400);
     }
 
-    // Verify SLA exists and belongs to firm
-    const sla = await SLA.findOne({ _id: sanitizedSlaId, firmId });
+    // SECURITY: Use req.firmQuery for proper tenant isolation
+    const sla = await SLA.findOne({ _id: sanitizedSlaId, ...req.firmQuery });
     if (!sla) {
         throw CustomException('SLA غير موجود', 404);
     }
 
-    // IDOR protection - firm ownership already verified in query above
-    if (sla.firmId.toString() !== firmId.toString()) {
-        throw CustomException('لا يمكنك الوصول إلى هذا SLA', 403);
-    }
+    // IDOR protection already handled by req.firmQuery in query above
 
     // Apply SLA using service
     const instance = await SLAService.applySLA(sanitizedTicketId, sanitizedSlaId);
@@ -430,11 +389,6 @@ const applySLAToTicket = asyncHandler(async (req, res) => {
 const pauseSLA = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { reason } = req.body;
-    const firmId = getFirmId(req);
-
-    if (!firmId) {
-        throw CustomException('معرف الشركة مطلوب', 400);
-    }
 
     // Sanitize ObjectId
     const sanitizedId = sanitizeObjectId(id);
@@ -442,16 +396,13 @@ const pauseSLA = asyncHandler(async (req, res) => {
         throw CustomException('معرف غير صالح', 400);
     }
 
-    // Verify instance exists and belongs to firm
-    const instance = await SLAInstance.findOne({ _id: sanitizedId, firmId });
+    // SECURITY: Use req.firmQuery for proper tenant isolation
+    const instance = await SLAInstance.findOne({ _id: sanitizedId, ...req.firmQuery });
     if (!instance) {
         throw CustomException('مثيل SLA غير موجود', 404);
     }
 
-    // IDOR protection - firm ownership already verified in query above
-    if (instance.firmId.toString() !== firmId.toString()) {
-        throw CustomException('لا يمكنك الوصول إلى هذا المثيل', 403);
-    }
+    // IDOR protection already handled by req.firmQuery in query above
 
     // Pause using service
     const updatedInstance = await SLAService.pauseSLA(sanitizedId, reason);
@@ -474,11 +425,6 @@ const pauseSLA = asyncHandler(async (req, res) => {
  */
 const resumeSLA = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const firmId = getFirmId(req);
-
-    if (!firmId) {
-        throw CustomException('معرف الشركة مطلوب', 400);
-    }
 
     // Sanitize ObjectId
     const sanitizedId = sanitizeObjectId(id);
@@ -486,16 +432,13 @@ const resumeSLA = asyncHandler(async (req, res) => {
         throw CustomException('معرف غير صالح', 400);
     }
 
-    // Verify instance exists and belongs to firm
-    const instance = await SLAInstance.findOne({ _id: sanitizedId, firmId });
+    // SECURITY: Use req.firmQuery for proper tenant isolation
+    const instance = await SLAInstance.findOne({ _id: sanitizedId, ...req.firmQuery });
     if (!instance) {
         throw CustomException('مثيل SLA غير موجود', 404);
     }
 
-    // IDOR protection - firm ownership already verified in query above
-    if (instance.firmId.toString() !== firmId.toString()) {
-        throw CustomException('لا يمكنك الوصول إلى هذا المثيل', 403);
-    }
+    // IDOR protection already handled by req.firmQuery in query above
 
     // Resume using service
     const updatedInstance = await SLAService.resumeSLA(sanitizedId);
@@ -522,11 +465,6 @@ const resumeSLA = asyncHandler(async (req, res) => {
  */
 const getStats = asyncHandler(async (req, res) => {
     const { startDate, endDate } = req.query;
-    const firmId = getFirmId(req);
-
-    if (!firmId) {
-        throw CustomException('معرف الشركة مطلوب', 400);
-    }
 
     // Build date range
     const dateRange = {};
@@ -543,8 +481,8 @@ const getStats = asyncHandler(async (req, res) => {
         }
     }
 
-    // Get stats using service
-    const stats = await SLAService.getPerformanceStats(firmId, dateRange);
+    // SECURITY: Pass req.firmQuery to service for proper tenant isolation
+    const stats = await SLAService.getPerformanceStats(req.firmQuery, dateRange);
 
     res.status(200).json({
         success: true,
@@ -558,11 +496,6 @@ const getStats = asyncHandler(async (req, res) => {
  */
 const getSLAForTicket = asyncHandler(async (req, res) => {
     const { ticketId } = req.params;
-    const firmId = getFirmId(req);
-
-    if (!firmId) {
-        throw CustomException('معرف الشركة مطلوب', 400);
-    }
 
     // Sanitize ObjectId
     const sanitizedTicketId = sanitizeObjectId(ticketId);
@@ -570,17 +503,14 @@ const getSLAForTicket = asyncHandler(async (req, res) => {
         throw CustomException('معرف غير صالح', 400);
     }
 
-    // Get SLA instance using service
-    const instance = await SLAService.getSLAByTicket(sanitizedTicketId);
+    // SECURITY: Pass req.firmQuery to service for proper tenant isolation
+    const instance = await SLAService.getSLAByTicket(sanitizedTicketId, req.firmQuery);
 
     if (!instance) {
         throw CustomException('لا يوجد SLA لهذه التذكرة', 404);
     }
 
-    // IDOR protection
-    if (instance.firmId.toString() !== firmId.toString()) {
-        throw CustomException('لا يمكنك الوصول إلى هذا المثيل', 403);
-    }
+    // IDOR protection handled by service with req.firmQuery
 
     await instance.populate([
         { path: 'slaId', select: 'name priority metrics' },

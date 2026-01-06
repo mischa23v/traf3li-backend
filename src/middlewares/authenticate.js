@@ -30,7 +30,10 @@ const authenticate = (request, response, next) => {
             });
         }
 
-        const verification = jwt.verify(accessToken, process.env.JWT_SECRET);
+        // SECURITY: Explicitly specify allowed algorithms to prevent algorithm confusion attacks
+        const verification = jwt.verify(accessToken, process.env.JWT_SECRET, {
+            algorithms: ['HS256']
+        });
         if(verification) {
             // Handle both 'id' and '_id' in token payload (generateToken uses 'id')
             request.userID = verification._id || verification.id;

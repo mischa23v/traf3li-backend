@@ -16,7 +16,8 @@ const { sanitizeObjectId, pickAllowedFields } = require('../utils/securityUtils'
 const getTaxSlabs = asyncHandler(async (req, res) => {
     const { countryCode, fiscalYear, isActive } = req.query;
 
-    const query = { firmId: req.firmId };
+    // SECURITY: Use req.firmQuery for proper tenant isolation (supports both firms and solo lawyers)
+    const query = { ...req.firmQuery };
     if (countryCode) query.countryCode = countryCode.toUpperCase();
     if (fiscalYear) query.fiscalYear = parseInt(fiscalYear, 10);
     if (isActive !== undefined) query.isActive = isActive === 'true';
@@ -42,9 +43,10 @@ const getTaxSlab = asyncHandler(async (req, res) => {
         throw new CustomException('Invalid tax slab ID | معرف شريحة الضريبة غير صالح', 400);
     }
 
+    // SECURITY: Use req.firmQuery for proper tenant isolation
     const slab = await IncomeTaxSlab.findOne({
         _id: id,
-        firmId: req.firmId
+        ...req.firmQuery
     }).lean();
 
     if (!slab) {
@@ -86,12 +88,12 @@ const createTaxSlab = asyncHandler(async (req, res) => {
         );
     }
 
-    const slab = new IncomeTaxSlab({
+    // SECURITY: Use req.addFirmId for proper tenant context
+    const slab = new IncomeTaxSlab(req.addFirmId({
         ...safeData,
-        firmId: req.firmId,
         createdBy: req.userID,
         isActive: true
-    });
+    }));
 
     await slab.save();
 
@@ -112,9 +114,10 @@ const updateTaxSlab = asyncHandler(async (req, res) => {
         throw new CustomException('Invalid tax slab ID | معرف شريحة الضريبة غير صالح', 400);
     }
 
+    // SECURITY: Use req.firmQuery for proper tenant isolation
     const slab = await IncomeTaxSlab.findOne({
         _id: id,
-        firmId: req.firmId
+        ...req.firmQuery
     });
 
     if (!slab) {
@@ -150,16 +153,16 @@ const deleteTaxSlab = asyncHandler(async (req, res) => {
         throw new CustomException('Invalid tax slab ID | معرف شريحة الضريبة غير صالح', 400);
     }
 
-    const slab = await IncomeTaxSlab.findOne({
+    // SECURITY: Use findOneAndDelete with req.firmQuery for atomic TOCTOU-safe operation
+    // This ensures the delete is protected by tenant isolation
+    const slab = await IncomeTaxSlab.findOneAndDelete({
         _id: id,
-        firmId: req.firmId
+        ...req.firmQuery
     });
 
     if (!slab) {
         throw new CustomException('Tax slab not found | شريحة الضريبة غير موجودة', 404);
     }
-
-    await IncomeTaxSlab.deleteOne({ _id: id });
 
     res.json({
         success: true,
@@ -177,9 +180,10 @@ const calculateTax = asyncHandler(async (req, res) => {
         throw new CustomException('Invalid tax slab ID | معرف شريحة الضريبة غير صالح', 400);
     }
 
+    // SECURITY: Use req.firmQuery for proper tenant isolation
     const slab = await IncomeTaxSlab.findOne({
         _id: id,
-        firmId: req.firmId
+        ...req.firmQuery
     });
 
     if (!slab) {
@@ -271,7 +275,8 @@ const initializeDefaults = asyncHandler(async (req, res) => {
  * GET /api/tax-slabs/countries
  */
 const getSupportedCountries = asyncHandler(async (req, res) => {
-    const countries = await IncomeTaxSlab.distinct('countryCode', { firmId: req.firmId });
+    // SECURITY: Use req.firmQuery for proper tenant isolation
+    const countries = await IncomeTaxSlab.distinct('countryCode', { ...req.firmQuery });
 
     res.json({
         success: true,

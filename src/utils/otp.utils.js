@@ -6,27 +6,27 @@
 const crypto = require('crypto');
 
 /**
- * Generate a secure random OTP
+ * Generate a secure random OTP without modulo bias
  * @param {number} length - Length of OTP (default: 6)
  * @returns {string} - Numeric OTP code
  */
 const generateOTP = (length = 6) => {
   const otpLength = parseInt(process.env.OTP_LENGTH) || length;
-  const digits = '0123456789';
   let otp = '';
 
-  // Use cryptographically secure random number generator
-  const randomBytes = crypto.randomBytes(otpLength);
-
+  // SECURITY FIX: Use crypto.randomInt to avoid modulo bias
+  // crypto.randomInt provides uniform distribution across the range
   for (let i = 0; i < otpLength; i++) {
-    otp += digits[randomBytes[i] % digits.length];
+    otp += crypto.randomInt(0, 10).toString();
   }
 
   return otp;
 };
 
 /**
- * Hash OTP for secure storage
+ * Hash OTP for secure storage using HMAC-SHA256
+ * SECURITY FIX: Use HMAC instead of SHA256 with string concatenation
+ * to prevent length extension attacks
  * @param {string} otp - Plain OTP code
  * @returns {string} - Hashed OTP
  */
@@ -35,9 +35,10 @@ const hashOTP = (otp) => {
   if (!salt) {
     throw new Error('OTP_SECRET_SALT environment variable must be set');
   }
+  // SECURITY: Use HMAC-SHA256 instead of SHA256 with string concatenation
   return crypto
-    .createHash('sha256')
-    .update(otp + salt)
+    .createHmac('sha256', salt)
+    .update(otp)
     .digest('hex');
 };
 
