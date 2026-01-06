@@ -50,7 +50,7 @@ const autoCompleteCycles = async () => {
         })
         .setOptions({ bypassFirmFilter: true })
         .populate('teamId', 'name')
-        .populate('firmId', 'name ownerId');
+        .populate('firmId', 'name ownerId').lean();
 
         if (expiredCycles.length === 0) {
             logger.info('[Cycle Auto-Complete Job] No expired cycles found');

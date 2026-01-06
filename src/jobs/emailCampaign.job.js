@@ -126,7 +126,7 @@ const processDripCampaigns = async () => {
         if (dripProgress.status !== 'active') continue;
 
         try {
-          const campaign = await EmailCampaign.findById(dripProgress.campaignId);
+          const campaign = await EmailCampaign.findById(dripProgress.campaignId).lean();
           if (!campaign || !campaign.dripSettings?.enabled) continue;
 
           // Get next step
@@ -350,7 +350,7 @@ const updateABTestWinners = async () => {
       'abTest.enabled': true,
       'abTest.winnerSelected': false,
       status: { $in: ['sending', 'sent'] }
-    }).setOptions({ bypassFirmFilter: true });
+    }).setOptions({ bypassFirmFilter: true }).lean();
 
     for (const campaign of campaigns) {
       // Check if test duration has passed

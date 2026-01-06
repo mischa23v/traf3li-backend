@@ -45,7 +45,7 @@ const detectStuckDeals = async () => {
         // Get all firms
         const firms = await Firm.find({
             'subscription.status': { $in: ['active', 'trial'] }
-        }).select('_id name ownerId');
+        }).select('_id name ownerId').lean();
 
         if (firms.length === 0) {
             logger.info('[Stuck Deal Job] No active firms found');

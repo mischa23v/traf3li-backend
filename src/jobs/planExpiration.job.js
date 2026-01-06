@@ -254,7 +254,7 @@ const sendTrialWarnings = async () => {
 
         for (const firm of expiringTrials) {
             try {
-                const owner = await User.findById(firm.ownerId);
+                const owner = await User.findById(firm.ownerId).lean();
                 if (owner) {
                     const daysRemaining = Math.ceil(
                         (new Date(firm.subscription.trialEndsAt) - new Date()) / (1000 * 60 * 60 * 24)
@@ -331,7 +331,7 @@ const sendUsageLimitWarnings = async () => {
                 }
 
                 if (warnings.length > 0) {
-                    const owner = await User.findById(firm.ownerId);
+                    const owner = await User.findById(firm.ownerId).lean();
                     if (owner) {
                         await Notification.create({
                             userId: owner._id,

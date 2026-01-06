@@ -44,7 +44,7 @@ const updateDealHealthScores = async () => {
         // Get all firms with active subscriptions
         const firms = await Firm.find({
             'subscription.status': { $in: ['active', 'trial'] }
-        }).select('_id name');
+        }).select('_id name').lean();
 
         if (firms.length === 0) {
             logger.info('[Deal Health Job] No active firms found');

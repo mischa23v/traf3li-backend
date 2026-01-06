@@ -93,7 +93,7 @@ const calculateAllHealthScores = async () => {
     // Get all active firms
     const firms = await Firm.find({
       status: { $ne: 'deleted' }
-    }).select('_id name');
+    }).select('_id name').lean();
 
     if (firms.length === 0) {
       logger.info('[CustomerHealth] No firms found to process');
