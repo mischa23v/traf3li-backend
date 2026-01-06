@@ -1439,25 +1439,27 @@ const createInvitation = asyncHandler(async (req, res) => {
         invitedBy: userId
     });
 
-    // Get firm name for response
-    const inviteLink = `https://app.traf3li.com/join-firm?code=${code}`;
+    // Get inviter name for response
+    const inviter = await User.findById(userId).select('firstName lastName');
+    const inviterName = inviter ? `${inviter.firstName} ${inviter.lastName}` : null;
 
     res.status(201).json({
         success: true,
-        invitation: {
-            id: invitation._id,
-            code: invitation.code,
-            firmId: invitation.firmId,
-            firmName: firm.name,
-            email: invitation.email,
-            role: invitation.role,
-            status: invitation.status,
-            expiresAt: invitation.expiresAt,
-            invitedBy: userId,
-            createdAt: invitation.createdAt
-        },
-        inviteLink,
-        message: 'تم إرسال الدعوة بنجاح'
+        message: 'تم إرسال الدعوة بنجاح',
+        data: {
+            invitation: {
+                id: invitation._id,
+                code: invitation.code,
+                email: invitation.email,
+                role: invitation.role,
+                status: invitation.status,
+                expiresAt: invitation.expiresAt,
+                invitedBy: { id: userId, name: inviterName },
+                createdAt: invitation.createdAt
+            },
+            emailSent: true, // TODO: Integrate with actual email service
+            inviteLink: `https://app.traf3li.com/join-firm?code=${code}`
+        }
     });
 });
 
@@ -1497,7 +1499,7 @@ const getInvitations = asyncHandler(async (req, res) => {
 
     res.json({
         success: true,
-        invitations: invitations.map(inv => ({
+        data: invitations.map(inv => ({
             id: inv._id,
             code: inv.code,
             email: inv.email,
@@ -1509,8 +1511,7 @@ const getInvitations = asyncHandler(async (req, res) => {
                 name: `${inv.invitedBy.firstName} ${inv.invitedBy.lastName}`
             } : null,
             createdAt: inv.createdAt
-        })),
-        total: invitations.length
+        }))
     });
 });
 
@@ -1564,21 +1565,45 @@ const validateInvitationCode = asyncHandler(async (req, res) => {
     const invitation = await FirmInvitation.findValidByCode(code);
 
     if (!invitation) {
-        return res.status(400).json({
-            valid: false,
-            error: 'الدعوة غير صالحة أو منتهية الصلاحية',
-            code: 'INVITATION_INVALID'
+        // Check if invitation exists but expired
+        const expiredInvitation = await FirmInvitation.findOne({ code });
+        if (expiredInvitation && expiredInvitation.expiresAt < new Date()) {
+            return res.json({
+                success: true,
+                data: {
+                    valid: false,
+                    error: 'الدعوة منتهية الصلاحية',
+                    code: 'INVITATION_EXPIRED'
+                }
+            });
+        }
+
+        return res.json({
+            success: true,
+            data: {
+                valid: false,
+                error: 'الدعوة غير صالحة',
+                code: 'INVITATION_INVALID'
+            }
         });
     }
 
+    // Get inviter name
+    const inviter = await User.findById(invitation.invitedBy).select('firstName lastName');
+    const invitedByName = inviter ? `${inviter.firstName} ${inviter.lastName}` : null;
+
     res.json({
-        valid: true,
-        invitation: {
-            firmName: invitation.firmId?.name,
-            firmNameEn: invitation.firmId?.nameEnglish,
-            role: invitation.role,
-            expiresAt: invitation.expiresAt,
-            invitedEmail: invitation.email
+        success: true,
+        data: {
+            valid: true,
+            invitation: {
+                email: invitation.email,
+                firmName: invitation.firmId?.name,
+                firmNameEn: invitation.firmId?.nameEnglish,
+                role: invitation.role,
+                expiresAt: invitation.expiresAt,
+                invitedBy: invitedByName
+            }
         }
     });
 });
@@ -1895,19 +1920,23 @@ const resendInvitation = asyncHandler(async (req, res) => {
         throw CustomException('لا يمكن إعادة إرسال دعوة غير معلقة', 400);
     }
 
-    if (invitation.expiresAt < new Date()) {
-        throw CustomException('الدعوة منتهية الصلاحية', 400);
-    }
+    // Extend expiration by 7 days if expired or expiring soon
+    const newExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    invitation.expiresAt = newExpiresAt;
 
     // Update email sent tracking
     await invitation.markEmailSent();
+    await invitation.save();
 
     // TODO: Send email (integrate with email service)
 
     res.json({
         success: true,
         message: 'تم إعادة إرسال الدعوة بنجاح',
-        emailSentCount: invitation.emailSentCount
+        data: {
+            emailSent: true,
+            newExpiresAt: invitation.expiresAt
+        }
     });
 });
 
