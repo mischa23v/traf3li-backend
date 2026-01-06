@@ -4,9 +4,9 @@
  * This file exports all TypeScript type definitions for the traf3li-backend API.
  * Generated from route and controller files.
  *
- * Total Contract Files: 20
- * Total Modules: 120+
- * Total Endpoints: 2,000+
+ * Total Contract Files: 30
+ * Total Modules: 247
+ * Total Endpoints: 3,900+
  */
 
 // ═══════════════════════════════════════════════════════════════
@@ -23,7 +23,7 @@ export * from './accounting';    // Account, Journal, Bank, Reconciliation (64 e
 export * from './operations';    // Vendor, Bill, Inventory, Asset (60 endpoints)
 
 // ═══════════════════════════════════════════════════════════════
-// EXTENDED MODULE EXPORTS (New)
+// EXTENDED MODULE EXPORTS (Original)
 // ═══════════════════════════════════════════════════════════════
 
 export * from './admin-system';       // Admin API, AI Chat, ML Scoring, Plugins (187 endpoints)
@@ -44,6 +44,21 @@ export * from './report';        // Reports and analytics (25 endpoints)
 export * from './misc';          // Support, Audit, Approval, Health, Webhook (82 endpoints)
 
 // ═══════════════════════════════════════════════════════════════
+// COMPREHENSIVE MODULE EXPORTS (NEW - Full Coverage)
+// ═══════════════════════════════════════════════════════════════
+
+export * from './core-extended';       // Task, Case, Firm, Client, Document, User, Team, Staff, Permission, Notification (308 endpoints)
+export * from './hr-full';             // Recruitment, Training, Attendance, Performance, Leave, Payroll, etc. (365 endpoints)
+export * from './finance-full';        // Invoice, Expense, ExpenseClaim, Billing, Payment, Quote, etc. (230 endpoints)
+export * from './crm-full';            // Lead, LeadScoring, Contact, Followup, Activity, Campaign, etc. (195 endpoints)
+export * from './integrations-extended'; // Event, Appointment, WhatsApp, Gmail, DocuSign, Zoom, Slack, etc. (264 endpoints)
+export * from './system-modules';      // AdminAPI, AdminTools, Approval, Webhook, Queue, Health, Analytics, etc. (300 endpoints)
+export * from './misc-modules';        // Sales, Inventory, Manufacturing, Quality, Product, Reminder, Status, Assets (260 endpoints)
+export * from './verification-ai';     // Verify, Biometric, ML-Scoring, AI-Matching, AI-Chat, AI-Settings, etc. (164 endpoints)
+export * from './financial-misc';      // BillingRate, JournalEntry, Account, Statement, AR-Aging, Currency, etc. (91 endpoints)
+export * from './marketplace-modules'; // Job, Proposal, Order, Gig, Review, Score, Apps, Plan, CustomField, etc. (110 endpoints)
+
+// ═══════════════════════════════════════════════════════════════
 // MODULE SUMMARY
 // ═══════════════════════════════════════════════════════════════
 
@@ -55,11 +70,29 @@ export const API_MODULES = {
     endpointCount: 228,
     description: 'Core business entities and authentication',
   },
+  CORE_EXTENDED: {
+    name: 'Core Extended',
+    modules: ['Task', 'Case', 'Firm', 'Client', 'Document', 'User', 'Team', 'Staff', 'Permission', 'Notification'],
+    endpointCount: 308,
+    description: 'Comprehensive core module contracts with full endpoint coverage',
+  },
   FINANCE: {
     name: 'Finance',
     modules: ['Invoice', 'Expense', 'ExpenseClaim', 'Payment', 'Retainer', 'TimeTracking', 'Billing', 'BillingRate'],
     endpointCount: 98,
     description: 'Financial management and billing',
+  },
+  FINANCE_FULL: {
+    name: 'Finance Full',
+    modules: ['Invoice', 'ExpenseClaim', 'Report', 'Payment', 'Bill', 'Expense', 'Billing', 'Quote', 'FiscalPeriod', 'GeneralLedger', 'CreditNote', 'Transaction', 'BankAccount', 'Retainer'],
+    endpointCount: 230,
+    description: 'Comprehensive finance module contracts',
+  },
+  FINANCIAL_MISC: {
+    name: 'Financial Miscellaneous',
+    modules: ['BillingRate', 'JournalEntry', 'Account', 'Statement', 'ARaging', 'BankTransaction', 'BankTransfer', 'BillPayment', 'ConsolidatedReports', 'PaymentTerms', 'Currency', 'Vendor', 'Refund'],
+    endpointCount: 91,
+    description: 'Additional financial modules',
   },
   CRM: {
     name: 'CRM',
@@ -67,11 +100,23 @@ export const API_MODULES = {
     endpointCount: 78,
     description: 'Customer relationship management',
   },
+  CRM_FULL: {
+    name: 'CRM Full',
+    modules: ['Lead', 'LeadScoring', 'Activity', 'Contact', 'Followup', 'CRMActivity', 'LostReason', 'Competitor', 'Organization', 'Campaign', 'Referral', 'Cycle', 'View', 'LeadConversion', 'LeadSource'],
+    endpointCount: 195,
+    description: 'Comprehensive CRM module contracts',
+  },
   HR: {
     name: 'HR',
     modules: ['HR', 'Payroll', 'PayrollRun', 'Attendance', 'LeaveManagement', 'PerformanceReview', 'Training', 'Recruitment', 'Onboarding'],
     endpointCount: 78,
     description: 'Human resources management',
+  },
+  HR_FULL: {
+    name: 'HR Full',
+    modules: ['Recruitment', 'Training', 'Attendance', 'PerformanceReview', 'SuccessionPlan', 'LeaveManagement', 'JobPosition', 'Onboarding', 'Offboarding', 'Shift', 'Payroll', 'PayrollRun', 'LeaveRequest'],
+    endpointCount: 365,
+    description: 'Comprehensive HR module contracts',
   },
   INTEGRATIONS: {
     name: 'Integrations',
@@ -79,11 +124,41 @@ export const API_MODULES = {
     endpointCount: 128,
     description: 'Third-party integrations',
   },
+  INTEGRATIONS_EXTENDED: {
+    name: 'Integrations Extended',
+    modules: ['Event', 'Appointment', 'WhatsApp', 'Gmail', 'DocuSign', 'Zoom', 'Slack', 'Discord', 'Telegram', 'GitHub', 'Trello', 'OAuth'],
+    endpointCount: 264,
+    description: 'Comprehensive integration module contracts',
+  },
   SECURITY: {
     name: 'Security',
     modules: ['OAuth', 'MFA', 'WebAuthn', 'SAML', 'SSO', 'LDAP', 'SecurityIncident', 'ApiKey', 'Captcha', 'Biometric'],
     endpointCount: 61,
     description: 'Security and authentication',
+  },
+  SYSTEM_MODULES: {
+    name: 'System Modules',
+    modules: ['AdminAPI', 'AdminTools', 'Approval', 'Webhook', 'Queue', 'Health', 'Analytics', 'AnalyticsReport', 'Plugin', 'Support', 'CommandPalette', 'KeyboardShortcut', 'Sandbox', 'Walkthrough', 'SetupWizard', 'MFA', 'WebAuthn', 'SAML', 'LDAP', 'SSOConfig', 'AuditLog', 'SecurityIncident', 'DataExport', 'Automation', 'Metrics', 'APIKey'],
+    endpointCount: 300,
+    description: 'System administration and management modules',
+  },
+  VERIFICATION_AI: {
+    name: 'Verification & AI',
+    modules: ['Verify', 'Biometric', 'MLScoring', 'AIMatching', 'AIChat', 'AISettings', 'ConflictCheck', 'HRExtended', 'NotificationPreference'],
+    endpointCount: 164,
+    description: 'Verification services and AI features',
+  },
+  MISC_MODULES: {
+    name: 'Miscellaneous Modules',
+    modules: ['Sales', 'Inventory', 'Manufacturing', 'Quality', 'Product', 'Reminder', 'Status', 'Assets'],
+    endpointCount: 260,
+    description: 'Sales, inventory, manufacturing, and operations',
+  },
+  MARKETPLACE: {
+    name: 'Marketplace',
+    modules: ['Job', 'Proposal', 'Order', 'Gig', 'Review', 'Score', 'Apps', 'Question', 'Answer', 'Plan', 'CustomField', 'Invitation', 'Lawyer', 'Timeline', 'Audit', 'Captcha', 'Dispute', 'SLA'],
+    endpointCount: 110,
+    description: 'Marketplace, jobs, and additional utilities',
   },
   ACCOUNTING: {
     name: 'Accounting',
@@ -98,7 +173,7 @@ export const API_MODULES = {
     description: 'Operations and supply chain',
   },
 
-  // Extended Modules (New)
+  // Extended Modules (Original)
   ADMIN_SYSTEM: {
     name: 'Admin & System',
     modules: ['AdminAPI', 'AdminTools', 'AIChat', 'AIMatching', 'AISettings', 'MLScoring', 'Sandbox', 'SetupWizard', 'Walkthrough', 'CommandPalette', 'KeyboardShortcut', 'Plugins', 'Apps', 'Answers'],
@@ -179,12 +254,24 @@ export const TOTAL_ENDPOINTS = Object.values(API_MODULES).reduce(
 // ═══════════════════════════════════════════════════════════════
 
 export const COVERAGE_STATS = {
-  totalContractFiles: 20,
-  totalModules: 120,
-  totalEndpoints: TOTAL_ENDPOINTS,
-  totalRouteFiles: 259,
+  totalContractFiles: 30,
+  totalModules: 247,
+  totalEndpoints: 3958,  // Based on coverage report
+  totalRouteFiles: 256,
   coveragePercentage: 99,
   generatedDate: '2026-01-06',
+  newFilesAdded: [
+    'core-extended.ts (308 endpoints)',
+    'hr-full.ts (365 endpoints)',
+    'finance-full.ts (230 endpoints)',
+    'crm-full.ts (195 endpoints)',
+    'integrations-extended.ts (264 endpoints)',
+    'system-modules.ts (300 endpoints)',
+    'misc-modules.ts (260 endpoints)',
+    'verification-ai.ts (164 endpoints)',
+    'financial-misc.ts (91 endpoints)',
+    'marketplace-modules.ts (110 endpoints)',
+  ],
 } as const;
 
 // ═══════════════════════════════════════════════════════════════
@@ -235,6 +322,17 @@ import {
 
   // Extended - Regional
   SaudiBanking, ZATCA, KYC, Gantt,
+
+  // New Comprehensive Modules
+  TaskContract, CaseContract, FirmContract, ClientContract,
+  RecruitmentContract, TrainingContract, AttendanceContract,
+  InvoiceContract, ExpenseClaimContract, PaymentContract,
+  LeadContract, LeadScoringContract, ContactContract,
+  EventContract, AppointmentContract, WhatsAppContract,
+  AdminAPIContract, ApprovalContract, WebhookContract,
+  SalesContract, InventoryContract, ManufacturingContract,
+  VerifyContract, BiometricContract, MLScoringContract,
+  JobContract, ProposalContract, AppsContract,
 
   // Dashboard
   DashboardSummaryResponse, HeroStatsResponse,
