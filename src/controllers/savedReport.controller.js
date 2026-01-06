@@ -10,8 +10,6 @@ const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils'
  * POST /api/saved-reports
  */
 const createReport = asyncHandler(async (req, res) => {
-    const lawyerId = req.userID;
-
     // Mass assignment protection
     const allowedFields = [
         'name', 'nameAr', 'description', 'type', 'config',
@@ -41,8 +39,8 @@ const createReport = asyncHandler(async (req, res) => {
         throw CustomException('isScheduled يجب أن يكون قيمة منطقية', 400);
     }
 
-    const report = await SavedReport.create({
-        lawyerId,
+    // SECURITY FIX: Use req.addFirmId for proper tenant context
+    const report = await SavedReport.create(req.addFirmId({
         name: data.name,
         nameAr: data.nameAr,
         description: data.description,
@@ -54,8 +52,8 @@ const createReport = asyncHandler(async (req, res) => {
         scheduleDayOfWeek: data.scheduleDayOfWeek,
         scheduleDayOfMonth: data.scheduleDayOfMonth,
         recipients: data.recipients || [],
-        createdBy: lawyerId
-    });
+        createdBy: req.userID
+    }));
 
     res.status(201).json({
         success: true,
@@ -69,13 +67,12 @@ const createReport = asyncHandler(async (req, res) => {
  * GET /api/saved-reports
  */
 const getReports = asyncHandler(async (req, res) => {
-    const lawyerId = req.userID;
-
     // Input validation and sanitization
     const pageNum = Math.max(1, parseInt(req.query.page) || 1);
     const limitNum = Math.min(Math.max(1, parseInt(req.query.limit) || 50), 100);
 
-    const query = { lawyerId };
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const query = { ...req.firmQuery };
 
     // NoSQL injection protection - ensure query parameters are strings
     if (req.query.type) {
@@ -113,13 +110,11 @@ const getReports = asyncHandler(async (req, res) => {
  * GET /api/saved-reports/:id
  */
 const getReport = asyncHandler(async (req, res) => {
-    const lawyerId = req.userID;
-
     // IDOR protection - sanitize ID
     const reportId = sanitizeObjectId(req.params.id);
 
-    // Verify ownership with lawyerId
-    const report = await SavedReport.findOne({ _id: reportId, lawyerId });
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const report = await SavedReport.findOne({ _id: reportId, ...req.firmQuery });
 
     if (!report) {
         throw CustomException('التقرير غير موجود', 404);
@@ -136,13 +131,11 @@ const getReport = asyncHandler(async (req, res) => {
  * PATCH /api/saved-reports/:id
  */
 const updateReport = asyncHandler(async (req, res) => {
-    const lawyerId = req.userID;
-
     // IDOR protection - sanitize ID
     const reportId = sanitizeObjectId(req.params.id);
 
-    // Verify ownership with lawyerId
-    const report = await SavedReport.findOne({ _id: reportId, lawyerId });
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const report = await SavedReport.findOne({ _id: reportId, ...req.firmQuery });
 
     if (!report) {
         throw CustomException('التقرير غير موجود', 404);
@@ -196,13 +189,11 @@ const updateReport = asyncHandler(async (req, res) => {
  * DELETE /api/saved-reports/:id
  */
 const deleteReport = asyncHandler(async (req, res) => {
-    const lawyerId = req.userID;
-
     // IDOR protection - sanitize ID
     const reportId = sanitizeObjectId(req.params.id);
 
-    // Verify ownership with lawyerId
-    const report = await SavedReport.findOneAndDelete({ _id: reportId, lawyerId });
+    // SECURITY FIX: Use atomic findOneAndDelete with req.firmQuery
+    const report = await SavedReport.findOneAndDelete({ _id: reportId, ...req.firmQuery });
 
     if (!report) {
         throw CustomException('التقرير غير موجود', 404);
@@ -219,13 +210,11 @@ const deleteReport = asyncHandler(async (req, res) => {
  * POST /api/saved-reports/:id/run
  */
 const runReport = asyncHandler(async (req, res) => {
-    const lawyerId = req.userID;
-
     // IDOR protection - sanitize ID
     const reportId = sanitizeObjectId(req.params.id);
 
-    // Verify ownership with lawyerId
-    const report = await SavedReport.findOne({ _id: reportId, lawyerId });
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const report = await SavedReport.findOne({ _id: reportId, ...req.firmQuery });
 
     if (!report) {
         throw CustomException('التقرير غير موجود', 404);
@@ -277,13 +266,11 @@ const runReport = asyncHandler(async (req, res) => {
  * POST /api/saved-reports/:id/duplicate
  */
 const duplicateReport = asyncHandler(async (req, res) => {
-    const lawyerId = req.userID;
-
     // IDOR protection - sanitize ID
     const reportId = sanitizeObjectId(req.params.id);
 
-    // Verify ownership with lawyerId
-    const original = await SavedReport.findOne({ _id: reportId, lawyerId });
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const original = await SavedReport.findOne({ _id: reportId, ...req.firmQuery });
 
     if (!original) {
         throw CustomException('التقرير غير موجود', 404);
@@ -302,16 +289,16 @@ const duplicateReport = asyncHandler(async (req, res) => {
         throw CustomException('الاسم العربي يجب أن يكون نصاً', 400);
     }
 
-    const duplicate = await SavedReport.create({
-        lawyerId,
+    // SECURITY FIX: Use req.addFirmId for proper tenant context
+    const duplicate = await SavedReport.create(req.addFirmId({
         name: data.name || `${original.name} (نسخة)`,
         nameAr: data.nameAr || `${original.nameAr} (نسخة)`,
         description: original.description,
         type: original.type,
         config: original.config,
         isScheduled: false,
-        createdBy: lawyerId
-    });
+        createdBy: req.userID
+    }));
 
     res.status(201).json({
         success: true,
@@ -327,8 +314,6 @@ const duplicateReport = asyncHandler(async (req, res) => {
  * POST /api/dashboard-widgets
  */
 const createWidget = asyncHandler(async (req, res) => {
-    const lawyerId = req.userID;
-
     // Mass assignment protection
     const allowedFields = [
         'name', 'nameAr', 'type', 'dataSource', 'config',
@@ -361,8 +346,8 @@ const createWidget = asyncHandler(async (req, res) => {
         throw CustomException('فترة التحديث يجب أن تكون رقماً', 400);
     }
 
-    const widget = await DashboardWidget.create({
-        lawyerId,
+    // SECURITY FIX: Use req.addFirmId for proper tenant context
+    const widget = await DashboardWidget.create(req.addFirmId({
         name: data.name,
         nameAr: data.nameAr,
         type: data.type,
@@ -372,7 +357,7 @@ const createWidget = asyncHandler(async (req, res) => {
         size: data.size || { width: 1, height: 1 },
         refreshInterval: data.refreshInterval || 300,
         isActive: true
-    });
+    }));
 
     res.status(201).json({
         success: true,
@@ -386,10 +371,8 @@ const createWidget = asyncHandler(async (req, res) => {
  * GET /api/dashboard-widgets
  */
 const getWidgets = asyncHandler(async (req, res) => {
-    const lawyerId = req.userID;
-
-    // NoSQL injection protection
-    const query = { lawyerId };
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const query = { ...req.firmQuery };
     if (req.query.isActive !== undefined) {
         query.isActive = req.query.isActive === 'true';
     }
@@ -408,13 +391,11 @@ const getWidgets = asyncHandler(async (req, res) => {
  * GET /api/dashboard-widgets/:id
  */
 const getWidget = asyncHandler(async (req, res) => {
-    const lawyerId = req.userID;
-
     // IDOR protection - sanitize ID
     const widgetId = sanitizeObjectId(req.params.id);
 
-    // Verify ownership with lawyerId
-    const widget = await DashboardWidget.findOne({ _id: widgetId, lawyerId });
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const widget = await DashboardWidget.findOne({ _id: widgetId, ...req.firmQuery });
 
     if (!widget) {
         throw CustomException('الودجت غير موجود', 404);
@@ -431,13 +412,11 @@ const getWidget = asyncHandler(async (req, res) => {
  * PATCH /api/dashboard-widgets/:id
  */
 const updateWidget = asyncHandler(async (req, res) => {
-    const lawyerId = req.userID;
-
     // IDOR protection - sanitize ID
     const widgetId = sanitizeObjectId(req.params.id);
 
-    // Verify ownership with lawyerId
-    const widget = await DashboardWidget.findOne({ _id: widgetId, lawyerId });
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const widget = await DashboardWidget.findOne({ _id: widgetId, ...req.firmQuery });
 
     if (!widget) {
         throw CustomException('الودجت غير موجود', 404);
@@ -502,13 +481,11 @@ const updateWidget = asyncHandler(async (req, res) => {
  * DELETE /api/dashboard-widgets/:id
  */
 const deleteWidget = asyncHandler(async (req, res) => {
-    const lawyerId = req.userID;
-
     // IDOR protection - sanitize ID
     const widgetId = sanitizeObjectId(req.params.id);
 
-    // Verify ownership with lawyerId
-    const widget = await DashboardWidget.findOneAndDelete({ _id: widgetId, lawyerId });
+    // SECURITY FIX: Use atomic findOneAndDelete with req.firmQuery
+    const widget = await DashboardWidget.findOneAndDelete({ _id: widgetId, ...req.firmQuery });
 
     if (!widget) {
         throw CustomException('الودجت غير موجود', 404);
@@ -525,8 +502,6 @@ const deleteWidget = asyncHandler(async (req, res) => {
  * PATCH /api/dashboard-widgets/layout
  */
 const updateLayout = asyncHandler(async (req, res) => {
-    const lawyerId = req.userID;
-
     // Mass assignment protection
     const allowedFields = ['widgets'];
     const data = pickAllowedFields(req.body, allowedFields);
@@ -557,9 +532,10 @@ const updateLayout = asyncHandler(async (req, res) => {
             throw CustomException('حجم الودجت يجب أن يكون كائناً', 400);
         }
 
+        // SECURITY FIX: Use req.firmQuery for proper tenant isolation
         return {
             updateOne: {
-                filter: { _id: widgetId, lawyerId },
+                filter: { _id: widgetId, ...req.firmQuery },
                 update: {
                     position: w.position,
                     size: w.size
@@ -581,13 +557,11 @@ const updateLayout = asyncHandler(async (req, res) => {
  * GET /api/dashboard-widgets/:id/data
  */
 const getWidgetData = asyncHandler(async (req, res) => {
-    const lawyerId = req.userID;
-
     // IDOR protection - sanitize ID
     const widgetId = sanitizeObjectId(req.params.id);
 
-    // Verify ownership with lawyerId
-    const widget = await DashboardWidget.findOne({ _id: widgetId, lawyerId });
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const widget = await DashboardWidget.findOne({ _id: widgetId, ...req.firmQuery });
 
     if (!widget) {
         throw CustomException('الودجت غير موجود', 404);

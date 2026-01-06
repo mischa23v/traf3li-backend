@@ -85,8 +85,6 @@ const getSessionForAtomicOps = async () => {
  * POST /api/retainers
  */
 const createRetainer = asyncHandler(async (req, res) => {
-    const lawyerId = req.userID;
-
     // Mass Assignment Protection: Use only allowed fields
     const allowedFields = [
         'clientId',
@@ -145,9 +143,9 @@ const createRetainer = asyncHandler(async (req, res) => {
         })
         : 0;
 
-    // Validate case if provided (IDOR Protection)
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
     if (caseId) {
-        const caseDoc = await Case.findOne({ _id: caseId, lawyerId });
+        const caseDoc = await Case.findOne({ _id: caseId, ...req.firmQuery });
         if (!caseDoc) {
             throw CustomException('القضية غير موجودة', 404);
         }
@@ -171,9 +169,9 @@ const createRetainer = asyncHandler(async (req, res) => {
         });
     }
 
-    const retainer = await Retainer.create({
+    // SECURITY FIX: Use req.addFirmId for proper tenant context
+    const retainer = await Retainer.create(req.addFirmId({
         clientId,
-        lawyerId,
         caseId,
         retainerType,
         initialAmount: validatedInitialAmount,
@@ -189,8 +187,8 @@ const createRetainer = asyncHandler(async (req, res) => {
         agreementSignedDate: agreementSignedDate ? new Date(agreementSignedDate) : null,
         notes,
         termsAndConditions,
-        createdBy: lawyerId
-    });
+        createdBy: req.userID
+    }));
 
     // Add initial deposit
     retainer.deposits.push({
@@ -204,7 +202,7 @@ const createRetainer = asyncHandler(async (req, res) => {
     // Fire-and-forget: Queue the billing activity log
     QueueService.logBillingActivity({
         activityType: 'retainer_created',
-        userId: lawyerId,
+        userId: req.userID,
         clientId,
         relatedModel: 'Retainer',
         relatedId: retainer._id,
@@ -240,8 +238,8 @@ const getRetainers = asyncHandler(async (req, res) => {
         limit = 50
     } = req.query;
 
-    const lawyerId = req.userID;
-    const query = { lawyerId };
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const query = { ...req.firmQuery };
 
     if (status) query.status = status;
     if (retainerType) query.retainerType = retainerType;
@@ -291,9 +289,9 @@ const getRetainers = asyncHandler(async (req, res) => {
  */
 const getRetainer = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const lawyerId = req.userID;
 
-    const retainer = await Retainer.findOne({ _id: id, lawyerId })
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const retainer = await Retainer.findOne({ _id: id, ...req.firmQuery })
         .populate('clientId', 'username email phone')
         .populate('lawyerId', 'username email')
         .populate('caseId', 'title caseNumber category')
@@ -301,8 +299,9 @@ const getRetainer = asyncHandler(async (req, res) => {
         .populate('consumptions.invoiceId', 'invoiceNumber totalAmount')
         .populate('deposits.paymentId', 'paymentNumber amount paymentDate');
 
-    // IDOR Protection: Verify ownership using helper
-    verifyRetainerOwnership(retainer, lawyerId);
+    if (!retainer) {
+        throw CustomException('العربون غير موجود', 404);
+    }
 
     res.status(200).json({
         success: true,
@@ -316,12 +315,13 @@ const getRetainer = asyncHandler(async (req, res) => {
  */
 const updateRetainer = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const lawyerId = req.userID;
 
-    const retainer = await Retainer.findOne({ _id: id, lawyerId });
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const retainer = await Retainer.findOne({ _id: id, ...req.firmQuery });
 
-    // IDOR Protection: Verify ownership
-    verifyRetainerOwnership(retainer, lawyerId);
+    if (!retainer) {
+        throw CustomException('العربون غير موجود', 404);
+    }
 
     // Mass Assignment Protection: Use pickAllowedFields
     const allowedFields = [
@@ -387,7 +387,6 @@ const updateRetainer = asyncHandler(async (req, res) => {
 const consumeRetainer = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { amount, invoiceId, description } = req.body;
-    const lawyerId = req.userID;
 
     // Amount Validation
     const validatedAmount = validateAmount(amount, {
@@ -401,19 +400,20 @@ const consumeRetainer = asyncHandler(async (req, res) => {
 
     try {
         await session.withTransaction(async () => {
-            // Fetch retainer within transaction with lock
-            const retainer = await Retainer.findOne({ _id: id, lawyerId }).session(session);
+            // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+            const retainer = await Retainer.findOne({ _id: id, ...req.firmQuery }).session(session);
 
-            // IDOR Protection: Verify ownership
-            verifyRetainerOwnership(retainer, lawyerId);
+            if (!retainer) {
+                throw CustomException('العربون غير موجود', 404);
+            }
 
             if (retainer.status !== 'active') {
                 throw CustomException('العربون غير نشط', 400);
             }
 
-            // Validate invoice if provided (IDOR Protection)
+            // SECURITY FIX: Use req.firmQuery for invoice validation
             if (invoiceId) {
-                const invoice = await Invoice.findOne({ _id: invoiceId, lawyerId }).session(session);
+                const invoice = await Invoice.findOne({ _id: invoiceId, ...req.firmQuery }).session(session);
                 if (!invoice) {
                     throw CustomException('الفاتورة غير موجودة', 404);
                 }
@@ -430,7 +430,7 @@ const consumeRetainer = asyncHandler(async (req, res) => {
             // Fire-and-forget: Queue the billing activity log (after transaction commits)
             QueueService.logBillingActivity({
                 activityType: 'retainer_consumed',
-                userId: lawyerId,
+                userId: req.userID,
                 clientId: retainer.clientId,
                 relatedModel: 'Retainer',
                 relatedId: retainer._id,
@@ -481,7 +481,6 @@ const consumeRetainer = asyncHandler(async (req, res) => {
 const replenishRetainer = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { amount, paymentId } = req.body;
-    const lawyerId = req.userID;
 
     // Amount Validation
     const validatedAmount = validateAmount(amount, {
@@ -495,15 +494,16 @@ const replenishRetainer = asyncHandler(async (req, res) => {
 
     try {
         await session.withTransaction(async () => {
-            // Fetch retainer within transaction with lock
-            const retainer = await Retainer.findOne({ _id: id, lawyerId }).session(session);
+            // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+            const retainer = await Retainer.findOne({ _id: id, ...req.firmQuery }).session(session);
 
-            // IDOR Protection: Verify ownership
-            verifyRetainerOwnership(retainer, lawyerId);
+            if (!retainer) {
+                throw CustomException('العربون غير موجود', 404);
+            }
 
-            // Validate payment if provided (IDOR Protection)
+            // SECURITY FIX: Use req.firmQuery for payment validation
             if (paymentId) {
-                const payment = await Payment.findOne({ _id: paymentId, lawyerId }).session(session);
+                const payment = await Payment.findOne({ _id: paymentId, ...req.firmQuery }).session(session);
                 if (!payment) {
                     throw CustomException('الدفعة غير موجودة', 404);
                 }
@@ -518,7 +518,7 @@ const replenishRetainer = asyncHandler(async (req, res) => {
             // Fire-and-forget: Queue the billing activity log (after transaction commits)
             QueueService.logBillingActivity({
                 activityType: 'retainer_replenished',
-                userId: lawyerId,
+                userId: req.userID,
                 clientId: retainer.clientId,
                 relatedModel: 'Retainer',
                 relatedId: retainer._id,
@@ -558,18 +558,18 @@ const replenishRetainer = asyncHandler(async (req, res) => {
 const refundRetainer = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { reason } = req.body;
-    const lawyerId = req.userID;
 
     // Race Condition Protection: Start MongoDB session for atomic operations
     const session = await getSessionForAtomicOps();
 
     try {
         await session.withTransaction(async () => {
-            // Fetch retainer within transaction with lock
-            const retainer = await Retainer.findOne({ _id: id, lawyerId }).session(session);
+            // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+            const retainer = await Retainer.findOne({ _id: id, ...req.firmQuery }).session(session);
 
-            // IDOR Protection: Verify ownership
-            verifyRetainerOwnership(retainer, lawyerId);
+            if (!retainer) {
+                throw CustomException('العربون غير موجود', 404);
+            }
 
             if (retainer.status === 'refunded') {
                 throw CustomException('تم استرداد العربون بالفعل', 400);
@@ -584,7 +584,7 @@ const refundRetainer = asyncHandler(async (req, res) => {
             // Fire-and-forget: Queue the billing activity log (after transaction commits)
             QueueService.logBillingActivity({
                 activityType: 'retainer_refunded',
-                userId: lawyerId,
+                userId: req.userID,
                 clientId: retainer.clientId,
                 relatedModel: 'Retainer',
                 relatedId: retainer._id,
@@ -624,14 +624,15 @@ const refundRetainer = asyncHandler(async (req, res) => {
  */
 const getRetainerHistory = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const lawyerId = req.userID;
 
-    const retainer = await Retainer.findOne({ _id: id, lawyerId })
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const retainer = await Retainer.findOne({ _id: id, ...req.firmQuery })
         .populate('consumptions.invoiceId', 'invoiceNumber totalAmount')
         .populate('deposits.paymentId', 'paymentNumber amount paymentDate');
 
-    // IDOR Protection: Verify ownership using helper
-    verifyRetainerOwnership(retainer, lawyerId);
+    if (!retainer) {
+        throw CustomException('العربون غير موجود', 404);
+    }
 
     // Combine and sort transactions chronologically
     const history = [
@@ -667,9 +668,9 @@ const getRetainerHistory = asyncHandler(async (req, res) => {
  */
 const getRetainerStats = asyncHandler(async (req, res) => {
     const { clientId, startDate, endDate } = req.query;
-    const lawyerId = req.userID;
 
-    const matchQuery = { lawyerId };
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const matchQuery = { ...req.firmQuery };
 
     if (clientId) matchQuery.clientId = clientId;
 
@@ -720,10 +721,9 @@ const getRetainerStats = asyncHandler(async (req, res) => {
  * GET /api/retainers/low-balance
  */
 const getLowBalanceRetainers = asyncHandler(async (req, res) => {
-    const lawyerId = req.userID;
-
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
     const retainers = await Retainer.find({
-        lawyerId,
+        ...req.firmQuery,
         status: 'active',
         $expr: { $lte: ['$currentBalance', '$minimumBalance'] }
     })

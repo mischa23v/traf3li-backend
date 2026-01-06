@@ -157,8 +157,6 @@ const confirmUpload = asyncHandler(async (req, res) => {
         category, caseId, clientId, description, isConfidential, tags,
         module, bucket
     } = req.body;
-    const lawyerId = req.userID;
-    const firmId = req.firmId; // From firmFilter middleware
 
     // Log upload confirmation start
     docLogger.logUploadStart(req, { fileName, fileSize, fileType });
@@ -187,8 +185,8 @@ const confirmUpload = asyncHandler(async (req, res) => {
     // Determine the actual bucket used
     const actualBucket = bucket || getBucketForModule(module);
 
-    // Mass assignment protection: only allow specific fields
-    const allowedFields = {
+    // SECURITY FIX: Use req.addFirmId for proper tenant context
+    const document = await Document.create(req.addFirmId({
         fileName,
         originalName: originalName || fileName,
         fileType,
@@ -203,16 +201,12 @@ const confirmUpload = asyncHandler(async (req, res) => {
         description: description || '',
         isConfidential: Boolean(isConfidential),
         tags: Array.isArray(tags) ? tags : [],
-        uploadedBy: lawyerId,
-        lawyerId,
-        firmId
-    };
-
-    const document = await Document.create(allowedFields);
+        uploadedBy: req.userID
+    }));
 
     // Log file upload (Gold Standard - AWS/Google/Microsoft pattern)
-    logFileAccess(fileKey, module || 'documents', lawyerId, 'upload', {
-        firmId,
+    logFileAccess(fileKey, module || 'documents', req.userID, 'upload', {
+        firmId: req.firmId,
         documentId: document._id,
         fileName: fileName,
         fileSize: fileSize,
@@ -224,10 +218,10 @@ const confirmUpload = asyncHandler(async (req, res) => {
     docLogger.logUploadSuccess(req, document, Date.now() - startTime);
 
     // Increment usage counter for firm
-    if (firmId) {
+    if (req.firmId) {
         const fileSizeMB = fileSize ? fileSize / (1024 * 1024) : 0;
         await Firm.findOneAndUpdate(
-            { _id: firmId },
+            { _id: req.firmId },
             {
                 $inc: {
                     'usage.documentsCount': 1,
@@ -253,11 +247,9 @@ const getDocuments = asyncHandler(async (req, res) => {
         category, caseId, clientId, search,
         page = 1, limit = 50
     } = req.query;
-    const lawyerId = req.userID;
-    const firmId = req.firmId; // IDOR protection
 
-    // IDOR protection: documents must belong to user's firm
-    const query = { lawyerId, firmId };
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const query = { ...req.firmQuery };
 
     if (category) query.category = category;
     if (caseId) query.caseId = caseId;
@@ -301,14 +293,12 @@ const getDocuments = asyncHandler(async (req, res) => {
  */
 const getDocument = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const lawyerId = req.userID;
-    const firmId = req.firmId; // IDOR protection
 
     // IDOR protection: sanitize and validate ID
     const sanitizedId = sanitizeObjectId(id);
 
-    // IDOR protection: document must belong to user's firm
-    const document = await Document.findOne({ _id: sanitizedId, lawyerId, firmId })
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const document = await Document.findOne({ _id: sanitizedId, ...req.firmQuery })
         .populate('uploadedBy', 'firstName lastName')
         .populate('caseId', 'title caseNumber')
         .populate('clientId', 'name fullName')
@@ -330,11 +320,9 @@ const getDocument = asyncHandler(async (req, res) => {
  */
 const updateDocument = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const lawyerId = req.userID;
-    const firmId = req.firmId; // IDOR protection
 
-    // IDOR protection: document must belong to user's firm
-    const document = await Document.findOne({ _id: id, lawyerId, firmId });
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const document = await Document.findOne({ _id: id, ...req.firmQuery });
 
     if (!document) {
         throw CustomException('المستند غير موجود', 404);
@@ -374,11 +362,9 @@ const updateDocument = asyncHandler(async (req, res) => {
  */
 const deleteDocument = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const lawyerId = req.userID;
-    const firmId = req.firmId; // IDOR protection
 
-    // IDOR protection: document must belong to user's firm
-    const document = await Document.findOne({ _id: id, lawyerId, firmId });
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const document = await Document.findOne({ _id: id, ...req.firmQuery });
 
     if (!document) {
         docLogger.logNotFound(req, id, 'Document');
@@ -399,8 +385,8 @@ const deleteDocument = asyncHandler(async (req, res) => {
     }
 
     // Log file deletion (Gold Standard - AWS/Google/Microsoft pattern)
-    logFileAccess(document.fileKey, document.module || 'documents', lawyerId, 'delete', {
-        firmId,
+    logFileAccess(document.fileKey, document.module || 'documents', req.userID, 'delete', {
+        firmId: req.firmId,
         documentId: document._id,
         fileName: document.originalName,
         fileSize: document.fileSize,
@@ -410,16 +396,16 @@ const deleteDocument = asyncHandler(async (req, res) => {
 
     // Store fileSize before deletion for usage tracking
     const fileSize = document.fileSize || 0;
-    const docFirmId = document.firmId || firmId;
+    const docFirmId = document.firmId || req.firmId;
 
-    // IDOR protection: include firmId in delete operation
-    await Document.findOneAndDelete({ _id: id, firmId });
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    await Document.findOneAndDelete({ _id: id, ...req.firmQuery });
 
     // Log delete success
     docLogger.logDelete(req, document, true);
 
     // Decrement usage counter for firm
-    if (docFirmId && docFirmId.toString() === firmId.toString()) {
+    if (docFirmId && req.firmId && docFirmId.toString() === req.firmId.toString()) {
         const fileSizeMB = fileSize / (1024 * 1024);
         await Firm.findOneAndUpdate(
             { _id: docFirmId },
@@ -444,20 +430,17 @@ const deleteDocument = asyncHandler(async (req, res) => {
  */
 const getDocumentsByCase = asyncHandler(async (req, res) => {
     const { caseId } = req.params;
-    const lawyerId = req.userID;
-    const firmId = req.firmId; // IDOR protection
 
-    // IDOR protection: ensure case belongs to user's firm
-    const caseRecord = await Case.findOne({ _id: caseId, lawyerId, firmId }).lean();
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const caseRecord = await Case.findOne({ _id: caseId, ...req.firmQuery }).lean();
     if (!caseRecord) {
         throw CustomException('القضية غير موجودة أو لا تنتمي إلى مؤسستك', 404);
     }
 
-    // Get documents for the case (use Document.getDocumentsByCase if available, otherwise query directly)
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
     const documents = await Document.find({
         caseId: caseId,
-        lawyerId: lawyerId,
-        firmId: firmId  // IDOR protection
+        ...req.firmQuery
     }).populate('uploadedBy', 'firstName lastName').lean();
 
     res.status(200).json({
@@ -472,20 +455,17 @@ const getDocumentsByCase = asyncHandler(async (req, res) => {
  */
 const getDocumentsByClient = asyncHandler(async (req, res) => {
     const { clientId } = req.params;
-    const lawyerId = req.userID;
-    const firmId = req.firmId; // IDOR protection
 
-    // IDOR protection: ensure client belongs to user's firm
-    const clientRecord = await Client.findOne({ _id: clientId, firmId }).lean();
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const clientRecord = await Client.findOne({ _id: clientId, ...req.firmQuery }).lean();
     if (!clientRecord) {
         throw CustomException('العميل غير موجود أو لا ينتمي إلى مؤسستك', 404);
     }
 
-    // Get documents for the client
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
     const documents = await Document.find({
         clientId: clientId,
-        lawyerId: lawyerId,
-        firmId: firmId  // IDOR protection
+        ...req.firmQuery
     }).populate('uploadedBy', 'firstName lastName').lean();
 
     res.status(200).json({
@@ -499,23 +479,28 @@ const getDocumentsByClient = asyncHandler(async (req, res) => {
  * GET /api/documents/stats
  */
 const getDocumentStats = asyncHandler(async (req, res) => {
-    const lawyerId = req.userID;
-    const firmId = req.firmId; // IDOR protection
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const totalDocuments = await Document.countDocuments(req.firmQuery);
 
-    // IDOR protection: statistics only for user's firm
-    const totalDocuments = await Document.countDocuments({ lawyerId, firmId });
+    // Build aggregate match from firmQuery
+    const aggregateMatch = {};
+    if (req.firmQuery.firmId) {
+        aggregateMatch.firmId = req.firmQuery.firmId;
+    } else if (req.firmQuery.lawyerId) {
+        aggregateMatch.lawyerId = req.firmQuery.lawyerId;
+    }
 
     const byCategory = await Document.aggregate([
-        { $match: { lawyerId: lawyerId, firmId: firmId } },
+        { $match: aggregateMatch },
         { $group: { _id: '$category', count: { $sum: 1 }, totalSize: { $sum: '$fileSize' } } }
     ]);
 
     const totalSize = await Document.aggregate([
-        { $match: { lawyerId: lawyerId, firmId: firmId } },
+        { $match: aggregateMatch },
         { $group: { _id: null, total: { $sum: '$fileSize' } } }
     ]);
 
-    const recentDocuments = await Document.find({ lawyerId, firmId })
+    const recentDocuments = await Document.find(req.firmQuery)
         .sort({ createdAt: -1 })
         .limit(5)
         .select('fileName category createdAt')
@@ -538,14 +523,12 @@ const getDocumentStats = asyncHandler(async (req, res) => {
  */
 const downloadDocument = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const lawyerId = req.userID;
-    const firmId = req.firmId; // IDOR protection
 
     // Log download start
     docLogger.logDownloadStart(req, id);
 
-    // IDOR protection: document must belong to user's firm
-    const document = await Document.findOne({ _id: id, lawyerId, firmId });
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const document = await Document.findOne({ _id: id, ...req.firmQuery });
 
     if (!document) {
         docLogger.logNotFound(req, id, 'Document');
@@ -562,8 +545,8 @@ const downloadDocument = asyncHandler(async (req, res) => {
     const downloadUrl = await getDownloadPresignedUrl(document.fileKey, bucket, document.originalName);
 
     // Log file download (Gold Standard - AWS/Google/Microsoft pattern)
-    logFileAccess(document.fileKey, document.module || 'documents', lawyerId, 'download', {
-        firmId,
+    logFileAccess(document.fileKey, document.module || 'documents', req.userID, 'download', {
+        firmId: req.firmId,
         documentId: document._id,
         fileName: document.originalName,
         fileSize: document.fileSize,
@@ -596,11 +579,9 @@ const downloadDocument = asyncHandler(async (req, res) => {
 const generateShareLink = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { expiresInDays = 7 } = req.body;
-    const lawyerId = req.userID;
-    const firmId = req.firmId; // IDOR protection
 
-    // IDOR protection: document must belong to user's firm
-    const document = await Document.findOne({ _id: id, lawyerId, firmId });
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const document = await Document.findOne({ _id: id, ...req.firmQuery });
 
     if (!document) {
         throw CustomException('المستند غير موجود', 404);
@@ -636,11 +617,9 @@ const generateShareLink = asyncHandler(async (req, res) => {
  */
 const revokeShareLink = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const lawyerId = req.userID;
-    const firmId = req.firmId; // IDOR protection
 
-    // IDOR protection: document must belong to user's firm
-    const document = await Document.findOne({ _id: id, lawyerId, firmId });
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const document = await Document.findOne({ _id: id, ...req.firmQuery });
 
     if (!document) {
         throw CustomException('المستند غير موجود', 404);
@@ -663,11 +642,9 @@ const revokeShareLink = asyncHandler(async (req, res) => {
 const uploadVersion = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { fileName, originalName, fileSize, url, fileKey, changeNote, mimeType, fileType } = req.body;
-    const lawyerId = req.userID;
-    const firmId = req.firmId; // IDOR protection
 
-    // IDOR protection: document must belong to user's firm
-    const document = await Document.findOne({ _id: id, lawyerId, firmId });
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const document = await Document.findOne({ _id: id, ...req.firmQuery });
 
     if (!document) {
         throw CustomException('المستند غير موجود', 404);
@@ -706,13 +683,13 @@ const uploadVersion = asyncHandler(async (req, res) => {
     const updatedDocument = await DocumentVersionService.uploadVersion(
         id,
         file,
-        lawyerId,
+        req.userID,
         changeNote
     );
 
     // Log version upload (Gold Standard - AWS/Google/Microsoft pattern)
-    logFileAccess(fileKey, document.module || 'documents', lawyerId, 'upload_version', {
-        firmId,
+    logFileAccess(fileKey, document.module || 'documents', req.userID, 'upload_version', {
+        firmId: req.firmId,
         documentId: id,
         version: updatedDocument.version,
         fileName: fileName,
@@ -735,11 +712,9 @@ const uploadVersion = asyncHandler(async (req, res) => {
  */
 const getVersionHistory = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const lawyerId = req.userID;
-    const firmId = req.firmId; // IDOR protection
 
-    // IDOR protection: document must belong to user's firm
-    const document = await Document.findOne({ _id: id, lawyerId, firmId }).lean();
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const document = await Document.findOne({ _id: id, ...req.firmQuery }).lean();
 
     if (!document) {
         throw CustomException('المستند غير موجود', 404);
@@ -761,11 +736,9 @@ const getVersionHistory = asyncHandler(async (req, res) => {
  */
 const restoreVersion = asyncHandler(async (req, res) => {
     const { id, versionId } = req.params;
-    const lawyerId = req.userID;
-    const firmId = req.firmId; // IDOR protection
 
-    // IDOR protection: document must belong to user's firm
-    const document = await Document.findOne({ _id: id, lawyerId, firmId });
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const document = await Document.findOne({ _id: id, ...req.firmQuery });
 
     if (!document) {
         throw CustomException('المستند غير موجود', 404);
@@ -775,7 +748,7 @@ const restoreVersion = asyncHandler(async (req, res) => {
     const updatedDocument = await DocumentVersionService.restoreVersion(
         id,
         versionId,
-        lawyerId
+        req.userID
     );
 
     res.status(200).json({
@@ -792,18 +765,15 @@ const restoreVersion = asyncHandler(async (req, res) => {
  */
 const searchDocuments = asyncHandler(async (req, res) => {
     const { q } = req.query;
-    const lawyerId = req.userID;
-    const firmId = req.firmId; // IDOR protection
 
     if (!q || q.length < 2) {
         throw CustomException('يجب أن يكون مصطلح البحث حرفين على الأقل', 400);
     }
 
-    // IDOR protection: search only documents belonging to user's firm
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
     const safeQuery = escapeRegex(q);
     const documents = await Document.find({
-        lawyerId: lawyerId,
-        firmId: firmId,
+        ...req.firmQuery,
         $or: [
             { fileName: { $regex: safeQuery, $options: 'i' } },
             { originalName: { $regex: safeQuery, $options: 'i' } },
@@ -824,11 +794,9 @@ const searchDocuments = asyncHandler(async (req, res) => {
  */
 const getRecentDocuments = asyncHandler(async (req, res) => {
     const { limit = 10 } = req.query;
-    const lawyerId = req.userID;
-    const firmId = req.firmId; // IDOR protection
 
-    // IDOR protection: get only recent documents from user's firm
-    const documents = await Document.find({ lawyerId, firmId })
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const documents = await Document.find(req.firmQuery)
         .sort({ createdAt: -1 })
         .limit(parseInt(limit))
         .populate('uploadedBy', 'firstName lastName')
@@ -847,18 +815,15 @@ const getRecentDocuments = asyncHandler(async (req, res) => {
  */
 const bulkDeleteDocuments = asyncHandler(async (req, res) => {
     const { documentIds } = req.body;
-    const lawyerId = req.userID;
-    const firmId = req.firmId; // IDOR protection
 
     if (!documentIds || !Array.isArray(documentIds) || documentIds.length === 0) {
         throw CustomException('معرفات المستندات مطلوبة', 400);
     }
 
-    // IDOR protection: only delete documents belonging to user's firm
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
     const documents = await Document.find({
         _id: { $in: documentIds },
-        lawyerId,
-        firmId
+        ...req.firmQuery
     });
 
     // Delete from storage (use stored bucket for each document)
@@ -877,16 +842,16 @@ const bulkDeleteDocuments = asyncHandler(async (req, res) => {
         }
     }
 
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
     const result = await Document.deleteMany({
         _id: { $in: documentIds },
-        lawyerId,
-        firmId
+        ...req.firmQuery
     });
 
     // Log bulk file deletions (Gold Standard - AWS/Google/Microsoft pattern)
     for (const doc of documents) {
-        logFileAccess(doc.fileKey, doc.module || 'documents', lawyerId, 'bulk_delete', {
-            firmId,
+        logFileAccess(doc.fileKey, doc.module || 'documents', req.userID, 'bulk_delete', {
+            firmId: req.firmId,
             documentId: doc._id,
             fileName: doc.originalName,
             fileSize: doc.fileSize,
@@ -911,19 +876,17 @@ const bulkDeleteDocuments = asyncHandler(async (req, res) => {
 const moveDocument = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { caseId } = req.body;
-    const lawyerId = req.userID;
-    const firmId = req.firmId; // IDOR protection
 
-    // IDOR protection: document must belong to user's firm
-    const document = await Document.findOne({ _id: id, lawyerId, firmId });
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const document = await Document.findOne({ _id: id, ...req.firmQuery });
 
     if (!document) {
         throw CustomException('المستند غير موجود', 404);
     }
 
     if (caseId) {
-        // IDOR protection: case must belong to user's firm
-        const caseExists = await Case.findOne({ _id: caseId, lawyerId, firmId }).lean();
+        // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+        const caseExists = await Case.findOne({ _id: caseId, ...req.firmQuery }).lean();
         if (!caseExists) {
             throw CustomException('القضية غير موجودة أو لا تنتمي إلى مؤسستك', 404);
         }

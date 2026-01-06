@@ -76,8 +76,6 @@ const validateSaudiIBAN = (iban) => {
 
 // Create bank account
 const createBankAccount = asyncHandler(async (req, res) => {
-    const lawyerId = req.userID;
-
     // SECURITY: Mass assignment protection - only allow specified fields
     const sanitizedData = pickAllowedFields(req.body, ALLOWED_CREATE_FIELDS);
     const {
@@ -116,7 +114,8 @@ const createBankAccount = asyncHandler(async (req, res) => {
     // SECURITY: Validate IBAN format for Saudi accounts
     validateSaudiIBAN(iban);
 
-    const account = await BankAccount.create({
+    // SECURITY FIX: Use req.addFirmId for proper tenant context
+    const account = await BankAccount.create(req.addFirmId({
         name,
         nameAr,
         type,
@@ -140,14 +139,13 @@ const createBankAccount = asyncHandler(async (req, res) => {
         notes,
         color,
         icon,
-        isDefault,
-        lawyerId
-    });
+        isDefault
+    }));
 
     // Fire-and-forget: Queue the billing activity log
     QueueService.logBillingActivity({
         activityType: 'bank_account_created',
-        userId: lawyerId,
+        userId: req.userID,
         relatedModel: 'BankAccount',
         relatedId: account._id,
         description: `Bank account "${name}" created`,
@@ -173,8 +171,8 @@ const getBankAccounts = asyncHandler(async (req, res) => {
         limit = 20
     } = req.query;
 
-    const lawyerId = req.userID;
-    const filters = { lawyerId };
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const filters = { ...req.firmQuery };
 
     if (type) filters.type = type;
     if (currency) filters.currency = currency;
@@ -205,10 +203,9 @@ const getBankAccounts = asyncHandler(async (req, res) => {
 // Get single bank account
 const getBankAccount = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const lawyerId = req.userID;
 
-    // SECURITY: IDOR protection - atomic query with ownership check
-    const account = await BankAccount.findOne({ _id: id, lawyerId });
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const account = await BankAccount.findOne({ _id: id, ...req.firmQuery });
 
     if (!account) {
         throw CustomException('Bank account not found', 404);
@@ -223,10 +220,9 @@ const getBankAccount = asyncHandler(async (req, res) => {
 // Update bank account
 const updateBankAccount = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const lawyerId = req.userID;
 
-    // SECURITY: IDOR protection - fetch with ownership check
-    const account = await BankAccount.findOne({ _id: id, lawyerId });
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const account = await BankAccount.findOne({ _id: id, ...req.firmQuery });
 
     if (!account) {
         throw CustomException('Bank account not found', 404);
@@ -243,15 +239,15 @@ const updateBankAccount = asyncHandler(async (req, res) => {
     // Don't allow changing opening balance after transactions exist
     if (sanitizedData.openingBalance !== undefined && sanitizedData.openingBalance !== account.openingBalance) {
         const BankTransaction = require('../models').BankTransaction;
-        const txnCount = await BankTransaction.countDocuments({ accountId: id });
+        const txnCount = await BankTransaction.countDocuments({ accountId: id, ...req.firmQuery });
         if (txnCount > 0) {
             throw CustomException('Cannot change opening balance after transactions exist', 400);
         }
     }
 
-    // SECURITY: IDOR protection - atomic update with ownership check
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
     const updatedAccount = await BankAccount.findOneAndUpdate(
-        { _id: id, lawyerId },
+        { _id: id, ...req.firmQuery },
         { $set: sanitizedData },
         { new: true, runValidators: true }
     );
@@ -266,10 +262,9 @@ const updateBankAccount = asyncHandler(async (req, res) => {
 // Delete bank account
 const deleteBankAccount = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const lawyerId = req.userID;
 
-    // SECURITY: IDOR protection - fetch with ownership check
-    const account = await BankAccount.findOne({ _id: id, lawyerId });
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const account = await BankAccount.findOne({ _id: id, ...req.firmQuery });
 
     if (!account) {
         throw CustomException('Bank account not found', 404);
@@ -277,13 +272,13 @@ const deleteBankAccount = asyncHandler(async (req, res) => {
 
     // Check for existing transactions
     const BankTransaction = require('../models').BankTransaction;
-    const txnCount = await BankTransaction.countDocuments({ accountId: id });
+    const txnCount = await BankTransaction.countDocuments({ accountId: id, ...req.firmQuery });
     if (txnCount > 0) {
         throw CustomException('Cannot delete account with existing transactions. Deactivate it instead.', 400);
     }
 
-    // SECURITY: IDOR protection - atomic delete with ownership check
-    await BankAccount.findOneAndDelete({ _id: id, lawyerId });
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    await BankAccount.findOneAndDelete({ _id: id, ...req.firmQuery });
 
     return res.json({
         success: true,
@@ -294,18 +289,17 @@ const deleteBankAccount = asyncHandler(async (req, res) => {
 // Set account as default
 const setDefault = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const lawyerId = req.userID;
 
-    // SECURITY: IDOR protection - fetch with ownership check
-    const account = await BankAccount.findOne({ _id: id, lawyerId });
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const account = await BankAccount.findOne({ _id: id, ...req.firmQuery });
 
     if (!account) {
         throw CustomException('Bank account not found', 404);
     }
 
-    // Remove default from all other accounts
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
     await BankAccount.updateMany(
-        { lawyerId, _id: { $ne: id } },
+        { ...req.firmQuery, _id: { $ne: id } },
         { isDefault: false }
     );
 
@@ -323,16 +317,16 @@ const setDefault = asyncHandler(async (req, res) => {
 const getBalanceHistory = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { period = 'month' } = req.query;
-    const lawyerId = req.userID;
 
-    // SECURITY: IDOR protection - fetch with ownership check
-    const account = await BankAccount.findOne({ _id: id, lawyerId });
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const account = await BankAccount.findOne({ _id: id, ...req.firmQuery });
 
     if (!account) {
         throw CustomException('Bank account not found', 404);
     }
 
-    const data = await BankAccount.getBalanceHistory(id, period);
+    // Pass firmQuery to model method for proper tenant isolation
+    const data = await BankAccount.getBalanceHistory(id, period, req.firmQuery);
 
     return res.json({
         success: true,
@@ -342,9 +336,8 @@ const getBalanceHistory = asyncHandler(async (req, res) => {
 
 // Get accounts summary
 const getSummary = asyncHandler(async (req, res) => {
-    const lawyerId = req.userID;
-
-    const summary = await BankAccount.getSummary(lawyerId);
+    // SECURITY FIX: Pass req.firmQuery for proper tenant isolation
+    const summary = await BankAccount.getSummary(req.firmQuery);
 
     return res.json({
         success: true,
@@ -355,10 +348,9 @@ const getSummary = asyncHandler(async (req, res) => {
 // Sync bank account (placeholder for bank connection sync)
 const syncAccount = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const lawyerId = req.userID;
 
-    // SECURITY: IDOR protection - fetch with ownership check
-    const account = await BankAccount.findOne({ _id: id, lawyerId });
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const account = await BankAccount.findOne({ _id: id, ...req.firmQuery });
 
     if (!account) {
         throw CustomException('Bank account not found', 404);
@@ -385,10 +377,9 @@ const syncAccount = asyncHandler(async (req, res) => {
 // Disconnect bank connection
 const disconnectAccount = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const lawyerId = req.userID;
 
-    // SECURITY: IDOR protection - fetch with ownership check
-    const account = await BankAccount.findOne({ _id: id, lawyerId });
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const account = await BankAccount.findOne({ _id: id, ...req.firmQuery });
 
     if (!account) {
         throw CustomException('Bank account not found', 404);

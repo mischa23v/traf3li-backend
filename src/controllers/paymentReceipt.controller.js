@@ -10,10 +10,9 @@ const mongoose = require('mongoose');
  * GET /api/payment-receipts
  */
 const getPaymentReceipts = asyncHandler(async (req, res) => {
-    const firmQuery = { firmId: req.firmId };
     const { clientId, startDate, endDate, status, limit = 50, offset = 0 } = req.query;
 
-    const query = { ...firmQuery };
+    const query = { ...req.firmQuery };
 
     if (clientId) query.clientId = clientId;
     if (status) query.status = status;
@@ -55,7 +54,7 @@ const getPaymentReceipt = asyncHandler(async (req, res) => {
     // IDOR protection - verify receipt belongs to firm
     const receipt = await PaymentReceipt.findOne({
         _id: sanitizeObjectId(req.params.id),
-        firmId: req.firmId
+        ...req.firmQuery
     })
         .populate('clientId', 'firstName lastName companyName email phone')
         .populate('invoiceId', 'invoiceNumber totalAmount dueDate')
@@ -93,7 +92,7 @@ const createReceiptFromPayment = asyncHandler(async (req, res) => {
     // IDOR protection - verify payment belongs to firm
     const payment = await Payment.findOne({
         _id: paymentId,
-        firmId: req.firmId
+        ...req.firmQuery
     });
 
     if (!payment) {
@@ -202,7 +201,7 @@ const createPaymentReceipt = asyncHandler(async (req, res) => {
     if (allowedFields.paymentId) {
         const payment = await Payment.findOne({
             _id: sanitizeObjectId(allowedFields.paymentId),
-            firmId: req.firmId
+            ...req.firmQuery
         });
         if (!payment) {
             throw new CustomException(
@@ -216,7 +215,7 @@ const createPaymentReceipt = asyncHandler(async (req, res) => {
     if (allowedFields.invoiceId) {
         const invoice = await Invoice.findOne({
             _id: sanitizeObjectId(allowedFields.invoiceId),
-            firmId: req.firmId
+            ...req.firmQuery
         });
         if (!invoice) {
             throw new CustomException(
@@ -230,7 +229,7 @@ const createPaymentReceipt = asyncHandler(async (req, res) => {
     if (allowedFields.clientId) {
         const client = await Client.findOne({
             _id: sanitizeObjectId(allowedFields.clientId),
-            firmId: req.firmId
+            ...req.firmQuery
         });
         if (!client) {
             throw new CustomException(
@@ -244,7 +243,7 @@ const createPaymentReceipt = asyncHandler(async (req, res) => {
     if (allowedFields.caseId) {
         const caseRecord = await Case.findOne({
             _id: sanitizeObjectId(allowedFields.caseId),
-            firmId: req.firmId
+            ...req.firmQuery
         });
         if (!caseRecord) {
             throw new CustomException(
@@ -260,14 +259,13 @@ const createPaymentReceipt = asyncHandler(async (req, res) => {
     session.startTransaction();
 
     try {
-        const receipt = new PaymentReceipt({
-            firmId: req.firmId,
+        const receipt = new PaymentReceipt(req.addFirmId({
             ...allowedFields,
             currency: allowedFields.currency || 'SAR',
             paymentDate: allowedFields.paymentDate || new Date(),
             generatedBy: req.userID,
             createdBy: req.userID
-        });
+        }));
 
         await receipt.save({ session });
 
@@ -306,7 +304,7 @@ const voidPaymentReceipt = asyncHandler(async (req, res) => {
     // IDOR protection - verify receipt belongs to firm
     const receipt = await PaymentReceipt.findOne({
         _id: sanitizeObjectId(req.params.id),
-        firmId: req.firmId
+        ...req.firmQuery
     });
 
     if (!receipt) {
@@ -348,7 +346,7 @@ const downloadReceipt = asyncHandler(async (req, res) => {
     // IDOR protection - verify receipt belongs to firm
     const receipt = await PaymentReceipt.findOne({
         _id: sanitizeObjectId(req.params.id),
-        firmId: req.firmId
+        ...req.firmQuery
     });
 
     if (!receipt) {
@@ -381,7 +379,7 @@ const emailReceipt = asyncHandler(async (req, res) => {
     // IDOR protection - verify receipt belongs to firm
     const receipt = await PaymentReceipt.findOne({
         _id: sanitizeObjectId(req.params.id),
-        firmId: req.firmId
+        ...req.firmQuery
     }).populate('clientId', 'email');
 
     if (!receipt) {
@@ -426,7 +424,7 @@ const getClientReceipts = asyncHandler(async (req, res) => {
     const Client = require('../models/client.model');
     const client = await Client.findOne({
         _id: clientId,
-        firmId: req.firmId
+        ...req.firmQuery
     });
 
     if (!client) {
@@ -438,7 +436,7 @@ const getClientReceipts = asyncHandler(async (req, res) => {
     }
 
     const receipts = await PaymentReceipt.getClientReceipts(
-        req.firmId,
+        req.firmQuery,
         clientId,
         { startDate, endDate, limit: parseInt(limit), offset: parseInt(offset) }
     );
@@ -456,7 +454,7 @@ const getClientReceipts = asyncHandler(async (req, res) => {
 const getReceiptStats = asyncHandler(async (req, res) => {
     const { startDate, endDate } = req.query;
 
-    const stats = await PaymentReceipt.getStats(req.firmId, startDate, endDate);
+    const stats = await PaymentReceipt.getStats(req.firmQuery, startDate, endDate);
 
     res.status(200).json({
         success: true,

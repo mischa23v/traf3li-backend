@@ -79,22 +79,27 @@ billingRateSchema.index({ lawyerId: 1, isActive: 1 });
 billingRateSchema.index({ firmId: 1, lawyerId: 1 });
 
 // Static method: Get applicable rate
-billingRateSchema.statics.getApplicableRate = async function(lawyerId, clientId, caseType, activityCode) {
+// SECURITY FIX: Accept firmQuery for proper tenant isolation
+billingRateSchema.statics.getApplicableRate = async function(firmQuery, clientId, caseType, activityCode) {
     // Priority: Custom Client > Custom Case Type > Activity Based > Standard
+    const now = new Date();
+    const dateFilter = {
+        effectiveDate: { $lte: now },
+        $or: [
+            { endDate: { $exists: false } },
+            { endDate: null },
+            { endDate: { $gte: now } }
+        ]
+    };
 
     // 1. Try custom client rate
     if (clientId) {
         const clientRate = await this.findOne({
-            lawyerId,
+            ...firmQuery,
             clientId,
             rateType: 'custom_client',
             isActive: true,
-            effectiveDate: { $lte: new Date() },
-            $or: [
-                { endDate: { $exists: false } },
-                { endDate: null },
-                { endDate: { $gte: new Date() } }
-            ]
+            ...dateFilter
         }).sort({ effectiveDate: -1 });
 
         if (clientRate) {
@@ -105,16 +110,11 @@ billingRateSchema.statics.getApplicableRate = async function(lawyerId, clientId,
     // 2. Try custom case type rate
     if (caseType) {
         const caseTypeRate = await this.findOne({
-            lawyerId,
+            ...firmQuery,
             caseType,
             rateType: 'custom_case_type',
             isActive: true,
-            effectiveDate: { $lte: new Date() },
-            $or: [
-                { endDate: { $exists: false } },
-                { endDate: null },
-                { endDate: { $gte: new Date() } }
-            ]
+            ...dateFilter
         }).sort({ effectiveDate: -1 });
 
         if (caseTypeRate) {
@@ -125,16 +125,11 @@ billingRateSchema.statics.getApplicableRate = async function(lawyerId, clientId,
     // 3. Try activity-based rate
     if (activityCode) {
         const activityRate = await this.findOne({
-            lawyerId,
+            ...firmQuery,
             activityCode,
             rateType: 'activity_based',
             isActive: true,
-            effectiveDate: { $lte: new Date() },
-            $or: [
-                { endDate: { $exists: false } },
-                { endDate: null },
-                { endDate: { $gte: new Date() } }
-            ]
+            ...dateFilter
         }).sort({ effectiveDate: -1 });
 
         if (activityRate) {
@@ -144,15 +139,10 @@ billingRateSchema.statics.getApplicableRate = async function(lawyerId, clientId,
 
     // 4. Fall back to standard rate
     const standardRate = await this.findOne({
-        lawyerId,
+        ...firmQuery,
         rateType: 'standard',
         isActive: true,
-        effectiveDate: { $lte: new Date() },
-        $or: [
-            { endDate: { $exists: false } },
-            { endDate: null },
-            { endDate: { $gte: new Date() } }
-        ]
+        ...dateFilter
     }).sort({ effectiveDate: -1 });
 
     return standardRate ? standardRate.standardHourlyRate : null;

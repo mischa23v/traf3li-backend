@@ -8,8 +8,6 @@ const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils'
  * POST /api/rate-groups
  */
 const createRateGroup = asyncHandler(async (req, res) => {
-    const lawyerId = req.userID;
-
     // Mass assignment protection
     const allowedFields = ['name', 'nameAr', 'description', 'rates', 'isDefault', 'effectiveDate', 'expiryDate'];
     const data = pickAllowedFields(req.body, allowedFields);
@@ -63,8 +61,9 @@ const createRateGroup = asyncHandler(async (req, res) => {
         }
     }
 
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
     // Check for duplicate name
-    const existing = await RateGroup.findOne({ lawyerId, name: data.name.trim() });
+    const existing = await RateGroup.findOne({ ...req.firmQuery, name: data.name.trim() });
     if (existing) {
         throw CustomException('مجموعة الأسعار موجودة بالفعل', 400);
     }
@@ -72,13 +71,13 @@ const createRateGroup = asyncHandler(async (req, res) => {
     // If setting as default, remove default from others
     if (data.isDefault) {
         await RateGroup.updateMany(
-            { lawyerId },
+            { ...req.firmQuery },
             { isDefault: false }
         );
     }
 
-    const rateGroup = await RateGroup.create({
-        lawyerId,
+    // SECURITY FIX: Use req.addFirmId for proper tenant context
+    const rateGroup = await RateGroup.create(req.addFirmId({
         name: data.name.trim(),
         nameAr: data.nameAr?.trim(),
         description: data.description,
@@ -86,7 +85,7 @@ const createRateGroup = asyncHandler(async (req, res) => {
         isDefault: data.isDefault || false,
         effectiveDate: data.effectiveDate,
         expiryDate: data.expiryDate
-    });
+    }));
 
     res.status(201).json({
         success: true,
@@ -100,13 +99,12 @@ const createRateGroup = asyncHandler(async (req, res) => {
  * GET /api/rate-groups
  */
 const getRateGroups = asyncHandler(async (req, res) => {
-    const lawyerId = req.userID;
-
     // Input validation for query parameters
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const limit = Math.min(Math.max(1, parseInt(req.query.limit) || 50), 100);
 
-    const query = { lawyerId };
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const query = { ...req.firmQuery };
     if (req.query.isActive !== undefined) {
         query.isActive = req.query.isActive === 'true';
     }
@@ -136,13 +134,11 @@ const getRateGroups = asyncHandler(async (req, res) => {
  * GET /api/rate-groups/:id
  */
 const getRateGroup = asyncHandler(async (req, res) => {
-    const lawyerId = req.userID;
-
     // IDOR protection - sanitize and validate ID
     const id = sanitizeObjectId(req.params.id, 'معرف مجموعة الأسعار غير صحيح');
 
-    // Verify ownership
-    const rateGroup = await RateGroup.findOne({ _id: id, lawyerId })
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const rateGroup = await RateGroup.findOne({ _id: id, ...req.firmQuery })
         .populate('rates.billingRateId');
 
     if (!rateGroup) {
@@ -160,8 +156,6 @@ const getRateGroup = asyncHandler(async (req, res) => {
  * PATCH /api/rate-groups/:id
  */
 const updateRateGroup = asyncHandler(async (req, res) => {
-    const lawyerId = req.userID;
-
     // IDOR protection - sanitize and validate ID
     const id = sanitizeObjectId(req.params.id, 'معرف مجموعة الأسعار غير صحيح');
 
@@ -217,8 +211,8 @@ const updateRateGroup = asyncHandler(async (req, res) => {
         }
     }
 
-    // Verify ownership
-    const rateGroup = await RateGroup.findOne({ _id: id, lawyerId });
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const rateGroup = await RateGroup.findOne({ _id: id, ...req.firmQuery });
 
     if (!rateGroup) {
         throw CustomException('مجموعة الأسعار غير موجودة', 404);
@@ -227,7 +221,7 @@ const updateRateGroup = asyncHandler(async (req, res) => {
     // Check for duplicate name if name is being changed
     if (data.name && data.name.trim() !== rateGroup.name) {
         const existing = await RateGroup.findOne({
-            lawyerId,
+            ...req.firmQuery,
             name: data.name.trim(),
             _id: { $ne: id }
         });
@@ -239,7 +233,7 @@ const updateRateGroup = asyncHandler(async (req, res) => {
     // If setting as default, remove default from others
     if (data.isDefault && !rateGroup.isDefault) {
         await RateGroup.updateMany(
-            { lawyerId, _id: { $ne: id } },
+            { ...req.firmQuery, _id: { $ne: id } },
             { isDefault: false }
         );
     }
@@ -274,25 +268,24 @@ const updateRateGroup = asyncHandler(async (req, res) => {
  * DELETE /api/rate-groups/:id
  */
 const deleteRateGroup = asyncHandler(async (req, res) => {
-    const lawyerId = req.userID;
-
     // IDOR protection - sanitize and validate ID
     const id = sanitizeObjectId(req.params.id, 'معرف مجموعة الأسعار غير صحيح');
 
-    // Verify ownership
-    const rateGroup = await RateGroup.findOne({ _id: id, lawyerId });
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const rateGroup = await RateGroup.findOne({ _id: id, ...req.firmQuery });
 
     if (!rateGroup) {
         throw CustomException('مجموعة الأسعار غير موجودة', 404);
     }
 
     // Check if used in any rate cards
-    const usedInCards = await RateCard.countDocuments({ rateGroupId: id, lawyerId });
+    const usedInCards = await RateCard.countDocuments({ rateGroupId: id, ...req.firmQuery });
     if (usedInCards > 0) {
         throw CustomException('لا يمكن حذف مجموعة أسعار مستخدمة في بطاقات أسعار', 400);
     }
 
-    await RateGroup.findOneAndDelete({ _id: id, lawyerId });
+    // SECURITY FIX: Use atomic findOneAndDelete with req.firmQuery
+    await RateGroup.findOneAndDelete({ _id: id, ...req.firmQuery });
 
     res.status(200).json({
         success: true,
@@ -305,8 +298,6 @@ const deleteRateGroup = asyncHandler(async (req, res) => {
  * POST /api/rate-groups/:id/rates
  */
 const addRateToGroup = asyncHandler(async (req, res) => {
-    const lawyerId = req.userID;
-
     // IDOR protection - sanitize and validate ID
     const id = sanitizeObjectId(req.params.id, 'معرف مجموعة الأسعار غير صحيح');
 
@@ -336,8 +327,8 @@ const addRateToGroup = asyncHandler(async (req, res) => {
         }
     }
 
-    // Verify ownership of rate group
-    const rateGroup = await RateGroup.findOne({ _id: id, lawyerId });
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const rateGroup = await RateGroup.findOne({ _id: id, ...req.firmQuery });
 
     if (!rateGroup) {
         throw CustomException('مجموعة الأسعار غير موجودة', 404);
@@ -351,8 +342,8 @@ const addRateToGroup = asyncHandler(async (req, res) => {
         throw CustomException('السعر موجود بالفعل في المجموعة', 400);
     }
 
-    // Verify billing rate exists and ownership
-    const billingRate = await BillingRate.findOne({ _id: billingRateId, lawyerId });
+    // SECURITY FIX: Use req.firmQuery for billing rate verification
+    const billingRate = await BillingRate.findOne({ _id: billingRateId, ...req.firmQuery });
     if (!billingRate) {
         throw CustomException('سعر الفوترة غير موجود', 404);
     }
@@ -377,14 +368,12 @@ const addRateToGroup = asyncHandler(async (req, res) => {
  * DELETE /api/rate-groups/:id/rates/:rateId
  */
 const removeRateFromGroup = asyncHandler(async (req, res) => {
-    const lawyerId = req.userID;
-
     // IDOR protection - sanitize and validate IDs
     const id = sanitizeObjectId(req.params.id, 'معرف مجموعة الأسعار غير صحيح');
     const rateId = sanitizeObjectId(req.params.rateId, 'معرف السعر غير صحيح');
 
-    // Verify ownership
-    const rateGroup = await RateGroup.findOne({ _id: id, lawyerId });
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const rateGroup = await RateGroup.findOne({ _id: id, ...req.firmQuery });
 
     if (!rateGroup) {
         throw CustomException('مجموعة الأسعار غير موجودة', 404);
@@ -414,14 +403,13 @@ const removeRateFromGroup = asyncHandler(async (req, res) => {
  * GET /api/rate-groups/default
  */
 const getDefaultRateGroup = asyncHandler(async (req, res) => {
-    const lawyerId = req.userID;
-
-    let rateGroup = await RateGroup.findOne({ lawyerId, isDefault: true })
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    let rateGroup = await RateGroup.findOne({ ...req.firmQuery, isDefault: true })
         .populate('rates.billingRateId');
 
     if (!rateGroup) {
         // Return first active rate group if no default
-        rateGroup = await RateGroup.findOne({ lawyerId, isActive: true })
+        rateGroup = await RateGroup.findOne({ ...req.firmQuery, isActive: true })
             .populate('rates.billingRateId');
     }
 
@@ -436,8 +424,6 @@ const getDefaultRateGroup = asyncHandler(async (req, res) => {
  * POST /api/rate-groups/:id/duplicate
  */
 const duplicateRateGroup = asyncHandler(async (req, res) => {
-    const lawyerId = req.userID;
-
     // IDOR protection - sanitize and validate ID
     const id = sanitizeObjectId(req.params.id, 'معرف مجموعة الأسعار غير صحيح');
 
@@ -454,8 +440,8 @@ const duplicateRateGroup = asyncHandler(async (req, res) => {
         throw CustomException('الاسم بالعربي يجب أن يكون نص', 400);
     }
 
-    // Verify ownership
-    const original = await RateGroup.findOne({ _id: id, lawyerId });
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const original = await RateGroup.findOne({ _id: id, ...req.firmQuery });
 
     if (!original) {
         throw CustomException('مجموعة الأسعار غير موجودة', 404);
@@ -466,13 +452,13 @@ const duplicateRateGroup = asyncHandler(async (req, res) => {
     const duplicateNameAr = data.nameAr ? data.nameAr.trim() : (original.nameAr ? `${original.nameAr} (نسخة)` : undefined);
 
     // Check for duplicate name
-    const existing = await RateGroup.findOne({ lawyerId, name: duplicateName });
+    const existing = await RateGroup.findOne({ ...req.firmQuery, name: duplicateName });
     if (existing) {
         throw CustomException('مجموعة أسعار بهذا الاسم موجودة بالفعل', 400);
     }
 
-    const duplicate = await RateGroup.create({
-        lawyerId,
+    // SECURITY FIX: Use req.addFirmId for proper tenant context
+    const duplicate = await RateGroup.create(req.addFirmId({
         name: duplicateName,
         nameAr: duplicateNameAr,
         description: original.description,
@@ -480,7 +466,7 @@ const duplicateRateGroup = asyncHandler(async (req, res) => {
         isDefault: false,
         effectiveDate: original.effectiveDate,
         expiryDate: original.expiryDate
-    });
+    }));
 
     res.status(201).json({
         success: true,

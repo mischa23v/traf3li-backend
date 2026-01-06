@@ -207,9 +207,18 @@ bankAccountSchema.pre('save', async function(next) {
 });
 
 // Static method: Get account summary
-bankAccountSchema.statics.getSummary = async function(lawyerId) {
+// SECURITY FIX: Accept firmQuery for proper tenant isolation
+bankAccountSchema.statics.getSummary = async function(firmQuery) {
+    // Build match query from firmQuery
+    const matchQuery = { isActive: true };
+    if (firmQuery.firmId) {
+        matchQuery.firmId = new mongoose.Types.ObjectId(firmQuery.firmId);
+    } else if (firmQuery.lawyerId) {
+        matchQuery.lawyerId = new mongoose.Types.ObjectId(firmQuery.lawyerId);
+    }
+
     const summary = await this.aggregate([
-        { $match: { lawyerId: new mongoose.Types.ObjectId(lawyerId), isActive: true } },
+        { $match: matchQuery },
         {
             $facet: {
                 totals: [

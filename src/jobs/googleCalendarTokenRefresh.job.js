@@ -15,6 +15,10 @@ const cron = require('node-cron');
 const GoogleCalendarIntegration = require('../models/googleCalendarIntegration.model');
 const googleCalendarService = require('../services/googleCalendar.service');
 const logger = require('../utils/logger');
+const { acquireLock } = require('../services/distributedLock.service');
+
+// Distributed lock name for this job
+const LOCK_NAME = 'token_refresh_google';
 
 /**
  * Refresh tokens that are expiring soon
@@ -157,35 +161,48 @@ async function refreshExpiredTokens() {
  * Run the full token refresh job
  * 1. Refresh tokens expiring soon (proactive)
  * 2. Handle already expired tokens (cleanup)
+ * Uses distributed locking to prevent concurrent execution across server instances
  */
 async function runTokenRefreshJob() {
-    logger.info('[GoogleCalendarTokenRefresh] ═══════════════════════════════════════');
-    logger.info('[GoogleCalendarTokenRefresh] Starting scheduled token refresh job');
+    // Acquire distributed lock
+    const lock = await acquireLock(LOCK_NAME);
 
-    // Step 1: Proactive refresh of tokens expiring within 24 hours
-    const proactiveResults = await refreshExpiringTokens(24);
+    if (!lock.acquired) {
+        logger.info(`[GoogleCalendarTokenRefresh] Job already running on another instance (TTL: ${lock.ttlRemaining}s), skipping...`);
+        return { skipped: true, reason: 'already_running_distributed' };
+    }
 
-    // Step 2: Handle any already expired tokens
-    const expiredResults = await refreshExpiredTokens();
+    try {
+        logger.info('[GoogleCalendarTokenRefresh] ═══════════════════════════════════════');
+        logger.info('[GoogleCalendarTokenRefresh] Starting scheduled token refresh job');
 
-    // Combined summary
-    const summary = {
-        proactive: {
-            checked: proactiveResults.checked,
-            refreshed: proactiveResults.refreshed,
-            failed: proactiveResults.failed
-        },
-        expired: {
-            checked: expiredResults.checked,
-            refreshed: expiredResults.refreshed,
-            disconnected: expiredResults.disconnected
-        }
-    };
+        // Step 1: Proactive refresh of tokens expiring within 24 hours
+        const proactiveResults = await refreshExpiringTokens(24);
 
-    logger.info('[GoogleCalendarTokenRefresh] Job summary:', JSON.stringify(summary));
-    logger.info('[GoogleCalendarTokenRefresh] ═══════════════════════════════════════');
+        // Step 2: Handle any already expired tokens
+        const expiredResults = await refreshExpiredTokens();
 
-    return summary;
+        // Combined summary
+        const summary = {
+            proactive: {
+                checked: proactiveResults.checked,
+                refreshed: proactiveResults.refreshed,
+                failed: proactiveResults.failed
+            },
+            expired: {
+                checked: expiredResults.checked,
+                refreshed: expiredResults.refreshed,
+                disconnected: expiredResults.disconnected
+            }
+        };
+
+        logger.info('[GoogleCalendarTokenRefresh] Job summary:', JSON.stringify(summary));
+        logger.info('[GoogleCalendarTokenRefresh] ═══════════════════════════════════════');
+
+        return summary;
+    } finally {
+        await lock.release();
+    }
 }
 
 /**

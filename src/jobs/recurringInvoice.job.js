@@ -21,6 +21,7 @@ const RecurringInvoiceService = require('../services/recurringInvoice.service');
 const Notification = require('../models/notification.model');
 const AuditLog = require('../models/auditLog.model');
 const logger = require('../utils/logger');
+const { withLock, acquireLock } = require('../services/distributedLock.service');
 
 // Job configuration
 const RECURRING_INVOICE_JOB_CONFIG = {
@@ -42,11 +43,18 @@ const RECURRING_INVOICE_JOB_CONFIG = {
     }
 };
 
-// Track running jobs
+// Track running jobs (kept for local status reporting, but actual locking is done via Redis)
 let jobsRunning = {
     generateInvoices: false,
     sendNotifications: false,
     cleanup: false
+};
+
+// Distributed lock names for this job module
+const LOCK_NAMES = {
+    generateInvoices: 'recurring_invoice_generate',
+    sendNotifications: 'recurring_invoice_notify',
+    cleanup: 'recurring_invoice_cleanup'
 };
 
 // Track job statistics
@@ -83,11 +91,15 @@ let jobStats = {
 /**
  * Generate invoices from recurring templates
  * Main job function that processes all due recurring invoices
+ * Uses distributed locking to prevent concurrent execution across server instances
  */
 const generateRecurringInvoices = async (retryCount = 0) => {
-    if (jobsRunning.generateInvoices) {
-        logger.info('[Recurring Invoice Jobs] Invoice generation job still running, skipping...');
-        return { skipped: true, reason: 'already_running' };
+    // Acquire distributed lock
+    const lock = await acquireLock(LOCK_NAMES.generateInvoices);
+
+    if (!lock.acquired) {
+        logger.info(`[Recurring Invoice Jobs] Invoice generation job already running on another instance (TTL: ${lock.ttlRemaining}s), skipping...`);
+        return { skipped: true, reason: 'already_running_distributed' };
     }
 
     jobsRunning.generateInvoices = true;
@@ -153,6 +165,8 @@ const generateRecurringInvoices = async (retryCount = 0) => {
 
             await new Promise(resolve => setTimeout(resolve, backoffMs));
 
+            // Release lock before retry to allow retry to reacquire
+            await lock.release();
             jobsRunning.generateInvoices = false;
             return await generateRecurringInvoices(retryCount + 1);
         }
@@ -175,6 +189,7 @@ const generateRecurringInvoices = async (retryCount = 0) => {
         throw error;
 
     } finally {
+        await lock.release();
         jobsRunning.generateInvoices = false;
     }
 };
@@ -231,11 +246,15 @@ const sendJobErrorNotification = async (error, duration, retryCount) => {
 /**
  * Send notifications for upcoming recurring invoices
  * Runs daily at midnight
+ * Uses distributed locking to prevent concurrent execution across server instances
  */
 const sendUpcomingNotifications = async () => {
-    if (jobsRunning.sendNotifications) {
-        logger.info('[Recurring Invoice Jobs] Notification job still running, skipping...');
-        return { skipped: true, reason: 'already_running' };
+    // Acquire distributed lock
+    const lock = await acquireLock(LOCK_NAMES.sendNotifications);
+
+    if (!lock.acquired) {
+        logger.info(`[Recurring Invoice Jobs] Notification job already running on another instance (TTL: ${lock.ttlRemaining}s), skipping...`);
+        return { skipped: true, reason: 'already_running_distributed' };
     }
 
     jobsRunning.sendNotifications = true;
@@ -294,6 +313,7 @@ const sendUpcomingNotifications = async () => {
         throw error;
 
     } finally {
+        await lock.release();
         jobsRunning.sendNotifications = false;
     }
 };
@@ -301,11 +321,15 @@ const sendUpcomingNotifications = async () => {
 /**
  * Cleanup cancelled recurring invoices with no generated invoices
  * Runs daily at 1 AM
+ * Uses distributed locking to prevent concurrent execution across server instances
  */
 const cleanupCancelledRecurring = async () => {
-    if (jobsRunning.cleanup) {
-        logger.info('[Recurring Invoice Jobs] Cleanup job still running, skipping...');
-        return { skipped: true, reason: 'already_running' };
+    // Acquire distributed lock
+    const lock = await acquireLock(LOCK_NAMES.cleanup);
+
+    if (!lock.acquired) {
+        logger.info(`[Recurring Invoice Jobs] Cleanup job already running on another instance (TTL: ${lock.ttlRemaining}s), skipping...`);
+        return { skipped: true, reason: 'already_running_distributed' };
     }
 
     jobsRunning.cleanup = true;
@@ -365,6 +389,7 @@ const cleanupCancelledRecurring = async () => {
         throw error;
 
     } finally {
+        await lock.release();
         jobsRunning.cleanup = false;
     }
 };

@@ -108,9 +108,6 @@ const validateTemplateData = (data) => {
  * POST /api/invoice-templates
  */
 const createTemplate = asyncHandler(async (req, res) => {
-    const lawyerId = req.userID;
-    const firmId = req.firmId;
-
     // Mass assignment protection - only allow specific fields
     const allowedFields = [
         'name', 'nameAr', 'description', 'descriptionAr', 'type',
@@ -133,9 +130,8 @@ const createTemplate = asyncHandler(async (req, res) => {
     // Validate and sanitize template data
     validateTemplateData(safeData);
 
-    const template = await InvoiceTemplate.create({
-        firmId,
-        lawyerId,
+    // SECURITY FIX: Use req.addFirmId for proper tenant context
+    const template = await InvoiceTemplate.create(req.addFirmId({
         name: safeData.name,
         nameAr: safeData.nameAr,
         description: safeData.description,
@@ -149,8 +145,8 @@ const createTemplate = asyncHandler(async (req, res) => {
         styling: safeData.styling || {},
         numberingFormat: safeData.numberingFormat || {},
         taxSettings: safeData.taxSettings || {},
-        createdBy: lawyerId
-    });
+        createdBy: req.userID
+    }));
 
     res.status(201).json({
         success: true,
@@ -214,8 +210,6 @@ const getTemplate = asyncHandler(async (req, res) => {
  * GET /api/invoice-templates/default
  */
 const getDefaultTemplate = asyncHandler(async (req, res) => {
-    const firmId = req.firmId;
-
     let template = await InvoiceTemplate.findOne({ ...req.firmQuery, isDefault: true });
 
     if (!template) {
@@ -347,8 +341,6 @@ const deleteTemplate = asyncHandler(async (req, res) => {
 const duplicateTemplate = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { name, nameAr } = req.body;
-    const lawyerId = req.userID;
-    const firmId = req.firmId;
 
     const original = await InvoiceTemplate.findOne({ _id: id, ...req.firmQuery });
 
@@ -356,9 +348,8 @@ const duplicateTemplate = asyncHandler(async (req, res) => {
         throw CustomException('قالب الفاتورة غير موجود', 404);
     }
 
-    const duplicate = await InvoiceTemplate.create({
-        firmId,
-        lawyerId,
+    // SECURITY FIX: Use req.addFirmId for proper tenant context
+    const duplicate = await InvoiceTemplate.create(req.addFirmId({
         name: name || `${original.name} (نسخة)`,
         nameAr: nameAr || `${original.nameAr} (نسخة)`,
         description: original.description,
@@ -372,8 +363,8 @@ const duplicateTemplate = asyncHandler(async (req, res) => {
         styling: original.styling,
         numberingFormat: original.numberingFormat,
         taxSettings: original.taxSettings,
-        createdBy: lawyerId
-    });
+        createdBy: req.userID
+    }));
 
     res.status(201).json({
         success: true,
@@ -494,9 +485,6 @@ const exportTemplate = asyncHandler(async (req, res) => {
  * POST /api/invoice-templates/import
  */
 const importTemplate = asyncHandler(async (req, res) => {
-    const lawyerId = req.userID;
-    const firmId = req.firmId;
-
     const {
         name, nameAr, description, descriptionAr, type,
         header, clientSection, itemsSection, footer,
@@ -507,9 +495,8 @@ const importTemplate = asyncHandler(async (req, res) => {
         throw CustomException('الاسم بالعربية والإنجليزية مطلوب', 400);
     }
 
-    const template = await InvoiceTemplate.create({
-        firmId,
-        lawyerId,
+    // SECURITY FIX: Use req.addFirmId for proper tenant context
+    const template = await InvoiceTemplate.create(req.addFirmId({
         name,
         nameAr,
         description,
@@ -523,8 +510,8 @@ const importTemplate = asyncHandler(async (req, res) => {
         styling: styling || {},
         numberingFormat: numberingFormat || {},
         taxSettings: taxSettings || {},
-        createdBy: lawyerId
-    });
+        createdBy: req.userID
+    }));
 
     res.status(201).json({
         success: true,

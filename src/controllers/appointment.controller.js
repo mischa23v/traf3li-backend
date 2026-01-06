@@ -101,7 +101,7 @@ const debugLog = (endpoint, req, extra = {}) => {
         query: req.query,
         body: req.body,
         userId: req.userID,
-        firmId: req.firmId,
+        ...req.firmQuery,
         firmQuery: req.firmQuery,
         isSoloLawyer: req.isSoloLawyer,
         isDeparted: req.isDeparted,
@@ -847,7 +847,7 @@ exports.getAvailableSlots = async (req, res) => {
 exports.create = async (req, res) => {
     debugLog('create', req, {
         isSoloLawyer: req.isSoloLawyer,
-        firmId: req.firmId,
+        ...req.firmQuery,
         firmQuery: req.firmQuery
     });
     try {
@@ -865,7 +865,7 @@ exports.create = async (req, res) => {
         if (!hasTenantContext) {
             logger.error('[APPOINTMENT-ERROR] Missing tenant context:', {
                 userId: req.userID,
-                firmId: req.firmId,
+                ...req.firmQuery,
                 isSoloLawyer: req.isSoloLawyer,
                 firmQuery: req.firmQuery,
                 message: 'User not recognized as solo lawyer or firm member. Check user.role in database.'
@@ -991,7 +991,7 @@ exports.create = async (req, res) => {
         // Log activity via queue (Gold Standard: fire-and-forget, async processing)
         QueueService.logActivity({
             lawyerId: userId,
-            firmId: req.firmId,
+            ...req.firmQuery,
             type: 'appointment_created',
             entityType: 'appointment',
             entityId: appointment._id,
@@ -1303,7 +1303,7 @@ exports.update = async (req, res) => {
         // Log activity via queue (Gold Standard: fire-and-forget, async processing)
         QueueService.logActivity({
             lawyerId: userId,
-            firmId: req.firmId,
+            ...req.firmQuery,
             type: 'appointment_updated',
             entityType: 'appointment',
             entityId: appointment._id,
@@ -1444,7 +1444,7 @@ exports.cancel = async (req, res) => {
         // Log activity via queue (Gold Standard: fire-and-forget, async processing)
         QueueService.logActivity({
             lawyerId: userId,
-            firmId: req.firmId,
+            ...req.firmQuery,
             type: 'appointment_deleted',
             entityType: 'appointment',
             entityId: appointmentInfo._id,
@@ -1551,7 +1551,7 @@ exports.complete = async (req, res) => {
         // Log activity via queue (Gold Standard: fire-and-forget, async processing)
         QueueService.logActivity({
             lawyerId: userId,
-            firmId: req.firmId,
+            ...req.firmQuery,
             type: 'appointment_completed',
             entityType: 'appointment',
             entityId: appointment._id,
@@ -1630,7 +1630,7 @@ exports.markNoShow = async (req, res) => {
         // Log activity via queue (Gold Standard: fire-and-forget, async processing)
         QueueService.logActivity({
             lawyerId: userId,
-            firmId: req.firmId,
+            ...req.firmQuery,
             type: 'appointment_no_show',
             entityType: 'appointment',
             entityId: appointment._id,
@@ -1708,7 +1708,7 @@ exports.confirm = async (req, res) => {
         // Log activity via queue (Gold Standard: fire-and-forget, async processing)
         QueueService.logActivity({
             lawyerId: userId,
-            firmId: req.firmId,
+            ...req.firmQuery,
             type: 'appointment_confirmed',
             entityType: 'appointment',
             entityId: appointment._id,
@@ -2811,7 +2811,7 @@ exports.reschedule = async (req, res) => {
         // Log activity via queue (Gold Standard: fire-and-forget, async processing)
         QueueService.logActivity({
             lawyerId: userId,
-            firmId: req.firmId,
+            ...req.firmQuery,
             type: 'appointment_rescheduled',
             entityType: 'appointment',
             entityId: appointment._id,
@@ -3090,7 +3090,7 @@ exports.syncToCalendar = async (req, res) => {
         // Log activity via queue (Gold Standard: fire-and-forget, async processing)
         QueueService.logActivity({
             lawyerId: req.userID,
-            firmId: req.firmId,
+            ...req.firmQuery,
             type: 'appointment_synced',
             entityType: 'appointment',
             entityId: appointment._id,
@@ -3157,7 +3157,7 @@ exports.debug = async (req, res) => {
             data: {
                 currentUser: {
                     userId: req.userID,
-                    firmId: req.firmId,
+                    ...req.firmQuery,
                     isSoloLawyer: req.isSoloLawyer,
                     firmQuery: req.firmQuery
                 },

@@ -12,18 +12,26 @@ const SLAService = require('../services/sla.service');
 const Firm = require('../models/firm.model');
 const { SLA } = require('../models/sla.model');
 const logger = require('../utils/logger');
+const { acquireLock } = require('../services/distributedLock.service');
 
-// Track running jobs
+// Distributed lock name for this job
+const LOCK_NAME = 'sla_breach_check';
+
+// Track running jobs (kept for local status reporting)
 let jobRunning = false;
 
 /**
  * Check SLA breaches for all firms with active SLAs
  * Runs every 15 minutes
+ * Uses distributed locking to prevent concurrent execution across server instances
  */
 const checkSLABreaches = async () => {
-    if (jobRunning) {
-        logger.info('[SLA Breach Job] Job still running, skipping...');
-        return;
+    // Acquire distributed lock
+    const lock = await acquireLock(LOCK_NAME);
+
+    if (!lock.acquired) {
+        logger.info(`[SLA Breach Job] Job already running on another instance (TTL: ${lock.ttlRemaining}s), skipping...`);
+        return { skipped: true, reason: 'already_running_distributed' };
     }
 
     jobRunning = true;
@@ -79,6 +87,7 @@ const checkSLABreaches = async () => {
     } catch (error) {
         logger.error('[SLA Breach Job] Job error:', error);
     } finally {
+        await lock.release();
         jobRunning = false;
     }
 };
