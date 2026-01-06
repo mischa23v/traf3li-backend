@@ -12,6 +12,7 @@ const DealHealthService = require('../services/dealHealth.service');
 const Firm = require('../models/firm.model');
 const Notification = require('../models/notification.model');
 const logger = require('../utils/logger');
+const { acquireLock } = require('../services/distributedLock.service');
 
 // Track running jobs
 let jobRunning = false;
@@ -21,7 +22,16 @@ let jobRunning = false;
  * Runs daily at 6 AM
  */
 const detectStuckDeals = async () => {
+    // Acquire distributed lock
+    const lock = await acquireLock('stuck_deal_detection');
+
+    if (!lock.acquired) {
+        logger.info(`[Stuck Deal Job] Job already running on another instance (TTL: ${lock.ttlRemaining}s), skipping...`);
+        return { skipped: true, reason: 'already_running_distributed' };
+    }
+
     if (jobRunning) {
+        await lock.release();
         logger.info('[Stuck Deal Job] Job still running, skipping...');
         return;
     }
@@ -128,6 +138,7 @@ const detectStuckDeals = async () => {
         logger.error('[Stuck Deal Job] Job error:', error);
     } finally {
         jobRunning = false;
+        await lock.release();
     }
 };
 

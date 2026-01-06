@@ -22,6 +22,7 @@ const workflowService = require('../services/workflow.service');
 const WorkflowInstance = require('../models/workflowInstance.model');
 const AuditLog = require('../models/auditLog.model');
 const logger = require('../utils/logger');
+const { acquireLock } = require('../services/distributedLock.service');
 
 // Job configuration
 const WORKFLOW_JOB_CONFIG = {
@@ -101,7 +102,16 @@ let jobStats = {
  * Main job function that processes all due scheduled workflows
  */
 const processScheduledWorkflows = async (retryCount = 0) => {
+    // Acquire distributed lock
+    const lock = await acquireLock('workflow_process_scheduled');
+
+    if (!lock.acquired) {
+        logger.info(`[Workflow Jobs] Scheduled workflow job already running on another instance (TTL: ${lock.ttlRemaining}s), skipping...`);
+        return { skipped: true, reason: 'already_running_distributed' };
+    }
+
     if (jobsRunning.processScheduled) {
+        await lock.release();
         logger.info('[Workflow Jobs] Scheduled workflow job still running, skipping...');
         return { skipped: true, reason: 'already_running' };
     }
@@ -181,6 +191,7 @@ const processScheduledWorkflows = async (retryCount = 0) => {
 
     } finally {
         jobsRunning.processScheduled = false;
+        await lock.release();
     }
 };
 
@@ -189,7 +200,16 @@ const processScheduledWorkflows = async (retryCount = 0) => {
  * Resumes workflows that have completed their delay period
  */
 const processDelaySteps = async () => {
+    // Acquire distributed lock
+    const lock = await acquireLock('workflow_process_delays');
+
+    if (!lock.acquired) {
+        logger.debug(`[Workflow Jobs] Delay processing job already running on another instance (TTL: ${lock.ttlRemaining}s), skipping...`);
+        return { skipped: true, reason: 'already_running_distributed' };
+    }
+
     if (jobsRunning.processDelays) {
+        await lock.release();
         logger.debug('[Workflow Jobs] Delay processing job still running, skipping...');
         return { skipped: true, reason: 'already_running' };
     }
@@ -264,6 +284,7 @@ const processDelaySteps = async () => {
 
     } finally {
         jobsRunning.processDelays = false;
+        await lock.release();
     }
 };
 
@@ -272,7 +293,16 @@ const processDelaySteps = async () => {
  * Checks conditions for event-triggered workflows
  */
 const processConditionChecks = async () => {
+    // Acquire distributed lock
+    const lock = await acquireLock('workflow_process_conditions');
+
+    if (!lock.acquired) {
+        logger.debug(`[Workflow Jobs] Condition check job already running on another instance (TTL: ${lock.ttlRemaining}s), skipping...`);
+        return { skipped: true, reason: 'already_running_distributed' };
+    }
+
     if (jobsRunning.processConditions) {
+        await lock.release();
         logger.debug('[Workflow Jobs] Condition check job still running, skipping...');
         return { skipped: true, reason: 'already_running' };
     }
@@ -312,6 +342,7 @@ const processConditionChecks = async () => {
 
     } finally {
         jobsRunning.processConditions = false;
+        await lock.release();
     }
 };
 
@@ -320,7 +351,16 @@ const processConditionChecks = async () => {
  * Removes old completed/failed/cancelled workflow instances
  */
 const cleanupStaleInstances = async () => {
+    // Acquire distributed lock
+    const lock = await acquireLock('workflow_cleanup');
+
+    if (!lock.acquired) {
+        logger.info(`[Workflow Jobs] Cleanup job already running on another instance (TTL: ${lock.ttlRemaining}s), skipping...`);
+        return { skipped: true, reason: 'already_running_distributed' };
+    }
+
     if (jobsRunning.cleanup) {
+        await lock.release();
         logger.info('[Workflow Jobs] Cleanup job still running, skipping...');
         return { skipped: true, reason: 'already_running' };
     }
@@ -388,6 +428,7 @@ const cleanupStaleInstances = async () => {
 
     } finally {
         jobsRunning.cleanup = false;
+        await lock.release();
     }
 };
 

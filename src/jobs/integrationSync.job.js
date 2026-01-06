@@ -38,6 +38,7 @@ const Firm = require('../models/firm.model');
 const AuditLog = require('../models/auditLog.model');
 const Notification = require('../models/notification.model');
 const logger = require('../utils/logger');
+const { acquireLock } = require('../services/distributedLock.service');
 
 // Job configuration
 const INTEGRATION_SYNC_JOB_CONFIG = {
@@ -102,7 +103,16 @@ let jobStats = {
  * Processes all firms with active integrations
  */
 const processScheduledSync = async (retryCount = 0) => {
+    // Acquire distributed lock
+    const lock = await acquireLock('integration_sync');
+
+    if (!lock.acquired) {
+        logger.info(`[Integration Sync] Scheduled sync already running on another instance (TTL: ${lock.ttlRemaining}s), skipping...`);
+        return { skipped: true, reason: 'already_running_distributed' };
+    }
+
     if (jobsRunning.scheduledSync) {
+        await lock.release();
         logger.info('[Integration Sync] Scheduled sync still running, skipping...');
         return { skipped: true, reason: 'already_running' };
     }
@@ -252,6 +262,7 @@ const processScheduledSync = async (retryCount = 0) => {
 
     } finally {
         jobsRunning.scheduledSync = false;
+        await lock.release();
     }
 };
 

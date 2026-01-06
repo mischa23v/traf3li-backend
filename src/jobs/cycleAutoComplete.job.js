@@ -13,6 +13,7 @@ const CycleService = require('../services/cycle.service');
 const Cycle = require('../models/cycle.model');
 const Notification = require('../models/notification.model');
 const logger = require('../utils/logger');
+const { acquireLock } = require('../services/distributedLock.service');
 
 // Track running jobs
 let jobRunning = false;
@@ -22,7 +23,16 @@ let jobRunning = false;
  * Runs daily at midnight
  */
 const autoCompleteCycles = async () => {
+    // Acquire distributed lock
+    const lock = await acquireLock('cycle_auto_complete');
+
+    if (!lock.acquired) {
+        logger.info(`[Cycle Auto-Complete Job] Job already running on another instance (TTL: ${lock.ttlRemaining}s), skipping...`);
+        return { skipped: true, reason: 'already_running_distributed' };
+    }
+
     if (jobRunning) {
+        await lock.release();
         logger.info('[Cycle Auto-Complete Job] Job still running, skipping...');
         return;
     }
@@ -138,6 +148,7 @@ const autoCompleteCycles = async () => {
         logger.error('[Cycle Auto-Complete Job] Job error:', error);
     } finally {
         jobRunning = false;
+        await lock.release();
     }
 };
 
