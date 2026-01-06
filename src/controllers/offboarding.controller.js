@@ -163,7 +163,7 @@ const getOffboarding = asyncHandler(async (req, res) => {
         throw CustomException('Invalid offboarding ID format', 400);
     }
 
-    const offboarding = await Offboarding.findById(offboardingId)
+    const offboarding = await Offboarding.findOne({ _id: offboardingId, ...req.firmQuery })
         .populate('employeeId', 'employeeId personalInfo employment compensation gosi')
         .populate('managerId', 'firstName lastName email')
         .populate('createdBy', 'firstName lastName')
@@ -262,18 +262,9 @@ const createOffboarding = asyncHandler(async (req, res) => {
     }
 
     // Fetch employee
-    const employee = await Employee.findById(employeeId);
+    const employee = await Employee.findOne({ _id: employeeId, ...req.firmQuery });
     if (!employee) {
         throw CustomException('Employee not found', 404);
-    }
-
-    // Check access to employee
-    const hasEmployeeAccess = firmId
-        ? employee.firmId?.toString() === firmId.toString()
-        : employee.lawyerId?.toString() === lawyerId;
-
-    if (!hasEmployeeAccess) {
-        throw CustomException('Access denied to this employee', 403);
     }
 
     // Check if offboarding already exists for this employee
@@ -455,7 +446,7 @@ const updateOffboarding = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const offboarding = await Offboarding.findById(offboardingId);
+    const offboarding = await Offboarding.findOne({ _id: offboardingId, ...req.firmQuery });
 
     if (!offboarding) {
         throw CustomException('Offboarding not found', 404);
@@ -552,7 +543,7 @@ const deleteOffboarding = asyncHandler(async (req, res) => {
         throw CustomException('Invalid offboarding ID format', 400);
     }
 
-    const offboarding = await Offboarding.findById(offboardingId);
+    const offboarding = await Offboarding.findOne({ _id: offboardingId, ...req.firmQuery });
 
     if (!offboarding) {
         throw CustomException('Offboarding not found', 404);
@@ -610,7 +601,7 @@ const updateStatus = asyncHandler(async (req, res) => {
         throw CustomException(`Invalid status. Must be one of: ${validStatuses.join(', ')}`, 400);
     }
 
-    const offboarding = await Offboarding.findById(offboardingId);
+    const offboarding = await Offboarding.findOne({ _id: offboardingId, ...req.firmQuery });
 
     if (!offboarding) {
         throw CustomException('Offboarding not found', 404);
@@ -725,7 +716,7 @@ const completeExitInterview = asyncHandler(async (req, res) => {
         }
     }
 
-    const offboarding = await Offboarding.findById(offboardingId);
+    const offboarding = await Offboarding.findOne({ _id: offboardingId, ...req.firmQuery });
 
     if (!offboarding) {
         throw CustomException('Offboarding not found', 404);
@@ -847,7 +838,7 @@ const updateClearanceItem = asyncHandler(async (req, res) => {
         }
     }
 
-    const offboarding = await Offboarding.findById(offboardingId);
+    const offboarding = await Offboarding.findOne({ _id: offboardingId, ...req.firmQuery });
 
     if (!offboarding) {
         throw CustomException('Offboarding not found', 404);
@@ -935,7 +926,7 @@ const completeClearanceSection = asyncHandler(async (req, res) => {
         throw CustomException('Invalid clearance section. Must be: it, finance, hr, department, or manager', 400);
     }
 
-    const offboarding = await Offboarding.findById(offboardingId);
+    const offboarding = await Offboarding.findOne({ _id: offboardingId, ...req.firmQuery });
 
     if (!offboarding) {
         throw CustomException('Offboarding not found', 404);
@@ -1030,7 +1021,7 @@ const calculateSettlement = asyncHandler(async (req, res) => {
         throw CustomException('Invalid offboarding ID format', 400);
     }
 
-    const offboarding = await Offboarding.findById(offboardingId)
+    const offboarding = await Offboarding.findOne({ _id: offboardingId, ...req.firmQuery })
         .populate('employeeId');
 
     if (!offboarding) {
@@ -1255,7 +1246,7 @@ const approveSettlement = asyncHandler(async (req, res) => {
     const filteredData = pickAllowedFields(req.body, allowedFields);
     const { comments } = filteredData;
 
-    const offboarding = await Offboarding.findById(offboardingId);
+    const offboarding = await Offboarding.findOne({ _id: offboardingId, ...req.firmQuery });
 
     if (!offboarding) {
         throw CustomException('Offboarding not found', 404);
@@ -1352,7 +1343,7 @@ const processPayment = asyncHandler(async (req, res) => {
         throw CustomException(`Invalid payment method. Must be one of: ${validPaymentMethods.join(', ')}`, 400);
     }
 
-    const offboarding = await Offboarding.findById(offboardingId);
+    const offboarding = await Offboarding.findOne({ _id: offboardingId, ...req.firmQuery });
 
     if (!offboarding) {
         throw CustomException('Offboarding not found', 404);
@@ -1436,7 +1427,7 @@ const issueExperienceCertificate = asyncHandler(async (req, res) => {
         }
     }
 
-    const offboarding = await Offboarding.findById(offboardingId);
+    const offboarding = await Offboarding.findOne({ _id: offboardingId, ...req.firmQuery });
 
     if (!offboarding) {
         throw CustomException('Offboarding not found', 404);
@@ -1519,7 +1510,7 @@ const completeOffboarding = asyncHandler(async (req, res) => {
         throw CustomException('Invalid offboarding ID format', 400);
     }
 
-    const offboarding = await Offboarding.findById(offboardingId);
+    const offboarding = await Offboarding.findOne({ _id: offboardingId, ...req.firmQuery });
 
     if (!offboarding) {
         throw CustomException('Offboarding not found', 404);
@@ -1700,17 +1691,9 @@ const getByEmployee = asyncHandler(async (req, res) => {
     }
 
     // IDOR Protection - Verify employee belongs to the firm/lawyer
-    const employee = await Employee.findById(employeeId);
+    const employee = await Employee.findOne({ _id: employeeId, ...req.firmQuery });
     if (!employee) {
         throw CustomException('Employee not found', 404);
-    }
-
-    const hasEmployeeAccess = firmId
-        ? employee.firmId?.toString() === firmId.toString()
-        : employee.lawyerId?.toString() === lawyerId;
-
-    if (!hasEmployeeAccess) {
-        throw CustomException('Access denied to this employee', 403);
     }
 
     const query = { employeeId };
@@ -1840,7 +1823,7 @@ const updateRehireEligibility = asyncHandler(async (req, res) => {
         }
     }
 
-    const offboarding = await Offboarding.findById(offboardingId);
+    const offboarding = await Offboarding.findOne({ _id: offboardingId, ...req.firmQuery });
 
     if (!offboarding) {
         throw CustomException('Offboarding not found', 404);
@@ -1937,7 +1920,7 @@ const addClearanceItem = asyncHandler(async (req, res) => {
         }
     }
 
-    const offboarding = await Offboarding.findById(offboardingId);
+    const offboarding = await Offboarding.findOne({ _id: offboardingId, ...req.firmQuery });
 
     if (!offboarding) {
         throw CustomException('Offboarding not found', 404);

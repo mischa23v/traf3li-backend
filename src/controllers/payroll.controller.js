@@ -434,7 +434,7 @@ const updateSalarySlip = asyncHandler(async (req, res) => {
         // SECURITY: CRITICAL - Recalculate GOSI if basicSalary changed
         // Always calculated server-side, never from user input
         if (safeEarnings.basicSalary !== undefined) {
-            const employee = await Employee.findById(salarySlip.employeeId);
+            const employee = await Employee.findOne({ _id: salarySlip.employeeId, ...req.firmQuery });
             const isSaudi = employee?.personalInfo?.isSaudi !== false;
             const gosiEmployeeRate = isSaudi ? 9.75 : 0;
             const gosiEmployerRate = isSaudi ? 12.75 : 2;

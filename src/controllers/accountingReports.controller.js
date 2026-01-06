@@ -1084,13 +1084,8 @@ const getClientStatement = asyncHandler(async (req, res) => {
     try { Client = require('../models/client.model'); } catch (e) { Client = require('../models/user.model'); }
     try { Payment = require('../models/payment.model'); } catch (e) { Payment = null; }
 
-    const client = await Client.findById(sanitizedClientId);
+    const client = await Client.findOne({ _id: sanitizedClientId, ...req.firmQuery });
     if (!client) return res.status(404).json({ success: false, error: 'Client not found' });
-
-    // Verify client belongs to firm (IDOR protection)
-    if (client.firmId && client.firmId.toString() !== firmId.toString()) {
-        return res.status(403).json({ success: false, error: 'Access denied' });
-    }
 
     // Get opening balance - with firmId filter
     const openingInvoices = await Invoice.aggregate([
@@ -1189,13 +1184,8 @@ const getVendorLedger = asyncHandler(async (req, res) => {
 
     if (!Vendor) return res.status(200).json({ success: true, report: 'vendor-ledger', message: 'Vendor model not found' });
 
-    const vendor = await Vendor.findById(sanitizedVendorId);
+    const vendor = await Vendor.findOne({ _id: sanitizedVendorId, ...req.firmQuery });
     if (!vendor) return res.status(404).json({ success: false, error: 'Vendor not found' });
-
-    // Verify vendor belongs to firm (IDOR protection)
-    if (vendor.firmId && vendor.firmId.toString() !== firmId.toString()) {
-        return res.status(403).json({ success: false, error: 'Access denied' });
-    }
 
     const transactions = [];
     let openingBalance = vendor.openingBalance || 0;

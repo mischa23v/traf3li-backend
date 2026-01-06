@@ -282,7 +282,7 @@ exports.getMacro = async (req, res) => {
     }
 
     // Get macro
-    const macro = await Macro.findById(id)
+    const macro = await Macro.findOne({ _id: id, ...req.firmQuery })
       .populate('ownerId', 'firstName lastName email')
       .populate('teamId', 'name')
       .populate('createdBy', 'firstName lastName')
@@ -292,14 +292,6 @@ exports.getMacro = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: 'Macro not found'
-      });
-    }
-
-    // IDOR protection - verify firm ownership
-    if (macro.firmId?.toString() !== firmId.toString()) {
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied'
       });
     }
 
@@ -346,20 +338,12 @@ exports.updateMacro = async (req, res) => {
     }
 
     // Get existing macro
-    const existingMacro = await Macro.findById(id);
+    const existingMacro = await Macro.findOne({ _id: id, ...req.firmQuery });
 
     if (!existingMacro) {
       return res.status(404).json({
         success: false,
         message: 'Macro not found'
-      });
-    }
-
-    // IDOR protection - verify firm ownership
-    if (existingMacro.firmId?.toString() !== firmId.toString()) {
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied'
       });
     }
 
@@ -438,20 +422,12 @@ exports.deleteMacro = async (req, res) => {
     }
 
     // Get existing macro
-    const existingMacro = await Macro.findById(id);
+    const existingMacro = await Macro.findOne({ _id: id, ...req.firmQuery });
 
     if (!existingMacro) {
       return res.status(404).json({
         success: false,
         message: 'Macro not found'
-      });
-    }
-
-    // IDOR protection - verify firm ownership
-    if (existingMacro.firmId?.toString() !== firmId.toString()) {
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied'
       });
     }
 
@@ -515,20 +491,12 @@ exports.applyMacro = async (req, res) => {
     }
 
     // Get macro to verify access
-    const macro = await Macro.findById(macroId);
+    const macro = await Macro.findOne({ _id: macroId, ...req.firmQuery });
 
     if (!macro) {
       return res.status(404).json({
         success: false,
         message: 'Macro not found'
-      });
-    }
-
-    // IDOR protection - verify firm ownership
-    if (macro.firmId?.toString() !== firmId.toString()) {
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied to macro'
       });
     }
 

@@ -2079,7 +2079,7 @@ const bulkCreateReviews = async (req, res) => {
         }
 
         // Get template
-        const template = templateId ? await ReviewTemplate.findById(templateId) : null;
+        const template = templateId ? await ReviewTemplate.findOne({ _id: templateId, ...req.firmQuery }) : null;
 
         const createdReviews = [];
         const errors = [];

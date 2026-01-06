@@ -52,20 +52,17 @@ const verifyCaseOwnership = async (caseId, user) => {
         throw new Error('Invalid case ID');
     }
 
-    const caseDoc = await Case.findById(sanitizedCaseId);
+    // Construct tenant query from user object
+    const firmQuery = user.firmId
+        ? { firmId: user.firmId }
+        : { lawyerId: user._id };
+
+    const caseDoc = await Case.findOne({ _id: sanitizedCaseId, ...firmQuery });
     if (!caseDoc) {
         throw new Error('Case not found');
     }
 
-    // Check if user has access to this case
-    const userId = user._id.toString();
-    const firmId = user.firmId?.toString();
-    const caseFirmId = caseDoc.firmId?.toString();
-    const caseLawyerId = caseDoc.lawyerId?.toString();
-
-    const hasAccess =
-        (firmId && firmId === caseFirmId) ||
-        userId === caseLawyerId;
+    const hasAccess = true; // Already verified by firmQuery
 
     if (!hasAccess) {
         throw new Error('Unauthorized access to case');
@@ -2138,7 +2135,7 @@ exports.linkBlockToHearing = async (req, res) => {
         const { hearingId } = req.body;
 
         // Verify hearing belongs to this case
-        const caseDoc = await Case.findById(caseId);
+        const caseDoc = await Case.findOne({ _id: caseId, ...req.firmQuery });
         if (!caseDoc) {
             return res.status(404).json({ error: true, message: 'Case not found' });
         }
@@ -2186,7 +2183,7 @@ exports.linkBlockToDocument = async (req, res) => {
         const { documentId } = req.body;
 
         // Verify document belongs to this case
-        const caseDoc = await Case.findById(caseId);
+        const caseDoc = await Case.findOne({ _id: caseId, ...req.firmQuery });
         if (!caseDoc) {
             return res.status(404).json({ error: true, message: 'Case not found' });
         }

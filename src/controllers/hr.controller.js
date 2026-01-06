@@ -394,21 +394,12 @@ const getEmployee = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const employee = await Employee.findById(id)
+    const employee = await Employee.findOne({ _id: id, ...req.firmQuery })
         .populate('employment.reportsTo', 'personalInfo.fullNameArabic personalInfo.fullNameEnglish')
         .populate('organization.supervisorId', 'personalInfo.fullNameArabic personalInfo.fullNameEnglish');
 
     if (!employee) {
         throw CustomException('Employee not found', 404);
-    }
-
-    // Check access
-    const hasAccess = firmId
-        ? employee.firmId?.toString() === firmId.toString()
-        : employee.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
     }
 
     return res.json({
@@ -431,19 +422,10 @@ const updateEmployee = asyncHandler(async (req, res) => {
         throw CustomException('Invalid employee ID', 400);
     }
 
-    const employee = await Employee.findById(id);
+    const employee = await Employee.findOne({ _id: id, ...req.firmQuery });
 
     if (!employee) {
         throw CustomException('Employee not found', 404);
-    }
-
-    // IDOR Protection: Verify ownership
-    const hasAccess = firmId
-        ? employee.firmId?.toString() === firmId.toString()
-        : employee.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
     }
 
     // Build update object with filtered nested fields (mass assignment protection)
@@ -567,19 +549,10 @@ const deleteEmployee = asyncHandler(async (req, res) => {
     }
 
     // IDOR Protection: Verify ownership before deletion
-    const employee = await Employee.findById(id);
+    const employee = await Employee.findOne({ _id: id, ...req.firmQuery });
 
     if (!employee) {
         throw CustomException('Employee not found', 404);
-    }
-
-    // IDOR Protection: Verify ownership
-    const hasAccess = firmId
-        ? employee.firmId?.toString() === firmId.toString()
-        : employee.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
     }
 
     // IDOR Protection: Use findOneAndDelete with ownership query
@@ -639,18 +612,10 @@ const addAllowance = asyncHandler(async (req, res) => {
     }
 
     // IDOR Protection: Verify ownership
-    const employee = await Employee.findById(id);
+    const employee = await Employee.findOne({ _id: id, ...req.firmQuery });
 
     if (!employee) {
         throw CustomException('Employee not found', 404);
-    }
-
-    const hasAccess = firmId
-        ? employee.firmId?.toString() === firmId.toString()
-        : employee.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
     }
 
     employee.compensation.allowances.push({
@@ -689,18 +654,10 @@ const removeAllowance = asyncHandler(async (req, res) => {
     }
 
     // IDOR Protection: Verify employee ownership
-    const employee = await Employee.findById(id);
+    const employee = await Employee.findOne({ _id: id, ...req.firmQuery });
 
     if (!employee) {
         throw CustomException('Employee not found', 404);
-    }
-
-    const hasAccess = firmId
-        ? employee.firmId?.toString() === firmId.toString()
-        : employee.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
     }
 
     // Verify allowance exists before deletion

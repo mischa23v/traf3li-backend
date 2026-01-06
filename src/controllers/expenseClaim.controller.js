@@ -598,18 +598,11 @@ const deleteClaim = asyncHandler(async (req, res) => {
 
     if (result.deletedCount === 0) {
         // Determine specific error
-        const existingClaim = await ExpenseClaim.findById(sanitizedId);
+        const existingClaim = await ExpenseClaim.findOne({ _id: sanitizedId, ...req.firmQuery });
         if (!existingClaim) {
             throw CustomException('Expense claim not found', 404);
         }
-        // Check ownership
-        const hasAccess = firmId
-            ? existingClaim.firmId && existingClaim.firmId.toString() === firmId.toString()
-            : existingClaim.lawyerId?.toString() === lawyerId;
-        if (!hasAccess) {
-            throw CustomException('Expense claim not found', 404);  // Don't reveal existence
-        }
-        // Must be status issue
+        // Must be status issue (ownership already verified by req.firmQuery)
         throw CustomException('Can only delete draft claims', 400);
     }
 
