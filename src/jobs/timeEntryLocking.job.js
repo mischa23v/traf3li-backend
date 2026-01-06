@@ -11,21 +11,33 @@ const TimeEntry = require('../models/timeEntry.model');
 const FiscalPeriod = require('../models/fiscalPeriod.model');
 const mongoose = require('mongoose');
 const logger = require('../utils/logger');
+const { acquireLock } = require('../services/distributedLock.service');
 
-// Track running jobs
+// Track running jobs (kept for local status reporting, but actual locking is done via Redis)
 let jobsRunning = {
     lockPeriods: false,
     cleanup: false
 };
 
+// Distributed lock names for this job module
+const LOCK_NAMES = {
+    lockPeriods: 'time_entry_lock_periods',
+    cleanup: 'time_entry_cleanup',
+    pendingApprovals: 'time_entry_pending_approvals'
+};
+
 /**
  * Lock time entries for closed fiscal periods
  * Runs daily at midnight
+ * Uses distributed locking to prevent concurrent execution across server instances
  */
 const lockEntriesForClosedPeriods = async () => {
-    if (jobsRunning.lockPeriods) {
-        logger.info('[Time Entry Jobs] Lock periods job still running, skipping...');
-        return;
+    // Acquire distributed lock
+    const lock = await acquireLock(LOCK_NAMES.lockPeriods);
+
+    if (!lock.acquired) {
+        logger.info(`[Time Entry Jobs] Lock periods job already running on another instance (TTL: ${lock.ttlRemaining}s), skipping...`);
+        return { skipped: true, reason: 'already_running_distributed' };
     }
 
     jobsRunning.lockPeriods = true;
@@ -89,6 +101,7 @@ const lockEntriesForClosedPeriods = async () => {
     } catch (error) {
         logger.error('[Time Entry Jobs] Lock periods job error:', error);
     } finally {
+        await lock.release();
         jobsRunning.lockPeriods = false;
     }
 };
@@ -96,11 +109,15 @@ const lockEntriesForClosedPeriods = async () => {
 /**
  * Clean up old rejected and draft entries
  * Runs weekly on Sunday at 2 AM
+ * Uses distributed locking to prevent concurrent execution across server instances
  */
 const cleanupOldEntries = async () => {
-    if (jobsRunning.cleanup) {
-        logger.info('[Time Entry Jobs] Cleanup job still running, skipping...');
-        return;
+    // Acquire distributed lock
+    const lock = await acquireLock(LOCK_NAMES.cleanup);
+
+    if (!lock.acquired) {
+        logger.info(`[Time Entry Jobs] Cleanup job already running on another instance (TTL: ${lock.ttlRemaining}s), skipping...`);
+        return { skipped: true, reason: 'already_running_distributed' };
     }
 
     jobsRunning.cleanup = true;
@@ -139,6 +156,7 @@ const cleanupOldEntries = async () => {
     } catch (error) {
         logger.error('[Time Entry Jobs] Cleanup job error:', error);
     } finally {
+        await lock.release();
         jobsRunning.cleanup = false;
     }
 };
@@ -146,8 +164,17 @@ const cleanupOldEntries = async () => {
 /**
  * Check for entries pending approval for too long
  * Runs daily at 9 AM to send reminder notifications
+ * Uses distributed locking to prevent concurrent execution across server instances
  */
 const checkPendingApprovals = async () => {
+    // Acquire distributed lock
+    const lock = await acquireLock(LOCK_NAMES.pendingApprovals);
+
+    if (!lock.acquired) {
+        logger.info(`[Time Entry Jobs] Pending approvals check already running on another instance (TTL: ${lock.ttlRemaining}s), skipping...`);
+        return { skipped: true, reason: 'already_running_distributed' };
+    }
+
     try {
         logger.info('[Time Entry Jobs] Checking for stale pending approvals...');
 
@@ -203,6 +230,8 @@ const checkPendingApprovals = async () => {
 
     } catch (error) {
         logger.error('[Time Entry Jobs] Pending approvals check error:', error);
+    } finally {
+        await lock.release();
     }
 };
 

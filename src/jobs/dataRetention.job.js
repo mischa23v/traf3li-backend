@@ -18,6 +18,10 @@ const { User, Invoice, Payment, Case, Client } = require('../models');
 const AuditLog = require('../models/auditLog.model');
 const Consent = require('../models/consent.model');
 const logger = require('../utils/logger');
+const { acquireLock } = require('../services/distributedLock.service');
+
+// Distributed lock name for this job
+const LOCK_NAME = 'data_retention';
 
 // Retention periods in days
 const RETENTION_PERIODS = {
@@ -304,8 +308,17 @@ async function generateRetentionReport() {
 
 /**
  * Main cleanup job
+ * Uses distributed locking to prevent concurrent execution across server instances
  */
 async function runDataRetentionJob() {
+  // Acquire distributed lock
+  const lock = await acquireLock(LOCK_NAME);
+
+  if (!lock.acquired) {
+    logger.info(`[DataRetention] Job already running on another instance (TTL: ${lock.ttlRemaining}s), skipping...`);
+    return { skipped: true, reason: 'already_running_distributed' };
+  }
+
   logger.info('[DataRetention] Starting data retention job...');
   const startTime = Date.now();
 
@@ -324,6 +337,8 @@ async function runDataRetentionJob() {
   } catch (error) {
     logger.error('[DataRetention] Job failed:', error);
     throw error;
+  } finally {
+    await lock.release();
   }
 }
 

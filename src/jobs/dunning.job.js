@@ -30,6 +30,7 @@ const Firm = require('../models/firm.model');
 const AuditLog = require('../models/auditLog.model');
 const mongoose = require('mongoose');
 const logger = require('../utils/logger');
+const { acquireLock } = require('../services/distributedLock.service');
 
 // Job configuration
 const DUNNING_JOB_CONFIG = {
@@ -40,10 +41,13 @@ const DUNNING_JOB_CONFIG = {
   }
 };
 
-// Track running jobs
+// Track running jobs (kept for local status reporting, but actual locking is done via Redis)
 let jobsRunning = {
   dailyProcess: false
 };
+
+// Distributed lock name for this job
+const LOCK_NAME = 'dunning_daily';
 
 // Track job statistics
 let jobStats = {
@@ -57,11 +61,15 @@ let jobStats = {
 /**
  * Main daily dunning process
  * Processes all overdue invoices and executes dunning stages
+ * Uses distributed locking to prevent concurrent execution across server instances
  */
 const processDailyDunning = async () => {
-  if (jobsRunning.dailyProcess) {
-    logger.info('[Dunning Job] Daily process still running, skipping...');
-    return;
+  // Acquire distributed lock
+  const lock = await acquireLock(LOCK_NAME);
+
+  if (!lock.acquired) {
+    logger.info(`[Dunning Job] Daily process already running on another instance (TTL: ${lock.ttlRemaining}s), skipping...`);
+    return { skipped: true, reason: 'already_running_distributed' };
   }
 
   jobsRunning.dailyProcess = true;
@@ -153,6 +161,7 @@ const processDailyDunning = async () => {
     jobStats.totalErrors++;
     throw error;
   } finally {
+    await lock.release();
     jobsRunning.dailyProcess = false;
   }
 };

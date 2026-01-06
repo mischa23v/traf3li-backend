@@ -13,12 +13,25 @@
 const cron = require('node-cron');
 const sessionManager = require('../services/sessionManager.service');
 const logger = require('../utils/logger');
+const { acquireLock } = require('../services/distributedLock.service');
+
+// Distributed lock name for this job
+const LOCK_NAME = 'session_cleanup';
 
 /**
  * Clean up expired sessions
  * Marks expired sessions as inactive
+ * Uses distributed locking to prevent concurrent execution across server instances
  */
 async function cleanupExpiredSessions() {
+    // Acquire distributed lock
+    const lock = await acquireLock(LOCK_NAME);
+
+    if (!lock.acquired) {
+        logger.info(`[SessionCleanup] Job already running on another instance (TTL: ${lock.ttlRemaining}s), skipping...`);
+        return { skipped: true, reason: 'already_running_distributed' };
+    }
+
     try {
         logger.info('[SessionCleanup] Starting expired sessions cleanup...');
 
@@ -36,6 +49,8 @@ async function cleanupExpiredSessions() {
             success: false,
             error: error.message
         };
+    } finally {
+        await lock.release();
     }
 }
 
