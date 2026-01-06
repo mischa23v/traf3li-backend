@@ -859,6 +859,10 @@ app.use('/api', apiVersionMiddleware);
 const { authenticatedApi } = require('./middlewares/authenticatedApi.middleware');
 app.use('/api', authenticatedApi);
 
+// ✅ DOCUMENT LOGGING: Debug logging for document operations (Gold Standard)
+const { documentLoggingMiddleware } = require('./services/documentLogger.service');
+app.use('/api', documentLoggingMiddleware);
+
 // ✅ PERFORMANCE: Static files with caching (optimized for frontend service worker)
 app.use('/uploads', express.static('uploads', {
     maxAge: '7d', // Cache static files for 7 days

@@ -8,6 +8,7 @@ const { sanitizeObjectId } = require('../utils/securityUtils');
 const crypto = require('crypto');
 const path = require('path');
 const logger = require('../utils/logger');
+const docLogger = require('../services/documentLogger.service');
 
 /**
  * Escape special regex characters to prevent NoSQL injection
@@ -150,6 +151,7 @@ const getUploadUrl = asyncHandler(async (req, res) => {
  * @param {string} bucket - The bucket where the file was uploaded
  */
 const confirmUpload = asyncHandler(async (req, res) => {
+    const startTime = Date.now();
     const {
         fileName, originalName, fileType, fileSize, fileKey, url,
         category, caseId, clientId, description, isConfidential, tags,
@@ -158,8 +160,12 @@ const confirmUpload = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId; // From firmFilter middleware
 
+    // Log upload confirmation start
+    docLogger.logUploadStart(req, { fileName, fileSize, fileType });
+
     // Validate required fields
     if (!fileName || !fileKey || !category || !fileType || fileSize === undefined) {
+        docLogger.logUploadError(req, new Error('Incomplete file data'), { fileName, fileSize, fileType });
         throw CustomException('بيانات الملف غير مكتملة', 400);
     }
 
@@ -213,6 +219,9 @@ const confirmUpload = asyncHandler(async (req, res) => {
         remoteIp: req.ip,
         userAgent: req.get('user-agent')
     }).catch(err => logger.error('Failed to log file upload:', err.message));
+
+    // Log upload success
+    docLogger.logUploadSuccess(req, document, Date.now() - startTime);
 
     // Increment usage counter for firm
     if (firmId) {
@@ -372,6 +381,7 @@ const deleteDocument = asyncHandler(async (req, res) => {
     const document = await Document.findOne({ _id: id, lawyerId, firmId });
 
     if (!document) {
+        docLogger.logNotFound(req, id, 'Document');
         throw CustomException('المستند غير موجود', 404);
     }
 
@@ -404,6 +414,9 @@ const deleteDocument = asyncHandler(async (req, res) => {
 
     // IDOR protection: include firmId in delete operation
     await Document.findOneAndDelete({ _id: id, firmId });
+
+    // Log delete success
+    docLogger.logDelete(req, document, true);
 
     // Decrement usage counter for firm
     if (docFirmId && docFirmId.toString() === firmId.toString()) {
@@ -528,10 +541,14 @@ const downloadDocument = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId; // IDOR protection
 
+    // Log download start
+    docLogger.logDownloadStart(req, id);
+
     // IDOR protection: document must belong to user's firm
     const document = await Document.findOne({ _id: id, lawyerId, firmId });
 
     if (!document) {
+        docLogger.logNotFound(req, id, 'Document');
         throw CustomException('المستند غير موجود', 404);
     }
 
@@ -558,6 +575,9 @@ const downloadDocument = asyncHandler(async (req, res) => {
     document.accessCount += 1;
     document.lastAccessedAt = new Date();
     await document.save();
+
+    // Log download success
+    docLogger.logDownloadSuccess(req, document, 3600);
 
     res.status(200).json({
         success: true,

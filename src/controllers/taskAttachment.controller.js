@@ -13,6 +13,7 @@ const { sanitizeObjectId } = require('../utils/securityUtils');
 const fs = require('fs');
 const path = require('path');
 const logger = require('../utils/logger');
+const docLogger = require('../services/documentLogger.service');
 
 // =============================================================================
 // ATTACHMENT FUNCTIONS
@@ -26,6 +27,12 @@ const logger = require('../utils/logger');
 const addAttachment = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
+    const startTime = Date.now();
+
+    // Log upload start
+    if (req.file) {
+        docLogger.logUploadStart(req, req.file);
+    }
 
     // IDOR protection
     const taskId = sanitizeObjectId(id);
@@ -33,10 +40,12 @@ const addAttachment = asyncHandler(async (req, res) => {
     // Use req.firmQuery for proper tenant isolation (solo lawyers + firm members)
     const task = await Task.findOne({ _id: taskId, ...req.firmQuery });
     if (!task) {
+        docLogger.logNotFound(req, taskId, 'Task');
         throw CustomException('Task not found', 404);
     }
 
     if (!req.file) {
+        docLogger.logUploadError(req, new Error('No file uploaded'), {});
         throw CustomException('No file uploaded', 400);
     }
 
@@ -106,8 +115,12 @@ const addAttachment = asyncHandler(async (req, res) => {
             downloadUrl = await getTaskFilePresignedUrl(newAttachment.fileKey, newAttachment.fileName);
         } catch (err) {
             logger.error('Error generating presigned URL', { error: err.message });
+            docLogger.logPresignedUrl('upload', 'tasks', newAttachment.fileKey, 1800, false, err);
         }
     }
+
+    // Log upload success
+    docLogger.logUploadSuccess(req, newAttachment, Date.now() - startTime);
 
     res.status(201).json({
         success: true,
@@ -135,16 +148,19 @@ const deleteAttachment = asyncHandler(async (req, res) => {
     // Use req.firmQuery for proper tenant isolation (solo lawyers + firm members)
     const task = await Task.findOne({ _id: taskId, ...req.firmQuery });
     if (!task) {
+        docLogger.logNotFound(req, taskId, 'Task');
         throw CustomException('Task not found', 404);
     }
 
     const attachment = task.attachments.id(sanitizedAttachmentId);
     if (!attachment) {
+        docLogger.logNotFound(req, sanitizedAttachmentId, 'Attachment');
         throw CustomException('Attachment not found', 404);
     }
 
     // Only uploader or task creator can delete
     if (attachment.uploadedBy.toString() !== userId && task.createdBy.toString() !== userId) {
+        docLogger.logAccessDenied(req, sanitizedAttachmentId, 'Not owner or task creator');
         throw CustomException('You do not have permission to delete this attachment', 403);
     }
 
@@ -177,6 +193,7 @@ const deleteAttachment = asyncHandler(async (req, res) => {
         }
     } catch (err) {
         logger.error('Error deleting file from storage', { error: err.message });
+        docLogger.logDelete(req, attachment, false, err);
         // Continue with database removal even if file deletion fails
     }
 
@@ -196,6 +213,9 @@ const deleteAttachment = asyncHandler(async (req, res) => {
 
     await task.save();
 
+    // Log successful deletion
+    docLogger.logDelete(req, { _id: sanitizedAttachmentId, fileName, fileKey }, true);
+
     res.status(200).json({
         success: true,
         message: 'تم حذف المرفق'
@@ -213,14 +233,19 @@ const getAttachmentDownloadUrl = asyncHandler(async (req, res) => {
     const { versionId, disposition = 'attachment' } = req.query;
     const userId = req.userID;
 
+    // Log download start
+    docLogger.logDownloadStart(req, attachmentId);
+
     // Use req.firmQuery for proper tenant isolation (solo lawyers + firm members)
     const task = await Task.findOne({ _id: id, ...req.firmQuery });
     if (!task) {
+        docLogger.logNotFound(req, id, 'Task');
         throw CustomException('Task not found', 404);
     }
 
     const attachment = task.attachments.id(attachmentId);
     if (!attachment) {
+        docLogger.logNotFound(req, attachmentId, 'Attachment');
         throw CustomException('Attachment not found', 404);
     }
 
@@ -254,9 +279,13 @@ const getAttachmentDownloadUrl = asyncHandler(async (req, res) => {
 
         } catch (err) {
             logger.error('Error generating presigned URL', { error: err.message });
+            docLogger.logDownloadError(req, err, attachmentId);
             throw CustomException('Error generating download URL', 500);
         }
     }
+
+    // Log download success
+    docLogger.logDownloadSuccess(req, attachment, 900); // 15 min expiry
 
     // Return downloadUrl at top level for frontend compatibility
     res.status(200).json({
