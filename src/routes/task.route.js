@@ -16,6 +16,7 @@ const {
     updateSubtask,
     startTimer,
     stopTimer,
+    resetTimeTracking,
     addManualTime,
     addComment,
     updateComment,
@@ -210,6 +211,7 @@ app.post('/:id/timer/stop', stopTimer);
 app.patch('/:id/timer/pause', pauseTimer);
 app.patch('/:id/timer/resume', resumeTimer);
 app.post('/:id/time', addManualTime);
+app.delete('/:id/time-tracking/reset', resetTimeTracking);
 
 // Comments
 app.post('/:id/comments', addComment);

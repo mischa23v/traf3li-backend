@@ -1029,6 +1029,14 @@ const startTimer = asyncHandler(async (req, res) => {
         throw CustomException('Task not found', 404);
     }
 
+    // Gold Standard: Block time tracking on completed/canceled tasks
+    if (task.status === 'done' || task.status === 'canceled') {
+        throw CustomException(
+            'Cannot start timer on completed or canceled task. Reopen the task first. | لا يمكن بدء المؤقت على مهمة مكتملة أو ملغاة. أعد فتح المهمة أولاً.',
+            400
+        );
+    }
+
     // Check for active session
     if (task.timeTracking.isTracking) {
         throw CustomException('A timer is already running for this task', 400);
@@ -1114,6 +1122,64 @@ const stopTimer = asyncHandler(async (req, res) => {
     });
 });
 
+// Reset time tracking - clears all sessions and resets counters
+const resetTimeTracking = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const userId = req.userID;
+
+    // IDOR protection
+    const taskId = sanitizeObjectId(id);
+
+    // Use req.firmQuery for proper tenant isolation (solo + firm)
+    const task = await Task.findOne({ _id: taskId, ...req.firmQuery });
+    if (!task) {
+        throw CustomException('Task not found', 404);
+    }
+
+    // Check for active timer - must stop it first
+    if (task.timeTracking.isTracking) {
+        throw CustomException(
+            'Cannot reset time tracking while timer is running. Stop the timer first. | لا يمكن إعادة تعيين تتبع الوقت أثناء تشغيل المؤقت. أوقف المؤقت أولاً.',
+            400
+        );
+    }
+
+    // Store old values for history
+    const oldActualMinutes = task.timeTracking.actualMinutes || 0;
+    const oldSessionCount = task.timeTracking.sessions?.length || 0;
+
+    // Reset time tracking
+    task.timeTracking.sessions = [];
+    task.timeTracking.actualMinutes = 0;
+    task.timeTracking.isTracking = false;
+    task.timeTracking.isPaused = false;
+    task.timeTracking.currentSessionStart = null;
+    task.timeTracking.pausedAt = null;
+    task.timeTracking.pausedMinutes = 0;
+    task.timeTracking.elapsedBeforePause = 0;
+    // Keep estimatedMinutes as-is
+
+    task.history.push({
+        action: 'time_reset',
+        userId,
+        oldValue: { actualMinutes: oldActualMinutes, sessionCount: oldSessionCount },
+        newValue: { actualMinutes: 0, sessionCount: 0 },
+        timestamp: new Date()
+    });
+
+    await task.save();
+
+    res.status(200).json({
+        success: true,
+        message: 'Time tracking reset successfully | تم إعادة تعيين تتبع الوقت بنجاح',
+        data: {
+            timeTracking: task.timeTracking,
+            previousMinutes: oldActualMinutes,
+            previousSessions: oldSessionCount
+        }
+    });
+});
+
 // Add manual time
 const addManualTime = asyncHandler(async (req, res) => {
     const { id } = req.params;
@@ -1139,6 +1205,14 @@ const addManualTime = asyncHandler(async (req, res) => {
     const task = await Task.findOne({ _id: taskId, ...req.firmQuery });
     if (!task) {
         throw CustomException('Task not found', 404);
+    }
+
+    // Gold Standard: Block time tracking on completed/canceled tasks
+    if (task.status === 'done' || task.status === 'canceled') {
+        throw CustomException(
+            'Cannot add time to completed or canceled task. Reopen the task first. | لا يمكن إضافة وقت لمهمة مكتملة أو ملغاة. أعد فتح المهمة أولاً.',
+            400
+        );
     }
 
     const sessionDate = date ? new Date(date) : new Date();
@@ -2441,6 +2515,14 @@ const resumeTimer = asyncHandler(async (req, res) => {
     const task = await Task.findOne({ _id: taskId, ...req.firmQuery });
     if (!task) {
         throw CustomException('Task not found', 404);
+    }
+
+    // Gold Standard: Block resume on completed/canceled tasks
+    if (task.status === 'done' || task.status === 'canceled') {
+        throw CustomException(
+            'Cannot resume timer on completed or canceled task. Reopen the task first. | لا يمكن استئناف المؤقت على مهمة مكتملة أو ملغاة. أعد فتح المهمة أولاً.',
+            400
+        );
     }
 
     if (!task.timeTracking.isTracking) {
@@ -4306,6 +4388,7 @@ module.exports = {
     updateSubtask,
     startTimer,
     stopTimer,
+    resetTimeTracking,
     addManualTime,
     addComment,
     updateComment,

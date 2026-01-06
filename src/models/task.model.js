@@ -78,7 +78,8 @@ const historyEntrySchema = new mongoose.Schema({
             'commented', 'attachment_added', 'attachment_removed', 'subtask_added',
             'subtask_completed', 'subtask_uncompleted', 'subtask_deleted',
             'dependency_added', 'dependency_removed', 'created_from_template',
-            'archived', 'unarchived', 'cloned', 'reordered', 'rescheduled']
+            'archived', 'unarchived', 'cloned', 'reordered', 'rescheduled',
+            'timer_paused', 'timer_resumed', 'time_reset']
     },
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     userName: String,

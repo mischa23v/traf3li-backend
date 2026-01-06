@@ -1013,3 +1013,86 @@ Reopen a completed or canceled task, setting its status back to `in_progress`.
 | POST /:id/complete | Complete a task (sets status to `done`) |
 | POST /:id/reopen | Reopen a completed/canceled task (sets status to `in_progress`) |
 | PATCH /:id/status | Update task status to any valid value |
+
+---
+
+## NEW: Time Tracking Business Rules (2026-01-06)
+
+### Gold Standard: Block Time Tracking on Completed Tasks
+
+Time tracking operations are **blocked** on tasks with status `done` or `canceled`. Users must **reopen** the task first.
+
+### Blocked Operations (on completed/canceled tasks)
+
+| Endpoint | Error Message |
+|----------|---------------|
+| POST /:id/timer/start | "Cannot start timer on completed or canceled task. Reopen the task first." |
+| PATCH /:id/timer/resume | "Cannot resume timer on completed or canceled task. Reopen the task first." |
+| POST /:id/time | "Cannot add time to completed or canceled task. Reopen the task first." |
+
+### Allowed Operations (on completed/canceled tasks)
+
+| Endpoint | Reason |
+|----------|--------|
+| POST /:id/timer/stop | Allow stopping accidental timers |
+| PATCH /:id/timer/pause | Allow pausing accidental timers |
+
+### NEW: Reset Time Tracking Endpoint
+
+**DELETE /api/tasks/:id/time-tracking/reset**
+
+Clear all time tracking sessions and reset counters to zero.
+
+**Constraints:**
+- Timer must be stopped first (cannot reset while tracking)
+- Estimated minutes are preserved
+- History is updated with `time_reset` action
+
+**Request:** No body required
+
+**Success Response (200):**
+```json
+{
+    "success": true,
+    "message": "Time tracking reset successfully | تم إعادة تعيين تتبع الوقت بنجاح",
+    "data": {
+        "timeTracking": {
+            "estimatedMinutes": 120,
+            "actualMinutes": 0,
+            "sessions": [],
+            "isTracking": false
+        },
+        "previousMinutes": 240,
+        "previousSessions": 5
+    }
+}
+```
+
+**Error Response (400) - Timer Running:**
+```json
+{
+    "success": false,
+    "message": "Cannot reset time tracking while timer is running. Stop the timer first. | لا يمكن إعادة تعيين تتبع الوقت أثناء تشغيل المؤقت. أوقف المؤقت أولاً."
+}
+```
+
+### Updated Time Tracking Endpoints Summary
+
+| Method | Endpoint | Handler | Blocked on Completed? |
+|--------|----------|---------|----------------------|
+| POST | /:id/timer/start | startTimer | ✅ Yes |
+| POST | /:id/timer/stop | stopTimer | ❌ No (allow stop) |
+| PATCH | /:id/timer/pause | pauseTimer | ❌ No (allow pause) |
+| PATCH | /:id/timer/resume | resumeTimer | ✅ Yes |
+| POST | /:id/time | addManualTime | ✅ Yes |
+| DELETE | /:id/time-tracking/reset | resetTimeTracking | ❌ No (allow reset) |
+
+### Change Log Update
+
+| Date | Change | Breaking? |
+|------|--------|-----------|
+| 2026-01-06 | Added status check to startTimer - blocks on done/canceled tasks | Yes (returns 400) |
+| 2026-01-06 | Added status check to resumeTimer - blocks on done/canceled tasks | Yes (returns 400) |
+| 2026-01-06 | Added status check to addManualTime - blocks on done/canceled tasks | Yes (returns 400) |
+| 2026-01-06 | Added DELETE /:id/time-tracking/reset endpoint | No |
+| 2026-01-06 | Added timer_paused, timer_resumed, time_reset to history action enum | No |
