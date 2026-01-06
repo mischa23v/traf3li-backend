@@ -233,9 +233,7 @@ const createCorporateCard = asyncHandler(async (req, res) => {
         });
     }
 
-    const card = new CorporateCard({
-        firmId: req.firmId,
-        lawyerId: req.firmId ? null : req.userID,
+    const card = new CorporateCard(req.addFirmId({
         cardName: safeData.cardName,
         cardNameAr: safeData.cardNameAr,
         cardType: safeData.cardType,
@@ -261,7 +259,7 @@ const createCorporateCard = asyncHandler(async (req, res) => {
         notes: safeData.notes,
         activatedAt: new Date(),
         createdBy: req.userID
-    });
+    }));
 
     await card.save();
 

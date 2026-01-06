@@ -70,11 +70,10 @@ const createLostReason = asyncHandler(async (req, res) => {
     }
 
     // Create with firm context
-    const lostReason = new LostReason({
+    const lostReason = new LostReason(req.addFirmId({
         ...allowedFields,
-        firmId: req.firmId,
         createdBy: req.userID
-    });
+    }));
 
     await lostReason.save();
 

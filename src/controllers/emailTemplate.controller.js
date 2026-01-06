@@ -86,11 +86,10 @@ const createTemplate = async (req, res) => {
     }
 
     // Create template with firm context
-    const template = new EmailTemplate({
+    const template = new EmailTemplate(req.addFirmId({
       ...allowedFields,
-      firmId: req.firmId,
       createdBy: req.userID
-    });
+    }));
 
     await template.save();
 
@@ -116,7 +115,7 @@ const getTemplates = async (req, res) => {
     // Build query with firm isolation
     const query = {
       $or: [
-        { firmId: req.firmId },
+        { ...req.firmQuery },
         { isPublic: true, isActive: true }
       ]
     };
@@ -417,12 +416,11 @@ const duplicateTemplate = async (req, res) => {
 
     // Update name
     duplicateData.name = `${duplicateData.name} (Copy)`;
-    duplicateData.firmId = req.firmId;
     duplicateData.createdBy = req.userID;
     duplicateData.isDefault = false;
     duplicateData.isSystemTemplate = false;
 
-    const duplicate = new EmailTemplate(duplicateData);
+    const duplicate = new EmailTemplate(req.addFirmId(duplicateData));
     await duplicate.save();
 
     return res.status(201).json({

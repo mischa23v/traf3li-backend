@@ -188,13 +188,11 @@ const createExpensePolicy = asyncHandler(async (req, res) => {
         sanitizedData.mileage.rate = validateAmount(sanitizedData.mileage.rate, 'mileage.rate');
     }
 
-    const policy = new ExpensePolicy({
-        firmId: req.firmId,
-        lawyerId: req.firmId ? null : req.userID,
+    const policy = new ExpensePolicy(req.addFirmId({
         ...sanitizedData,
         effectiveDate: sanitizedData.effectiveDate || new Date(),
         createdBy: req.userID
-    });
+    }));
 
     await policy.save();
 

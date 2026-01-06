@@ -828,7 +828,7 @@ const delegateReminder = asyncHandler(async (req, res) => {
     if (!req.firmId) {
         throw CustomException('Delegation is not available for solo lawyers', 400);
     }
-    const delegateUser = await User.findOne({ _id: sanitizedDelegateTo, firmId: req.firmId });
+    const delegateUser = await User.findOne({ _id: sanitizedDelegateTo, ...req.firmQuery });
     if (!delegateUser) {
         throw CustomException('Delegate user not found in your firm', 404);
     }

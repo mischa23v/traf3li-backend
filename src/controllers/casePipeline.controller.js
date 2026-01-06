@@ -274,7 +274,7 @@ exports.moveCaseToStage = async (req, res) => {
         }
 
         // Find the case
-        const caseDoc = await Case.findById(sanitizedCaseId);
+        const caseDoc = await Case.findOne({ _id: sanitizedCaseId, ...req.firmQuery });
         if (!caseDoc) {
             return res.status(404).json({
                 error: true,
@@ -283,7 +283,7 @@ exports.moveCaseToStage = async (req, res) => {
             });
         }
 
-        // IDOR Protection - verify firmId ownership
+        // Ownership already verified by req.firmQuery
         const sanitizedUserId = sanitizeObjectId(userId);
         const sanitizedFirmId = sanitizeObjectId(req.user?.firmId);
 
@@ -415,7 +415,7 @@ exports.endCase = async (req, res) => {
         }
 
         // Find the case
-        const caseDoc = await Case.findById(sanitizedCaseId);
+        const caseDoc = await Case.findOne({ _id: sanitizedCaseId, ...req.firmQuery });
         if (!caseDoc) {
             return res.status(404).json({
                 error: true,
@@ -424,7 +424,7 @@ exports.endCase = async (req, res) => {
             });
         }
 
-        // IDOR Protection - verify firmId ownership
+        // Ownership already verified by req.firmQuery
         const sanitizedUserId = sanitizeObjectId(userId);
         const sanitizedFirmId = sanitizeObjectId(req.user?.firmId);
 
@@ -866,7 +866,7 @@ exports.getNotes = async (req, res) => {
         }
 
         // Find the case
-        const caseDoc = await Case.findById(sanitizedCaseId)
+        const caseDoc = await Case.findOne({ _id: sanitizedCaseId, ...req.firmQuery })
             .populate('notes.createdBy', 'name firstName lastName email')
             .select('notes lawyerId firmId');
 
@@ -968,7 +968,7 @@ exports.addNote = async (req, res) => {
             });
         }
 
-        const caseDoc = await Case.findById(sanitizedCaseId);
+        const caseDoc = await Case.findOne({ _id: sanitizedCaseId, ...req.firmQuery });
         if (!caseDoc) {
             return res.status(404).json({
                 success: false,
@@ -1055,7 +1055,7 @@ exports.updateNote = async (req, res) => {
             });
         }
 
-        const caseDoc = await Case.findById(sanitizedCaseId);
+        const caseDoc = await Case.findOne({ _id: sanitizedCaseId, ...req.firmQuery });
         if (!caseDoc) {
             return res.status(404).json({
                 success: false,
@@ -1145,7 +1145,7 @@ exports.deleteNote = async (req, res) => {
             });
         }
 
-        const caseDoc = await Case.findById(sanitizedCaseId);
+        const caseDoc = await Case.findOne({ _id: sanitizedCaseId, ...req.firmQuery });
         if (!caseDoc) {
             return res.status(404).json({
                 success: false,

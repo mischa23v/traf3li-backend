@@ -1,7 +1,7 @@
 const { Transaction, Invoice, Expense, Case } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
-const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+const { pickAllowedFields, sanitizeObjectId, sanitizePagination } = require('../utils/securityUtils');
 const mongoose = require('mongoose');
 
 // Helper function to escape regex special characters (ReDoS protection)
@@ -194,13 +194,19 @@ const getTransactions = asyncHandler(async (req, res) => {
     const sortOptions = {};
     sortOptions[sortBy] = sortOrder === 'asc' ? 1 : -1;
 
+    // Sanitize pagination to prevent DoS attacks
+    const { page: safePage, limit: safeLimit, skip } = sanitizePagination(req.query, {
+        maxLimit: 200,
+        defaultLimit: 50
+    });
+
     const transactions = await Transaction.find(query)
         .populate('relatedInvoice', 'invoiceNumber totalAmount')
         .populate('relatedExpense', 'description amount')
         .populate('relatedCase', 'caseNumber title')
         .sort(sortOptions)
-        .limit(parseInt(limit))
-        .skip((parseInt(page) - 1) * parseInt(limit));
+        .limit(safeLimit)
+        .skip(skip);
 
     const total = await Transaction.countDocuments(query);
 
@@ -209,10 +215,10 @@ const getTransactions = asyncHandler(async (req, res) => {
         success: true,
         data: Array.isArray(transactions) ? transactions : [],
         pagination: {
-            page: parseInt(page),
-            limit: parseInt(limit),
+            page: safePage,
+            limit: safeLimit,
             total,
-            pages: Math.ceil(total / parseInt(limit))
+            pages: Math.ceil(total / safeLimit)
         }
     });
 });

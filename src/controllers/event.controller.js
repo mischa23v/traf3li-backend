@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const { Event, Task, Case, User } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
@@ -1803,6 +1804,8 @@ const bulkUpdateEvents = asyncHandler(async (req, res) => {
         throw CustomException('Some events are not accessible or you do not have permission', 403);
     }
 
+    // NOTE: No transaction needed - this is a standalone operation updating only the Event collection.
+    // No related collections are affected by these field updates (status, type, etc.).
     // Perform bulk update
     await Event.updateMany(
         {
@@ -1831,6 +1834,9 @@ const bulkUpdateEvents = asyncHandler(async (req, res) => {
 /**
  * Bulk delete events
  * DELETE /api/events/bulk
+ *
+ * NOTE: Uses MongoDB transaction to ensure atomicity between unlinking tasks and deleting events.
+ * If either operation fails, both are rolled back to prevent data inconsistency.
  */
 const bulkDeleteEvents = asyncHandler(async (req, res) => {
     const userId = req.userID;
@@ -1861,36 +1867,60 @@ const bulkDeleteEvents = asyncHandler(async (req, res) => {
         throw CustomException('Some events are not accessible or you do not have permission', 403);
     }
 
-    // Unlink any linked tasks
-    for (const event of events) {
-        if (event.taskId) {
-            try {
-                const linkedTask = await Task.findOne({ _id: event.taskId, ...req.firmQuery });
-                if (linkedTask) {
-                    linkedTask.linkedEventId = null;
-                    await linkedTask.save();
-                }
-            } catch (error) {
-                logger.error('Error unlinking task from deleted event', { error: error.message });
-            }
+    // Collect task IDs that need to be unlinked
+    const taskIdsToUnlink = events
+        .filter(event => event.taskId)
+        .map(event => event.taskId);
+
+    // Use transaction to ensure atomicity
+    // Rationale: We're modifying two collections (Task and Event).
+    // If Event.deleteMany fails after tasks are unlinked, we'd have orphaned linkedEventId = null.
+    // Transaction ensures both operations succeed or both are rolled back.
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+        // Unlink all associated tasks in bulk
+        if (taskIdsToUnlink.length > 0) {
+            await Task.updateMany(
+                {
+                    _id: { $in: taskIdsToUnlink },
+                    ...req.firmQuery
+                },
+                {
+                    $set: { linkedEventId: null }
+                },
+                { session }
+            );
         }
+
+        // Perform bulk delete
+        await Event.deleteMany(
+            {
+                _id: { $in: eventIds },
+                ...req.firmQuery,
+                $or: [
+                    { organizer: userId },
+                    { createdBy: userId }
+                ]
+            },
+            { session }
+        );
+
+        await session.commitTransaction();
+
+        res.status(200).json({
+            success: true,
+            message: `${events.length} event(s) deleted successfully`,
+            count: events.length
+        });
+    } catch (error) {
+        await session.abortTransaction();
+        logger.error('Bulk delete events transaction failed', { error: error.message });
+        throw error;
+    } finally {
+        session.endSession();
     }
-
-    // Perform bulk delete
-    await Event.deleteMany({
-        _id: { $in: eventIds },
-        ...req.firmQuery,
-        $or: [
-            { organizer: userId },
-            { createdBy: userId }
-        ]
-    });
-
-    res.status(200).json({
-        success: true,
-        message: `${events.length} event(s) deleted successfully`,
-        count: events.length
-    });
 });
 
 /**
@@ -2820,6 +2850,8 @@ const bulkCompleteEvents = asyncHandler(async (req, res) => {
         });
     }
 
+    // NOTE: No transaction needed - this is a standalone operation updating only the Event collection.
+    // No related collections are affected by completing events. History is tracked within the same document.
     const now = new Date();
     const updateResult = await Event.updateMany(
         { _id: { $in: foundIds }, ...req.firmQuery },
@@ -2892,6 +2924,8 @@ const bulkArchiveEvents = asyncHandler(async (req, res) => {
         });
     }
 
+    // NOTE: No transaction needed - this is a standalone operation updating only the Event collection.
+    // No related collections are affected by archiving events.
     const now = new Date();
     const updateResult = await Event.updateMany(
         { _id: { $in: foundIds }, ...req.firmQuery },
@@ -2955,6 +2989,8 @@ const bulkUnarchiveEvents = asyncHandler(async (req, res) => {
         });
     }
 
+    // NOTE: No transaction needed - this is a standalone operation updating only the Event collection.
+    // No related collections are affected by unarchiving events.
     const updateResult = await Event.updateMany(
         { _id: { $in: foundIds }, ...req.firmQuery },
         {

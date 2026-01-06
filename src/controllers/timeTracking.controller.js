@@ -1,7 +1,7 @@
 const { TimeEntry, BillingRate, Case, Client } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
-const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+const { pickAllowedFields, sanitizeObjectId, sanitizePagination } = require('../utils/securityUtils');
 const QueueService = require('../services/queue.service');
 
 // In-memory timer state (in production, use Redis or database)
@@ -11,16 +11,9 @@ const activeTimers = new Map();
 // HELPER: Get firm filter for multi-tenancy
 // ═══════════════════════════════════════════════════════════════
 const getFirmFilter = (req) => {
-    if (req.firm && req.firm._id) {
-        return { firmId: req.firm._id };
-    }
-    if (req.firmId) {
-        return { firmId: req.firmId };
-    }
-    if (req.user && req.user._id) {
-        return { lawyerId: req.user._id };
-    }
-    return {};
+    // Use req.firmQuery which is set by authenticatedApi middleware
+    // Handles both firm members (firmId) and solo lawyers (lawyerId)
+    return req.firmQuery || {};
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -567,8 +560,11 @@ const getTimeEntries = asyncHandler(async (req, res) => {
         }
     }
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-    const limitNum = parseInt(limit);
+    // Sanitize pagination to prevent DoS attacks
+    const { limit: safeLimit, skip } = sanitizePagination(req.query, {
+        maxLimit: 200,
+        defaultLimit: 50
+    });
 
     const [entries, total] = await Promise.all([
         TimeEntry.find(query)
@@ -581,7 +577,7 @@ const getTimeEntries = asyncHandler(async (req, res) => {
             .populate('invoiceId', 'invoiceNumber')
             .sort({ date: -1, createdAt: -1 })
             .skip(skip)
-            .limit(limitNum),
+            .limit(safeLimit),
         TimeEntry.countDocuments(query)
     ]);
 
@@ -624,7 +620,7 @@ const getTimeEntries = asyncHandler(async (req, res) => {
             entries,
             total,
             page: parseInt(page),
-            totalPages: Math.ceil(total / limitNum),
+            totalPages: Math.ceil(total / safeLimit),
             summary: {
                 totalDuration: summary.totalDuration || 0,
                 totalBillable: summary.totalBillable || 0,
@@ -1419,8 +1415,11 @@ const getPendingApprovalEntries = asyncHandler(async (req, res) => {
     if (clientId) query.clientId = sanitizeObjectId(clientId);
     if (caseId) query.caseId = sanitizeObjectId(caseId);
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-    const limitNum = parseInt(limit);
+    // Sanitize pagination to prevent DoS attacks
+    const { limit: safeLimit, skip } = sanitizePagination(req.query, {
+        maxLimit: 200,
+        defaultLimit: 50
+    });
 
     const [entries, total] = await Promise.all([
         TimeEntry.find(query)
@@ -1430,7 +1429,7 @@ const getPendingApprovalEntries = asyncHandler(async (req, res) => {
             .populate('caseId', 'title caseNumber')
             .sort({ submittedAt: -1, createdAt: -1 })
             .skip(skip)
-            .limit(limitNum),
+            .limit(safeLimit),
         TimeEntry.countDocuments(query)
     ]);
 
@@ -1453,7 +1452,7 @@ const getPendingApprovalEntries = asyncHandler(async (req, res) => {
             entries,
             total,
             page: parseInt(page),
-            totalPages: Math.ceil(total / limitNum),
+            totalPages: Math.ceil(total / safeLimit),
             summary: summary[0] || { totalEntries: 0, totalDuration: 0, totalAmount: 0 }
         }
     });

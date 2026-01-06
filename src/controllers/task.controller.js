@@ -5,7 +5,7 @@ const CustomException = require('../utils/CustomException');
 const { deleteFile, listFileVersions, logFileAccess } = require('../configs/storage');
 const { isS3Configured, getTaskFilePresignedUrl, isS3Url, extractS3Key } = require('../configs/taskUpload');
 const { sanitizeRichText, sanitizeComment, stripHtml, hasDangerousContent } = require('../utils/sanitize');
-const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+const { pickAllowedFields, sanitizeObjectId, sanitizePagination } = require('../utils/securityUtils');
 const fs = require('fs');
 const path = require('path');
 const logger = require('../utils/logger');
@@ -371,6 +371,12 @@ const getTasks = asyncHandler(async (req, res) => {
     const sortOptions = {};
     sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
 
+    // Sanitize pagination to prevent DoS attacks
+    const { limit: safeLimit, skip } = sanitizePagination(req.query, {
+        maxLimit: 200,
+        defaultLimit: 50
+    });
+
     // Gold Standard: Try $text search first, fallback to regex if index missing
     let tasks;
     let total;
@@ -381,8 +387,8 @@ const getTasks = asyncHandler(async (req, res) => {
             .populate('caseId', 'title caseNumber')
             .populate('clientId', 'firstName lastName')
             .sort(sortOptions)
-            .limit(parseInt(limit))
-            .skip((parseInt(page) - 1) * parseInt(limit))
+            .limit(safeLimit)
+            .skip(skip)
             .lean();
 
         total = await Task.countDocuments(query);
@@ -445,8 +451,8 @@ const getTasks = asyncHandler(async (req, res) => {
                 .populate('caseId', 'title caseNumber')
                 .populate('clientId', 'firstName lastName')
                 .sort(sortOptions)
-                .limit(parseInt(limit))
-                .skip((parseInt(page) - 1) * parseInt(limit))
+                .limit(safeLimit)
+                .skip(skip)
                 .lean();
 
             total = await Task.countDocuments(fallbackQuery);
@@ -460,9 +466,9 @@ const getTasks = asyncHandler(async (req, res) => {
         data: tasks,
         pagination: {
             page: parseInt(page),
-            limit: parseInt(limit),
+            limit: safeLimit,
             total,
-            pages: Math.ceil(total / parseInt(limit))
+            pages: Math.ceil(total / safeLimit)
         }
     });
 });
@@ -1428,6 +1434,8 @@ const bulkUpdateTasks = asyncHandler(async (req, res) => {
         throw CustomException('Some tasks are not accessible', 403);
     }
 
+    // NOTE: No transaction needed - this is a standalone operation updating only the Task collection.
+    // No related collections are affected by these field updates (status, priority, etc.).
     // Use req.firmQuery in updateMany for tenant isolation
     await Task.updateMany(
         { _id: { $in: sanitizedTaskIds }, ...req.firmQuery },
@@ -1442,6 +1450,10 @@ const bulkUpdateTasks = asyncHandler(async (req, res) => {
 });
 
 // Bulk delete tasks
+//
+// NOTE: Uses MongoDB transaction to ensure atomicity between unlinking/deleting linked events and deleting tasks.
+// If either operation fails, both are rolled back to prevent data inconsistency.
+// This mirrors the behavior of single task delete which also removes linked events.
 const bulkDeleteTasks = asyncHandler(async (req, res) => {
     // Mass assignment protection
     const data = pickAllowedFields(req.body, ALLOWED_FIELDS.BULK_DELETE);
@@ -1462,7 +1474,8 @@ const bulkDeleteTasks = asyncHandler(async (req, res) => {
     // Use req.firmQuery for proper tenant isolation (solo + firm)
     const accessQuery = { _id: { $in: sanitizedTaskIds }, ...req.firmQuery };
 
-    const tasks = await Task.find(accessQuery).select('_id');
+    // Fetch tasks with linkedEventId to know which events to delete
+    const tasks = await Task.find(accessQuery).select('_id linkedEventId');
     const foundTaskIds = tasks.map(t => t._id.toString());
 
     // Find which IDs failed authorization
@@ -1478,15 +1491,51 @@ const bulkDeleteTasks = asyncHandler(async (req, res) => {
         });
     }
 
-    // SECURITY: Use accessQuery with req.firmQuery to ensure tenant isolation
-    await Task.deleteMany(accessQuery);
+    // Collect event IDs that need to be deleted (mirroring single task delete behavior)
+    const eventIdsToDelete = tasks
+        .filter(task => task.linkedEventId)
+        .map(task => task.linkedEventId);
 
-    res.status(200).json({
-        success: true,
-        message: `${tasks.length} tasks deleted successfully`,
-        count: tasks.length,
-        data: { deletedIds: foundTaskIds }
-    });
+    // Use transaction to ensure atomicity
+    // Rationale: We're modifying two collections (Task and Event).
+    // If Task.deleteMany fails after events are deleted, we'd have orphaned events.
+    // Transaction ensures both operations succeed or both are rolled back.
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+        // Delete all linked events in bulk
+        if (eventIdsToDelete.length > 0) {
+            await Event.deleteMany(
+                {
+                    _id: { $in: eventIdsToDelete },
+                    ...req.firmQuery
+                },
+                { session }
+            );
+        }
+
+        // Delete all tasks
+        await Task.deleteMany(accessQuery, { session });
+
+        await session.commitTransaction();
+
+        res.status(200).json({
+            success: true,
+            message: `${tasks.length} tasks deleted successfully`,
+            count: tasks.length,
+            data: {
+                deletedIds: foundTaskIds,
+                deletedLinkedEvents: eventIdsToDelete.length
+            }
+        });
+    } catch (error) {
+        await session.abortTransaction();
+        logger.error('Bulk delete tasks transaction failed', { error: error.message });
+        throw error;
+    } finally {
+        session.endSession();
+    }
 });
 
 // === STATS & ANALYTICS ===
@@ -2721,13 +2770,17 @@ const getTaskActivity = asyncHandler(async (req, res) => {
         throw CustomException('Task not found', 404);
     }
 
-    // Get history entries with pagination
+    // Get history entries with pagination - sanitize to prevent DoS
+    const { limit: safeLimit, skip } = sanitizePagination(req.query, {
+        maxLimit: 200,
+        defaultLimit: 50
+    });
+
     const history = task.history || [];
     const total = history.length;
-    const startIndex = (parseInt(page) - 1) * parseInt(limit);
     const paginatedHistory = history
         .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-        .slice(startIndex, startIndex + parseInt(limit));
+        .slice(skip, skip + safeLimit);
 
     // Populate user info for each history entry
     const userIds = [...new Set(paginatedHistory.map(h => h.userId).filter(Boolean))];
@@ -2745,9 +2798,9 @@ const getTaskActivity = asyncHandler(async (req, res) => {
         data: enrichedHistory,
         pagination: {
             page: parseInt(page),
-            limit: parseInt(limit),
+            limit: safeLimit,
             total,
-            pages: Math.ceil(total / parseInt(limit))
+            pages: Math.ceil(total / safeLimit)
         }
     });
 });
@@ -2772,13 +2825,19 @@ const getTasksByClient = asyncHandler(async (req, res) => {
     if (status) query.status = status;
     if (priority) query.priority = priority;
 
+    // Sanitize pagination to prevent DoS attacks
+    const { limit: safeLimit, skip } = sanitizePagination(req.query, {
+        maxLimit: 200,
+        defaultLimit: 50
+    });
+
     const tasks = await Task.find(query)
         .populate('assignedTo', 'firstName lastName image')
         .populate('createdBy', 'firstName lastName')
         .populate('caseId', 'title caseNumber')
         .sort({ dueDate: 1, priority: -1 })
-        .limit(parseInt(limit))
-        .skip((parseInt(page) - 1) * parseInt(limit))
+        .limit(safeLimit)
+        .skip(skip)
         .lean();
 
     const total = await Task.countDocuments(query);
@@ -2788,9 +2847,9 @@ const getTasksByClient = asyncHandler(async (req, res) => {
         data: tasks,
         pagination: {
             page: parseInt(page),
-            limit: parseInt(limit),
+            limit: safeLimit,
             total,
-            pages: Math.ceil(total / parseInt(limit))
+            pages: Math.ceil(total / safeLimit)
         }
     });
 });
@@ -2969,14 +3028,20 @@ const searchTasks = asyncHandler(async (req, res) => {
     const effectiveSortBy = sortBy === 'relevance' ? 'updatedAt' : sortBy;
     sortOptions[effectiveSortBy] = sortOrder === 'desc' ? -1 : 1;
 
+    // Sanitize pagination to prevent DoS attacks
+    const { limit: safeLimit, skip } = sanitizePagination(req.query, {
+        maxLimit: 200,
+        defaultLimit: 50
+    });
+
     const tasks = await Task.find(query)
         .populate('assignedTo', 'firstName lastName image')
         .populate('createdBy', 'firstName lastName')
         .populate('caseId', 'title caseNumber')
         .populate('clientId', 'firstName lastName')
         .sort(sortOptions)
-        .limit(parseInt(limit))
-        .skip((parseInt(page) - 1) * parseInt(limit))
+        .limit(safeLimit)
+        .skip(skip)
         .lean();
 
     const total = await Task.countDocuments(query);
@@ -2988,9 +3053,9 @@ const searchTasks = asyncHandler(async (req, res) => {
         filters: { status, priority, assignedTo, caseId, clientId, startDate, endDate, overdue },
         pagination: {
             page: parseInt(page),
-            limit: parseInt(limit),
+            limit: safeLimit,
             total,
-            pages: Math.ceil(total / parseInt(limit))
+            pages: Math.ceil(total / safeLimit)
         }
     });
 });
@@ -3331,6 +3396,8 @@ const bulkCompleteTasks = asyncHandler(async (req, res) => {
         });
     }
 
+    // NOTE: No transaction needed - this is a standalone operation updating only the Task collection.
+    // No related collections are affected by completing tasks. History is tracked within the same document.
     // Complete all accessible tasks
     const now = new Date();
     const updateResult = await Task.updateMany(
@@ -3418,6 +3485,8 @@ const bulkAssignTasks = asyncHandler(async (req, res) => {
         });
     }
 
+    // NOTE: No transaction needed - this is a standalone operation updating only the Task collection.
+    // No related collections are affected by reassigning tasks. History is tracked within the same document.
     // Assign all accessible tasks
     const now = new Date();
     const updateResult = await Task.updateMany(
@@ -3499,6 +3568,8 @@ const bulkArchiveTasks = asyncHandler(async (req, res) => {
         });
     }
 
+    // NOTE: No transaction needed - this is a standalone operation updating only the Task collection.
+    // No related collections are affected by archiving tasks. History is tracked within the same document.
     // Archive all accessible tasks
     const now = new Date();
     const updateResult = await Task.updateMany(
@@ -3574,6 +3645,8 @@ const bulkUnarchiveTasks = asyncHandler(async (req, res) => {
         });
     }
 
+    // NOTE: No transaction needed - this is a standalone operation updating only the Task collection.
+    // No related collections are affected by unarchiving tasks. History is tracked within the same document.
     // Unarchive all accessible tasks
     const now = new Date();
     const updateResult = await Task.updateMany(
@@ -3648,6 +3721,8 @@ const bulkReopenTasks = asyncHandler(async (req, res) => {
         });
     }
 
+    // NOTE: No transaction needed - this is a standalone operation updating only the Task collection.
+    // No related collections are affected by reopening tasks. History is tracked within the same document.
     // Reopen all accessible tasks
     const now = new Date();
     const updateResult = await Task.updateMany(
@@ -4221,6 +4296,12 @@ const getArchivedTasks = asyncHandler(async (req, res) => {
     const sortOptions = {};
     sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
 
+    // Sanitize pagination to prevent DoS attacks
+    const { limit: safeLimit, skip } = sanitizePagination(req.query, {
+        maxLimit: 200,
+        defaultLimit: 50
+    });
+
     const [tasks, total] = await Promise.all([
         Task.find(query)
             .populate('assignedTo', 'firstName lastName email image')
@@ -4229,8 +4310,8 @@ const getArchivedTasks = asyncHandler(async (req, res) => {
             .populate('clientId', 'firstName lastName')
             .populate('archivedBy', 'firstName lastName')
             .sort(sortOptions)
-            .skip((parseInt(page) - 1) * parseInt(limit))
-            .limit(parseInt(limit)),
+            .skip(skip)
+            .limit(safeLimit),
         Task.countDocuments(query)
     ]);
 
@@ -4239,9 +4320,9 @@ const getArchivedTasks = asyncHandler(async (req, res) => {
         data: tasks,
         pagination: {
             page: parseInt(page),
-            limit: parseInt(limit),
+            limit: safeLimit,
             total,
-            pages: Math.ceil(total / parseInt(limit))
+            pages: Math.ceil(total / safeLimit)
         }
     });
 });

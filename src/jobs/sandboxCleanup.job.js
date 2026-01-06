@@ -12,6 +12,7 @@
 const cron = require('node-cron');
 const sandboxService = require('../services/sandbox.service');
 const logger = require('../utils/logger');
+const { acquireLock } = require('../services/distributedLock.service');
 
 /**
  * Cleanup expired sandboxes
@@ -43,6 +44,14 @@ async function cleanupExpiredSandboxes() {
  * Sends email notifications before sandbox expiration
  */
 async function sendExpirationWarnings() {
+    // Acquire distributed lock
+    const lock = await acquireLock('sandbox_expiration_warnings');
+
+    if (!lock.acquired) {
+        logger.info(`[SandboxCleanup] Expiration warnings already running on another instance (TTL: ${lock.ttlRemaining}s), skipping...`);
+        return { skipped: true, reason: 'already_running_distributed' };
+    }
+
     try {
         logger.info('[SandboxCleanup] Sending expiration warnings...');
 
@@ -66,6 +75,8 @@ async function sendExpirationWarnings() {
             success: false,
             error: error.message
         };
+    } finally {
+        await lock.release();
     }
 }
 
@@ -73,6 +84,14 @@ async function sendExpirationWarnings() {
  * Run all cleanup tasks
  */
 async function runAllCleanupTasks() {
+    // Acquire distributed lock
+    const lock = await acquireLock('sandbox_cleanup_all_tasks');
+
+    if (!lock.acquired) {
+        logger.info(`[SandboxCleanup] Cleanup already running on another instance (TTL: ${lock.ttlRemaining}s), skipping...`);
+        return { skipped: true, reason: 'already_running_distributed' };
+    }
+
     try {
         logger.info('[SandboxCleanup] ========================================');
         logger.info('[SandboxCleanup] Running all sandbox cleanup tasks');
@@ -99,6 +118,8 @@ async function runAllCleanupTasks() {
             success: false,
             error: error.message
         };
+    } finally {
+        await lock.release();
     }
 }
 
@@ -107,8 +128,8 @@ async function runAllCleanupTasks() {
  * Runs daily at 2:00 AM
  */
 function scheduleSandboxCleanup() {
-    // Run every day at 2:00 AM
-    cron.schedule('0 2 * * *', async () => {
+    // Run every day at 2:10 AM (staggered to avoid 2 AM thundering herd)
+    cron.schedule('10 2 * * *', async () => {
         logger.info('[SandboxCleanup] Running scheduled cleanup job');
         await runAllCleanupTasks();
     });

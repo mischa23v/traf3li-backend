@@ -742,7 +742,7 @@ const closeTrade = asyncHandler(async (req, res) => {
         // Commit transaction
         await session.commitTransaction();
 
-        const populatedTrade = await Trade.findById(trade._id)
+        const populatedTrade = await Trade.findOne({ _id: trade._id, ...req.firmQuery })
             .populate('brokerId', 'name type displayName')
             .populate('accountId', 'name type currency currentBalance');
 

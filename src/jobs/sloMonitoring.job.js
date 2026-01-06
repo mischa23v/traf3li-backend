@@ -11,6 +11,7 @@ const cron = require('node-cron');
 const SLO = require('../models/slo.model');
 const SLOMonitoringService = require('../services/sloMonitoring.service');
 const logger = require('../utils/logger');
+const { acquireLock } = require('../services/distributedLock.service');
 
 // Track running jobs
 let measurementJobRunning = false;
@@ -21,20 +22,29 @@ let alertJobRunning = false;
  * Runs every minute
  */
 const collectSLOMeasurements = async () => {
-  if (measurementJobRunning) {
-    logger.debug('[SLO Monitoring Job] Measurement job still running, skipping...');
-    return;
+  // Acquire distributed lock
+  const lock = await acquireLock('slo_collect_measurements');
+
+  if (!lock.acquired) {
+    logger.debug(`[SLO Monitoring Job] Measurement collection already running on another instance (TTL: ${lock.ttlRemaining}s), skipping...`);
+    return { skipped: true, reason: 'already_running_distributed' };
   }
 
-  measurementJobRunning = true;
-
   try {
+    if (measurementJobRunning) {
+      logger.debug('[SLO Monitoring Job] Measurement job still running, skipping...');
+      return;
+    }
+
+    measurementJobRunning = true;
+
+    try {
     const now = new Date();
     logger.debug(`[SLO Monitoring Job] Starting SLO measurement collection at ${now.toISOString()}`);
 
     // Get all active SLOs
     // NOTE: Bypass firmIsolation filter - system job operates across all firms
-    const slos = await SLO.find({ isActive: true }).setOptions({ bypassFirmFilter: true });
+    const slos = await SLO.find({ isActive: true }).setOptions({ bypassFirmFilter: true }).lean();
 
     if (slos.length === 0) {
       logger.debug('[SLO Monitoring Job] No active SLOs found');
@@ -55,13 +65,16 @@ const collectSLOMeasurements = async () => {
       }
     }
 
-    logger.debug(
-      `[SLO Monitoring Job] Measurement collection complete: ${successCount} successful, ${failCount} failed`
-    );
-  } catch (error) {
-    logger.error('[SLO Monitoring Job] Measurement job error:', error);
+      logger.debug(
+        `[SLO Monitoring Job] Measurement collection complete: ${successCount} successful, ${failCount} failed`
+      );
+    } catch (error) {
+      logger.error('[SLO Monitoring Job] Measurement job error:', error);
+    } finally {
+      measurementJobRunning = false;
+    }
   } finally {
-    measurementJobRunning = false;
+    await lock.release();
   }
 };
 
@@ -70,14 +83,23 @@ const collectSLOMeasurements = async () => {
  * Runs every 5 minutes
  */
 const checkSLOAlerts = async () => {
-  if (alertJobRunning) {
-    logger.debug('[SLO Monitoring Job] Alert job still running, skipping...');
-    return;
+  // Acquire distributed lock
+  const lock = await acquireLock('slo_check_alerts');
+
+  if (!lock.acquired) {
+    logger.debug(`[SLO Monitoring Job] Alert check already running on another instance (TTL: ${lock.ttlRemaining}s), skipping...`);
+    return { skipped: true, reason: 'already_running_distributed' };
   }
 
-  alertJobRunning = true;
-
   try {
+    if (alertJobRunning) {
+      logger.debug('[SLO Monitoring Job] Alert job still running, skipping...');
+      return;
+    }
+
+    alertJobRunning = true;
+
+    try {
     const now = new Date();
     logger.debug(`[SLO Monitoring Job] Starting SLO alert check at ${now.toISOString()}`);
 
@@ -92,14 +114,17 @@ const checkSLOAlerts = async () => {
       if (results.breached.length > 0) {
         logger.warn(`[SLO Monitoring Job] Breached SLOs: ${results.breached.join(', ')}`);
       }
-      if (results.warnings.length > 0) {
-        logger.info(`[SLO Monitoring Job] Warning SLOs: ${results.warnings.join(', ')}`);
+        if (results.warnings.length > 0) {
+          logger.info(`[SLO Monitoring Job] Warning SLOs: ${results.warnings.join(', ')}`);
+        }
       }
+    } catch (error) {
+      logger.error('[SLO Monitoring Job] Alert job error:', error);
+    } finally {
+      alertJobRunning = false;
     }
-  } catch (error) {
-    logger.error('[SLO Monitoring Job] Alert job error:', error);
   } finally {
-    alertJobRunning = false;
+    await lock.release();
   }
 };
 
@@ -108,12 +133,21 @@ const checkSLOAlerts = async () => {
  * Runs every 15 minutes
  */
 const updateErrorBudgets = async () => {
-  try {
-    const now = new Date();
-    logger.debug(`[SLO Monitoring Job] Starting error budget update at ${now.toISOString()}`);
+  // Acquire distributed lock
+  const lock = await acquireLock('slo_update_error_budgets');
 
-    // NOTE: Bypass firmIsolation filter - system job operates across all firms
-    const slos = await SLO.find({ isActive: true }).setOptions({ bypassFirmFilter: true });
+  if (!lock.acquired) {
+    logger.debug(`[SLO Monitoring Job] Error budget update already running on another instance (TTL: ${lock.ttlRemaining}s), skipping...`);
+    return { skipped: true, reason: 'already_running_distributed' };
+  }
+
+  try {
+    try {
+      const now = new Date();
+      logger.debug(`[SLO Monitoring Job] Starting error budget update at ${now.toISOString()}`);
+
+      // NOTE: Bypass firmIsolation filter - system job operates across all firms
+      const slos = await SLO.find({ isActive: true }).setOptions({ bypassFirmFilter: true }).lean();
 
     let successCount = 0;
     let failCount = 0;
@@ -128,11 +162,14 @@ const updateErrorBudgets = async () => {
       }
     }
 
-    logger.debug(
-      `[SLO Monitoring Job] Error budget update complete: ${successCount} successful, ${failCount} failed`
-    );
-  } catch (error) {
-    logger.error('[SLO Monitoring Job] Error budget update error:', error);
+      logger.debug(
+        `[SLO Monitoring Job] Error budget update complete: ${successCount} successful, ${failCount} failed`
+      );
+    } catch (error) {
+      logger.error('[SLO Monitoring Job] Error budget update error:', error);
+    }
+  } finally {
+    await lock.release();
   }
 };
 
@@ -152,8 +189,8 @@ function startSLOMonitoringJob() {
     checkSLOAlerts();
   });
 
-  // Every 15 minutes: Update error budgets
-  cron.schedule('*/15 * * * *', () => {
+  // Every 15 minutes at :05, :20, :35, :50: Update error budgets (staggered to avoid :00, :15, :30, :45 spike)
+  cron.schedule('5,20,35,50 * * * *', () => {
     updateErrorBudgets();
   });
 

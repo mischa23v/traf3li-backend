@@ -24,6 +24,7 @@ const Webhook = require('../models/webhook.model');
 const WebhookDelivery = require('../models/webhookDelivery.model');
 const AuditLog = require('../models/auditLog.model');
 const logger = require('../utils/logger');
+const { acquireLock } = require('../services/distributedLock.service');
 
 // Job configuration
 const WEBHOOK_JOB_CONFIG = {
@@ -40,7 +41,7 @@ const WEBHOOK_JOB_CONFIG = {
         timezone: process.env.TZ || 'Asia/Riyadh'
     },
     cleanup: {
-        cron: process.env.WEBHOOK_CLEANUP_CRON || '0 2 * * *', // Daily at 2 AM
+        cron: process.env.WEBHOOK_CLEANUP_CRON || '30 2 * * *', // Daily at 2:30 AM (staggered to avoid 2 AM thundering herd)
         retentionDays: parseInt(process.env.WEBHOOK_RETENTION_DAYS) || 90,
         timezone: process.env.TZ || 'Asia/Riyadh'
     },
@@ -107,7 +108,16 @@ let jobStats = {
  * Main job function that processes pending deliveries in batches
  */
 const processPendingDeliveries = async () => {
+    // Acquire distributed lock
+    const lock = await acquireLock('webhook_delivery_process');
+
+    if (!lock.acquired) {
+        logger.info(`[Webhook Jobs] Delivery processing job already running on another instance (TTL: ${lock.ttlRemaining}s), skipping...`);
+        return { skipped: true, reason: 'already_running_distributed' };
+    }
+
     if (jobsRunning.processDeliveries) {
+        await lock.release();
         logger.info('[Webhook Jobs] Delivery processing job still running, skipping...');
         return { skipped: true, reason: 'already_running' };
     }
@@ -246,6 +256,7 @@ const processPendingDeliveries = async () => {
 
     } finally {
         jobsRunning.processDeliveries = false;
+        await lock.release();
     }
 };
 
@@ -254,7 +265,16 @@ const processPendingDeliveries = async () => {
  * Processes deliveries that failed and are due for retry
  */
 const retryFailedDeliveries = async () => {
+    // Acquire distributed lock
+    const lock = await acquireLock('webhook_retry_failed');
+
+    if (!lock.acquired) {
+        logger.info(`[Webhook Jobs] Retry job already running on another instance (TTL: ${lock.ttlRemaining}s), skipping...`);
+        return { skipped: true, reason: 'already_running_distributed' };
+    }
+
     if (jobsRunning.retryFailed) {
+        await lock.release();
         logger.info('[Webhook Jobs] Retry job still running, skipping...');
         return { skipped: true, reason: 'already_running' };
     }
@@ -314,6 +334,7 @@ const retryFailedDeliveries = async () => {
 
     } finally {
         jobsRunning.retryFailed = false;
+        await lock.release();
     }
 };
 
@@ -322,7 +343,16 @@ const retryFailedDeliveries = async () => {
  * Runs daily to remove old delivery logs
  */
 const cleanupOldDeliveries = async () => {
+    // Acquire distributed lock
+    const lock = await acquireLock('webhook_cleanup');
+
+    if (!lock.acquired) {
+        logger.info(`[Webhook Jobs] Cleanup job already running on another instance (TTL: ${lock.ttlRemaining}s), skipping...`);
+        return { skipped: true, reason: 'already_running_distributed' };
+    }
+
     if (jobsRunning.cleanup) {
+        await lock.release();
         logger.info('[Webhook Jobs] Cleanup job still running, skipping...');
         return { skipped: true, reason: 'already_running' };
     }
@@ -390,6 +420,7 @@ const cleanupOldDeliveries = async () => {
 
     } finally {
         jobsRunning.cleanup = false;
+        await lock.release();
     }
 };
 
@@ -398,7 +429,16 @@ const cleanupOldDeliveries = async () => {
  * Runs periodically to check webhook health
  */
 const performHealthCheck = async () => {
+    // Acquire distributed lock
+    const lock = await acquireLock('webhook_health_check');
+
+    if (!lock.acquired) {
+        logger.info(`[Webhook Jobs] Health check job already running on another instance (TTL: ${lock.ttlRemaining}s), skipping...`);
+        return { skipped: true, reason: 'already_running_distributed' };
+    }
+
     if (jobsRunning.healthCheck) {
+        await lock.release();
         logger.info('[Webhook Jobs] Health check job still running, skipping...');
         return { skipped: true, reason: 'already_running' };
     }
@@ -499,6 +539,7 @@ const performHealthCheck = async () => {
 
     } finally {
         jobsRunning.healthCheck = false;
+        await lock.release();
     }
 };
 

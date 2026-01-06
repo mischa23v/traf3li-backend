@@ -11,6 +11,7 @@ const cron = require('node-cron');
 const DealHealthService = require('../services/dealHealth.service');
 const Firm = require('../models/firm.model');
 const logger = require('../utils/logger');
+const { acquireLock } = require('../services/distributedLock.service');
 
 // Track running jobs
 let jobRunning = false;
@@ -20,7 +21,16 @@ let jobRunning = false;
  * Runs daily at 5 AM
  */
 const updateDealHealthScores = async () => {
+    // Acquire distributed lock
+    const lock = await acquireLock('deal_health_scoring');
+
+    if (!lock.acquired) {
+        logger.info(`[Deal Health Job] Job already running on another instance (TTL: ${lock.ttlRemaining}s), skipping...`);
+        return { skipped: true, reason: 'already_running_distributed' };
+    }
+
     if (jobRunning) {
+        await lock.release();
         logger.info('[Deal Health Job] Job still running, skipping...');
         return;
     }
@@ -34,7 +44,7 @@ const updateDealHealthScores = async () => {
         // Get all firms with active subscriptions
         const firms = await Firm.find({
             'subscription.status': { $in: ['active', 'trial'] }
-        }).select('_id name');
+        }).select('_id name').lean();
 
         if (firms.length === 0) {
             logger.info('[Deal Health Job] No active firms found');
@@ -84,6 +94,7 @@ const updateDealHealthScores = async () => {
         logger.error('[Deal Health Job] Job error:', error);
     } finally {
         jobRunning = false;
+        await lock.release();
     }
 };
 

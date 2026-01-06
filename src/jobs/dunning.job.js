@@ -35,7 +35,7 @@ const { acquireLock } = require('../services/distributedLock.service');
 // Job configuration
 const DUNNING_JOB_CONFIG = {
   dailyProcess: {
-    cron: process.env.DUNNING_CRON_SCHEDULE || '0 9 * * *', // Daily at 9 AM (configurable)
+    cron: process.env.DUNNING_CRON_SCHEDULE || '10 9 * * *', // Daily at 9:10 AM (staggered after invoice generation, configurable)
     timeout: 60 * 60 * 1000, // 60 minutes
     retries: 3
   }

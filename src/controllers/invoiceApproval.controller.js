@@ -229,7 +229,7 @@ const approveInvoice = asyncHandler(async (req, res) => {
     await approval.approve(req.userID, comments);
 
     // Get invoice for notification
-    const invoice = await Invoice.findById(approval.invoiceId);
+    const invoice = await Invoice.findOne({ _id: approval.invoiceId, ...req.firmQuery });
 
     // Notify submitter if fully approved
     if (approval.status === 'approved') {
@@ -328,7 +328,7 @@ const rejectInvoice = asyncHandler(async (req, res) => {
     await approval.reject(req.userID, reason.trim());
 
     // Get invoice and notify submitter
-    const invoice = await Invoice.findById(approval.invoiceId);
+    const invoice = await Invoice.findOne({ _id: approval.invoiceId, ...req.firmQuery });
 
     await Notification.createNotification(req.addFirmId({
         userId: approval.submittedBy,
@@ -403,7 +403,7 @@ const escalateApproval = asyncHandler(async (req, res) => {
     await approval.escalate(sanitizedEscalateToUserId, reason, req.userID);
 
     // Notify escalation target
-    const invoice = await Invoice.findById(approval.invoiceId);
+    const invoice = await Invoice.findOne({ _id: approval.invoiceId, ...req.firmQuery });
 
     await Notification.createNotification(req.addFirmId({
         userId: sanitizedEscalateToUserId,

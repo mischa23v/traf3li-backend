@@ -130,8 +130,9 @@ const verifyFirmOwnership = async (req) => {
     }
 
     // Verify that the user is actually a member of this firm
+    // Note: FirmMember is a firm-specific table, so we check firmId from firmQuery
     const membership = await FirmMember.findOne({
-        firmId: req.firmId,
+        firmId: req.firmQuery.firmId || req.firmId,
         userId: req.userID,
         isDeparted: false
     });
@@ -400,7 +401,7 @@ const getUserAuditLog = asyncHandler(async (req, res) => {
     // Additional IDOR check: Verify the target user belongs to the same firm
     const { FirmMember } = require('../models');
     const targetUserMembership = await FirmMember.findOne({
-        firmId: firmId,
+        firmId: req.firmQuery.firmId || firmId,
         userId: sanitizedUserId,
         isDeparted: false
     });

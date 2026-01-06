@@ -139,12 +139,10 @@ const createPolicy = asyncHandler(async (req, res) => {
     }
 
     // Create policy
-    const policy = new DunningPolicy({
-        firmId: req.firmId,
-        lawyerId: req.firmId ? null : req.userID,
+    const policy = new DunningPolicy(req.addFirmId({
         ...sanitizedData,
         createdBy: req.userID
-    });
+    }));
 
     await policy.save();
 

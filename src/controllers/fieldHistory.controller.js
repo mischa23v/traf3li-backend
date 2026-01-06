@@ -12,7 +12,7 @@
 const fieldHistoryService = require('../services/fieldHistory.service');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
-const { sanitizeObjectId } = require('../utils/securityUtils');
+const { sanitizeObjectId, sanitizePagination } = require('../utils/securityUtils');
 
 // ═══════════════════════════════════════════════════════════════
 // SECURITY HELPERS
@@ -100,9 +100,11 @@ const getFieldHistory = asyncHandler(async (req, res) => {
     throw CustomException('معرف الكيان غير صالح', 400);
   }
 
-  // Get query options
-  const limit = parseInt(req.query.limit) || 50;
-  const skip = parseInt(req.query.skip) || 0;
+  // Get query options - sanitize pagination to prevent DoS attacks
+  const { limit, skip } = sanitizePagination(req.query, {
+    maxLimit: 200,
+    defaultLimit: 50
+  });
   const includeReverted = req.query.includeReverted === 'true';
 
   const history = await fieldHistoryService.getFieldHistory(
@@ -156,9 +158,11 @@ const getEntityHistory = asyncHandler(async (req, res) => {
     throw CustomException('معرف الكيان غير صالح', 400);
   }
 
-  // Get query options
-  const limit = parseInt(req.query.limit) || 100;
-  const skip = parseInt(req.query.skip) || 0;
+  // Get query options - sanitize pagination to prevent DoS attacks
+  const { limit, skip } = sanitizePagination(req.query, {
+    maxLimit: 500,
+    defaultLimit: 100
+  });
   const includeReverted = req.query.includeReverted === 'true';
   const startDate = req.query.startDate ? new Date(req.query.startDate) : null;
   const endDate = req.query.endDate ? new Date(req.query.endDate) : null;
@@ -364,9 +368,11 @@ const getUserChanges = asyncHandler(async (req, res) => {
     throw CustomException('ليس لديك صلاحية لعرض هذه البيانات', 403);
   }
 
-  // Get query options
-  const limit = parseInt(req.query.limit) || 100;
-  const skip = parseInt(req.query.skip) || 0;
+  // Get query options - sanitize pagination to prevent DoS attacks
+  const { limit, skip } = sanitizePagination(req.query, {
+    maxLimit: 500,
+    defaultLimit: 100
+  });
   const startDate = req.query.startDate ? new Date(req.query.startDate) : null;
   const endDate = req.query.endDate ? new Date(req.query.endDate) : null;
   const entityType = req.query.entityType || null;
@@ -414,7 +420,11 @@ const getRecentChanges = asyncHandler(async (req, res) => {
     throw CustomException('ليس لديك صلاحية لعرض هذه البيانات', 403);
   }
 
-  const limit = parseInt(req.query.limit) || 50;
+  // Sanitize pagination to prevent DoS attacks
+  const { limit } = sanitizePagination(req.query, {
+    maxLimit: 100,
+    defaultLimit: 50
+  });
   const entityType = req.query.entityType || null;
   const changeType = req.query.changeType || null;
 

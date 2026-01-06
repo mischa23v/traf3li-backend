@@ -178,9 +178,7 @@ const createCreditNote = asyncHandler(async (req, res) => {
         const creditNoteNumber = await CreditNote.generateNumber(req.firmId, req.firmId ? null : req.userID);
 
         // Create credit note with sanitized data
-        const creditNote = new CreditNote({
-            firmId: req.firmId,
-            lawyerId: req.firmId ? null : req.userID,
+        const creditNote = new CreditNote(req.addFirmId({
             creditNoteNumber,
             invoiceId: sanitizedInvoiceId,
             invoiceNumber: invoice.invoiceNumber,
@@ -203,7 +201,7 @@ const createCreditNote = asyncHandler(async (req, res) => {
                 performedBy: req.userID,
                 details: { reasonCategory: safeData.reasonCategory, reason: safeData.reason }
             }]
-        });
+        }));
 
         // Calculate totals
         creditNote.calculateTotals();

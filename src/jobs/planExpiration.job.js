@@ -11,13 +11,33 @@
 const cron = require('node-cron');
 const mongoose = require('mongoose');
 const { Firm, User, Notification } = require('../models');
+const { acquireLock } = require('../services/distributedLock.service');
 const logger = require('../utils/logger');
+
+// Distributed lock names
+const LOCK_NAMES = {
+  expiredTrials: 'plan_expired_trials',
+  expiredPlans: 'plan_expired_plans',
+  downgradeExpired: 'plan_downgrade_expired',
+  resetApiCounters: 'plan_reset_api_counters',
+  trialWarnings: 'plan_trial_warnings',
+  usageLimitWarnings: 'plan_usage_limit_warnings'
+};
 
 /**
  * Check and process expired trials
  * Runs daily at midnight
  */
 const processExpiredTrials = async () => {
+    // Acquire distributed lock
+    const lock = await acquireLock(LOCK_NAMES.expiredTrials);
+
+    if (!lock.acquired) {
+        logger.info(`[Plan Job] Expired trials job already running on another instance (TTL: ${lock.ttlRemaining}s), skipping...`);
+        return { skipped: true, reason: 'already_running_distributed' };
+    }
+
+    try {
     logger.info('[Plan Job] Checking for expired trials...');
 
     try {
@@ -61,6 +81,8 @@ const processExpiredTrials = async () => {
         }
     } catch (error) {
         logger.error('[Plan Job] Error processing expired trials:', error.message);
+    } finally {
+        await lock.release();
     }
 };
 
@@ -69,9 +91,16 @@ const processExpiredTrials = async () => {
  * Runs daily at midnight
  */
 const processExpiredPlans = async () => {
-    logger.info('[Plan Job] Checking for expired paid plans...');
+    // Acquire distributed lock
+    const lock = await acquireLock(LOCK_NAMES.expiredPlans);
+
+    if (!lock.acquired) {
+        logger.info(`[Plan Job] Expired plans job already running on another instance (TTL: ${lock.ttlRemaining}s), skipping...`);
+        return { skipped: true, reason: 'already_running_distributed' };
+    }
 
     try {
+        logger.info('[Plan Job] Checking for expired paid plans...');
         const expiredPlans = await Firm.find({
             'subscription.status': 'active',
             'subscription.currentPeriodEnd': { $lt: new Date() },
@@ -112,6 +141,8 @@ const processExpiredPlans = async () => {
         }
     } catch (error) {
         logger.error('[Plan Job] Error processing expired plans:', error.message);
+    } finally {
+        await lock.release();
     }
 };
 
@@ -120,9 +151,16 @@ const processExpiredPlans = async () => {
  * Runs daily at 1 AM
  */
 const downgradeExpiredPlans = async () => {
-    logger.info('[Plan Job] Downgrading expired plans after grace period...');
+    // Acquire distributed lock
+    const lock = await acquireLock(LOCK_NAMES.downgradeExpired);
+
+    if (!lock.acquired) {
+        logger.info(`[Plan Job] Downgrade expired plans job already running on another instance (TTL: ${lock.ttlRemaining}s), skipping...`);
+        return { skipped: true, reason: 'already_running_distributed' };
+    }
 
     try {
+        logger.info('[Plan Job] Downgrading expired plans after grace period...');
         const gracePeriodDays = 7;
         const gracePeriodEnd = new Date();
         gracePeriodEnd.setDate(gracePeriodEnd.getDate() - gracePeriodDays);
@@ -147,6 +185,8 @@ const downgradeExpiredPlans = async () => {
         }
     } catch (error) {
         logger.error('[Plan Job] Error downgrading expired plans:', error.message);
+    } finally {
+        await lock.release();
     }
 };
 
@@ -155,9 +195,16 @@ const downgradeExpiredPlans = async () => {
  * Runs on 1st of each month at midnight
  */
 const resetMonthlyApiCounters = async () => {
-    logger.info('[Plan Job] Resetting monthly API call counters...');
+    // Acquire distributed lock
+    const lock = await acquireLock(LOCK_NAMES.resetApiCounters);
+
+    if (!lock.acquired) {
+        logger.info(`[Plan Job] Reset API counters job already running on another instance (TTL: ${lock.ttlRemaining}s), skipping...`);
+        return { skipped: true, reason: 'already_running_distributed' };
+    }
 
     try {
+        logger.info('[Plan Job] Resetting monthly API call counters...');
         const result = await Firm.updateMany(
             {},
             {
@@ -171,6 +218,8 @@ const resetMonthlyApiCounters = async () => {
         logger.info(`[Plan Job] Reset API counters for ${result.modifiedCount} firms`);
     } catch (error) {
         logger.error('[Plan Job] Error resetting API counters:', error.message);
+    } finally {
+        await lock.release();
     }
 };
 
@@ -179,9 +228,16 @@ const resetMonthlyApiCounters = async () => {
  * Runs daily at 9 AM
  */
 const sendTrialWarnings = async () => {
-    logger.info('[Plan Job] Sending trial expiration warnings...');
+    // Acquire distributed lock
+    const lock = await acquireLock(LOCK_NAMES.trialWarnings);
+
+    if (!lock.acquired) {
+        logger.info(`[Plan Job] Trial warnings job already running on another instance (TTL: ${lock.ttlRemaining}s), skipping...`);
+        return { skipped: true, reason: 'already_running_distributed' };
+    }
 
     try {
+        logger.info('[Plan Job] Sending trial expiration warnings...');
         // Find trials expiring in 3 days
         const threeDaysFromNow = new Date();
         threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3);
@@ -198,7 +254,7 @@ const sendTrialWarnings = async () => {
 
         for (const firm of expiringTrials) {
             try {
-                const owner = await User.findById(firm.ownerId);
+                const owner = await User.findById(firm.ownerId).lean();
                 if (owner) {
                     const daysRemaining = Math.ceil(
                         (new Date(firm.subscription.trialEndsAt) - new Date()) / (1000 * 60 * 60 * 24)
@@ -222,6 +278,8 @@ const sendTrialWarnings = async () => {
         }
     } catch (error) {
         logger.error('[Plan Job] Error sending trial warnings:', error.message);
+    } finally {
+        await lock.release();
     }
 };
 
@@ -230,9 +288,16 @@ const sendTrialWarnings = async () => {
  * Runs daily at 10 AM
  */
 const sendUsageLimitWarnings = async () => {
-    logger.info('[Plan Job] Checking for usage limit warnings...');
+    // Acquire distributed lock
+    const lock = await acquireLock(LOCK_NAMES.usageLimitWarnings);
+
+    if (!lock.acquired) {
+        logger.info(`[Plan Job] Usage limit warnings job already running on another instance (TTL: ${lock.ttlRemaining}s), skipping...`);
+        return { skipped: true, reason: 'already_running_distributed' };
+    }
 
     try {
+        logger.info('[Plan Job] Checking for usage limit warnings...');
         const firms = await Firm.find({
             'subscription.plan': { $ne: 'enterprise' }
         }).select('_id ownerId usage subscription');
@@ -266,7 +331,7 @@ const sendUsageLimitWarnings = async () => {
                 }
 
                 if (warnings.length > 0) {
-                    const owner = await User.findById(firm.ownerId);
+                    const owner = await User.findById(firm.ownerId).lean();
                     if (owner) {
                         await Notification.create({
                             userId: owner._id,
@@ -287,6 +352,8 @@ const sendUsageLimitWarnings = async () => {
         }
     } catch (error) {
         logger.error('[Plan Job] Error sending usage warnings:', error.message);
+    } finally {
+        await lock.release();
     }
 };
 
@@ -314,8 +381,8 @@ const startPlanJobs = () => {
         timezone: 'Asia/Riyadh'
     });
 
-    // Send trial warnings - daily at 9 AM
-    cron.schedule('0 9 * * *', sendTrialWarnings, {
+    // Send trial warnings - daily at 9:30 AM (staggered to avoid 9 AM spike)
+    cron.schedule('30 9 * * *', sendTrialWarnings, {
         timezone: 'Asia/Riyadh'
     });
 

@@ -35,52 +35,161 @@ const { getCSRFCookieConfig } = require('../utils/cookieConfig');
  * Origin validation is still performed for security
  */
 // NOTE: These are full paths (CSRF middleware is applied per-route, not mounted)
-// Must match PUBLIC_ROUTES in authenticatedApi.middleware.js
+//
+// ⚠️ IMPORTANT: Keep in sync with PUBLIC_ROUTES in authenticatedApi.middleware.js
+// Each route must have BOTH versions (with and without /api prefix) because CSRF middleware runs at different mount points
 const CSRF_EXEMPT_ROUTES = [
-    // Core auth (with /api prefix)
+    // ═══════════════════════════════════════════════════════════════
+    // WITH /api PREFIX
+    // ═══════════════════════════════════════════════════════════════
+
+    // Core auth endpoints
     '/api/auth/login',
     '/api/auth/register',
     '/api/auth/forgot-password',
     '/api/auth/reset-password',
-    '/api/auth/verify-captcha',
-    // SSO/OAuth
-    '/api/auth/sso/initiate',
-    '/api/auth/sso/detect',
-    '/api/auth/sso/callback',
+    '/api/auth/verify-email',
+    '/api/auth/send-otp',
+    '/api/auth/verify-otp',
+    '/api/auth/resend-otp',
+    '/api/auth/otp-status',
+    '/api/auth/csrf',
+    '/api/auth/check-availability',
+    '/api/auth/refresh',
+    '/api/auth/anonymous',
+    '/api/auth/google/one-tap',
+
+    // Phone OTP (passwordless login)
+    '/api/auth/phone/send-otp',
+    '/api/auth/phone/verify-otp',
+    '/api/auth/phone/resend-otp',
+    '/api/auth/phone/otp-status',
+
+    // Magic link (passwordless login)
+    '/api/auth/magic-link/send',
+    '/api/auth/magic-link/verify',
+
+    // OAuth/SSO providers
     '/api/auth/google',
     '/api/auth/google/callback',
     '/api/auth/saml',
     '/api/auth/saml/callback',
-    // WebAuthn/Passkeys
+    // SSO public endpoints
+    '/api/auth/sso/providers',
+    '/api/auth/sso/initiate',
+    '/api/auth/sso/detect',
+    '/api/auth/sso/callback',
+    // Dynamic SSO provider routes
+    '/api/auth/sso/google',
+    '/api/auth/sso/microsoft',
+    '/api/auth/sso/facebook',
+    '/api/auth/sso/apple',
+    '/api/auth/sso/github',
+    '/api/auth/sso/linkedin',
+    '/api/auth/sso/twitter',
+    '/api/auth/sso/okta',
+    '/api/auth/sso/auth0',
+
+    // CAPTCHA (needed before login/register)
+    '/api/auth/verify-captcha',
+    '/api/auth/captcha/providers',
+    '/api/auth/captcha/status',
+
+    // WebAuthn/Passkeys (authenticate endpoints are pre-auth)
     '/api/auth/webauthn/authenticate/start',
     '/api/auth/webauthn/authenticate/finish',
-    // LDAP
+
+    // LDAP login
     '/api/auth/ldap/login',
-    // MFA
+
+    // MFA verification (post-login but pre-session)
     '/api/auth/mfa/verify',
     '/api/auth/mfa/backup-codes/verify',
-    // Webhooks
-    '/api/webhooks',
 
-    // Same routes without /api prefix (for mounted routes)
+    // Other public endpoints
+    '/api/oauth',
+    '/api/webhooks',
+    '/api/health',
+    '/api/public',
+    '/api/status',
+    '/api/invitations/verify',
+    '/api/invitations/accept',
+
+    // ═══════════════════════════════════════════════════════════════
+    // WITHOUT /api PREFIX (for mounted routes)
+    // ═══════════════════════════════════════════════════════════════
+
+    // Core auth endpoints
     '/auth/login',
     '/auth/register',
     '/auth/forgot-password',
     '/auth/reset-password',
-    '/auth/verify-captcha',
-    '/auth/sso/initiate',
-    '/auth/sso/detect',
-    '/auth/sso/callback',
+    '/auth/verify-email',
+    '/auth/send-otp',
+    '/auth/verify-otp',
+    '/auth/resend-otp',
+    '/auth/otp-status',
+    '/auth/csrf',
+    '/auth/check-availability',
+    '/auth/refresh',
+    '/auth/anonymous',
+    '/auth/google/one-tap',
+
+    // Phone OTP (passwordless login)
+    '/auth/phone/send-otp',
+    '/auth/phone/verify-otp',
+    '/auth/phone/resend-otp',
+    '/auth/phone/otp-status',
+
+    // Magic link (passwordless login)
+    '/auth/magic-link/send',
+    '/auth/magic-link/verify',
+
+    // OAuth/SSO providers
     '/auth/google',
     '/auth/google/callback',
     '/auth/saml',
     '/auth/saml/callback',
+    // SSO public endpoints
+    '/auth/sso/providers',
+    '/auth/sso/initiate',
+    '/auth/sso/detect',
+    '/auth/sso/callback',
+    // Dynamic SSO provider routes
+    '/auth/sso/google',
+    '/auth/sso/microsoft',
+    '/auth/sso/facebook',
+    '/auth/sso/apple',
+    '/auth/sso/github',
+    '/auth/sso/linkedin',
+    '/auth/sso/twitter',
+    '/auth/sso/okta',
+    '/auth/sso/auth0',
+
+    // CAPTCHA (needed before login/register)
+    '/auth/verify-captcha',
+    '/auth/captcha/providers',
+    '/auth/captcha/status',
+
+    // WebAuthn/Passkeys (authenticate endpoints are pre-auth)
     '/auth/webauthn/authenticate/start',
     '/auth/webauthn/authenticate/finish',
+
+    // LDAP login
     '/auth/ldap/login',
+
+    // MFA verification (post-login but pre-session)
     '/auth/mfa/verify',
     '/auth/mfa/backup-codes/verify',
+
+    // Other public endpoints
+    '/oauth',
     '/webhooks',
+    '/health',
+    '/public',
+    '/status',
+    '/invitations/verify',
+    '/invitations/accept',
 ];
 
 /**

@@ -32,7 +32,7 @@ const RECURRING_INVOICE_JOB_CONFIG = {
         timezone: process.env.TZ || 'Asia/Riyadh'
     },
     sendNotifications: {
-        cron: process.env.RECURRING_INVOICE_NOTIFICATION_CRON || '0 0 * * *', // Daily at midnight
+        cron: process.env.RECURRING_INVOICE_NOTIFICATION_CRON || '10 0 * * *', // Daily at 12:10 AM (staggered to avoid midnight thundering herd)
         daysAhead: parseInt(process.env.RECURRING_INVOICE_NOTIFICATION_DAYS) || 3,
         timezone: process.env.TZ || 'Asia/Riyadh'
     },

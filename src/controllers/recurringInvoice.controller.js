@@ -306,9 +306,7 @@ const createRecurringInvoice = asyncHandler(async (req, res) => {
     }
 
     // Create recurring invoice with only allowed fields
-    const recurring = new RecurringInvoice({
-        firmId: req.firmId,
-        lawyerId: req.firmId ? null : req.userID,
+    const recurring = new RecurringInvoice(req.addFirmId({
         name: safeData.name,
         nameAr: safeData.nameAr,
         clientId: clientId,
@@ -341,7 +339,7 @@ const createRecurringInvoice = asyncHandler(async (req, res) => {
             performedBy: req.userID,
             details: { frequency: safeData.frequency, startDate: safeData.startDate }
         }]
-    });
+    }));
 
     // Calculate totals (amounts are validated via items)
     recurring.calculateTotals();

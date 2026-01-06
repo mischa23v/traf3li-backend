@@ -19,6 +19,7 @@ const Lead = require('../models/lead.model');
 const LeadScore = require('../models/leadScore.model');
 const { batchScoringQueue, realtimeScoringQueue } = require('../queues/mlScoring.queue');
 const { getRedisClient } = require('../configs/redis');
+const { acquireLock } = require('../services/distributedLock.service');
 
 // ═══════════════════════════════════════════════════════════════
 // ML SCORING JOBS CLASS
@@ -39,22 +40,31 @@ class MLScoringJobs {
    * Run at 3 AM to match existing patterns (dataRetention runs at 2 AM)
    */
   async nightlyBatchScoring() {
-    if (this.isRunning) {
-      logger.warn('[MLScoring] Nightly batch scoring already running, skipping...');
-      return;
+    // Acquire distributed lock
+    const lock = await acquireLock('ml_nightly_batch_scoring');
+
+    if (!lock.acquired) {
+      logger.info(`[MLScoring] Nightly batch scoring already running on another instance (TTL: ${lock.ttlRemaining}s), skipping...`);
+      return { skipped: true, reason: 'already_running_distributed' };
     }
 
-    this.isRunning = true;
-    logger.info('[MLScoring] Starting nightly batch scoring...');
-    const startTime = Date.now();
-
     try {
+      if (this.isRunning) {
+        logger.warn('[MLScoring] Nightly batch scoring already running, skipping...');
+        return;
+      }
+
+      this.isRunning = true;
+      logger.info('[MLScoring] Starting nightly batch scoring...');
+      const startTime = Date.now();
+
+      try {
       // Get all active leads (not converted to clients)
       // NOTE: Bypass firmIsolation filter - system job operates across all firms
       const leads = await Lead.find({
         convertedToClient: false,
         status: { $nin: ['lost', 'inactive'] }
-      }).setOptions({ bypassFirmFilter: true }).select('_id firmId');
+      }).setOptions({ bypassFirmFilter: true }).select('_id firmId').lean();
 
       logger.info(`[MLScoring] Found ${leads.length} leads to score`);
 
@@ -102,23 +112,26 @@ class MLScoringJobs {
         }
       }
 
-      const duration = Date.now() - startTime;
-      logger.info(`[MLScoring] Nightly batch scoring completed in ${duration}ms`, results);
+        const duration = Date.now() - startTime;
+        logger.info(`[MLScoring] Nightly batch scoring completed in ${duration}ms`, results);
 
-      return results;
-    } catch (error) {
-      logger.error('[MLScoring] Nightly batch scoring failed:', error);
-      throw error;
+        return results;
+      } catch (error) {
+        logger.error('[MLScoring] Nightly batch scoring failed:', error);
+        throw error;
+      } finally {
+        this.isRunning = false;
+      }
     } finally {
-      this.isRunning = false;
+      await lock.release();
     }
   }
 
   /**
-   * Schedule nightly batch scoring at 3 AM
+   * Schedule nightly batch scoring at 3:10 AM (staggered after data retention at 3:00 AM)
    */
   scheduleNightlyScoring() {
-    const job = cron.schedule('0 3 * * *', async () => {
+    const job = cron.schedule('10 3 * * *', async () => {
       logger.info('[MLScoring] Nightly batch scoring job triggered');
       try {
         await this.nightlyBatchScoring();
@@ -141,10 +154,19 @@ class MLScoringJobs {
    * Cached in Redis for fast access
    */
   async hourlyHotLeadRefresh() {
-    logger.info('[MLScoring] Starting hourly hot lead refresh...');
-    const startTime = Date.now();
+    // Acquire distributed lock
+    const lock = await acquireLock('ml_hourly_hot_lead_refresh');
+
+    if (!lock.acquired) {
+      logger.info(`[MLScoring] Hot lead refresh already running on another instance (TTL: ${lock.ttlRemaining}s), skipping...`);
+      return { skipped: true, reason: 'already_running_distributed' };
+    }
 
     try {
+      logger.info('[MLScoring] Starting hourly hot lead refresh...');
+      const startTime = Date.now();
+
+      try {
       // Find leads with high scores that need refreshing
       // NOTE: Bypass firmIsolation filter - system job operates across all firms
       const hotLeads = await LeadScore.find({
@@ -192,13 +214,16 @@ class MLScoringJobs {
         }
       }
 
-      const duration = Date.now() - startTime;
-      logger.info(`[MLScoring] Hot lead refresh completed in ${duration}ms`, results);
+        const duration = Date.now() - startTime;
+        logger.info(`[MLScoring] Hot lead refresh completed in ${duration}ms`, results);
 
-      return results;
-    } catch (error) {
-      logger.error('[MLScoring] Hot lead refresh failed:', error);
-      throw error;
+        return results;
+      } catch (error) {
+        logger.error('[MLScoring] Hot lead refresh failed:', error);
+        throw error;
+      }
+    } finally {
+      await lock.release();
     }
   }
 
@@ -230,10 +255,19 @@ class MLScoringJobs {
    * Analyzes prediction accuracy and suggests retraining if needed
    */
   async weeklyModelCheck() {
-    logger.info('[MLScoring] Starting weekly model performance check...');
-    const startTime = Date.now();
+    // Acquire distributed lock
+    const lock = await acquireLock('ml_weekly_model_check');
+
+    if (!lock.acquired) {
+      logger.info(`[MLScoring] Weekly model check already running on another instance (TTL: ${lock.ttlRemaining}s), skipping...`);
+      return { skipped: true, reason: 'already_running_distributed' };
+    }
 
     try {
+      logger.info('[MLScoring] Starting weekly model performance check...');
+      const startTime = Date.now();
+
+      try {
       // Get conversion data from the past week
       const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
@@ -241,7 +275,7 @@ class MLScoringJobs {
       const convertedLeads = await Lead.find({
         convertedToClient: true,
         convertedAt: { $gte: weekAgo }
-      }).setOptions({ bypassFirmFilter: true }).select('_id');
+      }).setOptions({ bypassFirmFilter: true }).select('_id').lean();
 
       const convertedLeadIds = convertedLeads.map(l => l._id);
 
@@ -307,18 +341,21 @@ class MLScoringJobs {
         logger.warn('[MLScoring] Could not cache metrics in Redis:', redisError.message);
       }
 
-      const duration = Date.now() - startTime;
-      logger.info(`[MLScoring] Weekly model check completed in ${duration}ms`, metrics);
+        const duration = Date.now() - startTime;
+        logger.info(`[MLScoring] Weekly model check completed in ${duration}ms`, metrics);
 
-      if (needsRetraining) {
-        logger.warn('[MLScoring] ⚠️  Model retraining recommended:', metrics.retrainingReason);
-        // TODO: Trigger model retraining workflow (Temporal workflow or external ML service)
+        if (needsRetraining) {
+          logger.warn('[MLScoring] ⚠️  Model retraining recommended:', metrics.retrainingReason);
+          // TODO: Trigger model retraining workflow (Temporal workflow or external ML service)
+        }
+
+        return metrics;
+      } catch (error) {
+        logger.error('[MLScoring] Weekly model check failed:', error);
+        throw error;
       }
-
-      return metrics;
-    } catch (error) {
-      logger.error('[MLScoring] Weekly model check failed:', error);
-      throw error;
+    } finally {
+      await lock.release();
     }
   }
 
@@ -350,10 +387,19 @@ class MLScoringJobs {
    * Identifies high-value leads not contacted within SLA timeframe
    */
   async dailySLACheck() {
-    logger.info('[MLScoring] Starting daily SLA breach check...');
-    const startTime = Date.now();
+    // Acquire distributed lock
+    const lock = await acquireLock('ml_daily_sla_check');
+
+    if (!lock.acquired) {
+      logger.info(`[MLScoring] Daily SLA check already running on another instance (TTL: ${lock.ttlRemaining}s), skipping...`);
+      return { skipped: true, reason: 'already_running_distributed' };
+    }
 
     try {
+      logger.info('[MLScoring] Starting daily SLA breach check...');
+      const startTime = Date.now();
+
+      try {
       // SLA thresholds based on lead score
       const slaThresholds = {
         hot: { score: 80, hours: 2 },      // A-grade leads: 2 hours
@@ -428,17 +474,20 @@ class MLScoringJobs {
         logger.warn('[MLScoring] Could not cache SLA report in Redis:', redisError.message);
       }
 
-      const duration = Date.now() - startTime;
-      logger.info(`[MLScoring] SLA check completed in ${duration}ms`, {
-        hot: results.hot.breaches,
-        warm: results.warm.breaches,
-        cold: results.cold.breaches
-      });
+        const duration = Date.now() - startTime;
+        logger.info(`[MLScoring] SLA check completed in ${duration}ms`, {
+          hot: results.hot.breaches,
+          warm: results.warm.breaches,
+          cold: results.cold.breaches
+        });
 
-      return results;
-    } catch (error) {
-      logger.error('[MLScoring] Daily SLA check failed:', error);
-      throw error;
+        return results;
+      } catch (error) {
+        logger.error('[MLScoring] Daily SLA check failed:', error);
+        throw error;
+      }
+    } finally {
+      await lock.release();
     }
   }
 
@@ -446,8 +495,8 @@ class MLScoringJobs {
    * Schedule daily SLA breach check
    */
   scheduleDailySLACheck() {
-    // Run every 4 hours to catch breaches quickly
-    const job = cron.schedule('0 */4 * * *', async () => {
+    // Run every 4 hours at :10 to catch breaches quickly (staggered to avoid :00 spike)
+    const job = cron.schedule('10 */4 * * *', async () => {
       logger.info('[MLScoring] SLA breach check triggered');
       try {
         await this.dailySLACheck();

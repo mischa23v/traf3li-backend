@@ -73,15 +73,11 @@ const createPayment = asyncHandler(async (req, res) => {
     }
 
     // Validate bill exists and belongs to user
-    const bill = await Bill.findById(safeBillId).populate('vendorId', 'name');
+    const bill = await Bill.findOne({ _id: safeBillId, ...req.firmQuery }).populate('vendorId', 'name');
 
     // IDOR Protection: Verify bill ownership
     if (!bill) {
         throw CustomException('Bill not found', 404);
-    }
-
-    if (bill.lawyerId.toString() !== lawyerId) {
-        throw CustomException('You do not have access to this bill', 403);
     }
 
     // IDOR Protection: Verify firmId ownership (multi-tenancy)

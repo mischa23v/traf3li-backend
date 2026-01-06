@@ -124,7 +124,7 @@ const getOnboarding = asyncHandler(async (req, res) => {
         throw CustomException('Invalid onboarding ID format', 400);
     }
 
-    const onboarding = await Onboarding.findById(sanitizedOnboardingId)
+    const onboarding = await Onboarding.findOne({ _id: sanitizedOnboardingId, ...req.firmQuery })
         .populate('employeeId', 'employeeId personalInfo employment compensation gosi')
         .populate('managerId', 'firstName lastName email')
         .populate('createdBy', 'firstName lastName')
@@ -206,18 +206,9 @@ const createOnboarding = asyncHandler(async (req, res) => {
     }
 
     // Fetch employee with sanitized ID
-    const employee = await Employee.findById(sanitizedEmployeeId);
+    const employee = await Employee.findOne({ _id: sanitizedEmployeeId, ...req.firmQuery });
     if (!employee) {
         throw CustomException('Employee not found', 404);
-    }
-
-    // IDOR Protection - Check access to employee
-    const hasEmployeeAccess = firmId
-        ? employee.firmId?.toString() === firmId.toString()
-        : employee.lawyerId?.toString() === lawyerId;
-
-    if (!hasEmployeeAccess) {
-        throw CustomException('Access denied to this employee', 403);
     }
 
     // Check if onboarding already exists for this employee
@@ -309,7 +300,7 @@ const updateOnboarding = asyncHandler(async (req, res) => {
         throw CustomException('Invalid onboarding ID format', 400);
     }
 
-    const onboarding = await Onboarding.findById(sanitizedOnboardingId);
+    const onboarding = await Onboarding.findOne({ _id: sanitizedOnboardingId, ...req.firmQuery });
 
     if (!onboarding) {
         throw CustomException('Onboarding not found', 404);
@@ -389,7 +380,7 @@ const deleteOnboarding = asyncHandler(async (req, res) => {
         throw CustomException('Invalid onboarding ID format', 400);
     }
 
-    const onboarding = await Onboarding.findById(sanitizedOnboardingId);
+    const onboarding = await Onboarding.findOne({ _id: sanitizedOnboardingId, ...req.firmQuery });
 
     if (!onboarding) {
         throw CustomException('Onboarding not found', 404);
@@ -453,7 +444,7 @@ const updateStatus = asyncHandler(async (req, res) => {
         throw CustomException(`Invalid status. Must be one of: ${validStatuses.join(', ')}`, 400);
     }
 
-    const onboarding = await Onboarding.findById(sanitizedOnboardingId);
+    const onboarding = await Onboarding.findOne({ _id: sanitizedOnboardingId, ...req.firmQuery });
 
     if (!onboarding) {
         throw CustomException('Onboarding not found', 404);
@@ -503,7 +494,7 @@ const completeTask = asyncHandler(async (req, res) => {
     const safeData = pickAllowedFields(req.body, ['notes']);
     const { notes } = safeData;
 
-    const onboarding = await Onboarding.findById(sanitizedOnboardingId);
+    const onboarding = await Onboarding.findOne({ _id: sanitizedOnboardingId, ...req.firmQuery });
 
     if (!onboarding) {
         throw CustomException('Onboarding not found', 404);
@@ -628,7 +619,7 @@ const addProbationReview = asyncHandler(async (req, res) => {
         nextReviewDate
     } = safeData;
 
-    const onboarding = await Onboarding.findById(sanitizedOnboardingId);
+    const onboarding = await Onboarding.findOne({ _id: sanitizedOnboardingId, ...req.firmQuery });
 
     if (!onboarding) {
         throw CustomException('Onboarding not found', 404);
@@ -743,7 +734,7 @@ const completeProbation = asyncHandler(async (req, res) => {
         throw CustomException('Invalid decision. Must be either "confirm" or "terminate"', 400);
     }
 
-    const onboarding = await Onboarding.findById(sanitizedOnboardingId);
+    const onboarding = await Onboarding.findOne({ _id: sanitizedOnboardingId, ...req.firmQuery });
 
     if (!onboarding) {
         throw CustomException('Onboarding not found', 404);
@@ -865,7 +856,7 @@ const uploadDocument = asyncHandler(async (req, res) => {
         expiryDate
     } = safeData;
 
-    const onboarding = await Onboarding.findById(sanitizedOnboardingId);
+    const onboarding = await Onboarding.findOne({ _id: sanitizedOnboardingId, ...req.firmQuery });
 
     if (!onboarding) {
         throw CustomException('Onboarding not found', 404);
@@ -940,7 +931,7 @@ const verifyDocument = asyncHandler(async (req, res) => {
         throw CustomException('Invalid onboarding ID format', 400);
     }
 
-    const onboarding = await Onboarding.findById(sanitizedOnboardingId);
+    const onboarding = await Onboarding.findOne({ _id: sanitizedOnboardingId, ...req.firmQuery });
 
     if (!onboarding) {
         throw CustomException('Onboarding not found', 404);
@@ -1014,7 +1005,7 @@ const completeFirstDay = asyncHandler(async (req, res) => {
     const safeData = pickAllowedFields(req.body, ['feedback']);
     const { feedback } = safeData;
 
-    const onboarding = await Onboarding.findById(sanitizedOnboardingId);
+    const onboarding = await Onboarding.findOne({ _id: sanitizedOnboardingId, ...req.firmQuery });
 
     if (!onboarding) {
         throw CustomException('Onboarding not found', 404);
@@ -1072,7 +1063,7 @@ const completeFirstWeek = asyncHandler(async (req, res) => {
     const safeData = pickAllowedFields(req.body, ['weeklyCheckIn']);
     const { weeklyCheckIn } = safeData;
 
-    const onboarding = await Onboarding.findById(sanitizedOnboardingId);
+    const onboarding = await Onboarding.findOne({ _id: sanitizedOnboardingId, ...req.firmQuery });
 
     if (!onboarding) {
         throw CustomException('Onboarding not found', 404);
@@ -1129,7 +1120,7 @@ const completeFirstMonth = asyncHandler(async (req, res) => {
     const safeData = pickAllowedFields(req.body, ['initialFeedback']);
     const { initialFeedback } = safeData;
 
-    const onboarding = await Onboarding.findById(sanitizedOnboardingId);
+    const onboarding = await Onboarding.findOne({ _id: sanitizedOnboardingId, ...req.firmQuery });
 
     if (!onboarding) {
         throw CustomException('Onboarding not found', 404);
@@ -1185,7 +1176,7 @@ const completeOnboarding = asyncHandler(async (req, res) => {
     const safeData = pickAllowedFields(req.body, ['finalReview', 'outstandingItems']);
     const { finalReview, outstandingItems } = safeData;
 
-    const onboarding = await Onboarding.findById(sanitizedOnboardingId);
+    const onboarding = await Onboarding.findOne({ _id: sanitizedOnboardingId, ...req.firmQuery });
 
     if (!onboarding) {
         throw CustomException('Onboarding not found', 404);
@@ -1345,7 +1336,7 @@ const addChecklistCategory = asyncHandler(async (req, res) => {
         throw CustomException('Category name is required', 400);
     }
 
-    const onboarding = await Onboarding.findById(sanitizedOnboardingId);
+    const onboarding = await Onboarding.findOne({ _id: sanitizedOnboardingId, ...req.firmQuery });
 
     if (!onboarding) {
         throw CustomException('Onboarding not found', 404);
@@ -1419,7 +1410,7 @@ const addChecklistTask = asyncHandler(async (req, res) => {
         throw CustomException('Task name is required', 400);
     }
 
-    const onboarding = await Onboarding.findById(sanitizedOnboardingId);
+    const onboarding = await Onboarding.findOne({ _id: sanitizedOnboardingId, ...req.firmQuery });
 
     if (!onboarding) {
         throw CustomException('Onboarding not found', 404);
@@ -1509,7 +1500,7 @@ const addEmployeeFeedback = asyncHandler(async (req, res) => {
         throw CustomException('Overall satisfaction must be between 1 and 5', 400);
     }
 
-    const onboarding = await Onboarding.findById(sanitizedOnboardingId);
+    const onboarding = await Onboarding.findOne({ _id: sanitizedOnboardingId, ...req.firmQuery });
 
     if (!onboarding) {
         throw CustomException('Onboarding not found', 404);

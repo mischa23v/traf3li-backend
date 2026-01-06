@@ -34,6 +34,9 @@ const {
 // Routes that skip ALL authentication (truly public)
 // NOTE: Paths are relative to /api mount point (no /api prefix)
 // Following industry gold standard (AWS, Google, Okta, Auth0)
+//
+// ⚠️ IMPORTANT: Keep in sync with CSRF_EXEMPT_ROUTES in csrf.middleware.js
+// Any route added here should also be added to CSRF_EXEMPT_ROUTES (with both /api and non-/api versions)
 const PUBLIC_ROUTES = [
     // Core auth endpoints
     '/auth/login',

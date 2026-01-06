@@ -407,15 +407,7 @@ const getEmployeeCompensation = asyncHandler(async (req, res) => {
     const sanitizedEmployeeId = sanitizeObjectId(employeeId);
 
     // IDOR protection - verify employee belongs to the same firm/lawyer
-    const employee = await Employee.findById(sanitizedEmployeeId);
-    if (employee) {
-        if (firmId && employee.firmId?.toString() !== firmId.toString()) {
-            throw CustomException('غير مصرح لك بالوصول إلى هذا الموظف', 403);
-        }
-        if (!firmId && employee.lawyerId?.toString() !== lawyerId.toString()) {
-            throw CustomException('غير مصرح لك بالوصول إلى هذا الموظف', 403);
-        }
-    }
+    const employee = await Employee.findOne({ _id: sanitizedEmployeeId, ...req.firmQuery });
 
     const records = await CompensationReward.find({
         employeeId: sanitizedEmployeeId,
@@ -463,17 +455,9 @@ const createCompensationRecord = asyncHandler(async (req, res) => {
     validateCompensationAmount(salaryRangeMax, 'Salary range maximum');
 
     // Validate employee and ownership
-    const employee = await Employee.findById(sanitizeObjectId(employeeId));
+    const employee = await Employee.findOne({ _id: sanitizeObjectId(employeeId), ...req.firmQuery });
     if (!employee) {
         throw CustomException('Employee not found', 404);
-    }
-
-    // IDOR protection - verify employee belongs to the same firm/lawyer
-    if (firmId && employee.firmId?.toString() !== firmId.toString()) {
-        throw CustomException('غير مصرح لك بالوصول إلى هذا الموظف', 403);
-    }
-    if (!firmId && employee.lawyerId?.toString() !== lawyerId.toString()) {
-        throw CustomException('غير مصرح لك بالوصول إلى هذا الموظف', 403);
     }
 
     // Check for existing active compensation
