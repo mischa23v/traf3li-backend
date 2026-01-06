@@ -37,9 +37,6 @@ const createRate = asyncHandler(async (req, res) => {
         notes
     } = sanitizedData;
 
-    const lawyerId = req.userID;
-    const firmId = req.user?.firmId;
-
     // Validate required fields
     if (!rateType || !standardHourlyRate) {
         throw CustomException('نوع السعر والسعر بالساعة مطلوبان', 400);
@@ -72,9 +69,8 @@ const createRate = asyncHandler(async (req, res) => {
     // Sanitize ObjectIds
     const sanitizedClientId = clientId ? sanitizeObjectId(clientId) : undefined;
 
-    const billingRate = await BillingRate.create({
-        lawyerId,
-        firmId,
+    // SECURITY FIX: Use req.addFirmId for proper tenant context
+    const billingRate = await BillingRate.create(req.addFirmId({
         rateType,
         standardHourlyRate,
         clientId: sanitizedClientId,
@@ -86,13 +82,13 @@ const createRate = asyncHandler(async (req, res) => {
         currency,
         notes,
         isActive: true,
-        createdBy: lawyerId
-    });
+        createdBy: req.userID
+    }));
 
     // Fire-and-forget: Queue the billing activity log
     QueueService.logBillingActivity({
         activityType: 'billing_rate_created',
-        userId: lawyerId,
+        userId: req.userID,
         relatedModel: 'BillingRate',
         relatedId: billingRate._id,
         description: `تم إنشاء سعر ${rateType}: ${standardHourlyRate} ${currency}/ساعة`,
@@ -125,14 +121,8 @@ const getRates = asyncHandler(async (req, res) => {
         limit = 50
     } = req.query;
 
-    const lawyerId = req.userID;
-    const firmId = req.user?.firmId;
-
-    // IDOR protection - verify firmId ownership
-    const query = { lawyerId };
-    if (firmId) {
-        query.firmId = firmId;
-    }
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const query = { ...req.firmQuery };
 
     if (rateType) query.rateType = rateType;
     if (clientId) query.clientId = sanitizeObjectId(clientId);
@@ -165,19 +155,12 @@ const getRates = asyncHandler(async (req, res) => {
  */
 const getRate = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const lawyerId = req.userID;
-    const firmId = req.user?.firmId;
 
     // Sanitize ObjectId
     const sanitizedId = sanitizeObjectId(id);
 
-    // IDOR protection - build query with ownership verification
-    const query = { _id: sanitizedId, lawyerId };
-    if (firmId) {
-        query.firmId = firmId;
-    }
-
-    const billingRate = await BillingRate.findOne(query)
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const billingRate = await BillingRate.findOne({ _id: sanitizedId, ...req.firmQuery })
         .populate('clientId', 'username email phone')
         .populate('createdBy', 'username');
 
@@ -197,19 +180,12 @@ const getRate = asyncHandler(async (req, res) => {
  */
 const updateRate = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const lawyerId = req.userID;
-    const firmId = req.user?.firmId;
 
     // Sanitize ObjectId
     const sanitizedId = sanitizeObjectId(id);
 
-    // IDOR protection - build query with ownership verification
-    const query = { _id: sanitizedId, lawyerId };
-    if (firmId) {
-        query.firmId = firmId;
-    }
-
-    const billingRate = await BillingRate.findOne(query);
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const billingRate = await BillingRate.findOne({ _id: sanitizedId, ...req.firmQuery });
 
     if (!billingRate) {
         throw CustomException('السعر غير موجود', 404);
@@ -257,7 +233,7 @@ const updateRate = asyncHandler(async (req, res) => {
     if (Object.keys(changes).length > 0) {
         QueueService.logBillingActivity({
             activityType: 'billing_rate_updated',
-            userId: lawyerId,
+            userId: req.userID,
             relatedModel: 'BillingRate',
             relatedId: billingRate._id,
             description: `تم تحديث السعر ${billingRate.rateType}`,
@@ -284,19 +260,12 @@ const updateRate = asyncHandler(async (req, res) => {
  */
 const deleteRate = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const lawyerId = req.userID;
-    const firmId = req.user?.firmId;
 
     // Sanitize ObjectId
     const sanitizedId = sanitizeObjectId(id);
 
-    // IDOR protection - build query with ownership verification
-    const query = { _id: sanitizedId, lawyerId };
-    if (firmId) {
-        query.firmId = firmId;
-    }
-
-    const billingRate = await BillingRate.findOneAndDelete(query);
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const billingRate = await BillingRate.findOneAndDelete({ _id: sanitizedId, ...req.firmQuery });
 
     if (!billingRate) {
         throw CustomException('السعر غير موجود', 404);
@@ -314,13 +283,13 @@ const deleteRate = asyncHandler(async (req, res) => {
  */
 const getApplicableRate = asyncHandler(async (req, res) => {
     const { clientId, caseType, activityCode } = req.query;
-    const lawyerId = req.userID;
 
     // Sanitize ObjectId if provided
     const sanitizedClientId = clientId ? sanitizeObjectId(clientId) : null;
 
+    // SECURITY FIX: Pass req.firmQuery for proper tenant isolation
     const rate = await BillingRate.getApplicableRate(
-        lawyerId,
+        req.firmQuery,
         sanitizedClientId,
         caseType || null,
         activityCode || null
@@ -349,8 +318,6 @@ const setStandardRate = asyncHandler(async (req, res) => {
     const sanitizedData = pickAllowedFields(req.body, allowedFields);
 
     const { standardHourlyRate, currency = 'SAR' } = sanitizedData;
-    const lawyerId = req.userID;
-    const firmId = req.user?.firmId;
 
     // Input validation for rate amounts
     if (!standardHourlyRate || typeof standardHourlyRate !== 'number' ||
@@ -358,17 +325,12 @@ const setStandardRate = asyncHandler(async (req, res) => {
         throw CustomException('السعر بالساعة مطلوب ويجب أن يكون رقماً موجباً ومعقولاً', 400);
     }
 
-    // Check if standard rate already exists
-    const query = {
-        lawyerId,
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const existingRate = await BillingRate.findOne({
+        ...req.firmQuery,
         rateType: 'standard',
         isActive: true
-    };
-    if (firmId) {
-        query.firmId = firmId;
-    }
-
-    const existingRate = await BillingRate.findOne(query);
+    });
 
     if (existingRate) {
         // Update existing
@@ -384,16 +346,14 @@ const setStandardRate = asyncHandler(async (req, res) => {
         });
     }
 
-    // Create new
-    const billingRate = await BillingRate.create({
-        lawyerId,
-        firmId,
+    // SECURITY FIX: Use req.addFirmId for proper tenant context
+    const billingRate = await BillingRate.create(req.addFirmId({
         rateType: 'standard',
         standardHourlyRate,
         currency,
         isActive: true,
-        createdBy: lawyerId
-    });
+        createdBy: req.userID
+    }));
 
     res.status(201).json({
         success: true,
@@ -407,13 +367,12 @@ const setStandardRate = asyncHandler(async (req, res) => {
  * GET /api/billing-rates/stats
  */
 const getRateStats = asyncHandler(async (req, res) => {
-    const lawyerId = req.userID;
-    const firmId = req.user?.firmId;
-
-    // IDOR protection - build match query
-    const matchQuery = { lawyerId, isActive: true };
-    if (firmId) {
-        matchQuery.firmId = firmId;
+    // SECURITY FIX: Build aggregate match from req.firmQuery for proper tenant isolation
+    const matchQuery = { isActive: true };
+    if (req.firmQuery.firmId) {
+        matchQuery.firmId = req.firmQuery.firmId;
+    } else if (req.firmQuery.lawyerId) {
+        matchQuery.lawyerId = req.firmQuery.lawyerId;
     }
 
     const stats = await BillingRate.aggregate([
@@ -429,16 +388,12 @@ const getRateStats = asyncHandler(async (req, res) => {
         }
     ]);
 
-    const standardRateQuery = {
-        lawyerId,
+    // SECURITY FIX: Use req.firmQuery for proper tenant isolation
+    const standardRate = await BillingRate.findOne({
+        ...req.firmQuery,
         rateType: 'standard',
         isActive: true
-    };
-    if (firmId) {
-        standardRateQuery.firmId = firmId;
-    }
-
-    const standardRate = await BillingRate.findOne(standardRateQuery);
+    });
 
     res.status(200).json({
         success: true,
