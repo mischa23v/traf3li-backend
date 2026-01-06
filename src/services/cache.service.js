@@ -421,7 +421,138 @@ const resetStats = () => {
   cacheMetrics.lastReset = Date.now();
 };
 
+// ============================================
+// TENANT-SCOPED CACHE KEY HELPERS
+// ============================================
+
+/**
+ * Generate a tenant-scoped cache key
+ * SECURITY: All tenant-specific data MUST use this helper or equivalent
+ *
+ * @param {Object} firmQuery - The req.firmQuery object { firmId } or { lawyerId }
+ * @param {string} namespace - Cache namespace (e.g., 'settings', 'appointments')
+ * @param {string} identifier - Additional identifier (e.g., resource ID, date range)
+ * @returns {string|null} - Tenant-scoped cache key or null if no tenant context
+ *
+ * @example
+ * // For firm: "firm:abc123:settings:crm"
+ * // For solo lawyer: "lawyer:xyz789:settings:crm"
+ * const key = makeTenantKey(req.firmQuery, 'settings', 'crm');
+ */
+const makeTenantKey = (firmQuery, namespace, identifier = '') => {
+  if (!firmQuery) {
+    logger.warn('Cache.makeTenantKey: No firmQuery provided');
+    return null;
+  }
+
+  const identifierPart = identifier ? `:${identifier}` : '';
+
+  if (firmQuery.firmId) {
+    return `firm:${firmQuery.firmId}:${namespace}${identifierPart}`;
+  }
+
+  if (firmQuery.lawyerId) {
+    return `lawyer:${firmQuery.lawyerId}:${namespace}${identifierPart}`;
+  }
+
+  logger.warn('Cache.makeTenantKey: firmQuery has neither firmId nor lawyerId');
+  return null;
+};
+
+/**
+ * Generate a pattern for invalidating all tenant cache keys
+ * @param {Object} firmQuery - The req.firmQuery object
+ * @param {string} namespace - Optional namespace to limit invalidation
+ * @returns {string|null} - Pattern for delPattern or null
+ *
+ * @example
+ * // Invalidate all firm cache: "firm:abc123:*"
+ * // Invalidate firm settings cache: "firm:abc123:settings:*"
+ */
+const makeTenantPattern = (firmQuery, namespace = null) => {
+  if (!firmQuery) return null;
+
+  const namespacePart = namespace ? `:${namespace}:*` : ':*';
+
+  if (firmQuery.firmId) {
+    return `firm:${firmQuery.firmId}${namespacePart}`;
+  }
+
+  if (firmQuery.lawyerId) {
+    return `lawyer:${firmQuery.lawyerId}${namespacePart}`;
+  }
+
+  return null;
+};
+
+/**
+ * Tenant-scoped get
+ * @param {Object} firmQuery - Tenant context
+ * @param {string} namespace - Cache namespace
+ * @param {string} identifier - Resource identifier
+ */
+const getTenant = async (firmQuery, namespace, identifier = '') => {
+  const key = makeTenantKey(firmQuery, namespace, identifier);
+  if (!key) return null;
+  return get(key);
+};
+
+/**
+ * Tenant-scoped set
+ * @param {Object} firmQuery - Tenant context
+ * @param {string} namespace - Cache namespace
+ * @param {string} identifier - Resource identifier
+ * @param {any} value - Value to cache
+ * @param {number} ttlSeconds - TTL in seconds
+ */
+const setTenant = async (firmQuery, namespace, identifier, value, ttlSeconds = 300) => {
+  const key = makeTenantKey(firmQuery, namespace, identifier);
+  if (!key) return false;
+  return set(key, value, ttlSeconds);
+};
+
+/**
+ * Tenant-scoped delete
+ * @param {Object} firmQuery - Tenant context
+ * @param {string} namespace - Cache namespace
+ * @param {string} identifier - Resource identifier
+ */
+const delTenant = async (firmQuery, namespace, identifier = '') => {
+  const key = makeTenantKey(firmQuery, namespace, identifier);
+  if (!key) return false;
+  return del(key);
+};
+
+/**
+ * Invalidate all cache for a tenant (or specific namespace)
+ * @param {Object} firmQuery - Tenant context
+ * @param {string} namespace - Optional namespace to limit invalidation
+ */
+const invalidateTenant = async (firmQuery, namespace = null) => {
+  const pattern = makeTenantPattern(firmQuery, namespace);
+  if (!pattern) return 0;
+  return delPattern(pattern);
+};
+
+/**
+ * Tenant-scoped getOrSet (cache-aside pattern)
+ * @param {Object} firmQuery - Tenant context
+ * @param {string} namespace - Cache namespace
+ * @param {string} identifier - Resource identifier
+ * @param {Function} fetchFn - Function to fetch data if not cached
+ * @param {number} ttl - TTL in seconds
+ */
+const getOrSetTenant = async (firmQuery, namespace, identifier, fetchFn, ttl = 300) => {
+  const key = makeTenantKey(firmQuery, namespace, identifier);
+  if (!key) {
+    // No tenant context, execute without caching
+    return fetchFn();
+  }
+  return getOrSet(key, fetchFn, ttl);
+};
+
 module.exports = {
+  // Core cache operations
   get,
   set,
   del,
@@ -436,5 +567,14 @@ module.exports = {
   increment,
   decrement,
   getStats,
-  resetStats
+  resetStats,
+
+  // Tenant-scoped cache operations (SECURITY: Use these for multi-tenant data)
+  makeTenantKey,
+  makeTenantPattern,
+  getTenant,
+  setTenant,
+  delTenant,
+  invalidateTenant,
+  getOrSetTenant
 };
