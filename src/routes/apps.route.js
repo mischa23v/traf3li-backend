@@ -1,3 +1,39 @@
+/**
+ * Apps Routes
+ *
+ * Integration/Apps management endpoints for connecting third-party services
+ *
+ * SECURITY: Authenticated routes require authentication + permission checks
+ */
+
+const express = require('express');
+const { authenticate } = require('../middlewares');
+const { publicRateLimiter, sensitiveRateLimiter } = require('../middlewares/rateLimiter.middleware');
+const { checkPermission } = require('../middlewares/permission.middleware');
+const {
+    listApps,
+    getApp,
+    connectApp,
+    disconnectApp,
+    getAppSettings,
+    updateAppSettings,
+    syncApp,
+    testApp,
+    getCategories,
+    getStats
+} = require('../controllers/apps.controller');
+
+const router = express.Router();
+
+// Rate limiters for different operations
+const readRateLimiter = publicRateLimiter;
+const writeRateLimiter = sensitiveRateLimiter;
+const syncRateLimiter = sensitiveRateLimiter;
+
+// ============================================================================
+// PUBLIC ROUTES
+// ============================================================================
+
 router.get('/categories', readRateLimiter, getCategories);
 
 // ============================================================================
@@ -5,7 +41,7 @@ router.get('/categories', readRateLimiter, getCategories);
 // ============================================================================
 
 // Apply authentication to all routes below
-router.use(userMiddleware);
+router.use(authenticate);
 
 router.get(
     '/',
