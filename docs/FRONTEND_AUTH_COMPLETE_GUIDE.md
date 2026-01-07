@@ -69,10 +69,24 @@
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
 │   /sign-in  │────▶│ POST /login │────▶│   /otp      │────▶│ POST        │
 │  Enter email│     │ Returns:    │     │ Enter code  │     │ /verify-otp │
-│  + password │     │ requiresOtp │     │ from email  │     │ Returns     │
-│             │     │ email       │     │             │     │ tokens      │
+│  + password │     │ requiresOtp │     │ from email  │     │ + token     │
+│             │     │ email       │     │             │     │ Returns     │
+│             │     │ LOGIN       │     │             │     │ tokens      │
+│             │     │ SESSION     │     │             │     │             │
+│             │     │ TOKEN ←─────│─────│─────────────│─────│→ REQUIRED   │
 └─────────────┘     └─────────────┘     └─────────────┘     └─────────────┘
 ```
+
+### Security: Login Session Token
+
+The login response includes a `loginSessionToken` which **MUST** be passed to `/verify-otp`.
+
+**Why?** This cryptographically proves that:
+1. The password was actually verified (prevents OTP-only bypass attacks)
+2. The same client that verified password is verifying OTP
+3. IP/device binding for session continuity
+
+**Without this token, OTP verification will FAIL.**
 
 ### Step 1: POST /api/auth/login
 
@@ -104,6 +118,9 @@ interface LoginOTPResponse {
   messageEn: string;              // English
   email: string;                  // Masked: "u***r@example.com"
   expiresIn: number;              // OTP expiry in seconds (300 = 5 min)
+  // CRITICAL: Store this and pass to /verify-otp
+  loginSessionToken: string;      // Cryptographic proof of password verification
+  loginSessionExpiresIn: number;  // Session expiry in seconds (600 = 10 min)
   securityWarning?: {             // Only if password is breached
     type: 'PASSWORD_COMPROMISED';
     message: string;
@@ -123,7 +140,9 @@ interface LoginOTPResponse {
   "message": "تم إرسال رمز التحقق إلى بريدك الإلكتروني",
   "messageEn": "Verification code sent to your email",
   "email": "u***r@example.com",
-  "expiresIn": 300
+  "expiresIn": 300,
+  "loginSessionToken": "eyJ1c2VySWQiOiI1MDdmMWY3N2JjZjg2Y2Q3OTk0MzkwMTEiLC...",
+  "loginSessionExpiresIn": 600
 }
 ```
 
@@ -137,6 +156,8 @@ interface LoginOTPResponse {
   "messageEn": "Verification code sent to your email",
   "email": "u***r@example.com",
   "expiresIn": 300,
+  "loginSessionToken": "eyJ1c2VySWQiOiI1MDdmMWY3N2JjZjg2Y2Q3OTk0MzkwMTEiLC...",
+  "loginSessionExpiresIn": 600,
   "securityWarning": {
     "type": "PASSWORD_COMPROMISED",
     "message": "تحذير أمني: كلمة المرور الخاصة بك موجودة في قاعدة بيانات التسريبات.",
@@ -165,9 +186,10 @@ interface LoginOTPResponse {
 **Request:**
 ```typescript
 interface VerifyOTPRequest {
-  email: string;        // Full email (not masked)
-  otp: string;          // 6-digit code
-  purpose: 'login';     // Must be 'login' for password login flow
+  email: string;              // Full email (not masked)
+  otp: string;                // 6-digit code
+  purpose: 'login';           // Must be 'login' for password login flow
+  loginSessionToken: string;  // REQUIRED - from login response (proves password was verified)
 }
 ```
 
@@ -176,9 +198,12 @@ interface VerifyOTPRequest {
 {
   "email": "user@example.com",
   "otp": "847293",
-  "purpose": "login"
+  "purpose": "login",
+  "loginSessionToken": "eyJ1c2VySWQiOiI1MDdmMWY3N2JjZjg2Y2Q3OTk0MzkwMTEiLC..."
 }
 ```
+
+> **CRITICAL**: The `loginSessionToken` is REQUIRED for `purpose: "login"`. Without it, verification will fail with `LOGIN_SESSION_TOKEN_REQUIRED` error. This prevents attackers from bypassing password verification.
 
 **Success Response (200):**
 ```typescript

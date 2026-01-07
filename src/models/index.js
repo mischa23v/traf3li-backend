@@ -119,6 +119,7 @@ const Session = require('./session.model');
 const RevokedToken = require('./revokedToken.model');
 const RefreshToken = require('./refreshToken.model');
 const MagicLink = require('./magicLink.model');
+const LoginSession = require('./loginSession.model');
 
 // Subscription & Billing Models
 const Subscription = require('./subscription.model');
@@ -573,6 +574,7 @@ module.exports = {
     WebAuthnCredential,
     Session,
     MagicLink,
+    LoginSession,
 
     // Subscription & Billing
     Subscription,

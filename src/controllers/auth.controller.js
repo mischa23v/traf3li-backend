@@ -1,4 +1,4 @@
-const { User, Firm, FirmInvitation, EmailOTP } = require('../models');
+const { User, Firm, FirmInvitation, EmailOTP, LoginSession } = require('../models');
 const CRMSettings = require('../models/crmSettings.model');
 const { CustomException } = require('../utils');
 const jwt = require('jsonwebtoken');
@@ -773,10 +773,19 @@ const authLogin = async (request, response) => {
             }
 
             // ═══════════════════════════════════════════════════════════════
-            // MANDATORY EMAIL OTP VERIFICATION
+            // MANDATORY EMAIL OTP VERIFICATION (Enterprise Gold Standard)
             // ═══════════════════════════════════════════════════════════════
             // Password login ALWAYS requires email OTP verification
             // SSO/Google One-Tap bypass this (they have their own verification)
+            //
+            // Security Properties:
+            // 1. LoginSession binds password verification to OTP verification
+            // 2. Cryptographically signed token prevents bypass attacks
+            // 3. IP/device binding for session continuity
+            // 4. Breach info stored in session (not fire-and-forget)
+            // 5. Atomic OTP creation with rollback on email failure
+
+            let createdOtp = null; // Track for rollback
 
             try {
                 // Check rate limit before sending OTP
@@ -792,18 +801,78 @@ const authLogin = async (request, response) => {
                     });
                 }
 
-                // Generate 6-digit OTP
+                // ─────────────────────────────────────────────────────────────
+                // STEP 1: Create Login Session (Proof of Password Verification)
+                // ─────────────────────────────────────────────────────────────
+                // This cryptographically binds password verification to OTP verification
+                // Without this token, OTP verification endpoint will reject the request
+
+                const sessionResult = await LoginSession.createSession({
+                    userId: user._id,
+                    email: user.email,
+                    ipAddress,
+                    userAgent,
+                    deviceFingerprint: request.headers['x-device-id'] || null,
+                    // Store breach info in session (NOT fire-and-forget)
+                    passwordBreached: passwordBreachWarning ? true : false,
+                    breachCount: passwordBreachWarning?.breachCount || 0
+                });
+
+                // Update user breach status synchronously (not fire-and-forget)
+                // This ensures consistency when OTP is verified
+                if (passwordBreachWarning) {
+                    await User.findByIdAndUpdate(user._id, {
+                        passwordBreached: true,
+                        passwordBreachedAt: new Date(),
+                        passwordBreachCount: passwordBreachWarning.breachCount,
+                        mustChangePassword: true,
+                        mustChangePasswordSetAt: new Date()
+                    }, { bypassFirmFilter: true });
+
+                    // Log security incident
+                    auditLogService.log(
+                        'password_breach_detected',
+                        'user',
+                        user._id,
+                        null,
+                        {
+                            userId: user._id,
+                            userEmail: user.email,
+                            userRole: user.role,
+                            ipAddress,
+                            userAgent,
+                            breachCount: passwordBreachWarning.breachCount,
+                            severity: 'high',
+                            details: {
+                                action: 'warn_and_require_change',
+                                detectedAt: new Date().toISOString()
+                            }
+                        }
+                    );
+                }
+
+                // ─────────────────────────────────────────────────────────────
+                // STEP 2: Generate and Store OTP (Atomic with Rollback)
+                // ─────────────────────────────────────────────────────────────
+
                 const otpCode = crypto.randomInt(100000, 999999).toString();
                 const expiryMinutes = 5;
 
-                // Store OTP with hashing (timing-safe verification)
-                await EmailOTP.createOTP(user.email, otpCode, 'login', expiryMinutes, {
+                // Create OTP - track for potential rollback
+                createdOtp = await EmailOTP.createOTP(user.email, otpCode, 'login', expiryMinutes, {
                     ipAddress,
                     userAgent,
-                    userId: user._id
+                    userId: user._id,
+                    loginSessionId: sessionResult.sessionId // Link to session
                 });
 
-                // Send OTP via email (Resend)
+                // Mark OTP as sent in session
+                await LoginSession.markOtpSent(user._id, user.email);
+
+                // ─────────────────────────────────────────────────────────────
+                // STEP 3: Send OTP via Email (with Rollback on Failure)
+                // ─────────────────────────────────────────────────────────────
+
                 const emailResult = await NotificationDeliveryService.sendEmailOTP(
                     user.email,
                     otpCode,
@@ -811,10 +880,30 @@ const authLogin = async (request, response) => {
                 );
 
                 if (!emailResult.success) {
+                    // ROLLBACK: Delete the OTP since email failed
+                    try {
+                        await EmailOTP.deleteOne({
+                            email: user.email.toLowerCase(),
+                            purpose: 'login',
+                            verified: false
+                        });
+                    } catch (rollbackErr) {
+                        logger.error('Failed to rollback OTP after email failure', {
+                            error: rollbackErr.message
+                        });
+                    }
+
+                    // Invalidate the login session
+                    await LoginSession.updateOne(
+                        { _id: sessionResult.sessionId },
+                        { status: 'invalidated' }
+                    );
+
                     logger.error('Failed to send login OTP email', {
                         email: user.email,
                         error: emailResult.error
                     });
+
                     return response.status(500).json({
                         error: true,
                         message: 'فشل إرسال رمز التحقق. يرجى المحاولة مرة أخرى',
@@ -823,7 +912,7 @@ const authLogin = async (request, response) => {
                     });
                 }
 
-                // Log OTP sent
+                // Log OTP sent (with session tracking)
                 auditLogService.log(
                     'login_otp_sent',
                     'user',
@@ -835,6 +924,8 @@ const authLogin = async (request, response) => {
                         userRole: user.role,
                         ipAddress,
                         userAgent,
+                        loginSessionId: sessionResult.sessionId,
+                        passwordBreached: passwordBreachWarning ? true : false,
                         severity: 'low'
                     }
                 );
@@ -845,8 +936,12 @@ const authLogin = async (request, response) => {
                     ? `${localPart[0]}***${localPart[localPart.length - 1]}@${domain}`
                     : `${localPart[0]}***@${domain}`;
 
-                // Return OTP required response
-                // Frontend should redirect to /otp page
+                // ─────────────────────────────────────────────────────────────
+                // STEP 4: Return Response with Login Session Token
+                // ─────────────────────────────────────────────────────────────
+                // Frontend MUST include this token when calling /verify-otp
+                // This proves password was verified by this client
+
                 return response.status(200).json({
                     error: false,
                     requiresOtp: true,
@@ -854,7 +949,11 @@ const authLogin = async (request, response) => {
                     messageEn: 'Verification code sent to your email',
                     code: 'OTP_REQUIRED',
                     email: maskedEmail,
-                    expiresIn: expiryMinutes * 60, // seconds
+                    expiresIn: expiryMinutes * 60, // OTP expiry in seconds
+                    // LOGIN SESSION TOKEN - Required for OTP verification
+                    // This cryptographically proves password was verified
+                    loginSessionToken: sessionResult.token,
+                    loginSessionExpiresIn: sessionResult.expiresIn, // 10 minutes
                     // Include breach warning if detected
                     ...(passwordBreachWarning && { securityWarning: passwordBreachWarning })
                 });
@@ -862,6 +961,7 @@ const authLogin = async (request, response) => {
             } catch (otpError) {
                 logger.error('Email OTP flow failed during login', {
                     error: otpError.message,
+                    stack: otpError.stack,
                     userId: user._id,
                     email: user.email
                 });

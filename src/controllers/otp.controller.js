@@ -3,7 +3,7 @@
  * Handles email OTP send, verify, and resend
  */
 
-const { EmailOTP, User, Firm } = require('../models');
+const { EmailOTP, User, Firm, LoginSession } = require('../models');
 const { generateOTP, hashOTP } = require('../utils/otp.utils');
 const NotificationDeliveryService = require('../services/notificationDelivery.service');
 const crypto = require('crypto');
@@ -12,6 +12,8 @@ const { sanitizeObjectId, timingSafeEqual } = require('../utils/securityUtils');
 const logger = require('../utils/logger');
 const refreshTokenService = require('../services/refreshToken.service');
 const { generateAccessToken } = require('../utils/generateToken');
+const auditLogService = require('../services/auditLog.service');
+const accountLockoutService = require('../services/accountLockout.service');
 
 /**
  * Send OTP to email
@@ -227,8 +229,82 @@ const verifyOTP = async (req, res) => {
       });
     }
 
-    // For login, generate tokens (bypass firmFilter for auth)
-    const user = await User.findOne({ email: email.toLowerCase() })
+    // ═══════════════════════════════════════════════════════════════
+    // LOGIN PURPOSE: Requires LoginSession Token (Proof of Password)
+    // ═══════════════════════════════════════════════════════════════
+    // This ensures that:
+    // 1. Password was actually verified (not just OTP)
+    // 2. Same client that verified password is verifying OTP
+    // 3. IP/device binding for session continuity
+    // 4. Breach info is consistent (from session, not stale user record)
+
+    const { loginSessionToken } = req.body;
+    const userAgent = req.headers['user-agent'] || 'unknown';
+
+    // Validate login session token is provided
+    if (!loginSessionToken) {
+      logger.warn('OTP verification attempted without loginSessionToken', {
+        email: email.toLowerCase(),
+        ipAddress
+      });
+      return res.status(400).json({
+        success: false,
+        error: 'Login session token is required for login verification',
+        errorAr: 'رمز جلسة تسجيل الدخول مطلوب',
+        code: 'LOGIN_SESSION_TOKEN_REQUIRED'
+      });
+    }
+
+    // Verify and consume the login session token
+    let sessionData;
+    try {
+      sessionData = await LoginSession.verifyAndConsumeToken(loginSessionToken, {
+        ipAddress,
+        userAgent
+      });
+    } catch (sessionError) {
+      const errorMessages = {
+        'INVALID_TOKEN_FORMAT': { en: 'Invalid login session token format', ar: 'تنسيق رمز الجلسة غير صالح' },
+        'INVALID_TOKEN_SIGNATURE': { en: 'Invalid login session token', ar: 'رمز جلسة تسجيل الدخول غير صالح' },
+        'TOKEN_ALREADY_USED': { en: 'Login session already used. Please sign in again.', ar: 'تم استخدام جلسة تسجيل الدخول بالفعل. يرجى تسجيل الدخول مرة أخرى.' },
+        'TOKEN_EXPIRED': { en: 'Login session expired. Please sign in again.', ar: 'انتهت صلاحية جلسة تسجيل الدخول. يرجى تسجيل الدخول مرة أخرى.' },
+        'TOKEN_INVALIDATED': { en: 'Login session invalidated. Please sign in again.', ar: 'تم إبطال جلسة تسجيل الدخول. يرجى تسجيل الدخول مرة أخرى.' },
+        'TOKEN_NOT_FOUND': { en: 'Login session not found. Please sign in again.', ar: 'جلسة تسجيل الدخول غير موجودة. يرجى تسجيل الدخول مرة أخرى.' }
+      };
+
+      const errorMsg = errorMessages[sessionError.message] || { en: 'Invalid login session', ar: 'جلسة تسجيل دخول غير صالحة' };
+
+      logger.warn('Login session validation failed', {
+        error: sessionError.message,
+        email: email.toLowerCase(),
+        ipAddress
+      });
+
+      return res.status(401).json({
+        success: false,
+        error: errorMsg.en,
+        errorAr: errorMsg.ar,
+        code: sessionError.message || 'INVALID_LOGIN_SESSION'
+      });
+    }
+
+    // Validate email matches session
+    if (sessionData.email !== email.toLowerCase()) {
+      logger.warn('Email mismatch in OTP verification', {
+        sessionEmail: sessionData.email,
+        providedEmail: email.toLowerCase(),
+        ipAddress
+      });
+      return res.status(400).json({
+        success: false,
+        error: 'Email does not match login session',
+        errorAr: 'البريد الإلكتروني لا يتطابق مع جلسة تسجيل الدخول',
+        code: 'EMAIL_MISMATCH'
+      });
+    }
+
+    // Fetch user for token generation
+    const user = await User.findById(sessionData.userId)
       .setOptions({ bypassFirmFilter: true });
 
     if (!user) {
@@ -250,16 +326,16 @@ const verifyOTP = async (req, res) => {
       }
     }
 
+    // Clear failed login attempts on successful OTP verification
+    await accountLockoutService.clearFailedAttempts(user.email, ipAddress);
+
     // Generate JWT access token using proper utility (15-min expiry, custom claims)
-    // This matches OAuth/SSO/password login token format
     const accessToken = await generateAccessToken(user, { firm });
 
     // Create device info for refresh token
-    const userAgent = req.headers['user-agent'] || 'unknown';
-    const deviceIp = req.ip || req.headers['x-forwarded-for'];
     const deviceInfo = {
       userAgent: userAgent,
-      ip: deviceIp,
+      ip: ipAddress,
       deviceId: req.headers['x-device-id'] || null,
       browser: req.headers['sec-ch-ua'] || null,
       os: req.headers['sec-ch-ua-platform'] || null,
@@ -273,23 +349,46 @@ const verifyOTP = async (req, res) => {
       user.firmId
     );
 
+    // Log successful login
+    auditLogService.log(
+      'login_success',
+      'user',
+      user._id,
+      null,
+      {
+        userId: user._id,
+        userEmail: user.email,
+        userRole: user.role,
+        ipAddress,
+        userAgent,
+        method: 'password_otp',
+        ipMismatch: sessionData.ipMismatch || false,
+        passwordBreached: sessionData.passwordBreached || false,
+        severity: 'low'
+      }
+    );
+
     // Get cookie config based on request context (same as password login)
     const cookieConfig = getCookieConfig(req);
     const refreshCookieConfig = getHttpOnlyRefreshCookieConfig(req);
 
-    // Set cookies and return response (same pattern as SSO login)
+    // Use breach info from session (authoritative source) instead of potentially stale user record
+    const passwordBreached = sessionData.passwordBreached || user.passwordBreached || false;
+    const mustChangePassword = sessionData.passwordBreached || user.mustChangePassword || false;
+
+    // Set cookies and return response
     res.cookie('accessToken', accessToken, cookieConfig)
       .cookie(REFRESH_TOKEN_COOKIE_NAME, refreshToken, refreshCookieConfig)
       .status(200).json({
         success: true,
         message: 'Login successful',
         messageAr: 'تم تسجيل الدخول بنجاح',
-        // OAuth 2.0 standard format (snake_case) - Industry standard for tokens
+        // OAuth 2.0 standard format (snake_case)
         access_token: accessToken,
         refresh_token: refreshToken,
         token_type: 'Bearer',
-        expires_in: 900, // 15 minutes in seconds (access token lifetime)
-        // Backwards compatibility (camelCase) - for existing frontend code
+        expires_in: 900, // 15 minutes
+        // Backwards compatibility (camelCase)
         accessToken: accessToken,
         refreshToken: refreshToken,
         user: {
@@ -304,12 +403,12 @@ const verifyOTP = async (req, res) => {
           isSeller: user.isSeller,
           lawyerMode: user.lawyerMode,
           firmId: user.firmId,
-          // Security flags for frontend to handle
-          mustChangePassword: user.mustChangePassword || false,
-          passwordBreached: user.passwordBreached || false
+          // Security flags from session (authoritative)
+          mustChangePassword: mustChangePassword,
+          passwordBreached: passwordBreached
         },
         // Include security warning if password is breached
-        ...(user.passwordBreached && {
+        ...(passwordBreached && {
           securityWarning: {
             type: 'PASSWORD_COMPROMISED',
             message: 'تحذير أمني: كلمة المرور الخاصة بك موجودة في قاعدة بيانات التسريبات. يرجى تغييرها فوراً.',
