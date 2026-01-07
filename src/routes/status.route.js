@@ -37,7 +37,7 @@ const {
     // Admin - Subscribers & History
     listSubscribers,
     getStatusHistory
-} = require('../controllers/status.controller');
+} = require('../controllers/statusPage.controller');
 
 const router = express.Router();
 
