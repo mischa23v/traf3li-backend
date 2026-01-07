@@ -705,6 +705,72 @@ const authLogin = async (request, response) => {
 
         if(match) {
             // ═══════════════════════════════════════════════════════════════
+            // PASSWORD BREACH CHECK (HaveIBeenPwned)
+            // ═══════════════════════════════════════════════════════════════
+            // Check if user's password has been found in data breaches
+            // This runs in background but we capture result for the response
+            let passwordBreachWarning = null;
+            try {
+                const { checkPasswordBreach } = require('../utils/passwordPolicy');
+                const breachCheck = await checkPasswordBreach(password);
+
+                if (breachCheck.breached && !breachCheck.error) {
+                    // Password found in breach database - warn user but allow login
+                    passwordBreachWarning = {
+                        type: 'PASSWORD_COMPROMISED',
+                        message: 'تحذير أمني: كلمة المرور الخاصة بك موجودة في قاعدة بيانات التسريبات. يرجى تغييرها فوراً لحماية حسابك.',
+                        messageEn: 'Security Warning: Your password was found in data breach databases. Please change it immediately to protect your account.',
+                        breachCount: breachCheck.count,
+                        requirePasswordChange: true
+                    };
+
+                    // Update user record to flag breached password (fire-and-forget)
+                    User.findByIdAndUpdate(user._id, {
+                        passwordBreached: true,
+                        passwordBreachedAt: new Date(),
+                        passwordBreachCount: breachCheck.count,
+                        mustChangePassword: true,
+                        mustChangePasswordSetAt: new Date()
+                    }, { bypassFirmFilter: true }).catch(err =>
+                        logger.error('Failed to update user breach status', { error: err.message, userId: user._id })
+                    );
+
+                    // Log security incident (fire-and-forget)
+                    auditLogService.log(
+                        'password_breach_detected',
+                        'user',
+                        user._id,
+                        null,
+                        {
+                            userId: user._id,
+                            userEmail: user.email,
+                            userRole: user.role,
+                            ipAddress,
+                            userAgent,
+                            breachCount: breachCheck.count,
+                            severity: 'high',
+                            details: {
+                                action: 'warn_and_require_change',
+                                detectedAt: new Date().toISOString()
+                            }
+                        }
+                    );
+
+                    logger.warn('Password breach detected during login', {
+                        userId: user._id,
+                        email: user.email,
+                        breachCount: breachCheck.count
+                    });
+                }
+            } catch (breachError) {
+                // Don't fail login if breach check fails
+                logger.error('Password breach check failed during login', {
+                    error: breachError.message,
+                    userId: user._id
+                });
+            }
+
+            // ═══════════════════════════════════════════════════════════════
             // MFA VERIFICATION (if enabled)
             // ═══════════════════════════════════════════════════════════════
             // Check if user has MFA enabled - need to fetch MFA fields
@@ -1120,6 +1186,13 @@ const authLogin = async (request, response) => {
 
                 // Also set CSRF token in cookie for double-submit pattern using secure configuration
                 response.cookie('csrfToken', csrfTokenData.token, getCSRFCookieConfig(request));
+            }
+
+            // Include password breach warning if detected (requires immediate password change)
+            if (passwordBreachWarning) {
+                loginResponse.warning = passwordBreachWarning;
+                loginResponse.user.mustChangePassword = true;
+                loginResponse.user.passwordBreached = true;
             }
 
             return response
@@ -2437,7 +2510,11 @@ const resetPassword = async (request, response) => {
             passwordResetExpires: null,
             passwordResetRequestedAt: null,
             passwordChangedAt: new Date(),
-            mustChangePassword: false
+            mustChangePassword: false,
+            // Clear password breach flags (new password is safe - already checked above)
+            passwordBreached: false,
+            passwordBreachedAt: null,
+            passwordBreachCount: 0
         }, { bypassFirmFilter: true });
 
         // Log successful password reset

@@ -189,6 +189,11 @@ const changePassword = async (req, res) => {
         user.mustChangePasswordSetAt = null;
         user.mustChangePasswordSetBy = null;
 
+        // Clear password breach flags (password is now safe)
+        user.passwordBreached = false;
+        user.passwordBreachedAt = null;
+        user.passwordBreachCount = 0;
+
         // Reset password expiry warning flags
         user.passwordExpiryWarningsSent = {
             sevenDayWarning: false,

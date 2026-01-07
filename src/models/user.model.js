@@ -523,6 +523,24 @@ const userSchema = new mongoose.Schema({
         required: false,
         default: null
     },
+    // Password breach detection (HaveIBeenPwned)
+    passwordBreached: {
+        type: Boolean,
+        default: false,
+        required: false
+    },
+    // When the breach was detected
+    passwordBreachedAt: {
+        type: Date,
+        required: false,
+        default: null
+    },
+    // Number of times this password appeared in breaches
+    passwordBreachCount: {
+        type: Number,
+        required: false,
+        default: 0
+    },
     // Force user to change password on next login
     mustChangePassword: {
         type: Boolean,
