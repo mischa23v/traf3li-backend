@@ -1,8 +1,9 @@
-const { User, Firm, FirmInvitation } = require('../models');
+const { User, Firm, FirmInvitation, EmailOTP, LoginSession } = require('../models');
 const CRMSettings = require('../models/crmSettings.model');
 const { CustomException } = require('../utils');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
+const crypto = require('crypto');
 const { schemas: authSchemas } = require('../validators/auth.validator');
 const { getDefaultPermissions, getSoloLawyerPermissions, isSoloLawyer: checkIsSoloLawyer } = require('../config/permissions.config');
 const auditLogService = require('../services/auditLog.service');
@@ -21,6 +22,7 @@ const authWebhookService = require('../services/authWebhook.service');
 const csrfService = require('../services/csrf.service');
 const geoAnomalyDetectionService = require('../services/geoAnomalyDetection.service');
 const stepUpAuthService = require('../services/stepUpAuth.service');
+const NotificationDeliveryService = require('../services/notificationDelivery.service');
 const { getCookieConfig, getCSRFCookieConfig, getHttpOnlyRefreshCookieConfig, getClearRefreshCookieConfig, isProductionEnv, REFRESH_TOKEN_COOKIE_NAME } = require('../utils/cookieConfig');
 
 const { JWT_SECRET, NODE_ENV } = process.env;
@@ -771,112 +773,65 @@ const authLogin = async (request, response) => {
             }
 
             // ═══════════════════════════════════════════════════════════════
-            // MFA VERIFICATION (if enabled)
+            // MANDATORY EMAIL OTP VERIFICATION (Enterprise Gold Standard)
             // ═══════════════════════════════════════════════════════════════
-            // Check if user has MFA enabled - need to fetch MFA fields
-            const userWithMFA = await User.findById(user._id)
-                .select('mfaEnabled mfaSecret mfaBackupCodes')
-                .setOptions({ bypassFirmFilter: true })
-                .lean();
+            // Password login ALWAYS requires email OTP verification
+            // SSO/Google One-Tap bypass this (they have their own verification)
+            //
+            // Security Properties:
+            // 1. LoginSession binds password verification to OTP verification
+            // 2. Cryptographically signed token prevents bypass attacks
+            // 3. IP/device binding for session continuity
+            // 4. Breach info stored in session (not fire-and-forget)
+            // 5. Atomic OTP creation with rollback on email failure
 
-            if (userWithMFA?.mfaEnabled) {
-                // MFA is enabled - check if code is provided
-                if (!mfaCode) {
-                    // No MFA code provided - return response indicating MFA is required
-                    return response.status(200).json({
-                        error: false,
-                        mfaRequired: true,
-                        message: 'يرجى إدخال رمز المصادقة الثنائية',
-                        messageEn: 'Please enter your MFA code',
-                        userId: user._id,
-                        code: 'MFA_REQUIRED'
+            let createdOtp = null; // Track for rollback
+
+            try {
+                // Check rate limit before sending OTP
+                const rateLimit = await EmailOTP.checkRateLimit(user.email, 'login');
+
+                if (!rateLimit.allowed) {
+                    return response.status(429).json({
+                        error: true,
+                        message: 'تم تجاوز حد إرسال رمز التحقق. يرجى المحاولة لاحقاً',
+                        messageEn: `OTP rate limit exceeded. Please wait ${Math.ceil(rateLimit.waitTime / 60)} minutes`,
+                        code: 'OTP_RATE_LIMITED',
+                        retryAfter: rateLimit.waitTime
                     });
                 }
 
-                // MFA code provided - verify it
-                let mfaVerified = false;
-                let usedBackupCode = false;
+                // ─────────────────────────────────────────────────────────────
+                // STEP 1: Create Login Session (Proof of Password Verification)
+                // ─────────────────────────────────────────────────────────────
+                // This cryptographically binds password verification to OTP verification
+                // Without this token, OTP verification endpoint will reject the request
 
-                // Check if it's a backup code format (XXXX-XXXX)
-                if (validateBackupCodeFormat(mfaCode)) {
-                    // Try verifying as backup code
-                    try {
-                        // Prepare context for backup code usage notification
-                        const context = {
-                            ipAddress,
-                            userAgent,
-                            location: null // Can be enhanced with GeoIP lookup if needed
-                        };
+                const sessionResult = await LoginSession.createSession({
+                    userId: user._id,
+                    email: user.email,
+                    ipAddress,
+                    userAgent,
+                    deviceFingerprint: request.headers['x-device-id'] || null,
+                    // Store breach info in session (NOT fire-and-forget)
+                    passwordBreached: passwordBreachWarning ? true : false,
+                    breachCount: passwordBreachWarning?.breachCount || 0
+                });
 
-                        const backupResult = await mfaService.useBackupCode(user._id.toString(), mfaCode, context);
-                        if (backupResult.valid) {
-                            mfaVerified = true;
-                            usedBackupCode = true;
+                // Update user breach status synchronously (not fire-and-forget)
+                // This ensures consistency when OTP is verified
+                if (passwordBreachWarning) {
+                    await User.findByIdAndUpdate(user._id, {
+                        passwordBreached: true,
+                        passwordBreachedAt: new Date(),
+                        passwordBreachCount: passwordBreachWarning.breachCount,
+                        mustChangePassword: true,
+                        mustChangePasswordSetAt: new Date()
+                    }, { bypassFirmFilter: true });
 
-                            // Log backup code usage
-                            await auditLogService.log(
-                                'mfa_login_backup_code',
-                                'user',
-                                user._id,
-                                null,
-                                {
-                                    userId: user._id,
-                                    userEmail: user.email,
-                                    userRole: user.role,
-                                    ipAddress,
-                                    userAgent,
-                                    remainingBackupCodes: backupResult.remainingCodes,
-                                    severity: 'medium'
-                                }
-                            );
-                        }
-                    } catch (backupError) {
-                        logger.warn('Backup code verification failed', { error: backupError.message });
-                    }
-                } else {
-                    // Try verifying as TOTP code
-                    try {
-                        // Decrypt the MFA secret
-                        const decryptedSecret = mfaService.decryptMFASecret(userWithMFA.mfaSecret);
-
-                        // Verify the TOTP token
-                        const isValidTOTP = mfaService.verifyTOTP(decryptedSecret, mfaCode, 1);
-
-                        if (isValidTOTP) {
-                            mfaVerified = true;
-
-                            // Update mfaVerifiedAt timestamp
-                            // NOTE: Bypass firmIsolation filter - auth operations need to work for solo lawyers without firmId
-                            await User.findByIdAndUpdate(user._id, {
-                                mfaVerifiedAt: new Date()
-                            }, { bypassFirmFilter: true });
-
-                            // Log TOTP verification
-                            await auditLogService.log(
-                                'mfa_login_totp',
-                                'user',
-                                user._id,
-                                null,
-                                {
-                                    userId: user._id,
-                                    userEmail: user.email,
-                                    userRole: user.role,
-                                    ipAddress,
-                                    userAgent,
-                                    severity: 'low'
-                                }
-                            );
-                        }
-                    } catch (totpError) {
-                        logger.warn('TOTP verification failed', { error: totpError.message });
-                    }
-                }
-
-                // Check if MFA verification succeeded
-                if (!mfaVerified) {
-                    // MFA verification failed
-                    await auditLogService.log(
-                        'mfa_login_failed',
+                    // Log security incident
+                    auditLogService.log(
+                        'password_breach_detected',
                         'user',
                         user._id,
                         null,
@@ -886,32 +841,141 @@ const authLogin = async (request, response) => {
                             userRole: user.role,
                             ipAddress,
                             userAgent,
-                            reason: 'Invalid MFA code',
-                            severity: 'medium'
+                            breachCount: passwordBreachWarning.breachCount,
+                            severity: 'high',
+                            details: {
+                                action: 'warn_and_require_change',
+                                detectedAt: new Date().toISOString()
+                            }
                         }
                     );
+                }
 
-                    return response.status(401).json({
+                // ─────────────────────────────────────────────────────────────
+                // STEP 2: Generate and Store OTP (Atomic with Rollback)
+                // ─────────────────────────────────────────────────────────────
+
+                const otpCode = crypto.randomInt(100000, 999999).toString();
+                const expiryMinutes = 5;
+
+                // Create OTP - track for potential rollback
+                createdOtp = await EmailOTP.createOTP(user.email, otpCode, 'login', expiryMinutes, {
+                    ipAddress,
+                    userAgent,
+                    userId: user._id,
+                    loginSessionId: sessionResult.sessionId // Link to session
+                });
+
+                // Mark OTP as sent in session
+                await LoginSession.markOtpSent(user._id, user.email);
+
+                // ─────────────────────────────────────────────────────────────
+                // STEP 3: Send OTP via Email (with Rollback on Failure)
+                // ─────────────────────────────────────────────────────────────
+
+                const emailResult = await NotificationDeliveryService.sendEmailOTP(
+                    user.email,
+                    otpCode,
+                    user.firstName || 'User'
+                );
+
+                if (!emailResult.success) {
+                    // ROLLBACK: Delete the OTP since email failed
+                    try {
+                        await EmailOTP.deleteOne({
+                            email: user.email.toLowerCase(),
+                            purpose: 'login',
+                            verified: false
+                        });
+                    } catch (rollbackErr) {
+                        logger.error('Failed to rollback OTP after email failure', {
+                            error: rollbackErr.message
+                        });
+                    }
+
+                    // Invalidate the login session
+                    await LoginSession.updateOne(
+                        { _id: sessionResult.sessionId },
+                        { status: 'invalidated' }
+                    );
+
+                    logger.error('Failed to send login OTP email', {
+                        email: user.email,
+                        error: emailResult.error
+                    });
+
+                    return response.status(500).json({
                         error: true,
-                        message: 'رمز المصادقة الثنائية غير صحيح',
-                        messageEn: 'Invalid MFA code',
-                        code: 'INVALID_MFA_CODE',
-                        mfaRequired: true,
-                        userId: user._id
+                        message: 'فشل إرسال رمز التحقق. يرجى المحاولة مرة أخرى',
+                        messageEn: 'Failed to send OTP. Please try again.',
+                        code: 'OTP_SEND_FAILED'
                     });
                 }
 
-                // MFA verified successfully - continue with login
-                if (usedBackupCode) {
-                    // Get remaining backup codes
-                    const remainingCodes = await mfaService.getBackupCodesCount(user._id.toString());
-
-                    // Warn if running low on backup codes
-                    if (remainingCodes <= 2) {
-                        logger.warn('User running low on backup codes', { remainingCodes });
+                // Log OTP sent (with session tracking)
+                auditLogService.log(
+                    'login_otp_sent',
+                    'user',
+                    user._id,
+                    null,
+                    {
+                        userId: user._id,
+                        userEmail: user.email,
+                        userRole: user.role,
+                        ipAddress,
+                        userAgent,
+                        loginSessionId: sessionResult.sessionId,
+                        passwordBreached: passwordBreachWarning ? true : false,
+                        severity: 'low'
                     }
-                }
+                );
+
+                // Mask email for response (u***r@example.com)
+                const [localPart, domain] = user.email.split('@');
+                const maskedEmail = localPart.length > 2
+                    ? `${localPart[0]}***${localPart[localPart.length - 1]}@${domain}`
+                    : `${localPart[0]}***@${domain}`;
+
+                // ─────────────────────────────────────────────────────────────
+                // STEP 4: Return Response with Login Session Token
+                // ─────────────────────────────────────────────────────────────
+                // Frontend MUST include this token when calling /verify-otp
+                // This proves password was verified by this client
+
+                return response.status(200).json({
+                    error: false,
+                    requiresOtp: true,
+                    message: 'تم إرسال رمز التحقق إلى بريدك الإلكتروني',
+                    messageEn: 'Verification code sent to your email',
+                    code: 'OTP_REQUIRED',
+                    email: maskedEmail,
+                    expiresIn: expiryMinutes * 60, // OTP expiry in seconds
+                    // LOGIN SESSION TOKEN - Required for OTP verification
+                    // This cryptographically proves password was verified
+                    loginSessionToken: sessionResult.token,
+                    loginSessionExpiresIn: sessionResult.expiresIn, // 10 minutes
+                    // Include breach warning if detected
+                    ...(passwordBreachWarning && { securityWarning: passwordBreachWarning })
+                });
+
+            } catch (otpError) {
+                logger.error('Email OTP flow failed during login', {
+                    error: otpError.message,
+                    stack: otpError.stack,
+                    userId: user._id,
+                    email: user.email
+                });
+                return response.status(500).json({
+                    error: true,
+                    message: 'حدث خطأ أثناء إرسال رمز التحقق',
+                    messageEn: 'An error occurred while sending verification code',
+                    code: 'OTP_ERROR'
+                });
             }
+
+            // NOTE: Code below this point is NOT reached for password login
+            // Tokens are issued by POST /api/auth/verify-otp after OTP verification
+            // This section is only reached by SSO/OAuth flows that call authLogin directly
 
             // Clear failed attempts on successful login (already cleared above if MFA was used)
             await accountLockoutService.clearFailedAttempts(user.email, ipAddress);
