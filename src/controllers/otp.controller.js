@@ -302,8 +302,22 @@ const verifyOTP = async (req, res) => {
           image: user.image,
           phone: user.phone,
           isSeller: user.isSeller,
-          lawyerMode: user.lawyerMode
-        }
+          lawyerMode: user.lawyerMode,
+          firmId: user.firmId,
+          // Security flags for frontend to handle
+          mustChangePassword: user.mustChangePassword || false,
+          passwordBreached: user.passwordBreached || false
+        },
+        // Include security warning if password is breached
+        ...(user.passwordBreached && {
+          securityWarning: {
+            type: 'PASSWORD_COMPROMISED',
+            message: 'تحذير أمني: كلمة المرور الخاصة بك موجودة في قاعدة بيانات التسريبات. يرجى تغييرها فوراً.',
+            messageEn: 'Security Warning: Your password was found in data breach databases. Please change it immediately.',
+            requirePasswordChange: true,
+            redirectTo: '/dashboard/settings/security?action=change-password&reason=breach'
+          }
+        })
       });
 
   } catch (error) {
