@@ -14,6 +14,7 @@ const refreshTokenService = require('../services/refreshToken.service');
 const { generateAccessToken } = require('../utils/generateToken');
 const auditLogService = require('../services/auditLog.service');
 const accountLockoutService = require('../services/accountLockout.service');
+const stepUpAuthService = require('../services/stepUpAuth.service');
 
 /**
  * Send OTP to email
@@ -366,6 +367,12 @@ const verifyOTP = async (req, res) => {
         passwordBreached: sessionData.passwordBreached || false,
         severity: 'low'
       }
+    );
+
+    // Update reauthentication timestamp on successful login (fire-and-forget for performance)
+    // This enables sensitive operations like password change immediately after login
+    stepUpAuthService.updateReauthTimestamp(user._id.toString()).catch(err =>
+      logger.error('Failed to update reauth timestamp on OTP login:', err)
     );
 
     // Get cookie config based on request context (same as password login)
