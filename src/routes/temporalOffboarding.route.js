@@ -8,10 +8,25 @@ const router = express.Router();
 const temporal = require('../temporal');
 const Offboarding = require('../models/offboarding.model');
 const Employee = require('../models/employee.model');
-const { protect } = require('../middleware/auth.middleware');
-const { validateRequest } = require('../middleware/validation.middleware');
-const { body, param } = require('express-validator');
+const { authenticate } = require('../middlewares');
+const { body, param, validationResult } = require('express-validator');
 const logger = require('../utils/logger');
+
+// Validation middleware to check express-validator results
+const validateRequest = (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res.status(400).json({
+            success: false,
+            message: 'Validation failed',
+            errors: errors.array()
+        });
+    }
+    next();
+};
+
+// Alias for compatibility
+const protect = authenticate;
 
 /**
  * @route   POST /api/employees/:id/start-offboarding

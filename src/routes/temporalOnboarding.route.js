@@ -18,9 +18,13 @@ const router = express.Router();
 const temporalClient = require('../temporal/client');
 const Onboarding = require('../models/onboarding.model');
 const Employee = require('../models/employee.model');
-const { protect } = require('../middleware/auth');
-const { restrictTo } = require('../middleware/permissions');
+const { authenticate } = require('../middlewares');
+const { authorize } = require('../middlewares/authorize.middleware');
 const logger = require('../utils/logger');
+
+// Aliases for compatibility
+const protect = authenticate;
+const restrictTo = authorize;
 
 /**
  * @route   POST /api/employees/:id/start-onboarding
