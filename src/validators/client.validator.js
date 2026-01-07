@@ -41,11 +41,18 @@ const saudiNationalIdPatternRelaxed = /.*/;
 const saudiNationalIdPattern = useStrictPatterns ? saudiNationalIdPatternStrict : saudiNationalIdPatternRelaxed;
 
 /**
- * Saudi phone number pattern (+966 or 05 format)
- * In production: Strict validation
+ * Saudi phone number pattern - STRICT E.164 FORMAT ONLY
+ * Gold Standard: AWS, Google, Microsoft, Twilio all require E.164
+ * Format: +966 followed by 9 digits (mobile starts with 5)
+ * Example: +966501234567
+ *
+ * In production: Strict E.164 validation
  * In development/test: Accepts any value (for Playwright testing)
+ *
+ * FRONTEND MUST format phone numbers to E.164 before sending.
+ * Backend does NOT normalize - it validates and rejects invalid formats.
  */
-const saudiPhonePatternStrict = /^(\+966|966|05)[0-9]{8,9}$/;
+const saudiPhonePatternStrict = /^\+966[5][0-9]{8}$/;
 const saudiPhonePatternRelaxed = /.*/;
 const saudiPhonePattern = useStrictPatterns ? saudiPhonePatternStrict : saudiPhonePatternRelaxed;
 
@@ -74,7 +81,7 @@ const postalCodePattern = useStrictPatterns ? postalCodePatternStrict : postalCo
 const phoneSchema = Joi.string()
     .pattern(saudiPhonePattern)
     .messages({
-        'string.pattern.base': 'رقم الهاتف غير صالح (يجب أن يبدأ بـ +966 أو 05) / Invalid phone number (must start with +966 or 05)',
+        'string.pattern.base': 'رقم الهاتف غير صالح - يجب أن يكون بصيغة E.164 (مثال: +966501234567) / Invalid phone number - must be E.164 format (example: +966501234567)',
         'any.required': 'رقم الهاتف مطلوب / Phone number is required'
     });
 
