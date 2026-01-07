@@ -2,6 +2,34 @@
 
 ---
 
+## 🔴 CRITICAL: MANDATORY SELF-REVIEW BEFORE EVERY PR
+
+**REQUIREMENT: After EVERY implementation, BEFORE creating a PR link, Claude MUST:**
+
+1. **Run `git diff`** and review ALL changes
+2. **Pretend you're a senior dev who HATES this implementation**
+3. **Ask yourself these questions:**
+   - What would I criticize about this code?
+   - What edge cases am I missing?
+   - What security vulnerabilities exist?
+   - What race conditions could occur?
+   - What happens if X fails? (network, DB, email, etc.)
+   - Is there proper rollback/cleanup on failure?
+   - Are there timing attacks possible?
+   - Is input validation complete?
+   - Are error messages leaking sensitive info?
+   - Is this actually enterprise/production level?
+
+4. **FIX all identified issues BEFORE creating PR**
+5. **Document what you found and fixed in the PR description**
+
+**This is NOT optional. Every PR must include a "Critical Self-Review" section showing:**
+- Issues found during review
+- How each issue was fixed
+- Edge cases that were added
+
+---
+
 ## 📋 COMPLETION REQUIREMENTS
 
 **When completing ANY task, Claude MUST:**
@@ -12,11 +40,14 @@
    - Completeness of implementation (25 points)
    - Documentation & standards (25 points)
 
-2. **Create a Pull Request** - Always push changes and provide PR details:
+2. **Perform Critical Self-Review** (see section above)
+
+3. **Create a Pull Request** - Always push changes and provide PR details:
    - Branch name
    - Title
    - Summary of changes
    - Files modified
+   - Critical Self-Review findings
    - Link to create PR
 
 ---
