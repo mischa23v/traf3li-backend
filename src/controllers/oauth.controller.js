@@ -4,6 +4,7 @@ const logger = require('../utils/contextLogger');
 const { getCookieConfig, getHttpOnlyRefreshCookieConfig, REFRESH_TOKEN_COOKIE_NAME } = require('../utils/cookieConfig');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const authWebhookService = require('../services/authWebhook.service');
+const stepUpAuthService = require('../services/stepUpAuth.service');
 
 /**
  * Allowed OAuth provider types
@@ -365,6 +366,15 @@ const callback = async (request, response) => {
         // Set secure cookie with token (httpOnly, secure flags set by getCookieConfig)
         const cookieConfig = getCookieConfig(request);
         response.cookie('accessToken', result.token, cookieConfig);
+
+        // Update step-up auth timestamp for OAuth login (required for sensitive operations like password change)
+        // Fire-and-forget - don't block the redirect
+        // Pattern: Matches auth.controller.js, googleOneTap.controller.js, otp.controller.js
+        if (!result.isNewUser && result.user?.id) {
+            stepUpAuthService.updateReauthTimestamp(result.user.id.toString()).catch(err =>
+                logger.error('Failed to update reauth timestamp on OAuth login:', err)
+            );
+        }
 
         // Redirect to frontend with success
         const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
@@ -739,6 +749,15 @@ const callbackPost = async (request, response) => {
             response.cookie('accessToken', result.token, accessCookieConfig);
             if (result.refreshToken) {
                 response.cookie(REFRESH_TOKEN_COOKIE_NAME, result.refreshToken, refreshCookieConfig);
+            }
+
+            // Update step-up auth timestamp for OAuth login (required for sensitive operations like password change)
+            // Fire-and-forget - don't block the response
+            // Pattern: Matches auth.controller.js, googleOneTap.controller.js, otp.controller.js
+            if (result.user?.id) {
+                stepUpAuthService.updateReauthTimestamp(result.user.id.toString()).catch(err =>
+                    logger.error('Failed to update reauth timestamp on OAuth SSO login:', err)
+                );
             }
         } else {
             // eslint-disable-next-line no-console
