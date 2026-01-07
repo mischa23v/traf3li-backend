@@ -5,10 +5,13 @@
  * - Token revocation management
  * - Password management (admin-forced expiration)
  * - Custom JWT claims management
+ *
+ * SECURITY: All routes require firmAdminOnly - only firm admins/owners can access
  */
 
 const express = require('express');
 const { authenticate } = require('../middlewares');
+const { firmAdminOnly } = require('../middlewares/firmFilter.middleware');
 const { sensitiveRateLimiter, publicRateLimiter } = require('../middlewares/rateLimiter.middleware');
 
 // Token revocation controllers
@@ -39,32 +42,35 @@ const {
 const app = express.Router();
 
 // ========== Token Revocation Management ==========
-app.post('/users/:id/revoke-tokens', authenticate, sensitiveRateLimiter, revokeUserTokens);
+// SECURITY: firmAdminOnly ensures only firm admins/owners can revoke tokens
+app.post('/users/:id/revoke-tokens', authenticate, firmAdminOnly, sensitiveRateLimiter, revokeUserTokens);
 
-app.get('/revoked-tokens', authenticate, publicRateLimiter, getRecentRevocations);
+app.get('/revoked-tokens', authenticate, firmAdminOnly, publicRateLimiter, getRecentRevocations);
 
-app.get('/revoked-tokens/stats', authenticate, publicRateLimiter, getRevocationStats);
+app.get('/revoked-tokens/stats', authenticate, firmAdminOnly, publicRateLimiter, getRevocationStats);
 
-app.get('/users/:id/revocations', authenticate, publicRateLimiter, getUserRevocationHistory);
+app.get('/users/:id/revocations', authenticate, firmAdminOnly, publicRateLimiter, getUserRevocationHistory);
 
-app.post('/revoked-tokens/cleanup', authenticate, sensitiveRateLimiter, cleanupExpiredTokens);
+app.post('/revoked-tokens/cleanup', authenticate, firmAdminOnly, sensitiveRateLimiter, cleanupExpiredTokens);
 
 // ========== Password Management (Admin) ==========
-app.post('/users/:id/expire-password', authenticate, sensitiveRateLimiter, expireUserPassword);
+// SECURITY: firmAdminOnly ensures only firm admins/owners can expire passwords
+app.post('/users/:id/expire-password', authenticate, firmAdminOnly, sensitiveRateLimiter, expireUserPassword);
 
-app.post('/firm/expire-all-passwords', authenticate, sensitiveRateLimiter, expireAllFirmPasswords);
+app.post('/firm/expire-all-passwords', authenticate, firmAdminOnly, sensitiveRateLimiter, expireAllFirmPasswords);
 
-app.get('/firm/password-stats', authenticate, publicRateLimiter, getFirmPasswordStats);
+app.get('/firm/password-stats', authenticate, firmAdminOnly, publicRateLimiter, getFirmPasswordStats);
 
 // ========== Custom JWT Claims Management (Admin) ==========
-app.get('/users/:id/claims', authenticate, publicRateLimiter, getUserClaims);
+// SECURITY: firmAdminOnly ensures only firm admins/owners can manage JWT claims
+app.get('/users/:id/claims', authenticate, firmAdminOnly, publicRateLimiter, getUserClaims);
 
-app.put('/users/:id/claims', authenticate, sensitiveRateLimiter, setUserClaims);
+app.put('/users/:id/claims', authenticate, firmAdminOnly, sensitiveRateLimiter, setUserClaims);
 
-app.delete('/users/:id/claims', authenticate, sensitiveRateLimiter, deleteUserClaims);
+app.delete('/users/:id/claims', authenticate, firmAdminOnly, sensitiveRateLimiter, deleteUserClaims);
 
-app.get('/users/:id/claims/preview', authenticate, publicRateLimiter, previewTokenClaims);
+app.get('/users/:id/claims/preview', authenticate, firmAdminOnly, publicRateLimiter, previewTokenClaims);
 
-app.post('/users/:id/claims/validate', authenticate, publicRateLimiter, validateClaims);
+app.post('/users/:id/claims/validate', authenticate, firmAdminOnly, publicRateLimiter, validateClaims);
 
 module.exports = app;
