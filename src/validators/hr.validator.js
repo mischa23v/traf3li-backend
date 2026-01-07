@@ -24,10 +24,15 @@ const saudiNationalIdPattern = /^[12]\d{9}$/;
 const saudiIBANPattern = /^SA\d{22}$/;
 
 /**
- * Saudi phone number validation
- * Format: +966 followed by 9 digits, or 05 followed by 8 digits
+ * Saudi phone number validation - STRICT E.164 FORMAT ONLY
+ * Gold Standard: AWS, Google, Microsoft, Twilio all require E.164
+ * Format: +966 followed by 9 digits (mobile starts with 5)
+ * Example: +966501234567
+ *
+ * FRONTEND MUST format phone numbers to E.164 before sending.
+ * Backend does NOT normalize - it validates and rejects invalid formats.
  */
-const saudiPhonePattern = /^(\+966|966|05)[0-9]{8,9}$/;
+const saudiPhonePattern = /^\+966[5][0-9]{8}$/;
 
 // ============================================
 // EMPLOYEE SCHEMAS

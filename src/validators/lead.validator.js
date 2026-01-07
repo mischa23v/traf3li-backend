@@ -25,6 +25,17 @@ const futureDateValidator = Joi.date().greater('now').messages({
     'date.greater': 'التاريخ يجب أن يكون في المستقبل / Date must be in the future'
 });
 
+/**
+ * Saudi phone number pattern - STRICT E.164 FORMAT ONLY
+ * Gold Standard: AWS, Google, Microsoft, Twilio all require E.164
+ * Format: +966 followed by 9 digits (mobile starts with 5)
+ * Example: +966501234567
+ *
+ * FRONTEND MUST format phone numbers to E.164 before sending.
+ * Backend does NOT normalize - it validates and rejects invalid formats.
+ */
+const saudiPhonePattern = /^\+966[5][0-9]{8}$/;
+
 // ============================================
 // VALIDATION SCHEMAS
 // ============================================
@@ -123,22 +134,22 @@ const createLeadSchema = Joi.object({
             'string.max': 'البريد الإلكتروني طويل جداً / Email is too long'
         }),
     phone: Joi.string()
-        .pattern(/^(\+966|00966|0)?[0-9]{9,10}$/)
+        .pattern(saudiPhonePattern)
         .allow('', null)
         .messages({
-            'string.pattern.base': 'رقم الهاتف غير صالح (مثال: +966501234567) / Invalid phone number (example: +966501234567)'
+            'string.pattern.base': 'رقم الهاتف غير صالح - يجب أن يكون بصيغة E.164 (مثال: +966501234567) / Invalid phone number - must be E.164 format (example: +966501234567)'
         }),
     alternatePhone: Joi.string()
-        .pattern(/^(\+966|00966|0)?[0-9]{9,10}$/)
+        .pattern(saudiPhonePattern)
         .allow('', null)
         .messages({
-            'string.pattern.base': 'رقم الهاتف البديل غير صالح / Invalid alternate phone number'
+            'string.pattern.base': 'رقم الهاتف البديل غير صالح - يجب أن يكون بصيغة E.164 (مثال: +966501234567) / Invalid alternate phone - must be E.164 format (example: +966501234567)'
         }),
     whatsapp: Joi.string()
-        .pattern(/^(\+966|00966|0)?[0-9]{9,10}$/)
+        .pattern(saudiPhonePattern)
         .allow('', null)
         .messages({
-            'string.pattern.base': 'رقم الواتساب غير صالح / Invalid WhatsApp number'
+            'string.pattern.base': 'رقم الواتساب غير صالح - يجب أن يكون بصيغة E.164 (مثال: +966501234567) / Invalid WhatsApp - must be E.164 format (example: +966501234567)'
         }),
 
     // Address
@@ -222,21 +233,21 @@ const updateLeadSchema = Joi.object({
         'string.email': 'البريد الإلكتروني غير صالح / Invalid email format'
     }),
     phone: Joi.string()
-        .pattern(/^(\+966|00966|0)?[0-9]{9,10}$/)
+        .pattern(saudiPhonePattern)
         .messages({
-            'string.pattern.base': 'رقم الهاتف غير صالح / Invalid phone number'
+            'string.pattern.base': 'رقم الهاتف غير صالح - يجب أن يكون بصيغة E.164 (مثال: +966501234567) / Invalid phone number - must be E.164 format (example: +966501234567)'
         }),
     alternatePhone: Joi.string()
-        .pattern(/^(\+966|00966|0)?[0-9]{9,10}$/)
+        .pattern(saudiPhonePattern)
         .allow('', null)
         .messages({
-            'string.pattern.base': 'رقم الهاتف البديل غير صالح / Invalid alternate phone number'
+            'string.pattern.base': 'رقم الهاتف البديل غير صالح - يجب أن يكون بصيغة E.164 (مثال: +966501234567) / Invalid alternate phone - must be E.164 format (example: +966501234567)'
         }),
     whatsapp: Joi.string()
-        .pattern(/^(\+966|00966|0)?[0-9]{9,10}$/)
+        .pattern(saudiPhonePattern)
         .allow('', null)
         .messages({
-            'string.pattern.base': 'رقم الواتساب غير صالح / Invalid WhatsApp number'
+            'string.pattern.base': 'رقم الواتساب غير صالح - يجب أن يكون بصيغة E.164 (مثال: +966501234567) / Invalid WhatsApp - must be E.164 format (example: +966501234567)'
         }),
 
     // Address
