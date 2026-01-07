@@ -1,3 +1,13 @@
+/**
+ * Churn Controller
+ *
+ * Customer health scoring and churn prediction endpoints
+ */
+
+const asyncHandler = require('express-async-handler');
+const { CustomException } = require('../utils');
+const { sanitizeObjectId } = require('../utils/securityUtils');
+
 exports.getHealthScore = asyncHandler(async (req, res) => {
     const { firmId } = req.params;
     const sanitizedFirmId = sanitizeObjectId(firmId);
