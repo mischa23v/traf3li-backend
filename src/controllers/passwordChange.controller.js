@@ -39,6 +39,19 @@ const changePassword = async (req, res) => {
         // Use req.userID set by authenticate middleware (not req.user which requires firmFilter)
         const userId = sanitizeObjectId(req.userID);
 
+        // Validate userId was properly extracted from token
+        if (!userId) {
+            logger.warn('Invalid user ID in password change request', {
+                hasUserID: !!req.userID,
+                ip: req.ip
+            });
+            return res.status(401).json({
+                error: true,
+                message: 'Invalid authentication token',
+                messageAr: 'رمز المصادقة غير صالح'
+            });
+        }
+
         // Input validation - Check required fields
         if (!currentPassword || !newPassword) {
             return res.status(400).json({
@@ -330,11 +343,11 @@ const changePassword = async (req, res) => {
         });
     } catch (error) {
         logger.error('Change password error:', error);
+        // SECURITY: Don't expose internal error details to client
         res.status(500).json({
             error: true,
             message: 'Failed to change password',
-            messageAr: 'فشل تغيير كلمة المرور',
-            details: error.message
+            messageAr: 'فشل تغيير كلمة المرور'
         });
     }
 };
@@ -350,6 +363,15 @@ const getPasswordStatus = async (req, res) => {
     try {
         // Use req.userID set by authenticate middleware (not req.user which requires firmFilter)
         const userId = sanitizeObjectId(req.userID);
+
+        // Validate userId was properly extracted from token
+        if (!userId) {
+            return res.status(401).json({
+                error: true,
+                message: 'Invalid authentication token',
+                messageAr: 'رمز المصادقة غير صالح'
+            });
+        }
 
         // Load user from database since authenticate middleware doesn't set req.user
         const user = await User.findById(userId).select(
@@ -401,11 +423,11 @@ const getPasswordStatus = async (req, res) => {
         });
     } catch (error) {
         logger.error('Get password status error:', error);
+        // SECURITY: Don't expose internal error details to client
         res.status(500).json({
             error: true,
             message: 'Failed to get password status',
-            messageAr: 'فشل الحصول على حالة كلمة المرور',
-            details: error.message
+            messageAr: 'فشل الحصول على حالة كلمة المرور'
         });
     }
 };
