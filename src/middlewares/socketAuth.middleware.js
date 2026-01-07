@@ -1,6 +1,13 @@
-const { verifyAccessToken } = require('../utils/generateToken');
+const { verifyAccessToken, decodeToken, getTokenExpiration } = require('../utils/generateToken');
 const logger = require('../utils/logger');
 const User = require('../models/user.model');
+
+/**
+ * Token Expiry Check Interval (milliseconds)
+ * SECURITY: Check token validity every 60 seconds for long-lived connections
+ * Gold Standard: AWS AppSync, Firebase Realtime Database pattern
+ */
+const TOKEN_CHECK_INTERVAL = 60 * 1000; // 60 seconds
 
 /**
  * Socket.io Authentication Middleware
@@ -83,6 +90,62 @@ const socketAuthMiddleware = async (socket, next) => {
     socket.permissions = user.permissions || [];
     socket.authenticated = true;
 
+    // SECURITY: Store token expiry for periodic validation
+    // Gold Standard: AWS AppSync, Firebase pattern - validate throughout connection lifetime
+    const tokenExpiry = getTokenExpiration(token);
+    socket.tokenExpiry = tokenExpiry;
+    socket.authToken = token; // Store for re-validation
+
+    // Set up periodic token expiry check
+    socket.tokenCheckInterval = setInterval(async () => {
+      try {
+        // Check if token has expired
+        if (socket.tokenExpiry && new Date() >= socket.tokenExpiry) {
+          logger.warn('Socket token expired, disconnecting', {
+            socketId: socket.id,
+            userId: socket.userId,
+            expiredAt: socket.tokenExpiry
+          });
+          socket.emit('auth:token_expired', {
+            message: 'Your session has expired. Please refresh to continue.',
+            code: 'TOKEN_EXPIRED'
+          });
+          socket.disconnect(true);
+          return;
+        }
+
+        // Re-verify token is still valid (not revoked)
+        try {
+          verifyAccessToken(socket.authToken);
+        } catch (verifyError) {
+          logger.warn('Socket token invalid on periodic check', {
+            socketId: socket.id,
+            userId: socket.userId,
+            error: verifyError.message
+          });
+          socket.emit('auth:token_invalid', {
+            message: 'Your session is no longer valid. Please log in again.',
+            code: 'TOKEN_INVALID'
+          });
+          socket.disconnect(true);
+          return;
+        }
+      } catch (error) {
+        logger.error('Token check interval error:', {
+          socketId: socket.id,
+          error: error.message
+        });
+      }
+    }, TOKEN_CHECK_INTERVAL);
+
+    // Clean up interval on disconnect
+    socket.on('disconnect', () => {
+      if (socket.tokenCheckInterval) {
+        clearInterval(socket.tokenCheckInterval);
+        socket.tokenCheckInterval = null;
+      }
+    });
+
     // SECURITY: Automatically join user's firm room for scoped broadcasting
     // This ensures all broadcasts are isolated by firmId
     if (socket.firmId) {
@@ -97,11 +160,66 @@ const socketAuthMiddleware = async (socket, next) => {
     // Join user's personal notification room
     socket.join(`user:${socket.userId}`);
 
+    // SECURITY: Allow clients to refresh their token without disconnecting
+    // Gold Standard: AWS AppSync token refresh pattern
+    socket.on('auth:refresh_token', async (newToken, callback) => {
+      try {
+        if (!newToken || typeof newToken !== 'string') {
+          if (callback) callback({ success: false, error: 'Invalid token provided' });
+          return;
+        }
+
+        // Verify the new token
+        let newDecoded;
+        try {
+          newDecoded = verifyAccessToken(newToken);
+        } catch (verifyError) {
+          logger.warn('Socket token refresh failed - invalid token', {
+            socketId: socket.id,
+            userId: socket.userId,
+            error: verifyError.message
+          });
+          if (callback) callback({ success: false, error: 'Invalid token' });
+          return;
+        }
+
+        // Ensure token belongs to the same user
+        if (newDecoded.id !== socket.userId) {
+          logger.warn('Socket token refresh rejected - user mismatch', {
+            socketId: socket.id,
+            currentUser: socket.userId,
+            tokenUser: newDecoded.id
+          });
+          if (callback) callback({ success: false, error: 'User mismatch' });
+          return;
+        }
+
+        // Update socket with new token
+        socket.authToken = newToken;
+        socket.tokenExpiry = getTokenExpiration(newToken);
+
+        logger.info('Socket token refreshed successfully', {
+          socketId: socket.id,
+          userId: socket.userId,
+          newExpiry: socket.tokenExpiry
+        });
+
+        if (callback) callback({ success: true, expiresAt: socket.tokenExpiry });
+      } catch (error) {
+        logger.error('Socket token refresh error:', {
+          socketId: socket.id,
+          error: error.message
+        });
+        if (callback) callback({ success: false, error: 'Refresh failed' });
+      }
+    });
+
     logger.info('Socket authenticated successfully', {
       socketId: socket.id,
       userId: socket.userId,
       firmId: socket.firmId,
-      role: socket.userRole
+      role: socket.userRole,
+      tokenExpiry: socket.tokenExpiry
     });
 
     next();
