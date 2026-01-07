@@ -9,7 +9,7 @@
 const express = require('express');
 const { authenticate } = require('../middlewares');
 const { publicRateLimiter, sensitiveRateLimiter } = require('../middlewares/rateLimiter.middleware');
-const { checkPermission } = require('../middlewares/permission.middleware');
+const { checkPermission } = require('../middlewares/authorize.middleware');
 const {
     listApps,
     getApp,
