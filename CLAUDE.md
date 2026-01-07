@@ -1,3 +1,5 @@
+🔴 REQUIREMENT: ENTERPRISE-LEVEL CODE QUALITY
+Make sure all code is enterprise-level, production-level, and meets gold standard. Be honest - review your own code like you're a senior dev doing a code review and you HATE this implementation. What would you criticize? What edge cases am I missing? Make sure you take care of ALL edge cases and corner cases. also Do a git diff and review your own code like you're a senior dev doing a code review and you HATE this implementation. What would you criticize? What edge cases am I missing? Make sure you take care of ALL edge cases and corner
 # Claude Code Instructions for traf3li-backend
 
 ---
