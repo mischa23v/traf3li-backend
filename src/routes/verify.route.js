@@ -11,9 +11,9 @@
 
 const express = require('express');
 const logger = require('../utils/logger');
-const yakeenService = require('../services/yakeen.service');
-const wathqService = require('../services/wathq.service');
-const mojService = require('../services/moj.service');
+const yakeenService = require('../services/yakeenService');
+const wathqService = require('../services/wathqService');
+const mojService = require('../services/mojService');
 
 const router = express.Router();
 
