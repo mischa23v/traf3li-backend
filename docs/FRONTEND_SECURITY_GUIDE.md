@@ -7,6 +7,25 @@
 
 ---
 
+## Scope - What This Guide Covers
+
+**This guide is for FRONTEND INFRASTRUCTURE/HOSTING security:**
+- Cloudflare dashboard settings
+- `_headers` file for hosting
+- `security.txt` file creation
+- Vite build configuration (SRI)
+- Cloudflare Worker for CSP nonces
+
+**For other security topics, see:**
+| Topic | File |
+|-------|------|
+| Backend security headers (Express/Helmet) | `SECURITY_HEADERS.md` |
+| API authentication & cookies | `FRONTEND_SECURITY_COMPLETE_GUIDE.md` |
+| CSRF & session management | `FRONTEND_AUTH_COMPLETE_GUIDE.md` |
+| Rate limiting | `RATE_LIMITING.md` |
+
+---
+
 ## Table of Contents
 
 1. [HSTS Configuration (Priority: HIGH)](#1-hsts-configuration)
