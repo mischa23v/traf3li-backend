@@ -82,9 +82,13 @@ const authenticateWithOneTap = async (request, response) => {
         recordActivity(user._id.toString());
 
         // Update reauthentication timestamp
-        stepUpAuthService.updateReauthTimestamp(user._id.toString()).catch(err =>
-            logger.error('Failed to update reauth timestamp on Google One Tap login:', err)
-        );
+        // CRITICAL: Must await to prevent race condition with immediate password change requests
+        try {
+            await stepUpAuthService.updateReauthTimestamp(user._id.toString());
+        } catch (err) {
+            logger.error('Failed to update reauth timestamp on Google One Tap login:', err);
+            // Continue - don't fail login for this
+        }
 
         // ═══════════════════════════════════════════════════════════════
         // GEOGRAPHIC ANOMALY DETECTION

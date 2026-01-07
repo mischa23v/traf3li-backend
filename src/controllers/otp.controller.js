@@ -369,11 +369,14 @@ const verifyOTP = async (req, res) => {
       }
     );
 
-    // Update reauthentication timestamp on successful login (fire-and-forget for performance)
-    // This enables sensitive operations like password change immediately after login
-    stepUpAuthService.updateReauthTimestamp(user._id.toString()).catch(err =>
-      logger.error('Failed to update reauth timestamp on OTP login:', err)
-    );
+    // Update reauthentication timestamp on successful login
+    // CRITICAL: Must await to prevent race condition with immediate password change requests
+    try {
+      await stepUpAuthService.updateReauthTimestamp(user._id.toString());
+    } catch (err) {
+      logger.error('Failed to update reauth timestamp on OTP login:', err);
+      // Continue - don't fail login for this
+    }
 
     // Get cookie config based on request context (same as password login)
     const cookieConfig = getCookieConfig(req);

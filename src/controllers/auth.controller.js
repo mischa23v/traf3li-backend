@@ -976,6 +976,7 @@ const authLogin = async (request, response) => {
             // NOTE: Code below this point is NOT reached for password login
             // Tokens are issued by POST /api/auth/verify-otp after OTP verification
             // This section is only reached by SSO/OAuth flows that call authLogin directly
+            /* eslint-disable no-unreachable -- SSO/OAuth flows call authLogin directly */
 
             // Clear failed attempts on successful login (already cleared above if MFA was used)
             await accountLockoutService.clearFailedAttempts(user.email, ipAddress);
@@ -983,10 +984,14 @@ const authLogin = async (request, response) => {
             // Record session activity for timeout tracking
             recordActivity(user._id.toString());
 
-            // Update reauthentication timestamp on successful login (fire-and-forget for performance)
-            stepUpAuthService.updateReauthTimestamp(user._id.toString()).catch(err =>
-                logger.error('Failed to update reauth timestamp on login:', err)
-            );
+            // Update reauthentication timestamp on successful login
+            // CRITICAL: Must await to prevent race condition with immediate password change requests
+            try {
+                await stepUpAuthService.updateReauthTimestamp(user._id.toString());
+            } catch (err) {
+                logger.error('Failed to update reauth timestamp on login:', err);
+                // Continue - don't fail login for this
+            }
 
             // ═══════════════════════════════════════════════════════════════
             // GEOGRAPHIC ANOMALY DETECTION
@@ -1215,7 +1220,7 @@ const authLogin = async (request, response) => {
                 try {
                     await authWebhookService.triggerLoginWebhook(user, request, {
                         loginMethod: 'password',
-                        mfaUsed: userWithMFA?.mfaEnabled || false,
+                        mfaUsed: user?.mfaEnabled || false,
                         firmId: user.firmId?.toString() || null
                     });
                 } catch (error) {
@@ -1239,7 +1244,7 @@ const authLogin = async (request, response) => {
                 user: {
                     ...userData,
                     // MFA flags per frontend contract
-                    mfaEnabled: userWithMFA?.mfaEnabled || false,
+                    mfaEnabled: user?.mfaEnabled || false,
                     mfaPending: false // Login succeeded, MFA was verified if enabled
                 }
             };
@@ -1263,6 +1268,7 @@ const authLogin = async (request, response) => {
                 .cookie('accessToken', accessToken, getCookieConfig(request, 'access'))
                 .cookie(REFRESH_TOKEN_COOKIE_NAME, refreshToken, refreshCookieConfig)
                 .status(202).send(loginResponse);
+            /* eslint-enable no-unreachable */
         }
 
         // Password mismatch - record failed attempt
