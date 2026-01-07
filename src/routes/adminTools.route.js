@@ -1,3 +1,71 @@
+/**
+ * Admin Tools Routes
+ *
+ * System administration tools for data management, diagnostics, and user management
+ *
+ * SECURITY: All routes require authentication + firmAdminOnly authorization
+ * Only firm admins/owners can access these endpoints
+ */
+
+const express = require('express');
+const { authenticate } = require('../middlewares');
+const { firmAdminOnly } = require('../middlewares/firmFilter.middleware');
+const { sensitiveRateLimiter, publicRateLimiter } = require('../middlewares/rateLimiter.middleware');
+
+// Admin tools controllers
+const {
+    // Data Management
+    getUserData,
+    deleteUserData,
+    exportFirmData,
+    importFirmData,
+    mergeUsers,
+    mergeClients,
+
+    // Data Fixes
+    recalculateInvoiceTotals,
+    reindexSearchData,
+    cleanupOrphanedRecords,
+    validateDataIntegrity,
+    fixCurrencyConversions,
+
+    // System Tools
+    getSystemStats,
+    getUserActivityReport,
+    getStorageUsage,
+    clearCache,
+    runDiagnostics,
+    getSlowQueries,
+
+    // User Management
+    resetUserPassword,
+    impersonateUser,
+    endImpersonation,
+    lockUser,
+    unlockUser,
+    getLoginHistory
+} = require('../controllers/adminTools.controller');
+
+// JWT Key Rotation controllers
+const {
+    getKeyRotationStatus,
+    rotateKeys,
+    generateNewKey,
+    cleanupExpiredKeys,
+    checkRotationNeeded,
+    initializeKeyRotation,
+    autoRotate
+} = require('../controllers/keyRotation.controller');
+
+const router = express.Router();
+
+// Middleware array for admin-only routes
+const adminOnly = [authenticate, firmAdminOnly];
+
+// ═══════════════════════════════════════════════════════════════
+// DATA MANAGEMENT ROUTES
+// ═══════════════════════════════════════════════════════════════
+
 router.get('/users/:id/data', ...adminOnly, publicRateLimiter, getUserData);
 
 router.delete('/users/:id/data', ...adminOnly, sensitiveRateLimiter, deleteUserData);
@@ -59,16 +127,6 @@ router.get('/users/:id/login-history', ...adminOnly, publicRateLimiter, getLogin
 // ═══════════════════════════════════════════════════════════════
 // JWT KEY ROTATION ROUTES
 // ═══════════════════════════════════════════════════════════════
-
-const {
-    getKeyRotationStatus,
-    rotateKeys,
-    generateNewKey,
-    cleanupExpiredKeys,
-    checkRotationNeeded,
-    initializeKeyRotation,
-    autoRotate
-} = require('../controllers/keyRotation.controller');
 
 router.get('/key-rotation/status', ...adminOnly, publicRateLimiter, getKeyRotationStatus);
 

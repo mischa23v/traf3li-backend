@@ -1,3 +1,50 @@
+/**
+ * Status Routes
+ *
+ * System status page endpoints for monitoring service health
+ *
+ * SECURITY: Public routes for status page, admin routes for management
+ */
+
+const express = require('express');
+const { authenticate } = require('../middlewares');
+const { publicRateLimiter, authRateLimiter, sensitiveRateLimiter } = require('../middlewares/rateLimiter.middleware');
+const {
+    // Public endpoints
+    getPublicStatus,
+    getPublicComponents,
+    getComponentStatus,
+    getPublicIncidents,
+    getIncidentDetails,
+    getPublicMaintenance,
+    subscribe,
+    unsubscribe,
+    // Admin - Components
+    listComponents,
+    createComponent,
+    updateComponent,
+    deleteComponent,
+    // Admin - Incidents
+    createIncident,
+    updateIncident,
+    resolveIncident,
+    // Admin - Maintenance
+    scheduleMaintenance,
+    updateMaintenance,
+    startMaintenance,
+    completeMaintenance,
+    cancelMaintenance,
+    // Admin - Subscribers & History
+    listSubscribers,
+    getStatusHistory
+} = require('../controllers/status.controller');
+
+const router = express.Router();
+
+// ========================================================================
+// PUBLIC ROUTES - STATUS PAGE
+// ========================================================================
+
 router.get('/', publicRateLimiter, getPublicStatus);
 
 router.get('/components', publicRateLimiter, getPublicComponents);

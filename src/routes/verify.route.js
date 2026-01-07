@@ -1,3 +1,26 @@
+/**
+ * Verification Routes
+ *
+ * Saudi Government API verification endpoints:
+ * - Yakeen: National ID Verification
+ * - Wathq: Commercial Registry Verification
+ * - MOJ: Attorney & POA Verification
+ *
+ * SECURITY: These endpoints access sensitive government APIs
+ */
+
+const express = require('express');
+const logger = require('../utils/logger');
+const yakeenService = require('../services/yakeen.service');
+const wathqService = require('../services/wathq.service');
+const mojService = require('../services/moj.service');
+
+const router = express.Router();
+
+// ═══════════════════════════════════════════════════════════════
+// YAKEEN API ROUTES (National ID Verification)
+// ═══════════════════════════════════════════════════════════════
+
 router.post('/yakeen', async (req, res) => {
   try {
     const { nationalId, birthDate } = req.body;

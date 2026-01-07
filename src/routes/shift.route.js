@@ -1,3 +1,23 @@
+/**
+ * Shift Routes
+ *
+ * Shift management endpoints for employee scheduling
+ *
+ * SECURITY: All routes require authentication (via global middleware)
+ */
+
+const express = require('express');
+const asyncHandler = require('express-async-handler');
+const ShiftType = require('../models/shiftType.model');
+const ShiftAssignment = require('../models/shiftAssignment.model');
+const Employee = require('../models/employee.model');
+
+const router = express.Router();
+
+// ═══════════════════════════════════════════════════════════════
+// SHIFT TYPE ROUTES
+// ═══════════════════════════════════════════════════════════════
+
 router.get('/shift-types', asyncHandler(async (req, res) => {
   const { isActive, isDefault, isRamadanShift, page = 1, limit = 50 } = req.query;
 
