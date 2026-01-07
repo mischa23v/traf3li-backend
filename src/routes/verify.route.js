@@ -1,55 +1,3 @@
-/**
- * Saudi Government API Verification Routes
- *
- * Routes for verifying Saudi citizens, companies, and legal professionals
- * using Yakeen, Wathq, and MOJ APIs.
- */
-
-const router = require('express').Router();
-const yakeenService = require('../services/yakeenService');
-const wathqService = require('../services/wathqService');
-const mojService = require('../services/mojService');
-const { verifyToken } = require('../middlewares/jwt');
-const { sensitiveRateLimiter } = require('../middlewares/rateLimiter.middleware');
-const logger = require('../utils/logger');
-
-// All routes require authentication
-router.use(verifyToken);
-
-// Apply rate limiting to all verification routes (sensitive auth operations)
-router.use(sensitiveRateLimiter);
-
-// ═══════════════════════════════════════════════════════════════
-// YAKEEN API ROUTES (National ID Verification)
-// ═══════════════════════════════════════════════════════════════
-
-/**
- * @swagger
- * /verify/yakeen:
- *   post:
- *     summary: Verify Saudi National ID via Yakeen API
- *     tags: [Verification]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - nationalId
- *               - birthDate
- *             properties:
- *               nationalId:
- *                 type: string
- *                 description: Saudi National ID (10 digits)
- *               birthDate:
- *                 type: string
- *                 format: date
- *                 description: Birth date (YYYY-MM-DD)
- *     responses:
- *       200:
- *         description: Verification result
- */
 router.post('/yakeen', async (req, res) => {
   try {
     const { nationalId, birthDate } = req.body;
@@ -90,13 +38,6 @@ router.post('/yakeen', async (req, res) => {
   }
 });
 
-/**
- * @swagger
- * /verify/yakeen/address:
- *   post:
- *     summary: Get citizen address via Yakeen API
- *     tags: [Verification]
- */
 router.post('/yakeen/address', async (req, res) => {
   try {
     const { nationalId, birthDate } = req.body;
@@ -137,13 +78,6 @@ router.post('/yakeen/address', async (req, res) => {
   }
 });
 
-/**
- * @swagger
- * /verify/yakeen/status:
- *   get:
- *     summary: Check Yakeen API configuration status
- *     tags: [Verification]
- */
 router.get('/yakeen/status', (req, res) => {
   const isConfigured = yakeenService.isConfigured();
   const cacheStats = yakeenService.getCacheStats();
@@ -163,20 +97,6 @@ router.get('/yakeen/status', (req, res) => {
 // WATHQ API ROUTES (Commercial Registry Verification)
 // ═══════════════════════════════════════════════════════════════
 
-/**
- * @swagger
- * /verify/wathq/{crNumber}:
- *   get:
- *     summary: Verify Commercial Registration via Wathq API
- *     tags: [Verification]
- *     parameters:
- *       - in: path
- *         name: crNumber
- *         required: true
- *         schema:
- *           type: string
- *         description: Commercial Registration number (10 digits)
- */
 router.get('/wathq/:crNumber', async (req, res) => {
   try {
     const { crNumber } = req.params;
@@ -217,13 +137,6 @@ router.get('/wathq/:crNumber', async (req, res) => {
   }
 });
 
-/**
- * @swagger
- * /verify/wathq/{crNumber}/basic:
- *   get:
- *     summary: Get basic CR info via Wathq API
- *     tags: [Verification]
- */
 router.get('/wathq/:crNumber/basic', async (req, res) => {
   try {
     const { crNumber } = req.params;
@@ -251,13 +164,6 @@ router.get('/wathq/:crNumber/basic', async (req, res) => {
   }
 });
 
-/**
- * @swagger
- * /verify/wathq/{crNumber}/status:
- *   get:
- *     summary: Get CR status via Wathq API
- *     tags: [Verification]
- */
 router.get('/wathq/:crNumber/status', async (req, res) => {
   try {
     const { crNumber } = req.params;
@@ -284,13 +190,6 @@ router.get('/wathq/:crNumber/status', async (req, res) => {
   }
 });
 
-/**
- * @swagger
- * /verify/wathq/{crNumber}/managers:
- *   get:
- *     summary: Get managers/board of directors via Wathq API
- *     tags: [Verification]
- */
 router.get('/wathq/:crNumber/managers', async (req, res) => {
   try {
     const { crNumber } = req.params;
@@ -317,13 +216,6 @@ router.get('/wathq/:crNumber/managers', async (req, res) => {
   }
 });
 
-/**
- * @swagger
- * /verify/wathq/{crNumber}/owners:
- *   get:
- *     summary: Get owners/partners via Wathq API
- *     tags: [Verification]
- */
 router.get('/wathq/:crNumber/owners', async (req, res) => {
   try {
     const { crNumber } = req.params;
@@ -350,13 +242,6 @@ router.get('/wathq/:crNumber/owners', async (req, res) => {
   }
 });
 
-/**
- * @swagger
- * /verify/wathq/{crNumber}/capital:
- *   get:
- *     summary: Get capital information via Wathq API
- *     tags: [Verification]
- */
 router.get('/wathq/:crNumber/capital', async (req, res) => {
   try {
     const { crNumber } = req.params;
@@ -383,13 +268,6 @@ router.get('/wathq/:crNumber/capital', async (req, res) => {
   }
 });
 
-/**
- * @swagger
- * /verify/wathq/{crNumber}/branches:
- *   get:
- *     summary: Get company branches via Wathq API
- *     tags: [Verification]
- */
 router.get('/wathq/:crNumber/branches', async (req, res) => {
   try {
     const { crNumber } = req.params;
@@ -416,13 +294,6 @@ router.get('/wathq/:crNumber/branches', async (req, res) => {
   }
 });
 
-/**
- * @swagger
- * /verify/wathq/status:
- *   get:
- *     summary: Check Wathq API configuration status
- *     tags: [Verification]
- */
 router.get('/wathq/config/status', (req, res) => {
   const isConfigured = wathqService.isConfigured();
 
@@ -440,20 +311,6 @@ router.get('/wathq/config/status', (req, res) => {
 // MOJ API ROUTES (Attorney & POA Verification)
 // ═══════════════════════════════════════════════════════════════
 
-/**
- * @swagger
- * /verify/moj/attorney/{attorneyId}:
- *   get:
- *     summary: Verify attorney license via MOJ API
- *     tags: [Verification]
- *     parameters:
- *       - in: path
- *         name: attorneyId
- *         required: true
- *         schema:
- *           type: string
- *         description: Attorney's National ID
- */
 router.get('/moj/attorney/:attorneyId', async (req, res) => {
   try {
     const { attorneyId } = req.params;
@@ -494,13 +351,6 @@ router.get('/moj/attorney/:attorneyId', async (req, res) => {
   }
 });
 
-/**
- * @swagger
- * /verify/moj/attorney:
- *   post:
- *     summary: Verify attorney license (POST version)
- *     tags: [Verification]
- */
 router.post('/moj/attorney', async (req, res) => {
   try {
     const { attorneyId } = req.body;
@@ -541,13 +391,6 @@ router.post('/moj/attorney', async (req, res) => {
   }
 });
 
-/**
- * @swagger
- * /verify/moj/license/{licenseNumber}:
- *   get:
- *     summary: Verify attorney by license number
- *     tags: [Verification]
- */
 router.get('/moj/license/:licenseNumber', async (req, res) => {
   try {
     const { licenseNumber } = req.params;
@@ -588,25 +431,6 @@ router.get('/moj/license/:licenseNumber', async (req, res) => {
   }
 });
 
-/**
- * @swagger
- * /verify/moj/poa/{poaNumber}:
- *   get:
- *     summary: Verify Power of Attorney via MOJ API
- *     tags: [Verification]
- *     parameters:
- *       - in: path
- *         name: poaNumber
- *         required: true
- *         schema:
- *           type: string
- *         description: Power of Attorney number
- *       - in: query
- *         name: idNumber
- *         schema:
- *           type: string
- *         description: National ID of principal or attorney (optional)
- */
 router.get('/moj/poa/:poaNumber', async (req, res) => {
   try {
     const { poaNumber } = req.params;
@@ -648,13 +472,6 @@ router.get('/moj/poa/:poaNumber', async (req, res) => {
   }
 });
 
-/**
- * @swagger
- * /verify/moj/poa:
- *   post:
- *     summary: Verify Power of Attorney (POST version)
- *     tags: [Verification]
- */
 router.post('/moj/poa', async (req, res) => {
   try {
     const { poaNumber, idNumber } = req.body;
@@ -695,13 +512,6 @@ router.post('/moj/poa', async (req, res) => {
   }
 });
 
-/**
- * @swagger
- * /verify/moj/poa/list/{idNumber}:
- *   get:
- *     summary: Get list of Powers of Attorney for a person
- *     tags: [Verification]
- */
 router.get('/moj/poa/list/:idNumber', async (req, res) => {
   try {
     const { idNumber } = req.params;
@@ -742,13 +552,6 @@ router.get('/moj/poa/list/:idNumber', async (req, res) => {
   }
 });
 
-/**
- * @swagger
- * /verify/moj/status:
- *   get:
- *     summary: Check MOJ API configuration status
- *     tags: [Verification]
- */
 router.get('/moj/status', (req, res) => {
   const isConfigured = mojService.isConfigured();
   const cacheStats = mojService.getCacheStats();
@@ -768,13 +571,6 @@ router.get('/moj/status', (req, res) => {
 // SERVICE STATUS OVERVIEW
 // ═══════════════════════════════════════════════════════════════
 
-/**
- * @swagger
- * /verify/status:
- *   get:
- *     summary: Get status of all verification services
- *     tags: [Verification]
- */
 router.get('/status', (req, res) => {
   res.json({
     success: true,

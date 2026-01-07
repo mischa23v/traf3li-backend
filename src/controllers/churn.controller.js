@@ -1,51 +1,3 @@
-/**
- * Churn Management Controller
- *
- * Handles customer churn prediction, tracking, and intervention management.
- * Provides analytics for at-risk customers, churn rates, and retention strategies.
- *
- * Features:
- * - Health score calculation and tracking
- * - Churn event recording and analysis
- * - Intervention management
- * - Comprehensive analytics and reporting
- * - Revenue at risk tracking
- * - Cohort analysis
- */
-
-const asyncHandler = require('../utils/asyncHandler');
-const CustomException = require('../utils/CustomException');
-const logger = require('../utils/logger');
-const { sanitizeObjectId } = require('../utils/securityUtils');
-
-// ============================================
-// HEALTH SCORE ENDPOINTS
-// ============================================
-
-/**
- * Get firm's current health score
- * GET /api/churn/health-score/:firmId
- *
- * @swagger
- * /api/churn/health-score/{firmId}:
- *   get:
- *     summary: Get firm's current health score
- *     tags: [Churn Management]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: firmId
- *         required: true
- *         schema:
- *           type: string
- *         description: Firm ID
- *     responses:
- *       200:
- *         description: Health score retrieved successfully
- *       404:
- *         description: Firm not found
- */
 exports.getHealthScore = asyncHandler(async (req, res) => {
     const { firmId } = req.params;
     const sanitizedFirmId = sanitizeObjectId(firmId);
@@ -93,27 +45,6 @@ exports.getHealthScore = asyncHandler(async (req, res) => {
     });
 });
 
-/**
- * Get historical health scores for a firm
- * GET /api/churn/health-score/:firmId/history
- *
- * @swagger
- * /api/churn/health-score/{firmId}/history:
- *   get:
- *     summary: Get historical health scores
- *     tags: [Churn Management]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: firmId
- *         required: true
- *       - in: query
- *         name: days
- *         schema:
- *           type: integer
- *           default: 90
- */
 exports.getHealthScoreHistory = asyncHandler(async (req, res) => {
     const { firmId } = req.params;
     const { days = 90 } = req.query;
@@ -167,18 +98,6 @@ exports.getHealthScoreHistory = asyncHandler(async (req, res) => {
     });
 });
 
-/**
- * Force recalculation of health score
- * POST /api/churn/health-score/:firmId/recalculate
- *
- * @swagger
- * /api/churn/health-score/{firmId}/recalculate:
- *   post:
- *     summary: Force health score recalculation
- *     tags: [Churn Management]
- *     security:
- *       - bearerAuth: []
- */
 exports.recalculateHealthScore = asyncHandler(async (req, res) => {
     const { firmId } = req.params;
     const sanitizedFirmId = sanitizeObjectId(firmId);
@@ -228,32 +147,6 @@ exports.recalculateHealthScore = asyncHandler(async (req, res) => {
     });
 });
 
-/**
- * Get list of at-risk firms by risk tier
- * GET /api/churn/at-risk
- *
- * @swagger
- * /api/churn/at-risk:
- *   get:
- *     summary: Get at-risk firms
- *     tags: [Churn Management]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: tier
- *         schema:
- *           type: string
- *           enum: [critical, high_risk, medium_risk]
- *       - in: query
- *         name: page
- *         schema:
- *           type: integer
- *       - in: query
- *         name: limit
- *         schema:
- *           type: integer
- */
 exports.getAtRiskFirms = asyncHandler(async (req, res) => {
     const {
         tier,
@@ -335,18 +228,6 @@ exports.getAtRiskFirms = asyncHandler(async (req, res) => {
 // CHURN EVENT ENDPOINTS
 // ============================================
 
-/**
- * Record a churn or downgrade event
- * POST /api/churn/events
- *
- * @swagger
- * /api/churn/events:
- *   post:
- *     summary: Record churn event
- *     tags: [Churn Management]
- *     security:
- *       - bearerAuth: []
- */
 exports.recordChurnEvent = asyncHandler(async (req, res) => {
     const {
         firmId,
@@ -419,18 +300,6 @@ exports.recordChurnEvent = asyncHandler(async (req, res) => {
     });
 });
 
-/**
- * Get churn events with filters
- * GET /api/churn/events
- *
- * @swagger
- * /api/churn/events:
- *   get:
- *     summary: Get churn events
- *     tags: [Churn Management]
- *     security:
- *       - bearerAuth: []
- */
 exports.getChurnEvents = asyncHandler(async (req, res) => {
     const {
         eventType,
@@ -477,16 +346,6 @@ exports.getChurnEvents = asyncHandler(async (req, res) => {
     });
 });
 
-/**
- * Update churn reason after exit survey
- * PUT /api/churn/events/:id/reason
- *
- * @swagger
- * /api/churn/events/{id}/reason:
- *   put:
- *     summary: Update churn reason
- *     tags: [Churn Management]
- */
 exports.updateChurnReason = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { reason, reasonCategory, notes } = req.body;
@@ -512,16 +371,6 @@ exports.updateChurnReason = asyncHandler(async (req, res) => {
     });
 });
 
-/**
- * Submit exit survey responses
- * POST /api/churn/events/:id/exit-survey
- *
- * @swagger
- * /api/churn/events/{id}/exit-survey:
- *   post:
- *     summary: Submit exit survey
- *     tags: [Churn Management]
- */
 exports.recordExitSurvey = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { responses } = req.body;
@@ -554,16 +403,6 @@ exports.recordExitSurvey = asyncHandler(async (req, res) => {
 // ANALYTICS ENDPOINTS
 // ============================================
 
-/**
- * Get main churn dashboard metrics
- * GET /api/churn/analytics/dashboard
- *
- * @swagger
- * /api/churn/analytics/dashboard:
- *   get:
- *     summary: Get churn dashboard metrics
- *     tags: [Churn Analytics]
- */
 exports.getDashboardMetrics = asyncHandler(async (req, res) => {
     const { period = '30' } = req.query;
     const days = parseInt(period) || 30;
@@ -620,16 +459,6 @@ exports.getDashboardMetrics = asyncHandler(async (req, res) => {
     });
 });
 
-/**
- * Get churn rate by period
- * GET /api/churn/analytics/rate
- *
- * @swagger
- * /api/churn/analytics/rate:
- *   get:
- *     summary: Get churn rate analytics
- *     tags: [Churn Analytics]
- */
 exports.getChurnRate = asyncHandler(async (req, res) => {
     const {
         groupBy = 'month',
@@ -667,16 +496,6 @@ exports.getChurnRate = asyncHandler(async (req, res) => {
     });
 });
 
-/**
- * Get churn reasons breakdown
- * GET /api/churn/analytics/reasons
- *
- * @swagger
- * /api/churn/analytics/reasons:
- *   get:
- *     summary: Get churn reasons breakdown
- *     tags: [Churn Analytics]
- */
 exports.getChurnReasons = asyncHandler(async (req, res) => {
     const { startDate, endDate, eventType = 'churn' } = req.query;
 
@@ -768,16 +587,6 @@ exports.getChurnReasons = asyncHandler(async (req, res) => {
     });
 });
 
-/**
- * Get cohort retention analysis
- * GET /api/churn/analytics/cohorts
- *
- * @swagger
- * /api/churn/analytics/cohorts:
- *   get:
- *     summary: Get cohort analysis
- *     tags: [Churn Analytics]
- */
 exports.getCohortAnalysis = asyncHandler(async (req, res) => {
     const { cohortBy = 'month', periods = 12 } = req.query;
 
@@ -835,16 +644,6 @@ exports.getCohortAnalysis = asyncHandler(async (req, res) => {
     });
 });
 
-/**
- * Get revenue at risk metrics
- * GET /api/churn/analytics/revenue-at-risk
- *
- * @swagger
- * /api/churn/analytics/revenue-at-risk:
- *   get:
- *     summary: Get revenue at risk
- *     tags: [Churn Analytics]
- */
 exports.getRevenueAtRisk = asyncHandler(async (req, res) => {
     const { includeProjections = 'true' } = req.query;
 
@@ -885,16 +684,6 @@ exports.getRevenueAtRisk = asyncHandler(async (req, res) => {
 // INTERVENTION ENDPOINTS
 // ============================================
 
-/**
- * Get intervention history for a firm
- * GET /api/churn/interventions/:firmId
- *
- * @swagger
- * /api/churn/interventions/{firmId}:
- *   get:
- *     summary: Get intervention history
- *     tags: [Churn Interventions]
- */
 exports.getInterventionHistory = asyncHandler(async (req, res) => {
     const { firmId } = req.params;
     const sanitizedFirmId = sanitizeObjectId(firmId);
@@ -949,16 +738,6 @@ exports.getInterventionHistory = asyncHandler(async (req, res) => {
     });
 });
 
-/**
- * Manually trigger an intervention
- * POST /api/churn/interventions/:firmId/trigger
- *
- * @swagger
- * /api/churn/interventions/{firmId}/trigger:
- *   post:
- *     summary: Trigger intervention
- *     tags: [Churn Interventions]
- */
 exports.triggerIntervention = asyncHandler(async (req, res) => {
     const { firmId } = req.params;
     const { type, assignedTo, priority, notes } = req.body;
@@ -1014,16 +793,6 @@ exports.triggerIntervention = asyncHandler(async (req, res) => {
     });
 });
 
-/**
- * Get intervention success metrics
- * GET /api/churn/interventions/stats
- *
- * @swagger
- * /api/churn/interventions/stats:
- *   get:
- *     summary: Get intervention statistics
- *     tags: [Churn Interventions]
- */
 exports.getInterventionStats = asyncHandler(async (req, res) => {
     const { startDate, endDate, groupBy = 'type' } = req.query;
 
@@ -1095,16 +864,6 @@ exports.getInterventionStats = asyncHandler(async (req, res) => {
 // REPORT ENDPOINTS
 // ============================================
 
-/**
- * Generate comprehensive churn report
- * GET /api/churn/reports/generate
- *
- * @swagger
- * /api/churn/reports/generate:
- *   get:
- *     summary: Generate churn report
- *     tags: [Churn Reports]
- */
 exports.generateReport = asyncHandler(async (req, res) => {
     const {
         reportType = 'comprehensive',
@@ -1167,16 +926,6 @@ exports.generateReport = asyncHandler(async (req, res) => {
     });
 });
 
-/**
- * Export at-risk customers list
- * GET /api/churn/reports/at-risk-export
- *
- * @swagger
- * /api/churn/reports/at-risk-export:
- *   get:
- *     summary: Export at-risk customers
- *     tags: [Churn Reports]
- */
 exports.exportAtRiskList = asyncHandler(async (req, res) => {
     const { tier, minScore, format = 'csv' } = req.query;
 
@@ -1203,16 +952,6 @@ exports.exportAtRiskList = asyncHandler(async (req, res) => {
     });
 });
 
-/**
- * Get executive summary of churn metrics
- * GET /api/churn/reports/executive-summary
- *
- * @swagger
- * /api/churn/reports/executive-summary:
- *   get:
- *     summary: Get executive summary
- *     tags: [Churn Reports]
- */
 exports.getExecutiveSummary = asyncHandler(async (req, res) => {
     const { period = '30' } = req.query;
     const days = parseInt(period) || 30;

@@ -111,68 +111,12 @@ app.get('/overview',
     getCasesOverview
 );
 
-/**
- * @openapi
- * /api/cases/statistics:
- *   get:
- *     summary: Get case statistics
- *     description: Returns aggregated statistics about cases (by status, type, priority)
- *     tags:
- *       - Cases
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Statistics retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 data:
- *                   type: object
- *       401:
- *         $ref: '#/components/responses/Unauthorized'
- */
 app.get('/statistics',
     userMiddleware,
     cacheResponse(CASE_CACHE_TTL, (req) => `case:firm:${req.firmId || 'none'}:statistics`),
     getStatistics
 );
 
-/**
- * @openapi
- * /api/cases:
- *   post:
- *     summary: Create a new case
- *     description: Creates a new legal case in the system
- *     tags:
- *       - Cases
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/CreateCaseRequest'
- *     responses:
- *       201:
- *         description: Case created successfully
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/CaseResponse'
- *       400:
- *         $ref: '#/components/responses/BadRequest'
- *       401:
- *         $ref: '#/components/responses/Unauthorized'
- *       422:
- *         $ref: '#/components/responses/ValidationError'
- */
 app.post('/',
     userMiddleware,
     validateCreateCase,
@@ -180,46 +124,6 @@ app.post('/',
     createCase
 );
 
-/**
- * @openapi
- * /api/cases:
- *   get:
- *     summary: Get all cases
- *     description: Retrieves a paginated list of cases with optional filtering
- *     tags:
- *       - Cases
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - $ref: '#/components/parameters/pageParam'
- *       - $ref: '#/components/parameters/limitParam'
- *       - $ref: '#/components/parameters/sortParam'
- *       - in: query
- *         name: status
- *         schema:
- *           type: string
- *           enum: [open, in_progress, pending, closed, won, lost, settled]
- *         description: Filter by case status
- *       - in: query
- *         name: caseType
- *         schema:
- *           type: string
- *         description: Filter by case type
- *       - in: query
- *         name: clientId
- *         schema:
- *           type: string
- *         description: Filter by client ID
- *     responses:
- *       200:
- *         description: Cases retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/CaseListResponse'
- *       401:
- *         $ref: '#/components/responses/Unauthorized'
- */
 app.get('/',
     userMiddleware,
     cacheResponse(CASE_CACHE_TTL, (req) => {
@@ -231,39 +135,6 @@ app.get('/',
 );
 
 // ==================== PIPELINE (defined before /:_id routes) ====================
-/**
- * @openapi
- * /api/cases/pipeline:
- *   get:
- *     summary: Get cases for pipeline view
- *     description: Returns cases formatted for pipeline kanban view with linked item counts
- *     tags:
- *       - Cases
- *       - Pipeline
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: category
- *         schema:
- *           type: string
- *         description: Filter by case category (labor, commercial, civil, etc.)
- *       - in: query
- *         name: outcome
- *         schema:
- *           type: string
- *           enum: [ongoing, won, lost, settled]
- *         description: Filter by outcome
- *       - in: query
- *         name: priority
- *         schema:
- *           type: string
- *           enum: [low, medium, high, critical]
- *         description: Filter by priority
- *     responses:
- *       200:
- *         description: Cases retrieved successfully with pipeline data
- */
 app.get('/pipeline',
     userMiddleware,
     cacheResponse(CASE_CACHE_TTL, (req) => {
@@ -274,39 +145,6 @@ app.get('/pipeline',
     casePipelineController.getCasesForPipeline
 );
 
-/**
- * @openapi
- * /api/cases/pipeline/statistics:
- *   get:
- *     summary: Get pipeline statistics
- *     description: Returns aggregated statistics for pipeline view
- *     tags:
- *       - Cases
- *       - Pipeline
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: category
- *         schema:
- *           type: string
- *         description: Filter by case category
- *       - in: query
- *         name: dateFrom
- *         schema:
- *           type: string
- *           format: date
- *         description: Start date filter
- *       - in: query
- *         name: dateTo
- *         schema:
- *           type: string
- *           format: date
- *         description: End date filter
- *     responses:
- *       200:
- *         description: Statistics retrieved successfully
- */
 app.get('/pipeline/statistics',
     userMiddleware,
     cacheResponse(CASE_CACHE_TTL, (req) => {
@@ -317,60 +155,11 @@ app.get('/pipeline/statistics',
     casePipelineController.getPipelineStatistics
 );
 
-/**
- * @openapi
- * /api/cases/pipeline/stages/{category}:
- *   get:
- *     summary: Get valid stages for category
- *     description: Returns the valid stage IDs for a given case category
- *     tags:
- *       - Cases
- *       - Pipeline
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: category
- *         required: true
- *         schema:
- *           type: string
- *         description: Case category (labor, commercial, civil, etc.)
- *     responses:
- *       200:
- *         description: Valid stages retrieved successfully
- */
 app.get('/pipeline/stages/:category',
     userMiddleware,
     casePipelineController.getValidStages
 );
 
-/**
- * @openapi
- * /api/cases/pipeline/grouped:
- *   get:
- *     summary: Get cases grouped by stage (Kanban board)
- *     description: Returns cases grouped by pipeline stage for Kanban board view
- *     tags:
- *       - Cases
- *       - Pipeline
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: category
- *         schema:
- *           type: string
- *         description: Filter by case category
- *       - in: query
- *         name: status
- *         schema:
- *           type: string
- *           enum: [active, closed, all]
- *         description: Filter by status (active excludes closed/completed)
- *     responses:
- *       200:
- *         description: Cases grouped by stage successfully
- */
 app.get('/pipeline/grouped',
     userMiddleware,
     cacheResponse(CASE_CACHE_TTL, (req) => {
@@ -396,35 +185,6 @@ app.get('/:_id/full',
     getCaseFull
 );
 
-/**
- * @openapi
- * /api/cases/{_id}:
- *   get:
- *     summary: Get case by ID
- *     description: Retrieves detailed information about a specific case
- *     tags:
- *       - Cases
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: _id
- *         required: true
- *         schema:
- *           type: string
- *         description: Case ID
- *     responses:
- *       200:
- *         description: Case retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/CaseResponse'
- *       401:
- *         $ref: '#/components/responses/Unauthorized'
- *       404:
- *         $ref: '#/components/responses/NotFound'
- */
 app.get('/:_id',
     userMiddleware,
     validateObjectIdParam,
@@ -436,43 +196,6 @@ app.get('/:_id',
     getCase
 );
 
-/**
- * @openapi
- * /api/cases/{_id}:
- *   patch:
- *     summary: Update case
- *     description: Updates an existing case's information
- *     tags:
- *       - Cases
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: _id
- *         required: true
- *         schema:
- *           type: string
- *         description: Case ID
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/UpdateCaseRequest'
- *     responses:
- *       200:
- *         description: Case updated successfully
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/CaseResponse'
- *       400:
- *         $ref: '#/components/responses/BadRequest'
- *       401:
- *         $ref: '#/components/responses/Unauthorized'
- *       404:
- *         $ref: '#/components/responses/NotFound'
- */
 app.patch('/:_id',
     userMiddleware,
     validateObjectIdParam,
@@ -481,42 +204,6 @@ app.patch('/:_id',
     updateCase
 );
 
-/**
- * @openapi
- * /api/cases/{_id}:
- *   delete:
- *     summary: Delete case
- *     description: Deletes a case from the system
- *     tags:
- *       - Cases
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: _id
- *         required: true
- *         schema:
- *           type: string
- *         description: Case ID
- *     responses:
- *       200:
- *         description: Case deleted successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 message:
- *                   type: string
- *                   example: Case deleted successfully
- *       401:
- *         $ref: '#/components/responses/Unauthorized'
- *       404:
- *         $ref: '#/components/responses/NotFound'
- */
 app.delete('/:_id',
     userMiddleware,
     validateObjectIdParam,
@@ -534,46 +221,6 @@ app.patch('/:_id/progress',
 );
 
 // ==================== NOTES ====================
-/**
- * @openapi
- * /api/cases/{_id}/notes:
- *   get:
- *     summary: Get notes for a case
- *     description: Returns all notes for a case with pagination
- *     tags:
- *       - Cases
- *       - Notes
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: _id
- *         required: true
- *         schema:
- *           type: string
- *         description: Case ID
- *       - in: query
- *         name: limit
- *         schema:
- *           type: number
- *           default: 50
- *         description: Max notes to return
- *       - in: query
- *         name: offset
- *         schema:
- *           type: number
- *           default: 0
- *         description: Skip notes
- *       - in: query
- *         name: sort
- *         schema:
- *           type: string
- *           default: -date
- *         description: Sort field (prefix with - for descending)
- *     responses:
- *       200:
- *         description: Notes retrieved successfully
- */
 app.get('/:_id/notes',
     userMiddleware,
     validateObjectIdParam,
@@ -585,47 +232,6 @@ app.get('/:_id/notes',
     casePipelineController.getNotes
 );
 
-/**
- * @openapi
- * /api/cases/{_id}/notes:
- *   post:
- *     summary: Add a note to a case
- *     description: Add a new note with optional privacy and stage linking
- *     tags:
- *       - Cases
- *       - Notes
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: _id
- *         required: true
- *         schema:
- *           type: string
- *         description: Case ID
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - text
- *             properties:
- *               text:
- *                 type: string
- *                 description: Note text content
- *               isPrivate:
- *                 type: boolean
- *                 default: false
- *                 description: Whether note is private to creator
- *               stageId:
- *                 type: string
- *                 description: Link note to specific stage
- *     responses:
- *       200:
- *         description: Note added successfully
- */
 app.post('/:_id/notes',
     userMiddleware,
     validateObjectIdParam,
@@ -642,45 +248,6 @@ app.post('/:_id/note',
     addNote
 );
 
-/**
- * @openapi
- * /api/cases/{_id}/notes/{noteId}:
- *   put:
- *     summary: Update a note
- *     description: Update note text or privacy setting
- *     tags:
- *       - Cases
- *       - Notes
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: _id
- *         required: true
- *         schema:
- *           type: string
- *         description: Case ID
- *       - in: path
- *         name: noteId
- *         required: true
- *         schema:
- *           type: string
- *         description: Note ID
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               text:
- *                 type: string
- *               isPrivate:
- *                 type: boolean
- *     responses:
- *       200:
- *         description: Note updated successfully
- */
 app.put('/:_id/notes/:noteId',
     userMiddleware,
     validateNestedIdParam,
@@ -697,32 +264,6 @@ app.patch('/:_id/notes/:noteId',
     updateNote
 );
 
-/**
- * @openapi
- * /api/cases/{_id}/notes/{noteId}:
- *   delete:
- *     summary: Delete a note
- *     description: Delete a note from a case
- *     tags:
- *       - Cases
- *       - Notes
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: _id
- *         required: true
- *         schema:
- *           type: string
- *       - in: path
- *         name: noteId
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Note deleted successfully
- */
 app.delete('/:_id/notes/:noteId',
     userMiddleware,
     validateNestedIdParam,
@@ -1032,47 +573,6 @@ app.get('/:_id/rich-documents/:docId/preview',
 );
 
 // ==================== PIPELINE CASE ACTIONS ====================
-/**
- * @openapi
- * /api/cases/{_id}/stage:
- *   patch:
- *     summary: Move case to stage
- *     description: Move a case to a different stage in the pipeline
- *     tags:
- *       - Cases
- *       - Pipeline
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: _id
- *         required: true
- *         schema:
- *           type: string
- *         description: Case ID
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - newStage
- *             properties:
- *               newStage:
- *                 type: string
- *                 description: Target stage ID
- *               notes:
- *                 type: string
- *                 description: Optional notes about the stage change
- *     responses:
- *       200:
- *         description: Case moved successfully
- *       400:
- *         description: Invalid stage for case category
- *       404:
- *         description: Case not found
- */
 app.patch('/:_id/stage',
     userMiddleware,
     validateObjectIdParam,
@@ -1081,54 +581,6 @@ app.patch('/:_id/stage',
     casePipelineController.moveCaseToStage
 );
 
-/**
- * @openapi
- * /api/cases/{_id}/end:
- *   patch:
- *     summary: End case
- *     description: End a case with final outcome
- *     tags:
- *       - Cases
- *       - Pipeline
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: _id
- *         required: true
- *         schema:
- *           type: string
- *         description: Case ID
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - outcome
- *             properties:
- *               outcome:
- *                 type: string
- *                 enum: [won, lost, settled]
- *               endReason:
- *                 type: string
- *                 enum: [final_judgment, settlement, withdrawal, dismissal, reconciliation, execution_complete, other]
- *               finalAmount:
- *                 type: number
- *               notes:
- *                 type: string
- *               endDate:
- *                 type: string
- *                 format: date
- *     responses:
- *       200:
- *         description: Case ended successfully
- *       400:
- *         description: Case already ended or validation error
- *       404:
- *         description: Case not found
- */
 app.patch('/:_id/end',
     userMiddleware,
     validateObjectIdParam,

@@ -63,36 +63,6 @@ const specificClientInvalidationPatterns = [
 // CRUD
 // ─────────────────────────────────────────────────────────
 
-/**
- * @openapi
- * /api/clients:
- *   post:
- *     summary: Create a new client
- *     description: Creates a new client record in the system
- *     tags:
- *       - Clients
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/CreateClientRequest'
- *     responses:
- *       201:
- *         description: Client created successfully
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ClientResponse'
- *       400:
- *         $ref: '#/components/responses/BadRequest'
- *       401:
- *         $ref: '#/components/responses/Unauthorized'
- *       422:
- *         $ref: '#/components/responses/ValidationError'
- */
 app.post('/',
     userMiddleware,
     validateCreateClient,
@@ -101,42 +71,6 @@ app.post('/',
     createClient
 );
 
-/**
- * @openapi
- * /api/clients:
- *   get:
- *     summary: Get all clients
- *     description: Retrieves a paginated list of clients with optional filtering
- *     tags:
- *       - Clients
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - $ref: '#/components/parameters/pageParam'
- *       - $ref: '#/components/parameters/limitParam'
- *       - $ref: '#/components/parameters/sortParam'
- *       - in: query
- *         name: status
- *         schema:
- *           type: string
- *           enum: [active, inactive, suspended, blacklisted]
- *         description: Filter by client status
- *       - in: query
- *         name: clientType
- *         schema:
- *           type: string
- *           enum: [individual, company, government]
- *         description: Filter by client type
- *     responses:
- *       200:
- *         description: Clients retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ClientListResponse'
- *       401:
- *         $ref: '#/components/responses/Unauthorized'
- */
 app.get('/',
     userMiddleware,
     cacheResponse(CLIENT_CACHE_TTL, (req) => {
@@ -150,29 +84,6 @@ app.get('/',
 // SPECIAL QUERIES
 // ─────────────────────────────────────────────────────────
 
-/**
- * @openapi
- * /api/clients/search:
- *   get:
- *     summary: Search clients
- *     description: Search clients by name, email, phone, or other fields
- *     tags:
- *       - Clients
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - $ref: '#/components/parameters/searchParam'
- *       - $ref: '#/components/parameters/limitParam'
- *     responses:
- *       200:
- *         description: Search results retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ClientListResponse'
- *       401:
- *         $ref: '#/components/responses/Unauthorized'
- */
 app.get('/search',
     userMiddleware,
     validateSearchClients,
@@ -183,26 +94,6 @@ app.get('/search',
     searchClients
 );
 
-/**
- * @openapi
- * /api/clients/stats:
- *   get:
- *     summary: Get client statistics
- *     description: Returns aggregated statistics about clients
- *     tags:
- *       - Clients
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Statistics retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ClientStats'
- *       401:
- *         $ref: '#/components/responses/Unauthorized'
- */
 app.get('/stats',
     userMiddleware,
     cacheResponse(CLIENT_CACHE_TTL, (req) => {
@@ -212,33 +103,6 @@ app.get('/stats',
     getClientStats
 );
 
-/**
- * @openapi
- * /api/clients/top-revenue:
- *   get:
- *     summary: Get top clients by revenue
- *     description: Returns the top clients sorted by revenue generated
- *     tags:
- *       - Clients
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: limit
- *         schema:
- *           type: integer
- *           default: 10
- *         description: Number of top clients to return
- *     responses:
- *       200:
- *         description: Top clients retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ClientListResponse'
- *       401:
- *         $ref: '#/components/responses/Unauthorized'
- */
 app.get('/top-revenue',
     userMiddleware,
     cacheResponse(CLIENT_CACHE_TTL, (req) => {
@@ -267,30 +131,6 @@ app.get('/:id/full',
     getClientFull
 );
 
-/**
- * @openapi
- * /api/clients/{id}:
- *   get:
- *     summary: Get client by ID
- *     description: Retrieves detailed information about a specific client
- *     tags:
- *       - Clients
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - $ref: '#/components/parameters/idParam'
- *     responses:
- *       200:
- *         description: Client retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ClientResponse'
- *       401:
- *         $ref: '#/components/responses/Unauthorized'
- *       404:
- *         $ref: '#/components/responses/NotFound'
- */
 app.get('/:id',
     userMiddleware,
     validateIdParam,
@@ -302,38 +142,6 @@ app.get('/:id',
     getClient
 );
 
-/**
- * @openapi
- * /api/clients/{id}:
- *   put:
- *     summary: Update client
- *     description: Updates an existing client's information
- *     tags:
- *       - Clients
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - $ref: '#/components/parameters/idParam'
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/UpdateClientRequest'
- *     responses:
- *       200:
- *         description: Client updated successfully
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ClientResponse'
- *       400:
- *         $ref: '#/components/responses/BadRequest'
- *       401:
- *         $ref: '#/components/responses/Unauthorized'
- *       404:
- *         $ref: '#/components/responses/NotFound'
- */
 app.put('/:id',
     userMiddleware,
     validateIdParam,
@@ -343,37 +151,6 @@ app.put('/:id',
     updateClient
 );
 
-/**
- * @openapi
- * /api/clients/{id}:
- *   delete:
- *     summary: Delete client
- *     description: Deletes a client from the system
- *     tags:
- *       - Clients
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - $ref: '#/components/parameters/idParam'
- *     responses:
- *       200:
- *         description: Client deleted successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 message:
- *                   type: string
- *                   example: Client deleted successfully
- *       401:
- *         $ref: '#/components/responses/Unauthorized'
- *       404:
- *         $ref: '#/components/responses/NotFound'
- */
 app.delete('/:id',
     userMiddleware,
     validateIdParam,

@@ -7,13 +7,6 @@ const { authenticate } = require('../middlewares');
 // Apply authentication to all routes
 router.use(authenticate);
 
-/**
- * @swagger
- * /api/notification-settings:
- *   get:
- *     summary: Get notification settings for current user
- *     tags: [Notification Settings]
- */
 router.get('/', asyncHandler(async (req, res) => {
     const settings = await NotificationSettings.getOrCreate(req.userID, req.firmId);
 
@@ -23,13 +16,6 @@ router.get('/', asyncHandler(async (req, res) => {
     });
 }));
 
-/**
- * @swagger
- * /api/notification-settings:
- *   put:
- *     summary: Update notification settings
- *     tags: [Notification Settings]
- */
 router.put('/', asyncHandler(async (req, res) => {
     const {
         emailEnabled,
@@ -88,13 +74,6 @@ router.put('/', asyncHandler(async (req, res) => {
     });
 }));
 
-/**
- * @swagger
- * /api/notification-settings/preferences/:type:
- *   put:
- *     summary: Update preference for a specific notification type
- *     tags: [Notification Settings]
- */
 router.put('/preferences/:type', asyncHandler(async (req, res) => {
     const { type } = req.params;
     const { email, sms, push, inApp } = req.body;
@@ -110,13 +89,6 @@ router.put('/preferences/:type', asyncHandler(async (req, res) => {
     });
 }));
 
-/**
- * @swagger
- * /api/notification-settings/mute/:type:
- *   post:
- *     summary: Mute a notification type
- *     tags: [Notification Settings]
- */
 router.post('/mute/:type', asyncHandler(async (req, res) => {
     const { type } = req.params;
 
@@ -131,13 +103,6 @@ router.post('/mute/:type', asyncHandler(async (req, res) => {
     });
 }));
 
-/**
- * @swagger
- * /api/notification-settings/unmute/:type:
- *   post:
- *     summary: Unmute a notification type
- *     tags: [Notification Settings]
- */
 router.post('/unmute/:type', asyncHandler(async (req, res) => {
     const { type } = req.params;
 
@@ -152,13 +117,6 @@ router.post('/unmute/:type', asyncHandler(async (req, res) => {
     });
 }));
 
-/**
- * @swagger
- * /api/notification-settings/reset:
- *   post:
- *     summary: Reset notification settings to defaults
- *     tags: [Notification Settings]
- */
 router.post('/reset', asyncHandler(async (req, res) => {
     const defaultPrefs = NotificationSettings.getDefaultPreferences();
 

@@ -1,33 +1,3 @@
-/**
- * Shift Management Routes
- *
- * Routes for managing shift types and shift assignments.
- * Saudi Labor Law compliant with Ramadan shift support.
- */
-
-const router = require('express').Router();
-const ShiftType = require('../models/shiftType.model');
-const ShiftAssignment = require('../models/shiftAssignment.model');
-const Employee = require('../models/employee.model');
-const { verifyToken } = require('../middlewares/jwt');
-const { attachFirmContext } = require('../middlewares/firmContext.middleware');
-const asyncHandler = require('express-async-handler');
-
-// All routes require authentication
-router.use(verifyToken);
-router.use(attachFirmContext);
-
-// ═══════════════════════════════════════════════════════════════
-// SHIFT TYPE ROUTES
-// ═══════════════════════════════════════════════════════════════
-
-/**
- * @swagger
- * /hr/shift-types:
- *   get:
- *     summary: Get all shift types
- *     tags: [HR - Shifts]
- */
 router.get('/shift-types', asyncHandler(async (req, res) => {
   const { isActive, isDefault, isRamadanShift, page = 1, limit = 50 } = req.query;
 
@@ -62,13 +32,6 @@ router.get('/shift-types', asyncHandler(async (req, res) => {
   });
 }));
 
-/**
- * @swagger
- * /hr/shift-types/{id}:
- *   get:
- *     summary: Get shift type by ID
- *     tags: [HR - Shifts]
- */
 router.get('/shift-types/:id', asyncHandler(async (req, res) => {
   const shiftType = await ShiftType.findOne({
     _id: req.params.id,
@@ -89,13 +52,6 @@ router.get('/shift-types/:id', asyncHandler(async (req, res) => {
   });
 }));
 
-/**
- * @swagger
- * /hr/shift-types:
- *   post:
- *     summary: Create new shift type
- *     tags: [HR - Shifts]
- */
 router.post('/shift-types', asyncHandler(async (req, res) => {
   const shiftType = new ShiftType({
     ...req.body,
@@ -113,13 +69,6 @@ router.post('/shift-types', asyncHandler(async (req, res) => {
   });
 }));
 
-/**
- * @swagger
- * /hr/shift-types/{id}:
- *   patch:
- *     summary: Update shift type
- *     tags: [HR - Shifts]
- */
 router.patch('/shift-types/:id', asyncHandler(async (req, res) => {
   const shiftType = await ShiftType.findOneAndUpdate(
     { _id: req.params.id, firmId: req.firmId },
@@ -143,13 +92,6 @@ router.patch('/shift-types/:id', asyncHandler(async (req, res) => {
   });
 }));
 
-/**
- * @swagger
- * /hr/shift-types/{id}:
- *   delete:
- *     summary: Delete shift type
- *     tags: [HR - Shifts]
- */
 router.delete('/shift-types/:id', asyncHandler(async (req, res) => {
   // Check if shift is assigned to any employees
   const assignmentCount = await ShiftAssignment.countDocuments({
@@ -186,13 +128,6 @@ router.delete('/shift-types/:id', asyncHandler(async (req, res) => {
   });
 }));
 
-/**
- * @swagger
- * /hr/shift-types/{id}/set-default:
- *   post:
- *     summary: Set shift type as default
- *     tags: [HR - Shifts]
- */
 router.post('/shift-types/:id/set-default', asyncHandler(async (req, res) => {
   // Unset current default
   await ShiftType.updateMany(
@@ -223,13 +158,6 @@ router.post('/shift-types/:id/set-default', asyncHandler(async (req, res) => {
   });
 }));
 
-/**
- * @swagger
- * /hr/shift-types/{id}/clone:
- *   post:
- *     summary: Clone shift type
- *     tags: [HR - Shifts]
- */
 router.post('/shift-types/:id/clone', asyncHandler(async (req, res) => {
   const original = await ShiftType.findOne({
     _id: req.params.id,
@@ -266,13 +194,6 @@ router.post('/shift-types/:id/clone', asyncHandler(async (req, res) => {
   });
 }));
 
-/**
- * @swagger
- * /hr/shift-types/stats:
- *   get:
- *     summary: Get shift type statistics
- *     tags: [HR - Shifts]
- */
 router.get('/shift-types-stats', asyncHandler(async (req, res) => {
   const [stats, assignmentStats] = await Promise.all([
     ShiftType.aggregate([
@@ -307,13 +228,6 @@ router.get('/shift-types-stats', asyncHandler(async (req, res) => {
   });
 }));
 
-/**
- * @swagger
- * /hr/shift-types/ramadan:
- *   get:
- *     summary: Get Ramadan shift types
- *     tags: [HR - Shifts]
- */
 router.get('/shift-types-ramadan', asyncHandler(async (req, res) => {
   const ramadanShifts = await ShiftType.find({
     firmId: req.firmId,
@@ -331,13 +245,6 @@ router.get('/shift-types-ramadan', asyncHandler(async (req, res) => {
 // SHIFT ASSIGNMENT ROUTES
 // ═══════════════════════════════════════════════════════════════
 
-/**
- * @swagger
- * /hr/shift-assignments:
- *   get:
- *     summary: Get all shift assignments
- *     tags: [HR - Shifts]
- */
 router.get('/shift-assignments', asyncHandler(async (req, res) => {
   const { employeeId, shiftTypeId, status, startDate, endDate, page = 1, limit = 50 } = req.query;
 
@@ -380,13 +287,6 @@ router.get('/shift-assignments', asyncHandler(async (req, res) => {
   });
 }));
 
-/**
- * @swagger
- * /hr/shift-assignments/{id}:
- *   get:
- *     summary: Get shift assignment by ID
- *     tags: [HR - Shifts]
- */
 router.get('/shift-assignments/:id', asyncHandler(async (req, res) => {
   const assignment = await ShiftAssignment.findOne({
     _id: req.params.id,
@@ -410,13 +310,6 @@ router.get('/shift-assignments/:id', asyncHandler(async (req, res) => {
   });
 }));
 
-/**
- * @swagger
- * /hr/shift-assignments:
- *   post:
- *     summary: Create shift assignment
- *     tags: [HR - Shifts]
- */
 router.post('/shift-assignments', asyncHandler(async (req, res) => {
   const { employeeId, shiftTypeId, startDate, endDate } = req.body;
 
@@ -458,13 +351,6 @@ router.post('/shift-assignments', asyncHandler(async (req, res) => {
   });
 }));
 
-/**
- * @swagger
- * /hr/shift-assignments/bulk:
- *   post:
- *     summary: Bulk assign shifts to multiple employees
- *     tags: [HR - Shifts]
- */
 router.post('/shift-assignments/bulk', asyncHandler(async (req, res) => {
   const { employeeIds, shiftTypeId, startDate, endDate } = req.body;
 
@@ -517,13 +403,6 @@ router.post('/shift-assignments/bulk', asyncHandler(async (req, res) => {
   });
 }));
 
-/**
- * @swagger
- * /hr/shift-assignments/{id}:
- *   patch:
- *     summary: Update shift assignment
- *     tags: [HR - Shifts]
- */
 router.patch('/shift-assignments/:id', asyncHandler(async (req, res) => {
   const assignment = await ShiftAssignment.findOneAndUpdate(
     { _id: req.params.id, firmId: req.firmId },
@@ -549,13 +428,6 @@ router.patch('/shift-assignments/:id', asyncHandler(async (req, res) => {
   });
 }));
 
-/**
- * @swagger
- * /hr/shift-assignments/{id}:
- *   delete:
- *     summary: Cancel shift assignment
- *     tags: [HR - Shifts]
- */
 router.delete('/shift-assignments/:id', asyncHandler(async (req, res) => {
   const { reason } = req.body;
 
@@ -581,13 +453,6 @@ router.delete('/shift-assignments/:id', asyncHandler(async (req, res) => {
   });
 }));
 
-/**
- * @swagger
- * /hr/shift-assignments/employee/{employeeId}:
- *   get:
- *     summary: Get shift assignments for an employee
- *     tags: [HR - Shifts]
- */
 router.get('/shift-assignments/employee/:employeeId', asyncHandler(async (req, res) => {
   const { status, startDate, endDate } = req.query;
 
@@ -608,13 +473,6 @@ router.get('/shift-assignments/employee/:employeeId', asyncHandler(async (req, r
   });
 }));
 
-/**
- * @swagger
- * /hr/shift-assignments/employee/{employeeId}/current:
- *   get:
- *     summary: Get current active shift assignment for an employee
- *     tags: [HR - Shifts]
- */
 router.get('/shift-assignments/employee/:employeeId/current', asyncHandler(async (req, res) => {
   const { date } = req.query;
   const targetDate = date ? new Date(date) : new Date();
