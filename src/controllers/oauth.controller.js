@@ -369,11 +369,9 @@ const callback = async (request, response) => {
 
         // Update step-up auth timestamp for OAuth login (required for sensitive operations like password change)
         // CRITICAL: Must await to prevent race condition with immediate password change requests
-        // OAuth flows are faster than regular login, so fire-and-forget pattern causes 401 errors
         if (!result.isNewUser && result.user?.id) {
             try {
                 await stepUpAuthService.updateReauthTimestamp(result.user.id.toString());
-                logger.info('Reauth timestamp set for OAuth login', { userId: result.user.id });
             } catch (err) {
                 logger.error('Failed to update reauth timestamp on OAuth login:', err);
                 // Continue with redirect - don't fail the login for this
@@ -757,11 +755,9 @@ const callbackPost = async (request, response) => {
 
             // Update step-up auth timestamp for OAuth login (required for sensitive operations like password change)
             // CRITICAL: Must await to prevent race condition with immediate password change requests
-            // OAuth flows are faster than regular login, so fire-and-forget pattern causes 401 errors
             if (result.user?.id) {
                 try {
                     await stepUpAuthService.updateReauthTimestamp(result.user.id.toString());
-                    logger.info('Reauth timestamp set for OAuth SSO login', { userId: result.user.id });
                 } catch (err) {
                     logger.error('Failed to update reauth timestamp on OAuth SSO login:', err);
                     // Continue with response - don't fail the login for this
