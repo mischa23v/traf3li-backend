@@ -12,58 +12,6 @@ router.use(authenticate);
 // Temporal client (will be initialized on first use)
 let temporalClient = null;
 
-/**
- * Get or create Temporal client
- */
-async function getTemporalClient() {
-  if (!temporalClient) {
-    const connection = await Connection.connect({
-      address: process.env.TEMPORAL_ADDRESS || 'localhost:7233'
-    });
-
-    temporalClient = new Client({
-      connection,
-      namespace: process.env.TEMPORAL_NAMESPACE || 'default'
-    });
-  }
-
-  return temporalClient;
-}
-
-/**
- * Generate workflow ID for invoice
- */
-function getWorkflowId(invoiceId) {
-  return `invoice-approval-${invoiceId}`;
-}
-
-/**
- * @swagger
- * /api/temporal-invoices/:id/submit-approval:
- *   post:
- *     summary: Start invoice approval workflow
- *     tags: [Temporal Invoice Approval]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: Invoice ID
- *     requestBody:
- *       required: false
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               approvalLevels:
- *                 type: number
- *                 description: Number of approval levels (auto-calculated if not provided)
- *               notes:
- *                 type: string
- *                 description: Submission notes
- */
 router.post('/:id/submit-approval', async (req, res) => {
   try {
     const { id } = req.params;
@@ -155,30 +103,6 @@ router.post('/:id/submit-approval', async (req, res) => {
   }
 });
 
-/**
- * @swagger
- * /api/temporal-invoices/:id/approve:
- *   post:
- *     summary: Send approval signal to workflow
- *     tags: [Temporal Invoice Approval]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: Invoice ID
- *     requestBody:
- *       required: false
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               comment:
- *                 type: string
- *                 description: Approval comment
- */
 router.post('/:id/approve', async (req, res) => {
   try {
     const { id } = req.params;
@@ -236,32 +160,6 @@ router.post('/:id/approve', async (req, res) => {
   }
 });
 
-/**
- * @swagger
- * /api/temporal-invoices/:id/reject:
- *   post:
- *     summary: Send rejection signal to workflow
- *     tags: [Temporal Invoice Approval]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: Invoice ID
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - reason
- *             properties:
- *               reason:
- *                 type: string
- *                 description: Rejection reason (required)
- */
 router.post('/:id/reject', async (req, res) => {
   try {
     const { id } = req.params;
@@ -323,20 +221,6 @@ router.post('/:id/reject', async (req, res) => {
   }
 });
 
-/**
- * @swagger
- * /api/temporal-invoices/:id/approval-status:
- *   get:
- *     summary: Query workflow status
- *     tags: [Temporal Invoice Approval]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: Invoice ID
- */
 router.get('/:id/approval-status', async (req, res) => {
   try {
     const { id } = req.params;
@@ -392,30 +276,6 @@ router.get('/:id/approval-status', async (req, res) => {
   }
 });
 
-/**
- * @swagger
- * /api/temporal-invoices/:id/cancel-approval:
- *   post:
- *     summary: Cancel approval workflow
- *     tags: [Temporal Invoice Approval]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: Invoice ID
- *     requestBody:
- *       required: false
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               reason:
- *                 type: string
- *                 description: Cancellation reason
- */
 router.post('/:id/cancel-approval', async (req, res) => {
   try {
     const { id } = req.params;
@@ -474,13 +334,6 @@ router.post('/:id/cancel-approval', async (req, res) => {
   }
 });
 
-/**
- * @swagger
- * /api/temporal-invoices/pending-approvals:
- *   get:
- *     summary: Get all pending invoice approvals for current user
- *     tags: [Temporal Invoice Approval]
- */
 router.get('/pending-approvals', async (req, res) => {
   try {
     const userId = req.user._id;

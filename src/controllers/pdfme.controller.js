@@ -1,36 +1,3 @@
-/**
- * PDFMe Controller
- *
- * Handles API endpoints for PDFMe template management and PDF generation.
- */
-
-const PdfmeService = require('../services/pdfme.service');
-const PdfmeTemplate = require('../models/pdfmeTemplate.model');
-const QueueService = require('../services/queue.service');
-const { CustomException } = require('../utils');
-const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
-const { sanitizeFilename } = require('../utils/sanitize');
-const mongoose = require('mongoose');
-const logger = require('../utils/logger');
-
-/**
- * Sanitize a string to be safe for use in filenames
- * Only allows alphanumeric characters, hyphens, and underscores
- * @param {string} str - String to sanitize
- * @returns {string} Sanitized string
- * @deprecated Use sanitizeFilename from utils/sanitize instead
- */
-const sanitizeForFilename = (str) => {
-    if (!str) return '';
-    return String(str).replace(/[^a-zA-Z0-9_-]/g, '-').replace(/-+/g, '-');
-};
-
-/**
- * @swagger
- * tags:
- *   name: PDFMe
- *   description: PDFMe template management and PDF generation
- */
 
 /**
  * List all templates for the authenticated user

@@ -48,8 +48,6 @@ const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
 const cookieParser = require('cookie-parser');
-const swaggerUi = require('swagger-ui-express');
-const swaggerSpec = require('./configs/swagger');
 const connectDB = require('./configs/db');
 const { scheduleTaskReminders } = require('./utils/taskReminders');
 const { startRecurringInvoiceJobs } = require('./jobs/recurringInvoice.job');
@@ -1359,22 +1357,6 @@ app.use('/api/bank-reconciliation', noCache, bankReconciliationRoute);
 
 // Apps Integration Routes (Unified Apps API)
 app.use('/api/apps', noCache, appsRoute);
-
-// ============================================
-// API DOCUMENTATION (SWAGGER)
-// ============================================
-// Swagger UI - Interactive API documentation at /api-docs
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
-    customCss: '.swagger-ui .topbar { display: none }',
-    customSiteTitle: 'Traf3li API Documentation',
-    customfavIcon: '/favicon.ico'
-}));
-
-// Swagger JSON spec endpoint
-app.get('/api-docs.json', (req, res) => {
-    res.setHeader('Content-Type', 'application/json');
-    res.send(swaggerSpec);
-});
 
 // ============================================
 // HEALTH CHECK & MONITORING ROUTES

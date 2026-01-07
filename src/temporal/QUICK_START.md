@@ -372,5 +372,4 @@ For issues or questions:
 
 **Quick Links:**
 - [Temporal UI](http://localhost:8233)
-- [API Documentation](http://localhost:3000/api-docs)
 - [Full README](./workflows/README.md)
