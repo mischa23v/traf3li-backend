@@ -36,7 +36,8 @@ const changePassword = async (req, res) => {
         // Recommended: 5 attempts per 15 minutes per user to prevent brute force attacks
 
         const { currentPassword, newPassword } = req.body;
-        const userId = sanitizeObjectId(req.user._id);
+        // Use req.userID set by authenticate middleware (not req.user which requires firmFilter)
+        const userId = sanitizeObjectId(req.userID);
 
         // Input validation - Check required fields
         if (!currentPassword || !newPassword) {
@@ -347,9 +348,21 @@ const changePassword = async (req, res) => {
  */
 const getPasswordStatus = async (req, res) => {
     try {
-        // Sanitize user ID from request
-        const userId = sanitizeObjectId(req.user._id);
-        const user = req.user;
+        // Use req.userID set by authenticate middleware (not req.user which requires firmFilter)
+        const userId = sanitizeObjectId(req.userID);
+
+        // Load user from database since authenticate middleware doesn't set req.user
+        const user = await User.findById(userId).select(
+            'firmId mustChangePassword mustChangePasswordSetBy passwordChangedAt passwordExpiresAt isSSOUser'
+        );
+
+        if (!user) {
+            return res.status(404).json({
+                error: true,
+                message: 'User not found',
+                messageAr: 'المستخدم غير موجود'
+            });
+        }
 
         let firm = null;
         let expirationEnabled = false;
