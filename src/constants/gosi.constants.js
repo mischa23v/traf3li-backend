@@ -57,9 +57,25 @@ const GOSI_RATES = {
 function calculateGOSI(isSaudi, basicSalary) {
     const rates = isSaudi ? GOSI_RATES.SAUDI : GOSI_RATES.NON_SAUDI;
 
-    // Apply the 45,000 SAR cap
-    const cappedSalary = Math.min(basicSalary, GOSI_RATES.MAX_CONTRIBUTION_BASE);
-    const wasCapped = basicSalary > GOSI_RATES.MAX_CONTRIBUTION_BASE;
+    // Validate input - must be a positive number
+    const salary = parseFloat(basicSalary);
+    if (isNaN(salary) || salary <= 0) {
+        return {
+            employee: 0,
+            employer: 0,
+            total: 0,
+            baseSalary: 0,
+            cappedSalary: 0,
+            wasCapped: false,
+            rates: { employee: rates.employee, employer: rates.employer, total: rates.total },
+            breakdown: {},
+            error: salary <= 0 ? 'Salary must be positive' : 'Invalid salary value'
+        };
+    }
+
+    // Apply the 45,000 SAR max cap and 400 SAR minimum base
+    const cappedSalary = Math.min(Math.max(salary, GOSI_RATES.MIN_CONTRIBUTION_BASE), GOSI_RATES.MAX_CONTRIBUTION_BASE);
+    const wasCapped = salary > GOSI_RATES.MAX_CONTRIBUTION_BASE;
 
     // Calculate contributions
     const employeeContribution = Math.round(cappedSalary * rates.employee);
@@ -92,9 +108,10 @@ function calculateGOSI(isSaudi, basicSalary) {
         employee: employeeContribution,
         employer: employerContribution,
         total: totalContribution,
-        baseSalary: basicSalary,
+        baseSalary: salary,
         cappedSalary,
         wasCapped,
+        wasBelowMin: salary < GOSI_RATES.MIN_CONTRIBUTION_BASE,
         rates: {
             employee: rates.employee,
             employer: rates.employer,
