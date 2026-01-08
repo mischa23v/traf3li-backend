@@ -22,6 +22,17 @@ const Counter = require('./counter.model');
 // KEY RESULT SCHEMA
 // ═══════════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════════
+// GOOGLE-STYLE SCORING REFERENCE
+// ═══════════════════════════════════════════════════════════════
+// 0.0 - 0.3: Failed to make real progress (Red)
+// 0.4 - 0.6: Made progress but fell short (Yellow)
+// 0.7 - 1.0: Delivered (Green)
+//
+// Committed OKRs: Target score = 1.0 (100% completion expected)
+// Aspirational OKRs: Target score = 0.7 (70% completion is success)
+// ═══════════════════════════════════════════════════════════════
+
 const keyResultSchema = new mongoose.Schema({
     keyResultId: { type: String, required: true },
     title: { type: String, required: true, trim: true },
@@ -46,13 +57,42 @@ const keyResultSchema = new mongoose.Schema({
     startValue: { type: Number, default: 0 },
     unit: String, // e.g., 'SAR', 'users', 'deals', '%'
 
-    // Progress
+    // Google-style Score (0.0 to 1.0)
+    score: {
+        type: Number,
+        default: 0,
+        min: 0,
+        max: 1
+    },
+    // Score grade for visualization
+    scoreGrade: {
+        type: String,
+        enum: ['red', 'yellow', 'green'],
+        default: 'red'
+    },
+
+    // Progress (0-100%)
     progress: { type: Number, default: 0, min: 0, max: 100 },
     status: {
         type: String,
         enum: ['not_started', 'on_track', 'at_risk', 'behind', 'completed', 'cancelled'],
         default: 'not_started'
     },
+
+    // Confidence Rating (0.0 to 1.0)
+    // How confident are you that you will achieve this KR?
+    confidence: {
+        type: Number,
+        default: 0.5,
+        min: 0,
+        max: 1
+    },
+    confidenceHistory: [{
+        date: { type: Date, default: Date.now },
+        confidence: Number,
+        notes: String,
+        updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+    }],
 
     // Weight for scoring
     weight: { type: Number, default: 1, min: 0.1, max: 10 },
@@ -67,13 +107,102 @@ const keyResultSchema = new mongoose.Schema({
         date: { type: Date, default: Date.now },
         previousValue: Number,
         newValue: Number,
+        previousScore: Number,
+        newScore: Number,
         note: String,
         updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+    }],
+
+    // Milestones (for milestone-based KRs)
+    milestones: [{
+        milestoneId: String,
+        title: String,
+        titleAr: String,
+        dueDate: Date,
+        completed: { type: Boolean, default: false },
+        completedAt: Date,
+        weight: { type: Number, default: 1 }
     }],
 
     // Dates
     dueDate: Date,
     completedDate: Date
+}, { _id: false });
+
+// ═══════════════════════════════════════════════════════════════
+// CFR SCHEMA (Conversations, Feedback, Recognition)
+// Google's continuous performance management framework
+// ═══════════════════════════════════════════════════════════════
+
+const cfrSchema = new mongoose.Schema({
+    cfrId: String,
+    type: {
+        type: String,
+        enum: ['conversation', 'feedback', 'recognition'],
+        required: true
+    },
+
+    // For conversations/1:1s
+    conversationDetails: {
+        topic: String,
+        topicAr: String,
+        scheduledDate: Date,
+        actualDate: Date,
+        duration: Number, // minutes
+        agenda: [String],
+        keyDiscussions: String,
+        actionItems: [{
+            item: String,
+            owner: String,
+            dueDate: Date,
+            completed: Boolean
+        }],
+        nextMeetingDate: Date
+    },
+
+    // For feedback (both directions)
+    feedbackDetails: {
+        feedbackType: {
+            type: String,
+            enum: ['positive', 'constructive', 'developmental', 'recognition']
+        },
+        feedbackDirection: {
+            type: String,
+            enum: ['manager_to_employee', 'employee_to_manager', 'peer_to_peer']
+        },
+        content: String,
+        contentAr: String,
+        relatedKeyResultId: String,
+        relatedCompetency: String,
+        isPrivate: { type: Boolean, default: false }
+    },
+
+    // For recognition
+    recognitionDetails: {
+        recognitionType: {
+            type: String,
+            enum: ['kudos', 'achievement', 'milestone', 'values', 'teamwork', 'innovation', 'customer_focus']
+        },
+        message: String,
+        messageAr: String,
+        companyValue: String, // Which company value this aligns with
+        isPublic: { type: Boolean, default: true },
+        likes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+        likeCount: { type: Number, default: 0 }
+    },
+
+    // Common fields
+    fromUser: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    fromUserName: String,
+    toUser: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    toUserName: String,
+
+    date: { type: Date, default: Date.now },
+    visibility: {
+        type: String,
+        enum: ['private', 'team', 'department', 'company'],
+        default: 'private'
+    }
 }, { _id: false });
 
 // ═══════════════════════════════════════════════════════════════
@@ -147,27 +276,157 @@ const okrSchema = new mongoose.Schema({
     teamId: { type: mongoose.Schema.Types.ObjectId, ref: 'Team' },
     departmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Department' },
 
+    // ═══════════════════════════════════════════════════════════════
+    // GOOGLE-STYLE OKR TYPE
+    // ═══════════════════════════════════════════════════════════════
+    okrType: {
+        type: String,
+        enum: [
+            'committed',     // Must achieve 100% - tied to business commitments
+            'aspirational',  // Stretch goals - 70% achievement is success
+            'learning'       // Experimental - process of learning matters
+        ],
+        default: 'committed',
+        index: true
+    },
+
+    // Target score based on OKR type
+    targetScore: {
+        type: Number,
+        default: 1.0,  // Committed = 1.0, Aspirational = 0.7, Learning = varies
+        min: 0,
+        max: 1
+    },
+
     // Status & Progress
     status: {
         type: String,
-        enum: ['draft', 'active', 'on_track', 'at_risk', 'behind', 'completed', 'cancelled'],
+        enum: ['draft', 'active', 'on_track', 'at_risk', 'behind', 'completed', 'cancelled', 'deferred'],
         default: 'draft',
         index: true
     },
     overallProgress: { type: Number, default: 0, min: 0, max: 100 },
-    overallScore: { type: Number, min: 0, max: 1 }, // 0.0 to 1.0
 
-    // Check-ins
+    // Google-style Score (0.0 to 1.0)
+    overallScore: { type: Number, min: 0, max: 1, default: 0 },
+    scoreGrade: {
+        type: String,
+        enum: ['red', 'yellow', 'green'],
+        default: 'red'
+    },
+    scoreLabel: String,  // 'Needs Attention', 'Making Progress', 'On Track'
+    scoreLabelAr: String,
+
+    // Average team confidence
+    avgConfidence: { type: Number, min: 0, max: 1, default: 0.5 },
+
+    // ═══════════════════════════════════════════════════════════════
+    // WEEKLY CHECK-INS (Google PPP Format: Progress, Plans, Problems)
+    // ═══════════════════════════════════════════════════════════════
     checkIns: [{
+        checkInId: String,
+        weekNumber: Number,
+        weekStartDate: Date,
         date: { type: Date, default: Date.now },
+
+        // Current status
         overallProgress: Number,
+        overallScore: Number,
         status: String,
-        summary: String,
-        summaryAr: String,
-        challenges: String,
-        nextSteps: String,
-        createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+        confidence: { type: Number, min: 0, max: 1 },
+
+        // PPP Format
+        progress: {  // What did we accomplish?
+            summary: String,
+            summaryAr: String,
+            accomplishments: [String],
+            accomplishmentsAr: [String]
+        },
+        plans: {  // What will we do next?
+            summary: String,
+            summaryAr: String,
+            nextActions: [String],
+            nextActionsAr: [String]
+        },
+        problems: {  // What's blocking us?
+            summary: String,
+            summaryAr: String,
+            blockers: [{
+                blocker: String,
+                blockerAr: String,
+                severity: { type: String, enum: ['low', 'medium', 'high', 'critical'] },
+                needsEscalation: Boolean
+            }],
+            risksIdentified: [String]
+        },
+
+        // Key Result specific updates
+        keyResultUpdates: [{
+            keyResultId: String,
+            previousValue: Number,
+            newValue: Number,
+            previousScore: Number,
+            newScore: Number,
+            confidence: Number,
+            note: String
+        }],
+
+        // Mood/sentiment check (optional)
+        teamMood: {
+            type: String,
+            enum: ['very_positive', 'positive', 'neutral', 'concerned', 'struggling']
+        },
+        moodNote: String,
+
+        createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        createdByName: String
     }],
+
+    // ═══════════════════════════════════════════════════════════════
+    // CFRs (Conversations, Feedback, Recognition)
+    // ═══════════════════════════════════════════════════════════════
+    cfrs: [cfrSchema],
+
+    // CFR Summary stats
+    cfrStats: {
+        totalConversations: { type: Number, default: 0 },
+        totalFeedback: { type: Number, default: 0 },
+        totalRecognitions: { type: Number, default: 0 },
+        lastConversationDate: Date,
+        lastFeedbackDate: Date,
+        lastRecognitionDate: Date
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // SCORING HISTORY (Track score changes over time)
+    // ═══════════════════════════════════════════════════════════════
+    scoreHistory: [{
+        date: { type: Date, default: Date.now },
+        score: Number,
+        grade: String,
+        weekNumber: Number,
+        confidence: Number,
+        updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+    }],
+
+    // ═══════════════════════════════════════════════════════════════
+    // GRADING AT PERIOD END
+    // ═══════════════════════════════════════════════════════════════
+    finalGrade: {
+        score: { type: Number, min: 0, max: 1 },
+        grade: { type: String, enum: ['red', 'yellow', 'green'] },
+        achievementStatus: {
+            type: String,
+            enum: ['exceeded', 'achieved', 'partially_achieved', 'not_achieved', 'cancelled']
+        },
+        gradedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        gradedAt: Date,
+        retrospectiveNotes: String,
+        retrospectiveNotesAr: String,
+        lessonsLearned: [String],
+        carriedForward: Boolean,
+        nextPeriodOkrId: { type: mongoose.Schema.Types.ObjectId, ref: 'OKR' }
+    },
 
     // Visibility
     visibility: {
@@ -176,9 +435,38 @@ const okrSchema = new mongoose.Schema({
         default: 'public'
     },
 
-    // Tags for filtering
+    // Tags and Categories
     tags: [String],
-    category: String, // e.g., 'growth', 'efficiency', 'quality', 'innovation'
+    category: {
+        type: String,
+        enum: ['growth', 'efficiency', 'quality', 'innovation', 'customer', 'people', 'financial', 'operational', 'strategic', 'learning'],
+        index: true
+    },
+    categoryLabel: String,
+    categoryLabelAr: String,
+
+    // Strategic priority
+    priority: {
+        type: String,
+        enum: ['critical', 'high', 'medium', 'low'],
+        default: 'medium'
+    },
+
+    // Cross-functional dependencies
+    dependencies: [{
+        okrId: { type: mongoose.Schema.Types.ObjectId, ref: 'OKR' },
+        okrTitle: String,
+        dependencyType: { type: String, enum: ['blocks', 'blocked_by', 'related'] },
+        notes: String
+    }],
+
+    // Contributors (for team OKRs)
+    contributors: [{
+        employeeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee' },
+        employeeName: String,
+        role: { type: String, enum: ['owner', 'contributor', 'supporter', 'informed'] },
+        addedAt: { type: Date, default: Date.now }
+    }]
 
     // Multi-tenant
     firmId: {
@@ -371,33 +659,141 @@ okrSchema.pre('save', async function(next) {
         }
     }
 
-    // Calculate overall progress from key results
+    // Set target score based on OKR type
+    if (this.isNew || this.isModified('okrType')) {
+        switch (this.okrType) {
+            case 'committed':
+                this.targetScore = 1.0;  // Must achieve 100%
+                break;
+            case 'aspirational':
+                this.targetScore = 0.7;  // 70% is success for stretch goals
+                break;
+            case 'learning':
+                this.targetScore = 0.5;  // Focus on learning, 50% is acceptable
+                break;
+            default:
+                this.targetScore = 1.0;
+        }
+    }
+
+    // Calculate scores for each key result
     if (this.keyResults && this.keyResults.length > 0) {
+        this.keyResults.forEach(kr => {
+            // Calculate score based on progress toward target
+            if (kr.targetValue && kr.targetValue !== 0) {
+                const range = kr.targetValue - (kr.startValue || 0);
+                const achieved = (kr.currentValue || 0) - (kr.startValue || 0);
+                kr.score = range > 0 ? Math.min(1, Math.max(0, parseFloat((achieved / range).toFixed(2)))) : 0;
+            } else if (kr.metricType === 'boolean') {
+                kr.score = kr.currentValue >= 1 ? 1.0 : 0.0;
+            } else if (kr.metricType === 'milestone' && kr.milestones && kr.milestones.length > 0) {
+                // Calculate milestone completion
+                const totalWeight = kr.milestones.reduce((sum, m) => sum + (m.weight || 1), 0);
+                const completedWeight = kr.milestones
+                    .filter(m => m.completed)
+                    .reduce((sum, m) => sum + (m.weight || 1), 0);
+                kr.score = totalWeight > 0 ? parseFloat((completedWeight / totalWeight).toFixed(2)) : 0;
+            }
+
+            // Set progress (0-100%)
+            kr.progress = Math.round((kr.score || 0) * 100);
+
+            // Set Google-style score grade (Red/Yellow/Green)
+            if (kr.score >= 0.7) {
+                kr.scoreGrade = 'green';
+            } else if (kr.score >= 0.4) {
+                kr.scoreGrade = 'yellow';
+            } else {
+                kr.scoreGrade = 'red';
+            }
+
+            // Update status based on score and confidence
+            if (kr.score >= 1.0) {
+                kr.status = 'completed';
+            } else if (kr.score >= 0.7 || (kr.confidence && kr.confidence >= 0.7)) {
+                kr.status = 'on_track';
+            } else if (kr.score >= 0.4 || (kr.confidence && kr.confidence >= 0.4)) {
+                kr.status = 'at_risk';
+            } else if (kr.score > 0) {
+                kr.status = 'behind';
+            } else {
+                kr.status = 'not_started';
+            }
+        });
+
+        // Calculate overall score (weighted average of KR scores)
         const totalWeight = this.keyResults.reduce((sum, kr) => sum + (kr.weight || 1), 0);
-        const weightedProgress = this.keyResults.reduce((sum, kr) => {
-            return sum + (kr.progress * (kr.weight || 1));
+        const weightedScore = this.keyResults.reduce((sum, kr) => {
+            return sum + ((kr.score || 0) * (kr.weight || 1));
         }, 0);
-        this.overallProgress = totalWeight > 0 ? Math.round(weightedProgress / totalWeight) : 0;
+        this.overallScore = totalWeight > 0 ? parseFloat((weightedScore / totalWeight).toFixed(2)) : 0;
+        this.overallProgress = Math.round(this.overallScore * 100);
 
-        // Calculate overall score (0.0 to 1.0)
-        this.overallScore = this.overallProgress / 100;
+        // Calculate average confidence
+        const confidences = this.keyResults.filter(kr => kr.confidence != null).map(kr => kr.confidence);
+        this.avgConfidence = confidences.length > 0
+            ? parseFloat((confidences.reduce((a, b) => a + b, 0) / confidences.length).toFixed(2))
+            : 0.5;
 
-        // Update status based on progress and dates
-        if (this.status !== 'draft' && this.status !== 'cancelled') {
+        // Set overall score grade
+        if (this.overallScore >= 0.7) {
+            this.scoreGrade = 'green';
+            this.scoreLabel = 'On Track';
+            this.scoreLabelAr = 'على المسار الصحيح';
+        } else if (this.overallScore >= 0.4) {
+            this.scoreGrade = 'yellow';
+            this.scoreLabel = 'Making Progress';
+            this.scoreLabelAr = 'يحرز تقدماً';
+        } else {
+            this.scoreGrade = 'red';
+            this.scoreLabel = 'Needs Attention';
+            this.scoreLabelAr = 'يحتاج اهتمام';
+        }
+
+        // Update status based on score and dates
+        if (this.status !== 'draft' && this.status !== 'cancelled' && this.status !== 'deferred') {
             const now = new Date();
             const totalDays = (this.endDate - this.startDate) / (1000 * 60 * 60 * 24);
-            const daysElapsed = (now - this.startDate) / (1000 * 60 * 60 * 24);
-            const expectedProgress = Math.min(100, (daysElapsed / totalDays) * 100);
+            const daysElapsed = Math.max(0, (now - this.startDate) / (1000 * 60 * 60 * 24));
+            const expectedProgress = totalDays > 0 ? Math.min(1, daysElapsed / totalDays) : 0;
 
-            if (this.overallProgress >= 100) {
+            // Evaluate based on both score and expected progress
+            if (this.overallScore >= 1.0) {
                 this.status = 'completed';
-            } else if (this.overallProgress >= expectedProgress - 10) {
+            } else if (this.overallScore >= expectedProgress - 0.1 || this.avgConfidence >= 0.7) {
                 this.status = 'on_track';
-            } else if (this.overallProgress >= expectedProgress - 25) {
+            } else if (this.overallScore >= expectedProgress - 0.25 || this.avgConfidence >= 0.4) {
                 this.status = 'at_risk';
             } else {
                 this.status = 'behind';
             }
+
+            // For aspirational OKRs, be more lenient with status
+            if (this.okrType === 'aspirational' && this.overallScore >= 0.5) {
+                if (this.status === 'behind') this.status = 'at_risk';
+                if (this.status === 'at_risk' && this.overallScore >= 0.6) this.status = 'on_track';
+            }
+        }
+    }
+
+    // Update CFR stats
+    if (this.cfrs && this.cfrs.length > 0) {
+        this.cfrStats.totalConversations = this.cfrs.filter(c => c.type === 'conversation').length;
+        this.cfrStats.totalFeedback = this.cfrs.filter(c => c.type === 'feedback').length;
+        this.cfrStats.totalRecognitions = this.cfrs.filter(c => c.type === 'recognition').length;
+
+        const conversations = this.cfrs.filter(c => c.type === 'conversation');
+        const feedback = this.cfrs.filter(c => c.type === 'feedback');
+        const recognitions = this.cfrs.filter(c => c.type === 'recognition');
+
+        if (conversations.length > 0) {
+            this.cfrStats.lastConversationDate = conversations[conversations.length - 1].date;
+        }
+        if (feedback.length > 0) {
+            this.cfrStats.lastFeedbackDate = feedback[feedback.length - 1].date;
+        }
+        if (recognitions.length > 0) {
+            this.cfrStats.lastRecognitionDate = recognitions[recognitions.length - 1].date;
         }
     }
 

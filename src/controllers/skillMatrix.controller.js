@@ -18,7 +18,8 @@
  */
 
 const mongoose = require('mongoose');
-const Skill = require('../models/skill.model');
+const { Skill, SkillType, Competency, SkillAssessment, SFIA_LEVELS } = require('../models/skill.model');
+const EmployeeSkillMap = require('../models/employeeSkillMap.model');
 const Employee = require('../models/employee.model');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const logger = require('../utils/logger');
@@ -1273,6 +1274,818 @@ const getSkillStats = async (req, res) => {
 };
 
 // ═══════════════════════════════════════════════════════════════
+// SFIA FRAMEWORK ENDPOINTS
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Get SFIA 7-level proficiency framework
+ * GET /api/hr/skills/sfia-levels
+ */
+const getSfiaLevels = async (req, res) => {
+    try {
+        res.json({
+            success: true,
+            data: {
+                framework: 'SFIA',
+                version: '8',
+                description: 'Skills Framework for the Information Age',
+                levels: SFIA_LEVELS,
+                levelCount: 7
+            }
+        });
+    } catch (error) {
+        logger.error('Error fetching SFIA levels:', error);
+        res.status(500).json({
+            success: false,
+            message: 'خطأ في جلب مستويات SFIA / Error fetching SFIA levels',
+            error: error.message
+        });
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════
+// SKILL TYPE CRUD (Hierarchical Categories)
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Get all skill types (hierarchical)
+ * GET /api/hr/skills/types
+ */
+const getSkillTypes = async (req, res) => {
+    try {
+        const { classification, flat = 'false' } = req.query;
+
+        const query = { ...req.firmQuery, isActive: true };
+        if (classification) query.classification = classification;
+
+        if (flat === 'true') {
+            const types = await SkillType.find(query)
+                .populate('parentTypeId', 'name nameAr')
+                .sort({ displayOrder: 1, name: 1 })
+                .lean();
+
+            return res.json({
+                success: true,
+                data: types
+            });
+        }
+
+        // Return hierarchical structure
+        const hierarchy = await SkillType.getHierarchy(req.firmId || req.lawyerId);
+
+        res.json({
+            success: true,
+            data: hierarchy
+        });
+    } catch (error) {
+        logger.error('Error fetching skill types:', error);
+        res.status(500).json({
+            success: false,
+            message: 'خطأ في جلب أنواع المهارات / Error fetching skill types',
+            error: error.message
+        });
+    }
+};
+
+/**
+ * Create skill type
+ * POST /api/hr/skills/types
+ */
+const createSkillType = async (req, res) => {
+    try {
+        const allowedFields = [
+            'name', 'nameAr', 'description', 'descriptionAr',
+            'parentTypeId', 'classification', 'icon', 'color', 'displayOrder'
+        ];
+        const safeData = pickAllowedFields(req.body, allowedFields);
+
+        if (!safeData.name) {
+            return res.status(400).json({
+                success: false,
+                message: 'اسم نوع المهارة مطلوب / Skill type name is required'
+            });
+        }
+
+        // Check for duplicate
+        const existingType = await SkillType.findOne({
+            ...req.firmQuery,
+            name: { $regex: `^${escapeRegex(safeData.name)}$`, $options: 'i' }
+        });
+
+        if (existingType) {
+            return res.status(400).json({
+                success: false,
+                message: 'نوع المهارة موجود بالفعل / Skill type already exists'
+            });
+        }
+
+        const skillType = new SkillType(req.addFirmId({
+            ...safeData,
+            createdBy: req.userID
+        }));
+
+        await skillType.save();
+
+        res.status(201).json({
+            success: true,
+            message: 'تم إنشاء نوع المهارة بنجاح / Skill type created successfully',
+            data: skillType
+        });
+    } catch (error) {
+        logger.error('Error creating skill type:', error);
+        res.status(500).json({
+            success: false,
+            message: 'خطأ في إنشاء نوع المهارة / Error creating skill type',
+            error: error.message
+        });
+    }
+};
+
+/**
+ * Update skill type
+ * PATCH /api/hr/skills/types/:id
+ */
+const updateSkillType = async (req, res) => {
+    try {
+        const sanitizedId = sanitizeObjectId(req.params.id);
+        if (!sanitizedId) {
+            return res.status(400).json({
+                success: false,
+                message: 'معرف نوع المهارة غير صالح / Invalid skill type ID'
+            });
+        }
+
+        const allowedFields = [
+            'name', 'nameAr', 'description', 'descriptionAr',
+            'parentTypeId', 'classification', 'icon', 'color', 'displayOrder', 'isActive'
+        ];
+        const safeData = pickAllowedFields(req.body, allowedFields);
+
+        const skillType = await SkillType.findOneAndUpdate(
+            { _id: sanitizedId, ...req.firmQuery },
+            { $set: safeData },
+            { new: true, runValidators: true }
+        );
+
+        if (!skillType) {
+            return res.status(404).json({
+                success: false,
+                message: 'نوع المهارة غير موجود / Skill type not found'
+            });
+        }
+
+        res.json({
+            success: true,
+            message: 'تم تحديث نوع المهارة بنجاح / Skill type updated successfully',
+            data: skillType
+        });
+    } catch (error) {
+        logger.error('Error updating skill type:', error);
+        res.status(500).json({
+            success: false,
+            message: 'خطأ في تحديث نوع المهارة / Error updating skill type',
+            error: error.message
+        });
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════
+// COMPETENCY CRUD
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Get all competencies
+ * GET /api/hr/skills/competencies
+ */
+const getCompetencies = async (req, res) => {
+    try {
+        const { type, cluster, isMandatory, search, page = 1, limit = 50 } = req.query;
+
+        const pageNum = Math.max(1, parseInt(page) || 1);
+        const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 50));
+
+        const query = { ...req.firmQuery, isActive: true };
+
+        if (type) query.type = type;
+        if (cluster) query.cluster = cluster;
+        if (isMandatory !== undefined) query.isMandatory = isMandatory === 'true';
+
+        if (search) {
+            const escapedSearch = escapeRegex(search);
+            query.$or = [
+                { name: { $regex: escapedSearch, $options: 'i' } },
+                { nameAr: { $regex: escapedSearch, $options: 'i' } },
+                { description: { $regex: escapedSearch, $options: 'i' } }
+            ];
+        }
+
+        const [competencies, total] = await Promise.all([
+            Competency.find(query)
+                .sort({ type: 1, cluster: 1, name: 1 })
+                .skip((pageNum - 1) * limitNum)
+                .limit(limitNum)
+                .lean(),
+            Competency.countDocuments(query)
+        ]);
+
+        res.json({
+            success: true,
+            data: competencies,
+            pagination: {
+                page: pageNum,
+                limit: limitNum,
+                total,
+                pages: Math.ceil(total / limitNum)
+            }
+        });
+    } catch (error) {
+        logger.error('Error fetching competencies:', error);
+        res.status(500).json({
+            success: false,
+            message: 'خطأ في جلب الكفاءات / Error fetching competencies',
+            error: error.message
+        });
+    }
+};
+
+/**
+ * Get single competency
+ * GET /api/hr/skills/competencies/:id
+ */
+const getCompetencyById = async (req, res) => {
+    try {
+        const sanitizedId = sanitizeObjectId(req.params.id);
+        if (!sanitizedId) {
+            return res.status(400).json({
+                success: false,
+                message: 'معرف الكفاءة غير صالح / Invalid competency ID'
+            });
+        }
+
+        const competency = await Competency.findOne({
+            _id: sanitizedId,
+            ...req.firmQuery
+        });
+
+        if (!competency) {
+            return res.status(404).json({
+                success: false,
+                message: 'الكفاءة غير موجودة / Competency not found'
+            });
+        }
+
+        res.json({
+            success: true,
+            data: competency
+        });
+    } catch (error) {
+        logger.error('Error fetching competency:', error);
+        res.status(500).json({
+            success: false,
+            message: 'خطأ في جلب الكفاءة / Error fetching competency',
+            error: error.message
+        });
+    }
+};
+
+/**
+ * Create competency
+ * POST /api/hr/skills/competencies
+ */
+const createCompetency = async (req, res) => {
+    try {
+        const allowedFields = [
+            'name', 'nameAr', 'description', 'descriptionAr',
+            'type', 'cluster', 'clusterAr', 'behavioralIndicators',
+            'assessmentMethods', 'importance', 'weight',
+            'developmentActivities', 'isMandatory'
+        ];
+        const safeData = pickAllowedFields(req.body, allowedFields);
+
+        if (!safeData.name || !safeData.type) {
+            return res.status(400).json({
+                success: false,
+                message: 'الاسم والنوع مطلوبان / Name and type are required'
+            });
+        }
+
+        // Check for duplicate
+        const existingCompetency = await Competency.findOne({
+            ...req.firmQuery,
+            name: { $regex: `^${escapeRegex(safeData.name)}$`, $options: 'i' }
+        });
+
+        if (existingCompetency) {
+            return res.status(400).json({
+                success: false,
+                message: 'كفاءة بهذا الاسم موجودة بالفعل / Competency with this name already exists'
+            });
+        }
+
+        const competency = new Competency(req.addFirmId({
+            ...safeData,
+            createdBy: req.userID
+        }));
+
+        await competency.save();
+
+        res.status(201).json({
+            success: true,
+            message: 'تم إنشاء الكفاءة بنجاح / Competency created successfully',
+            data: competency
+        });
+    } catch (error) {
+        logger.error('Error creating competency:', error);
+        res.status(500).json({
+            success: false,
+            message: 'خطأ في إنشاء الكفاءة / Error creating competency',
+            error: error.message
+        });
+    }
+};
+
+/**
+ * Update competency
+ * PATCH /api/hr/skills/competencies/:id
+ */
+const updateCompetency = async (req, res) => {
+    try {
+        const sanitizedId = sanitizeObjectId(req.params.id);
+        if (!sanitizedId) {
+            return res.status(400).json({
+                success: false,
+                message: 'معرف الكفاءة غير صالح / Invalid competency ID'
+            });
+        }
+
+        const allowedFields = [
+            'name', 'nameAr', 'description', 'descriptionAr',
+            'type', 'cluster', 'clusterAr', 'behavioralIndicators',
+            'assessmentMethods', 'importance', 'weight',
+            'developmentActivities', 'isMandatory', 'isActive'
+        ];
+        const safeData = pickAllowedFields(req.body, allowedFields);
+
+        const competency = await Competency.findOneAndUpdate(
+            { _id: sanitizedId, ...req.firmQuery },
+            { $set: { ...safeData, updatedBy: req.userID } },
+            { new: true, runValidators: true }
+        );
+
+        if (!competency) {
+            return res.status(404).json({
+                success: false,
+                message: 'الكفاءة غير موجودة / Competency not found'
+            });
+        }
+
+        res.json({
+            success: true,
+            message: 'تم تحديث الكفاءة بنجاح / Competency updated successfully',
+            data: competency
+        });
+    } catch (error) {
+        logger.error('Error updating competency:', error);
+        res.status(500).json({
+            success: false,
+            message: 'خطأ في تحديث الكفاءة / Error updating competency',
+            error: error.message
+        });
+    }
+};
+
+/**
+ * Delete competency (soft delete)
+ * DELETE /api/hr/skills/competencies/:id
+ */
+const deleteCompetency = async (req, res) => {
+    try {
+        const sanitizedId = sanitizeObjectId(req.params.id);
+        if (!sanitizedId) {
+            return res.status(400).json({
+                success: false,
+                message: 'معرف الكفاءة غير صالح / Invalid competency ID'
+            });
+        }
+
+        const competency = await Competency.findOneAndUpdate(
+            { _id: sanitizedId, ...req.firmQuery },
+            { $set: { isActive: false, updatedBy: req.userID } },
+            { new: true }
+        );
+
+        if (!competency) {
+            return res.status(404).json({
+                success: false,
+                message: 'الكفاءة غير موجودة / Competency not found'
+            });
+        }
+
+        res.json({
+            success: true,
+            message: 'تم حذف الكفاءة بنجاح / Competency deleted successfully'
+        });
+    } catch (error) {
+        logger.error('Error deleting competency:', error);
+        res.status(500).json({
+            success: false,
+            message: 'خطأ في حذف الكفاءة / Error deleting competency',
+            error: error.message
+        });
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════
+// SKILL ASSESSMENT (360-DEGREE)
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Get skill assessments
+ * GET /api/hr/skills/assessments
+ */
+const getSkillAssessments = async (req, res) => {
+    try {
+        const { employeeId, assessmentType, status, page = 1, limit = 20 } = req.query;
+
+        const pageNum = Math.max(1, parseInt(page) || 1);
+        const limitNum = Math.min(50, Math.max(1, parseInt(limit) || 20));
+
+        const query = { ...req.firmQuery };
+
+        if (employeeId) {
+            const sanitizedEmployeeId = sanitizeObjectId(employeeId);
+            if (sanitizedEmployeeId) query.employeeId = sanitizedEmployeeId;
+        }
+        if (assessmentType) query.assessmentType = assessmentType;
+        if (status) query.status = status;
+
+        const [assessments, total] = await Promise.all([
+            SkillAssessment.find(query)
+                .populate('employeeId', 'employeeId firstName lastName')
+                .sort({ 'assessmentPeriod.startDate': -1 })
+                .skip((pageNum - 1) * limitNum)
+                .limit(limitNum)
+                .lean(),
+            SkillAssessment.countDocuments(query)
+        ]);
+
+        res.json({
+            success: true,
+            data: assessments,
+            pagination: {
+                page: pageNum,
+                limit: limitNum,
+                total,
+                pages: Math.ceil(total / limitNum)
+            }
+        });
+    } catch (error) {
+        logger.error('Error fetching skill assessments:', error);
+        res.status(500).json({
+            success: false,
+            message: 'خطأ في جلب تقييمات المهارات / Error fetching skill assessments',
+            error: error.message
+        });
+    }
+};
+
+/**
+ * Get single assessment
+ * GET /api/hr/skills/assessments/:id
+ */
+const getAssessmentById = async (req, res) => {
+    try {
+        const sanitizedId = sanitizeObjectId(req.params.id);
+        if (!sanitizedId) {
+            return res.status(400).json({
+                success: false,
+                message: 'معرف التقييم غير صالح / Invalid assessment ID'
+            });
+        }
+
+        const assessment = await SkillAssessment.findOne({
+            _id: sanitizedId,
+            ...req.firmQuery
+        })
+            .populate('employeeId', 'employeeId firstName lastName email')
+            .populate('skillRatings.skillId', 'name nameAr category')
+            .populate('competencyRatings.competencyId', 'name nameAr type cluster');
+
+        if (!assessment) {
+            return res.status(404).json({
+                success: false,
+                message: 'التقييم غير موجود / Assessment not found'
+            });
+        }
+
+        res.json({
+            success: true,
+            data: assessment
+        });
+    } catch (error) {
+        logger.error('Error fetching assessment:', error);
+        res.status(500).json({
+            success: false,
+            message: 'خطأ في جلب التقييم / Error fetching assessment',
+            error: error.message
+        });
+    }
+};
+
+/**
+ * Create skill assessment
+ * POST /api/hr/skills/assessments
+ */
+const createAssessment = async (req, res) => {
+    try {
+        const allowedFields = [
+            'employeeId', 'assessmentPeriod', 'assessmentType',
+            'skillRatings', 'competencyRatings', 'workflow'
+        ];
+        const safeData = pickAllowedFields(req.body, allowedFields);
+
+        const sanitizedEmployeeId = sanitizeObjectId(safeData.employeeId);
+        if (!sanitizedEmployeeId) {
+            return res.status(400).json({
+                success: false,
+                message: 'معرف الموظف مطلوب / Employee ID is required'
+            });
+        }
+
+        // Verify employee exists
+        const employee = await Employee.findOne({
+            _id: sanitizedEmployeeId,
+            ...req.firmQuery
+        });
+
+        if (!employee) {
+            return res.status(404).json({
+                success: false,
+                message: 'الموظف غير موجود / Employee not found'
+            });
+        }
+
+        // Check for existing active assessment
+        const existingAssessment = await SkillAssessment.findOne({
+            ...req.firmQuery,
+            employeeId: sanitizedEmployeeId,
+            assessmentType: safeData.assessmentType,
+            status: { $nin: ['completed', 'acknowledged'] }
+        });
+
+        if (existingAssessment) {
+            return res.status(400).json({
+                success: false,
+                message: 'يوجد تقييم نشط لهذا الموظف / Active assessment exists for this employee',
+                data: { existingAssessmentId: existingAssessment._id }
+            });
+        }
+
+        const assessment = new SkillAssessment(req.addFirmId({
+            ...safeData,
+            employeeId: sanitizedEmployeeId,
+            status: 'draft',
+            createdBy: req.userID
+        }));
+
+        await assessment.save();
+
+        res.status(201).json({
+            success: true,
+            message: 'تم إنشاء التقييم بنجاح / Assessment created successfully',
+            data: assessment
+        });
+    } catch (error) {
+        logger.error('Error creating assessment:', error);
+        res.status(500).json({
+            success: false,
+            message: 'خطأ في إنشاء التقييم / Error creating assessment',
+            error: error.message
+        });
+    }
+};
+
+/**
+ * Update assessment (including ratings)
+ * PATCH /api/hr/skills/assessments/:id
+ */
+const updateAssessment = async (req, res) => {
+    try {
+        const sanitizedId = sanitizeObjectId(req.params.id);
+        if (!sanitizedId) {
+            return res.status(400).json({
+                success: false,
+                message: 'معرف التقييم غير صالح / Invalid assessment ID'
+            });
+        }
+
+        const allowedFields = [
+            'assessmentPeriod', 'skillRatings', 'competencyRatings',
+            'overallSummary', 'developmentPlan', 'status', 'workflow'
+        ];
+        const safeData = pickAllowedFields(req.body, allowedFields);
+
+        const assessment = await SkillAssessment.findOne({
+            _id: sanitizedId,
+            ...req.firmQuery
+        });
+
+        if (!assessment) {
+            return res.status(404).json({
+                success: false,
+                message: 'التقييم غير موجود / Assessment not found'
+            });
+        }
+
+        // Update fields
+        Object.assign(assessment, safeData);
+        assessment.updatedBy = req.userID;
+
+        await assessment.save();
+
+        res.json({
+            success: true,
+            message: 'تم تحديث التقييم بنجاح / Assessment updated successfully',
+            data: assessment
+        });
+    } catch (error) {
+        logger.error('Error updating assessment:', error);
+        res.status(500).json({
+            success: false,
+            message: 'خطأ في تحديث التقييم / Error updating assessment',
+            error: error.message
+        });
+    }
+};
+
+/**
+ * Submit self-assessment ratings
+ * POST /api/hr/skills/assessments/:id/self-assessment
+ */
+const submitSelfAssessment = async (req, res) => {
+    try {
+        const sanitizedId = sanitizeObjectId(req.params.id);
+        if (!sanitizedId) {
+            return res.status(400).json({
+                success: false,
+                message: 'معرف التقييم غير صالح / Invalid assessment ID'
+            });
+        }
+
+        const { skillRatings, competencyRatings } = req.body;
+
+        const assessment = await SkillAssessment.findOne({
+            _id: sanitizedId,
+            ...req.firmQuery,
+            status: { $in: ['draft', 'self_assessment'] }
+        });
+
+        if (!assessment) {
+            return res.status(404).json({
+                success: false,
+                message: 'التقييم غير موجود أو لا يمكن تعديله / Assessment not found or cannot be modified'
+            });
+        }
+
+        // Update skill self-ratings
+        if (skillRatings && Array.isArray(skillRatings)) {
+            skillRatings.forEach(sr => {
+                const existingRating = assessment.skillRatings.find(
+                    r => r.skillId?.toString() === sr.skillId
+                );
+                if (existingRating) {
+                    existingRating.selfRating = {
+                        level: Math.min(7, Math.max(1, sr.level)),
+                        levelProgress: Math.min(100, Math.max(0, sr.levelProgress || 0)),
+                        confidence: Math.min(5, Math.max(1, sr.confidence || 3)),
+                        notes: sr.notes?.substring(0, 500),
+                        ratedAt: new Date()
+                    };
+                }
+            });
+        }
+
+        // Update competency self-ratings
+        if (competencyRatings && Array.isArray(competencyRatings)) {
+            competencyRatings.forEach(cr => {
+                const existingRating = assessment.competencyRatings.find(
+                    r => r.competencyId?.toString() === cr.competencyId
+                );
+                if (existingRating) {
+                    existingRating.selfRating = {
+                        level: Math.min(7, Math.max(1, cr.level)),
+                        notes: cr.notes?.substring(0, 500),
+                        ratedAt: new Date()
+                    };
+                }
+            });
+        }
+
+        assessment.status = 'manager_review';
+        assessment.workflow.selfAssessmentCompleted = new Date();
+        assessment.updatedBy = req.userID;
+
+        await assessment.save();
+
+        res.json({
+            success: true,
+            message: 'تم تقديم التقييم الذاتي بنجاح / Self-assessment submitted successfully',
+            data: assessment
+        });
+    } catch (error) {
+        logger.error('Error submitting self-assessment:', error);
+        res.status(500).json({
+            success: false,
+            message: 'خطأ في تقديم التقييم الذاتي / Error submitting self-assessment',
+            error: error.message
+        });
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════
+// EXPIRING CERTIFICATIONS & CPD
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Get expiring certifications
+ * GET /api/hr/skills/expiring-certifications
+ */
+const getExpiringCertifications = async (req, res) => {
+    try {
+        const { days = 30 } = req.query;
+        const daysThreshold = Math.min(365, Math.max(1, parseInt(days) || 30));
+
+        const firmId = req.firmId || req.lawyerId;
+        const expiringCerts = await EmployeeSkillMap.getExpiringCertifications(firmId, daysThreshold);
+
+        res.json({
+            success: true,
+            data: expiringCerts,
+            total: expiringCerts.length,
+            threshold: daysThreshold
+        });
+    } catch (error) {
+        logger.error('Error fetching expiring certifications:', error);
+        res.status(500).json({
+            success: false,
+            message: 'خطأ في جلب الشهادات المنتهية / Error fetching expiring certifications',
+            error: error.message
+        });
+    }
+};
+
+/**
+ * Get CPD non-compliant employees
+ * GET /api/hr/skills/cpd-non-compliant
+ */
+const getCpdNonCompliant = async (req, res) => {
+    try {
+        const firmId = req.firmId || req.lawyerId;
+        const nonCompliant = await EmployeeSkillMap.getCpdNonCompliant(firmId);
+
+        res.json({
+            success: true,
+            data: nonCompliant,
+            total: nonCompliant.length
+        });
+    } catch (error) {
+        logger.error('Error fetching CPD non-compliant:', error);
+        res.status(500).json({
+            success: false,
+            message: 'خطأ في جلب الموظفين غير الممتثلين / Error fetching non-compliant employees',
+            error: error.message
+        });
+    }
+};
+
+/**
+ * Get skills needing review
+ * GET /api/hr/skills/needing-review
+ */
+const getSkillsNeedingReview = async (req, res) => {
+    try {
+        const { days = 0 } = req.query;
+        const daysPast = parseInt(days) || 0;
+
+        const firmId = req.firmId || req.lawyerId;
+        const needingReview = await EmployeeSkillMap.getSkillsNeedingReview(firmId, daysPast);
+
+        res.json({
+            success: true,
+            data: needingReview,
+            total: needingReview.length
+        });
+    } catch (error) {
+        logger.error('Error fetching skills needing review:', error);
+        res.status(500).json({
+            success: false,
+            message: 'خطأ في جلب المهارات التي تحتاج مراجعة / Error fetching skills needing review',
+            error: error.message
+        });
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════
 // EXPORTS
 // ═══════════════════════════════════════════════════════════════
 
@@ -1300,5 +2113,32 @@ module.exports = {
     endorseSkill,
 
     // Statistics
-    getSkillStats
+    getSkillStats,
+
+    // SFIA Framework
+    getSfiaLevels,
+
+    // Skill Types
+    getSkillTypes,
+    createSkillType,
+    updateSkillType,
+
+    // Competencies
+    getCompetencies,
+    getCompetencyById,
+    createCompetency,
+    updateCompetency,
+    deleteCompetency,
+
+    // Assessments (360-Degree)
+    getSkillAssessments,
+    getAssessmentById,
+    createAssessment,
+    updateAssessment,
+    submitSelfAssessment,
+
+    // Certifications & CPD
+    getExpiringCertifications,
+    getCpdNonCompliant,
+    getSkillsNeedingReview
 };

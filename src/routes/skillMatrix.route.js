@@ -1,7 +1,8 @@
 /**
  * Skill Matrix & Competency Tracking Routes
  *
- * Enterprise skill management endpoints
+ * Enterprise skill management with SFIA 7-level framework
+ * Includes: Skills, Skill Types, Competencies, Assessments, CPD
  *
  * SECURITY: All routes require authentication (via global middleware)
  */
@@ -11,15 +12,135 @@ const router = express.Router();
 const skillMatrixController = require('../controllers/skillMatrix.controller');
 
 // ═══════════════════════════════════════════════════════════════
-// SKILL CRUD ROUTES
+// SFIA FRAMEWORK
 // ═══════════════════════════════════════════════════════════════
 
 /**
- * GET /api/hr/skills
- * Get all skills with filtering
- * Query: category, isVerifiable, isActive, search, page, limit, sortBy, sortOrder
+ * GET /api/hr/skills/sfia-levels
+ * Get SFIA 7-level proficiency framework
  */
-router.get('/', skillMatrixController.getSkills);
+router.get('/sfia-levels', skillMatrixController.getSfiaLevels);
+
+// ═══════════════════════════════════════════════════════════════
+// SKILL TYPE ROUTES (Hierarchical Categories)
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * GET /api/hr/skills/types
+ * Get all skill types (hierarchical or flat)
+ * Query: classification, flat
+ */
+router.get('/types', skillMatrixController.getSkillTypes);
+
+/**
+ * POST /api/hr/skills/types
+ * Create skill type
+ */
+router.post('/types', skillMatrixController.createSkillType);
+
+/**
+ * PATCH /api/hr/skills/types/:id
+ * Update skill type
+ */
+router.patch('/types/:id', skillMatrixController.updateSkillType);
+
+// ═══════════════════════════════════════════════════════════════
+// COMPETENCY ROUTES
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * GET /api/hr/skills/competencies
+ * Get all competencies
+ * Query: type, cluster, isMandatory, search, page, limit
+ */
+router.get('/competencies', skillMatrixController.getCompetencies);
+
+/**
+ * GET /api/hr/skills/competencies/:id
+ * Get single competency
+ */
+router.get('/competencies/:id', skillMatrixController.getCompetencyById);
+
+/**
+ * POST /api/hr/skills/competencies
+ * Create competency
+ */
+router.post('/competencies', skillMatrixController.createCompetency);
+
+/**
+ * PATCH /api/hr/skills/competencies/:id
+ * Update competency
+ */
+router.patch('/competencies/:id', skillMatrixController.updateCompetency);
+
+/**
+ * DELETE /api/hr/skills/competencies/:id
+ * Delete competency (soft delete)
+ */
+router.delete('/competencies/:id', skillMatrixController.deleteCompetency);
+
+// ═══════════════════════════════════════════════════════════════
+// SKILL ASSESSMENT ROUTES (360-Degree)
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * GET /api/hr/skills/assessments
+ * Get skill assessments
+ * Query: employeeId, assessmentType, status, page, limit
+ */
+router.get('/assessments', skillMatrixController.getSkillAssessments);
+
+/**
+ * GET /api/hr/skills/assessments/:id
+ * Get single assessment
+ */
+router.get('/assessments/:id', skillMatrixController.getAssessmentById);
+
+/**
+ * POST /api/hr/skills/assessments
+ * Create skill assessment
+ */
+router.post('/assessments', skillMatrixController.createAssessment);
+
+/**
+ * PATCH /api/hr/skills/assessments/:id
+ * Update assessment
+ */
+router.patch('/assessments/:id', skillMatrixController.updateAssessment);
+
+/**
+ * POST /api/hr/skills/assessments/:id/self-assessment
+ * Submit self-assessment ratings
+ */
+router.post('/assessments/:id/self-assessment', skillMatrixController.submitSelfAssessment);
+
+// ═══════════════════════════════════════════════════════════════
+// CERTIFICATION & CPD ROUTES
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * GET /api/hr/skills/expiring-certifications
+ * Get certifications expiring soon
+ * Query: days (default 30)
+ */
+router.get('/expiring-certifications', skillMatrixController.getExpiringCertifications);
+
+/**
+ * GET /api/hr/skills/cpd-non-compliant
+ * Get employees not meeting CPD requirements
+ */
+router.get('/cpd-non-compliant', skillMatrixController.getCpdNonCompliant);
+
+/**
+ * GET /api/hr/skills/needing-review
+ * Get skills needing periodic review
+ * Query: days (0 = overdue, positive = upcoming)
+ */
+router.get('/needing-review', skillMatrixController.getSkillsNeedingReview);
+
+// ═══════════════════════════════════════════════════════════════
+// SKILL CRUD ROUTES
+// ═══════════════════════════════════════════════════════════════
 
 /**
  * GET /api/hr/skills/by-category
@@ -46,6 +167,13 @@ router.get('/matrix', skillMatrixController.getSkillMatrix);
  * Query: departmentId, roleId, targetProficiency
  */
 router.get('/gap-analysis', skillMatrixController.getSkillGapAnalysis);
+
+/**
+ * GET /api/hr/skills
+ * Get all skills with filtering
+ * Query: category, isVerifiable, isActive, search, page, limit, sortBy, sortOrder
+ */
+router.get('/', skillMatrixController.getSkills);
 
 /**
  * GET /api/hr/skills/:id
