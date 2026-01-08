@@ -254,7 +254,7 @@ const createEmployee = asyncHandler(async (req, res) => {
             registered: sanitizedGosi.registered || false,
             gosiNumber: sanitizedGosi.gosiNumber,
             employeeContribution: sanitizedGosi.employeeContribution !== undefined ? sanitizedGosi.employeeContribution : 9.75,
-            employerContribution: sanitizedGosi.employerContribution !== undefined ? sanitizedGosi.employerContribution : 12.75
+            employerContribution: sanitizedGosi.employerContribution !== undefined ? sanitizedGosi.employerContribution : 11.75
         };
     }
 

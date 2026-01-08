@@ -436,7 +436,7 @@ salarySlipSchema.statics.generateFromEmployee = function (employee, month, year,
 
     // Calculate GOSI
     const gosiEmployeeRate = isSaudi ? 9.75 : 0;
-    const gosiEmployerRate = isSaudi ? 12.75 : 2;
+    const gosiEmployerRate = isSaudi ? 11.75 : 2;
     const gosi = Math.round(basicSalary * (gosiEmployeeRate / 100));
     const gosiEmployer = Math.round(basicSalary * (gosiEmployerRate / 100));
 

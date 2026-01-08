@@ -7,7 +7,7 @@ const asyncHandler = require('express-async-handler');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const { sanitizeFilename } = require('../utils/sanitize');
 const leanTechService = require('../services/leantech.service');
-const { WPSService, SARIE_BANK_IDS } = require('../services/wps.service');
+const { WPSService, SARIE_BANK_IDS, validateIBANChecksum } = require('../services/wps.service');
 const { SADADService, BILLER_CATEGORIES, COMMON_BILLERS } = require('../services/sadad.service');
 const { MudadService, GOSI_RATES } = require('../services/mudad.service');
 const mongoose = require('mongoose');
@@ -18,15 +18,25 @@ const logger = require('../utils/logger');
 // ============================================
 
 /**
- * Validate Saudi IBAN format (SA + 22 digits)
+ * Validate Saudi IBAN format with ISO 7064 Mod 97 checksum
+ * Uses shared implementation from wps.service.js to avoid code duplication
+ * Adds bilingual error messages for this controller
  */
 const validateSaudiIBAN = (iban) => {
-    if (!iban) return { valid: false, message: 'IBAN is required' };
-    const ibanRegex = /^SA\d{22}$/;
-    if (!ibanRegex.test(iban)) {
-        return { valid: false, message: 'Invalid Saudi IBAN format. Must be SA followed by 22 digits' };
+    const result = validateIBANChecksum(iban);
+
+    // Enhance with bilingual messages
+    if (!result.valid) {
+        if (!iban) {
+            result.message = 'رقم IBAN مطلوب / IBAN is required';
+        } else if (result.checksumError) {
+            result.message = 'رقم IBAN غير صالح - فشل التحقق من الرقم / Invalid IBAN - checksum verification failed';
+        } else {
+            result.message = 'صيغة IBAN سعودي غير صحيحة. يجب أن يكون SA متبوعًا بـ 22 رقم / Invalid Saudi IBAN format. Must be SA followed by 22 digits';
+        }
     }
-    return { valid: true };
+
+    return result;
 };
 
 /**
@@ -1072,6 +1082,131 @@ const checkMinimumWage = asyncHandler(async (req, res) => {
     });
 });
 
+/**
+ * Get compliance deadlines status
+ * WPS: 10th of month
+ * GOSI: 15th of month
+ */
+const getComplianceDeadlines = asyncHandler(async (req, res) => {
+    const now = new Date();
+    const currentDay = now.getDate();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
+    // Calculate days until deadlines
+    const wpsDeadlineDay = 10;
+    const gosiDeadlineDay = 15;
+
+    // Calculate WPS deadline
+    let wpsDeadline = new Date(currentYear, currentMonth, wpsDeadlineDay);
+    if (currentDay > wpsDeadlineDay) {
+        // Deadline passed, show next month's deadline
+        wpsDeadline = new Date(currentYear, currentMonth + 1, wpsDeadlineDay);
+    }
+    const daysUntilWPS = Math.ceil((wpsDeadline - now) / (1000 * 60 * 60 * 24));
+
+    // Calculate GOSI deadline
+    let gosiDeadline = new Date(currentYear, currentMonth, gosiDeadlineDay);
+    if (currentDay > gosiDeadlineDay) {
+        // Deadline passed, show next month's deadline
+        gosiDeadline = new Date(currentYear, currentMonth + 1, gosiDeadlineDay);
+    }
+    const daysUntilGOSI = Math.ceil((gosiDeadline - now) / (1000 * 60 * 60 * 24));
+
+    // Determine urgency levels
+    const getUrgency = (days, passed) => {
+        if (passed) return { level: 'overdue', color: 'red' };
+        if (days <= 2) return { level: 'critical', color: 'red' };
+        if (days <= 5) return { level: 'warning', color: 'orange' };
+        return { level: 'normal', color: 'green' };
+    };
+
+    // Overdue if we're past the deadline day in the current month
+    // and haven't rolled over to next month's deadline yet
+    const wpsOverdue = currentDay > wpsDeadlineDay;
+    const gosiOverdue = currentDay > gosiDeadlineDay;
+
+    const wpsUrgency = getUrgency(daysUntilWPS, wpsOverdue);
+    const gosiUrgency = getUrgency(daysUntilGOSI, gosiOverdue);
+
+    // Generate messages
+    const getWPSMessage = () => {
+        if (wpsOverdue) {
+            return {
+                en: `WPS deadline passed! Submit immediately to avoid penalties.`,
+                ar: `انتهى موعد WPS! قدم الملف فوراً لتجنب الغرامات.`
+            };
+        }
+        if (daysUntilWPS <= 2) {
+            return {
+                en: `URGENT: ${daysUntilWPS} day(s) left to submit WPS file.`,
+                ar: `عاجل: متبقي ${daysUntilWPS} يوم لتقديم ملف WPS.`
+            };
+        }
+        return {
+            en: `${daysUntilWPS} days until WPS deadline (${wpsDeadlineDay}th of month).`,
+            ar: `متبقي ${daysUntilWPS} يوم حتى موعد WPS (${wpsDeadlineDay} من الشهر).`
+        };
+    };
+
+    const getGOSIMessage = () => {
+        if (gosiOverdue) {
+            return {
+                en: `GOSI deadline passed! Submit payment immediately to avoid penalties.`,
+                ar: `انتهى موعد التأمينات! سدد المبلغ فوراً لتجنب الغرامات.`
+            };
+        }
+        if (daysUntilGOSI <= 2) {
+            return {
+                en: `URGENT: ${daysUntilGOSI} day(s) left for GOSI payment.`,
+                ar: `عاجل: متبقي ${daysUntilGOSI} يوم لسداد التأمينات.`
+            };
+        }
+        return {
+            en: `${daysUntilGOSI} days until GOSI deadline (${gosiDeadlineDay}th of month).`,
+            ar: `متبقي ${daysUntilGOSI} يوم حتى موعد التأمينات (${gosiDeadlineDay} من الشهر).`
+        };
+    };
+
+    res.json({
+        success: true,
+        data: {
+            currentDate: now.toISOString().split('T')[0],
+            wps: {
+                deadline: wpsDeadline.toISOString().split('T')[0],
+                daysRemaining: daysUntilWPS,
+                overdue: wpsOverdue,
+                urgency: wpsUrgency,
+                message: getWPSMessage(),
+                portal: 'https://mudad.com.sa',
+                description: {
+                    en: 'Wage Protection System - Upload salary file to Mudad portal',
+                    ar: 'نظام حماية الأجور - رفع ملف الرواتب إلى منصة مدد'
+                }
+            },
+            gosi: {
+                deadline: gosiDeadline.toISOString().split('T')[0],
+                daysRemaining: daysUntilGOSI,
+                overdue: gosiOverdue,
+                urgency: gosiUrgency,
+                message: getGOSIMessage(),
+                portal: 'https://www.gosi.gov.sa',
+                description: {
+                    en: 'General Organization for Social Insurance - Monthly contribution payment',
+                    ar: 'المؤسسة العامة للتأمينات الاجتماعية - سداد الاشتراكات الشهرية'
+                }
+            },
+            quickLinks: {
+                mudad: 'https://mudad.com.sa',
+                gosi: 'https://www.gosi.gov.sa',
+                qiwa: 'https://qiwa.sa',
+                muqeem: 'https://muqeem.sa',
+                mol: 'https://hrsd.gov.sa'
+            }
+        }
+    });
+});
+
 module.exports = {
     // Lean Technologies
     getBanks,
@@ -1111,4 +1246,7 @@ module.exports = {
     generateGOSIReport,
     checkNitaqat,
     checkMinimumWage,
+
+    // Compliance
+    getComplianceDeadlines,
 };

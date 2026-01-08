@@ -384,7 +384,7 @@ const calculatePayroll = asyncHandler(async (req, res) => {
         if (payrollRun.configuration.calculateGOSI) {
             if (isSaudi) {
                 gosiEmployee = Math.round(basicSalary * 0.0975); // 9.75%
-                gosiEmployer = Math.round(basicSalary * 0.1275); // 12.75%
+                gosiEmployer = Math.round(basicSalary * 0.1175); // 11.75%
                 saudiCount++;
             } else {
                 gosiEmployer = Math.round(basicSalary * 0.02); // 2% for non-Saudi
@@ -1413,7 +1413,7 @@ const recalculateSingleEmployee = asyncHandler(async (req, res) => {
     const grossPay = basicSalary + allowances;
     const isSaudi = employee.personalInfo?.isSaudi !== false;
     const gosiEmployee = payrollRun.configuration.calculateGOSI && isSaudi ? Math.round(basicSalary * 0.0975) : 0;
-    const gosiEmployer = payrollRun.configuration.calculateGOSI && isSaudi ? Math.round(basicSalary * 0.1275) : (payrollRun.configuration.calculateGOSI ? Math.round(basicSalary * 0.02) : 0);
+    const gosiEmployer = payrollRun.configuration.calculateGOSI && isSaudi ? Math.round(basicSalary * 0.1175) : (payrollRun.configuration.calculateGOSI ? Math.round(basicSalary * 0.02) : 0);
     const netPay = grossPay - gosiEmployee;
 
     // Update employee entry

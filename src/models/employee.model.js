@@ -158,10 +158,10 @@ const employeeSchema = new mongoose.Schema({
     gosi: {
         registered: { type: Boolean, default: false },
         gosiNumber: String,
-        // Saudi: employee 9.75%, employer 12.75%
+        // Saudi: employee 9.75%, employer 11.75%
         // Non-Saudi: employer 2% only (employee 0%)
         employeeContribution: { type: Number, default: 9.75 },
-        employerContribution: { type: Number, default: 12.75 }
+        employerContribution: { type: Number, default: 11.75 }
     },
 
     // ═══════════════════════════════════════════════════════════════

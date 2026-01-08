@@ -50,6 +50,51 @@ function getSarieIdFromIban(iban) {
     return ibanBankCodes[bankCode] || bankCode;
 }
 
+/**
+ * Validate Saudi IBAN with ISO 7064 Mod 97 checksum
+ * @param {string} iban - IBAN to validate
+ * @returns {Object} { valid: boolean, message?: string, bankCode?: string }
+ */
+function validateIBANChecksum(iban) {
+    if (!iban) return { valid: false, message: 'IBAN is required' };
+
+    // Normalize
+    const normalizedIban = iban.toUpperCase().replace(/\s/g, '');
+
+    // Check format
+    if (!/^SA\d{22}$/.test(normalizedIban)) {
+        return { valid: false, message: 'Invalid format. Saudi IBAN: SA + 22 digits' };
+    }
+
+    // ISO 7064 Mod 97 checksum
+    const rearranged = normalizedIban.slice(4) + normalizedIban.slice(0, 4);
+
+    let numericString = '';
+    for (const char of rearranged) {
+        if (char >= 'A' && char <= 'Z') {
+            numericString += (char.charCodeAt(0) - 55).toString();
+        } else {
+            numericString += char;
+        }
+    }
+
+    let remainder = 0;
+    for (let i = 0; i < numericString.length; i += 7) {
+        const chunk = remainder.toString() + numericString.slice(i, i + 7);
+        remainder = parseInt(chunk, 10) % 97;
+    }
+
+    if (remainder !== 1) {
+        return { valid: false, message: 'IBAN checksum invalid', checksumError: true };
+    }
+
+    return {
+        valid: true,
+        bankCode: normalizedIban.slice(4, 6),
+        normalized: normalizedIban
+    };
+}
+
 class WPSService {
     /**
      * Generate WPS file header record
@@ -186,42 +231,50 @@ class WPSService {
 
     /**
      * Validate employee data before file generation
+     * Includes ISO 7064 Mod 97 IBAN checksum validation
      */
     validateEmployeeData(employees) {
         const errors = [];
         const warnings = [];
 
         employees.forEach((emp, index) => {
-            // Validate IBAN
-            if (!emp.iban || emp.iban.length !== 24) {
-                errors.push(`Employee ${index + 1} (${emp.name}): Invalid IBAN length. Must be 24 characters.`);
-            }
+            const empLabel = `Employee ${index + 1} (${emp.name || 'Unknown'})`;
 
-            if (emp.iban && !emp.iban.startsWith('SA')) {
-                errors.push(`Employee ${index + 1} (${emp.name}): IBAN must start with 'SA' for Saudi Arabia.`);
+            // Validate IBAN with full checksum validation
+            if (!emp.iban) {
+                errors.push(`${empLabel}: رقم IBAN مطلوب / IBAN is required.`);
+            } else {
+                const ibanValidation = validateIBANChecksum(emp.iban);
+                if (!ibanValidation.valid) {
+                    if (ibanValidation.checksumError) {
+                        errors.push(`${empLabel}: رقم IBAN غير صالح - فشل التحقق من الرقم / IBAN checksum invalid.`);
+                    } else {
+                        errors.push(`${empLabel}: ${ibanValidation.message}`);
+                    }
+                }
             }
 
             // Validate MOL ID / National ID
             if (!emp.molId && !emp.nationalId) {
-                errors.push(`Employee ${index + 1} (${emp.name}): Missing MOL ID or National ID.`);
+                errors.push(`${empLabel}: رقم الهوية أو رقم وزارة العمل مطلوب / Missing MOL ID or National ID.`);
             }
 
             // Validate salary
             if (!emp.salary || emp.salary.netSalary <= 0) {
-                errors.push(`Employee ${index + 1} (${emp.name}): Invalid net salary.`);
+                errors.push(`${empLabel}: صافي الراتب غير صالح / Invalid net salary.`);
             }
 
             // GOSI validation
-            if (emp.nationality === 'SA' && emp.salary.deductions) {
-                const expectedGosi = emp.salary.basic * 0.0975; // 9.75% for Saudi
-                if (Math.abs(emp.salary.gosiDeduction - expectedGosi) > 1) {
-                    warnings.push(`Employee ${index + 1} (${emp.name}): GOSI deduction may be incorrect.`);
+            if (emp.nationality === 'SA' && emp.salary && emp.salary.basic) {
+                const expectedGosi = emp.salary.basic * 0.0975; // 9.75% for Saudi employee
+                if (emp.salary.gosiDeduction !== undefined && Math.abs(emp.salary.gosiDeduction - expectedGosi) > 1) {
+                    warnings.push(`${empLabel}: حسم التأمينات قد يكون غير صحيح / GOSI deduction may be incorrect.`);
                 }
             }
 
             // Minimum wage validation (currently 4000 SAR for Saudis)
-            if (emp.nationality === 'SA' && emp.salary.basic < 4000) {
-                warnings.push(`Employee ${index + 1} (${emp.name}): Basic salary below minimum wage (4000 SAR).`);
+            if (emp.nationality === 'SA' && emp.salary && emp.salary.basic < 4000) {
+                warnings.push(`${empLabel}: الراتب الأساسي أقل من الحد الأدنى (4000 ريال) / Basic salary below minimum wage (4000 SAR).`);
             }
         });
 
@@ -230,20 +283,27 @@ class WPSService {
 
     /**
      * Validate establishment data
+     * Includes ISO 7064 Mod 97 IBAN checksum validation
      */
     validateEstablishmentData(establishment) {
         const errors = [];
 
         if (!establishment.molId || establishment.molId.length < 10) {
-            errors.push('Invalid MOL Establishment ID. Must be at least 10 digits.');
+            errors.push('رقم منشأة وزارة العمل غير صالح. يجب أن يكون 10 أرقام على الأقل / Invalid MOL Establishment ID. Must be at least 10 digits.');
         }
 
-        if (!establishment.iban || establishment.iban.length !== 24) {
-            errors.push('Invalid establishment IBAN. Must be 24 characters.');
-        }
-
-        if (!establishment.iban?.startsWith('SA')) {
-            errors.push('Establishment IBAN must start with SA for Saudi Arabia.');
+        // Validate establishment IBAN with checksum
+        if (!establishment.iban) {
+            errors.push('رقم IBAN المنشأة مطلوب / Establishment IBAN is required.');
+        } else {
+            const ibanValidation = validateIBANChecksum(establishment.iban);
+            if (!ibanValidation.valid) {
+                if (ibanValidation.checksumError) {
+                    errors.push('رقم IBAN المنشأة غير صالح - فشل التحقق من الرقم / Establishment IBAN checksum invalid.');
+                } else {
+                    errors.push(`رقم IBAN المنشأة: ${ibanValidation.message} / Establishment IBAN: ${ibanValidation.message}`);
+                }
+            }
         }
 
         return { valid: errors.length === 0, errors };
@@ -404,4 +464,5 @@ module.exports = {
     WPSService: new WPSService(),
     SARIE_BANK_IDS,
     getSarieIdFromIban,
+    validateIBANChecksum,
 };

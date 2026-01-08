@@ -307,7 +307,7 @@ const createSalarySlip = asyncHandler(async (req, res) => {
     // Never trust user input for calculations
     const isSaudi = employee.personalInfo?.isSaudi !== false;
     const gosiEmployeeRate = isSaudi ? 9.75 : 0;
-    const gosiEmployerRate = isSaudi ? 12.75 : 2;
+    const gosiEmployerRate = isSaudi ? 11.75 : 2;
     const basicSalary = safeEarnings.basicSalary || 0;
     const gosi = Math.round(basicSalary * (gosiEmployeeRate / 100));
     const gosiEmployer = Math.round(basicSalary * (gosiEmployerRate / 100));
@@ -437,7 +437,7 @@ const updateSalarySlip = asyncHandler(async (req, res) => {
             const employee = await Employee.findOne({ _id: salarySlip.employeeId, ...req.firmQuery });
             const isSaudi = employee?.personalInfo?.isSaudi !== false;
             const gosiEmployeeRate = isSaudi ? 9.75 : 0;
-            const gosiEmployerRate = isSaudi ? 12.75 : 2;
+            const gosiEmployerRate = isSaudi ? 11.75 : 2;
             salarySlip.deductions.gosi = Math.round(safeEarnings.basicSalary * (gosiEmployeeRate / 100));
             salarySlip.deductions.gosiEmployer = Math.round(safeEarnings.basicSalary * (gosiEmployerRate / 100));
         }
