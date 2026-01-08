@@ -17,24 +17,34 @@
 const axios = require('axios');
 const { WPSService } = require('./wps.service');
 const logger = require('../utils/logger');
+const {
+    GOSI_RATES,
+    calculateGOSI: calculateGOSICentral,
+    getSaudiGOSIRates
+} = require('../constants/gosi.constants');
 
-// GOSI contribution rates
-const GOSI_RATES = {
-    SAUDI: {
-        employee: 0.0975, // 9.75% from employee
-        employer: 0.1175, // 11.75% from employer
-        total: 0.215,     // Total 21.5%
-        // Breakdown:
-        // - Pension: 9% employee + 9% employer = 18%
-        // - Hazards: 0% employee + 2% employer = 2%
-        // - SANED: 0.75% employee + 0.75% employer = 1.5%
-    },
-    NON_SAUDI: {
-        employee: 0,      // 0% from employee
-        employer: 0.02,   // 2% from employer (hazards only)
-        total: 0.02,
-    }
+/**
+ * Nitaqat Weighting Rules (2024)
+ * Reference: https://www.cercli.com/resources/nitaqat
+ * Reference: https://www.centuroglobal.com/article/saudization/
+ */
+const NITAQAT_WEIGHTS = {
+    // Saudi with salary < 4000 SAR counts as 0.5 person
+    BELOW_MINIMUM_WAGE: 0.5,
+    // Disabled Saudi employee counts as 4 persons
+    DISABLED_EMPLOYEE: 4.0,
+    // GCC national counts as 1 Saudi
+    GCC_NATIONAL: 1.0,
+    // Foreign investor owner counts as 1 Saudi (April 2024 update)
+    FOREIGN_INVESTOR_OWNER: 1.0,
+    // Remote worker counts as 1 Saudi (2024 update)
+    REMOTE_WORKER: 1.0,
+    // Normal Saudi employee
+    NORMAL_SAUDI: 1.0,
 };
+
+// GCC country codes (count as Saudi for Nitaqat)
+const GCC_NATIONALITIES = ['AE', 'BH', 'KW', 'OM', 'QA', 'UAE', 'Bahrain', 'Kuwait', 'Oman', 'Qatar'];
 
 // Mudad subscription types
 const SUBSCRIPTION_TYPES = {
@@ -64,22 +74,34 @@ class MudadService {
 
     /**
      * Calculate GOSI contributions for an employee
+     * Uses centralized GOSI constants for consistent calculations
+     *
+     * IMPORTANT: GOSI base = Basic Salary + Housing Allowance
+     *
      * @param {Object} employee - Employee details
      * @param {number} basicSalary - Basic salary in SAR
+     * @param {number} housingAllowance - Housing allowance in SAR (optional)
      */
-    calculateGOSI(employee, basicSalary) {
+    calculateGOSI(employee, basicSalary, housingAllowance = 0) {
         const isSaudi = employee.nationality === 'SA' || employee.nationality === 'Saudi';
-        const rates = isSaudi ? GOSI_RATES.SAUDI : GOSI_RATES.NON_SAUDI;
 
-        // GOSI is calculated on basic salary only (capped at 45,000 SAR)
-        const cappedSalary = Math.min(basicSalary, 45000);
+        // Use centralized GOSI calculation with housing allowance
+        const result = calculateGOSICentral(isSaudi, basicSalary, {
+            housingAllowance: housingAllowance,
+            employeeStartDate: employee.gosiStartDate || employee.hireDate || null,
+        });
 
         return {
-            employeeContribution: Math.round(cappedSalary * rates.employee * 100) / 100,
-            employerContribution: Math.round(cappedSalary * rates.employer * 100) / 100,
-            totalContribution: Math.round(cappedSalary * rates.total * 100) / 100,
-            baseSalary: cappedSalary,
-            rates: rates,
+            employeeContribution: result.employee,
+            employerContribution: result.employer,
+            totalContribution: result.total,
+            baseSalary: result.baseSalary,
+            housingAllowance: result.housingAllowance,
+            contributionBase: result.contributionBase,
+            cappedSalary: result.cappedSalary,
+            wasCapped: result.wasCapped,
+            isReformEmployee: result.isReformEmployee,
+            rates: result.rates,
         };
     }
 
@@ -100,8 +122,8 @@ class MudadService {
             const transport = emp.salary?.transport || emp.transportAllowance || 0;
             const otherAllowances = emp.salary?.otherAllowances || 0;
 
-            // Calculate GOSI
-            const gosi = this.calculateGOSI(emp, basic);
+            // Calculate GOSI with housing allowance (per official GOSI regulations)
+            const gosi = this.calculateGOSI(emp, basic, housing);
 
             // Calculate gross salary
             const gross = basic + housing + transport + otherAllowances;
@@ -275,10 +297,19 @@ class MudadService {
             errors.push('Payment date is required');
         }
 
-        // Check if payment date is before 10th of month (WPS deadline)
+        // Check if payment date is within 30 days of salary due date (March 2025 MHRSD WPS deadline update)
+        // WPS deadline = salary due date + 30 days (not 10th of month anymore)
         const paymentDate = new Date(payrollData.paymentDate);
-        if (paymentDate.getDate() > 10) {
-            errors.push('Warning: Payment date is after WPS deadline (10th of month)');
+        const salaryDueDate = payrollData.salaryDueDate
+            ? new Date(payrollData.salaryDueDate)
+            : new Date(paymentDate.getFullYear(), paymentDate.getMonth(), 0); // Last day of prev month
+
+        const wpsDeadline = new Date(salaryDueDate);
+        wpsDeadline.setDate(wpsDeadline.getDate() + 30);
+
+        if (paymentDate > wpsDeadline) {
+            const daysLate = Math.ceil((paymentDate - wpsDeadline) / (1000 * 60 * 60 * 24));
+            errors.push(`Warning: Payment date is ${daysLate} day(s) after WPS deadline (30 days from salary due date)`);
         }
 
         // Validate employees
@@ -348,20 +379,102 @@ class MudadService {
     }
 
     /**
-     * Get Nitaqat (Saudization) calculation
+     * Get Nitaqat (Saudization) calculation with proper weighting
+     *
+     * Official Weighting Rules (2024):
+     * - Saudi with salary < 4000 SAR = counts as 0.5 person
+     * - Disabled Saudi employee = counts as 4 persons
+     * - GCC national = counts as 1 Saudi
+     * - Foreign investor owner = counts as 1 Saudi (April 2024)
+     * - Remote worker (Saudi) = counts as 1 Saudi (2024)
+     *
+     * Reference: https://www.cercli.com/resources/nitaqat
+     * Reference: https://www.centuroglobal.com/article/saudization/
      */
     calculateNitaqat(employees) {
         const totalEmployees = employees.length;
-        const saudiEmployees = employees.filter(
-            emp => emp.nationality === 'SA' || emp.nationality === 'Saudi'
-        ).length;
 
+        // Calculate weighted Saudi count
+        let weightedSaudiCount = 0;
+        let rawSaudiCount = 0;
+        let gccCount = 0;
+        let disabledCount = 0;
+        let belowMinWageCount = 0;
+        let remoteWorkerCount = 0;
+        let foreignInvestorOwnerCount = 0;
+
+        const employeeDetails = [];
+
+        employees.forEach(emp => {
+            const nationality = emp.nationality;
+            const isSaudi = nationality === 'SA' || nationality === 'Saudi';
+            const isGCC = GCC_NATIONALITIES.includes(nationality);
+            const basicSalary = emp.basicSalary || emp.salary?.basic || 0;
+            const isDisabled = emp.isDisabled === true || emp.disability === true;
+            const isRemoteWorker = emp.isRemoteWorker === true || emp.workType === 'remote';
+            const isForeignInvestorOwner = emp.isForeignInvestorOwner === true || emp.ownerType === 'foreign_investor';
+
+            let weight = 0;
+            let category = 'non-saudi';
+
+            if (isSaudi) {
+                rawSaudiCount++;
+                category = 'saudi';
+
+                // Check for special weighting
+                if (isDisabled) {
+                    // Disabled Saudi = 4 persons
+                    weight = NITAQAT_WEIGHTS.DISABLED_EMPLOYEE;
+                    disabledCount++;
+                    category = 'saudi_disabled';
+                } else if (basicSalary < GOSI_RATES.MINIMUM_WAGE_SAUDI && basicSalary > 0) {
+                    // Below minimum wage Saudi = 0.5 person
+                    weight = NITAQAT_WEIGHTS.BELOW_MINIMUM_WAGE;
+                    belowMinWageCount++;
+                    category = 'saudi_below_min_wage';
+                } else if (isRemoteWorker) {
+                    // Remote worker = 1 person (2024 update)
+                    weight = NITAQAT_WEIGHTS.REMOTE_WORKER;
+                    remoteWorkerCount++;
+                    category = 'saudi_remote';
+                } else {
+                    // Normal Saudi = 1 person
+                    weight = NITAQAT_WEIGHTS.NORMAL_SAUDI;
+                }
+            } else if (isGCC) {
+                // GCC national counts as Saudi
+                weight = NITAQAT_WEIGHTS.GCC_NATIONAL;
+                gccCount++;
+                category = 'gcc';
+            } else if (isForeignInvestorOwner) {
+                // Foreign investor owner counts as Saudi (April 2024)
+                weight = NITAQAT_WEIGHTS.FOREIGN_INVESTOR_OWNER;
+                foreignInvestorOwnerCount++;
+                category = 'foreign_investor_owner';
+            }
+
+            weightedSaudiCount += weight;
+
+            employeeDetails.push({
+                employeeId: emp._id || emp.id,
+                name: emp.name,
+                nationality,
+                category,
+                weight,
+                basicSalary,
+                isDisabled,
+                isRemoteWorker,
+            });
+        });
+
+        // Calculate saudization rate based on weighted count
         const saudizationRate = totalEmployees > 0
-            ? (saudiEmployees / totalEmployees) * 100
+            ? (weightedSaudiCount / totalEmployees) * 100
             : 0;
 
         // Nitaqat ranges (simplified - actual ranges depend on company size and sector)
         let nitaqatBand = 'RED';
+        if (saudizationRate >= 10) nitaqatBand = 'YELLOW';
         if (saudizationRate >= 40) nitaqatBand = 'GREEN_LOW';
         if (saudizationRate >= 50) nitaqatBand = 'GREEN_MID';
         if (saudizationRate >= 60) nitaqatBand = 'GREEN_HIGH';
@@ -369,12 +482,61 @@ class MudadService {
 
         return {
             totalEmployees,
-            saudiEmployees,
-            nonSaudiEmployees: totalEmployees - saudiEmployees,
+            // Raw counts (actual headcount)
+            rawCounts: {
+                saudi: rawSaudiCount,
+                gcc: gccCount,
+                nonSaudi: totalEmployees - rawSaudiCount - gccCount,
+            },
+            // Weighted counts (for Nitaqat calculation)
+            weightedCounts: {
+                saudi: weightedSaudiCount,
+                disabled: disabledCount,
+                belowMinWage: belowMinWageCount,
+                remoteWorkers: remoteWorkerCount,
+                gccNationals: gccCount,
+                foreignInvestorOwners: foreignInvestorOwnerCount,
+            },
+            // Summary
             saudizationRate: Math.round(saudizationRate * 100) / 100,
             nitaqatBand,
-            compliant: nitaqatBand !== 'RED',
+            compliant: nitaqatBand !== 'RED' && nitaqatBand !== 'YELLOW',
+            // Warnings
+            warnings: this._getNitaqatWarnings(saudizationRate, belowMinWageCount, rawSaudiCount),
+            // Details for audit
+            employeeDetails,
         };
+    }
+
+    /**
+     * Get warnings for Nitaqat compliance
+     */
+    _getNitaqatWarnings(rate, belowMinWageCount, rawSaudiCount) {
+        const warnings = [];
+
+        if (rate < 10) {
+            warnings.push({
+                level: 'critical',
+                messageAr: 'منشأتك في النطاق الأحمر - خطر إيقاف الخدمات',
+                messageEn: 'Your establishment is in RED band - risk of service suspension',
+            });
+        } else if (rate < 40) {
+            warnings.push({
+                level: 'warning',
+                messageAr: 'منشأتك في النطاق الأصفر - يجب زيادة السعودة',
+                messageEn: 'Your establishment is in YELLOW band - need to increase Saudization',
+            });
+        }
+
+        if (belowMinWageCount > 0) {
+            warnings.push({
+                level: 'info',
+                messageAr: `${belowMinWageCount} موظف سعودي براتب أقل من 4000 ريال - يحتسب كنصف موظف`,
+                messageEn: `${belowMinWageCount} Saudi employee(s) with salary below 4000 SAR - counted as 0.5 each`,
+            });
+        }
+
+        return warnings;
     }
 
     /**
@@ -420,4 +582,6 @@ module.exports = {
     MudadService: new MudadService(),
     GOSI_RATES,
     SUBSCRIPTION_TYPES,
+    NITAQAT_WEIGHTS,
+    GCC_NATIONALITIES,
 };

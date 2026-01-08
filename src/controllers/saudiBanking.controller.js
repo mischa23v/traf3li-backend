@@ -1084,8 +1084,12 @@ const checkMinimumWage = asyncHandler(async (req, res) => {
 
 /**
  * Get compliance deadlines status
- * WPS: 10th of month
- * GOSI: 15th of month
+ *
+ * IMPORTANT - March 2025 MHRSD Update:
+ * WPS deadline changed from "10th of following month" to "30 days from salary due date"
+ *
+ * WPS: 30 days from salary due date (typically last day of salary month)
+ * GOSI: 15th of following month
  */
 const getComplianceDeadlines = asyncHandler(async (req, res) => {
     const now = new Date();
@@ -1094,16 +1098,22 @@ const getComplianceDeadlines = asyncHandler(async (req, res) => {
     const currentYear = now.getFullYear();
 
     // Calculate days until deadlines
-    const wpsDeadlineDay = 10;
     const gosiDeadlineDay = 15;
 
-    // Calculate WPS deadline
-    let wpsDeadline = new Date(currentYear, currentMonth, wpsDeadlineDay);
-    if (currentDay > wpsDeadlineDay) {
-        // Deadline passed, show next month's deadline
-        wpsDeadline = new Date(currentYear, currentMonth + 1, wpsDeadlineDay);
+    // Calculate WPS deadline (March 2025 update: 30 days from salary due date)
+    // Salary due date = last day of previous month (the month we're paying for)
+    const salaryDueDate = new Date(currentYear, currentMonth, 0); // Day 0 = last day of prev month
+    const wpsDeadline = new Date(salaryDueDate);
+    wpsDeadline.setDate(wpsDeadline.getDate() + 30);
+
+    // If WPS deadline has passed, calculate for next month's payroll
+    let effectiveWpsDeadline = wpsDeadline;
+    if (now > wpsDeadline) {
+        const nextSalaryDueDate = new Date(currentYear, currentMonth + 1, 0);
+        effectiveWpsDeadline = new Date(nextSalaryDueDate);
+        effectiveWpsDeadline.setDate(effectiveWpsDeadline.getDate() + 30);
     }
-    const daysUntilWPS = Math.ceil((wpsDeadline - now) / (1000 * 60 * 60 * 24));
+    const daysUntilWPS = Math.ceil((effectiveWpsDeadline - now) / (1000 * 60 * 60 * 24));
 
     // Calculate GOSI deadline
     let gosiDeadline = new Date(currentYear, currentMonth, gosiDeadlineDay);
@@ -1121,13 +1131,15 @@ const getComplianceDeadlines = asyncHandler(async (req, res) => {
         return { level: 'normal', color: 'green' };
     };
 
-    // Overdue if we're past the deadline day in the current month
-    // and haven't rolled over to next month's deadline yet
-    const wpsOverdue = currentDay > wpsDeadlineDay;
+    // Overdue if current date is past the WPS deadline for previous month's salary
+    const wpsOverdue = now > wpsDeadline;
     const gosiOverdue = currentDay > gosiDeadlineDay;
 
     const wpsUrgency = getUrgency(daysUntilWPS, wpsOverdue);
     const gosiUrgency = getUrgency(daysUntilGOSI, gosiOverdue);
+
+    // Format WPS deadline for display (30 days from salary due date)
+    const wpsDeadlineDate = effectiveWpsDeadline.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
     // Generate messages
     const getWPSMessage = () => {
@@ -1144,8 +1156,8 @@ const getComplianceDeadlines = asyncHandler(async (req, res) => {
             };
         }
         return {
-            en: `${daysUntilWPS} days until WPS deadline (${wpsDeadlineDay}th of month).`,
-            ar: `متبقي ${daysUntilWPS} يوم حتى موعد WPS (${wpsDeadlineDay} من الشهر).`
+            en: `${daysUntilWPS} days until WPS deadline (${wpsDeadlineDate}).`,
+            ar: `متبقي ${daysUntilWPS} يوم حتى موعد WPS (${wpsDeadlineDate}).`
         };
     };
 
@@ -1173,7 +1185,7 @@ const getComplianceDeadlines = asyncHandler(async (req, res) => {
         data: {
             currentDate: now.toISOString().split('T')[0],
             wps: {
-                deadline: wpsDeadline.toISOString().split('T')[0],
+                deadline: effectiveWpsDeadline.toISOString().split('T')[0],
                 daysRemaining: daysUntilWPS,
                 overdue: wpsOverdue,
                 urgency: wpsUrgency,

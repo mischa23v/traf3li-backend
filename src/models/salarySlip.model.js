@@ -434,9 +434,17 @@ salarySlipSchema.statics.getStats = async function (firmId, lawyerId, month, yea
 salarySlipSchema.statics.generateFromEmployee = function (employee, month, year, userId, firmId, lawyerId) {
     const isSaudi = employee.personalInfo?.isSaudi !== false;
     const basicSalary = employee.compensation?.basicSalary || 0;
+    // Get housing allowance from compensation
+    const housingAllowance = employee.compensation?.housingAllowance
+        || employee.compensation?.allowances?.find(a => a.name?.toLowerCase().includes('housing'))?.amount
+        || 0;
 
     // Calculate GOSI using centralized constants (includes 45,000 SAR cap)
-    const gosiCalc = calculateGOSI(isSaudi, basicSalary);
+    // GOSI base = Basic Salary + Housing Allowance (per official GOSI regulations)
+    const gosiCalc = calculateGOSI(isSaudi, basicSalary, {
+        housingAllowance,
+        employeeStartDate: employee.employment?.gosiStartDate || employee.employment?.joinDate || null
+    });
     const gosi = gosiCalc.employee;
     const gosiEmployer = gosiCalc.employer;
 

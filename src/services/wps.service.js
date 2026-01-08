@@ -828,12 +828,20 @@ function validateFileEncoding(content) {
 
 /**
  * Get WPS and GOSI compliance deadlines for current month
- * WPS: 10th of following month
+ *
+ * IMPORTANT - March 2025 MHRSD Update:
+ * WPS deadline changed from "10th of following month" to "30 days from salary due date"
+ *
+ * @see https://www.mhrsd.gov.sa - Ministry of Human Resources and Social Development
+ *
+ * WPS: 30 days from salary due date (last day of salary month)
  * GOSI: 15th of following month
+ *
  * @param {Date} referenceDate - Reference date (defaults to today)
+ * @param {Date} salaryDueDate - Optional: specific salary due date (defaults to last day of previous month)
  * @returns {Object} { wps: {...}, gosi: {...}, currentMonth: {...} }
  */
-function getComplianceDeadlines(referenceDate = new Date()) {
+function getComplianceDeadlines(referenceDate = new Date(), salaryDueDate = null) {
     const today = new Date(referenceDate);
     today.setHours(0, 0, 0, 0);
 
@@ -841,8 +849,20 @@ function getComplianceDeadlines(referenceDate = new Date()) {
     const currentYear = today.getFullYear();
     const currentMonth = today.getMonth();
 
-    // WPS deadline: 10th of following month
-    const wpsDeadline = new Date(currentYear, currentMonth + 1, 10);
+    // WPS deadline: 30 days from salary due date (March 2025 MHRSD update)
+    // Salary due date is typically the last day of the salary month
+    // For current month reference, we assume we're looking at LAST month's payroll
+    // Example: On Feb 15, we're looking at Jan payroll, Jan salary was due Jan 31
+    // WPS deadline = Jan 31 + 30 days = Mar 2
+
+    // Default salary due date: last day of previous month
+    const defaultSalaryDueDate = new Date(currentYear, currentMonth, 0); // Day 0 = last day of prev month
+    const effectiveSalaryDueDate = salaryDueDate ? new Date(salaryDueDate) : defaultSalaryDueDate;
+    effectiveSalaryDueDate.setHours(0, 0, 0, 0);
+
+    // WPS deadline = salary due date + 30 days
+    const wpsDeadline = new Date(effectiveSalaryDueDate);
+    wpsDeadline.setDate(wpsDeadline.getDate() + 30);
     const wpsDeadlineDays = Math.ceil((wpsDeadline - today) / (1000 * 60 * 60 * 24));
 
     // GOSI deadline: 15th of following month
@@ -891,7 +911,8 @@ function getComplianceDeadlines(referenceDate = new Date()) {
             daysRemaining: wpsDeadlineDays,
             urgency: getUrgency(wpsDeadlineDays),
             message: formatDeadlineMessage(wpsDeadlineDays, 'WPS'),
-            description: 'موعد رفع ملف حماية الأجور / Wage Protection System file upload deadline',
+            salaryDueDate: effectiveSalaryDueDate, // The base date for calculation
+            description: 'موعد رفع ملف حماية الأجور (30 يوم من تاريخ استحقاق الراتب) / WPS deadline - 30 days from salary due date',
             penalty: 'غرامة 10,000 ريال + توقف خدمات المنشأة / 10,000 SAR fine + establishment services suspended'
         },
         gosi: {

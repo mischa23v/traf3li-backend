@@ -5,7 +5,9 @@
  * Schedule: Daily at 9:00 AM (Saudi Arabia time)
  *
  * Deadlines:
- * - WPS (Wage Protection System): 10th of following month
+ * - WPS (Wage Protection System): 30 days from salary due date (March 2025 MHRSD update)
+ *   Previously was 10th of following month, now calculated as:
+ *   Salary due date (end of salary month) + 30 days
  * - GOSI (Social Insurance): 15th of following month
  *
  * Penalties:
