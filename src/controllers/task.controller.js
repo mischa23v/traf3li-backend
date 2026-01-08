@@ -1019,6 +1019,7 @@ const deleteSubtask = asyncHandler(async (req, res) => {
 // === TIME TRACKING ===
 
 // Start timer
+// GOLD STANDARD: Atomic operation with race condition protection
 const startTimer = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
@@ -1030,46 +1031,91 @@ const startTimer = asyncHandler(async (req, res) => {
     const data = pickAllowedFields(req.body, ALLOWED_FIELDS.TIMER_START);
     const { notes } = data;
 
-    // Use req.firmQuery for proper tenant isolation (solo + firm)
-    const task = await Task.findOne({ _id: taskId, ...req.firmQuery });
-    if (!task) {
-        throw CustomException('Task not found', 404);
-    }
+    const now = new Date();
 
-    // Gold Standard: Block time tracking on completed/canceled tasks
-    if (task.status === 'done' || task.status === 'canceled') {
+    // SECURITY: Atomic update with race condition protection
+    // All conditions are checked atomically - prevents TOCTOU vulnerabilities
+    // Pattern: AWS/Google/Microsoft - atomic check-and-update
+    const task = await Task.findOneAndUpdate(
+        {
+            _id: taskId,
+            ...req.firmQuery,
+            // Condition 1: Task must not be completed or canceled
+            status: { $nin: ['done', 'canceled'] },
+            // Condition 2: No timer currently running (prevents double-start race condition)
+            $or: [
+                { 'timeTracking.isTracking': false },
+                { 'timeTracking.isTracking': { $exists: false } },
+                { timeTracking: { $exists: false } }
+            ]
+        },
+        {
+            $set: {
+                'timeTracking.isTracking': true,
+                'timeTracking.currentSessionStart': now,
+                'timeTracking.isPaused': false,
+                'timeTracking.pausedAt': null
+            },
+            $push: {
+                'timeTracking.sessions': {
+                    startedAt: now,
+                    userId,
+                    notes: notes || '',
+                    isBillable: true
+                }
+            },
+            // Initialize timeTracking fields if they don't exist
+            $setOnInsert: {
+                'timeTracking.estimatedMinutes': 0,
+                'timeTracking.actualMinutes': 0
+            }
+        },
+        { new: true }
+    );
+
+    // Handle various failure cases with specific error messages
+    if (!task) {
+        // Need to determine WHY it failed - fetch the task to check
+        const existingTask = await Task.findOne({ _id: taskId, ...req.firmQuery });
+
+        if (!existingTask) {
+            throw CustomException('Task not found', 404, { messageAr: 'المهمة غير موجودة' });
+        }
+
+        if (existingTask.status === 'done' || existingTask.status === 'canceled') {
+            throw CustomException(
+                'Cannot start timer on completed or canceled task. Reopen the task first.',
+                400,
+                { messageAr: 'لا يمكن بدء المؤقت على مهمة مكتملة أو ملغاة. أعد فتح المهمة أولاً.' }
+            );
+        }
+
+        if (existingTask.timeTracking?.isTracking) {
+            throw CustomException(
+                'A timer is already running for this task. Stop the current timer first.',
+                400,
+                { messageAr: 'يوجد مؤقت قيد التشغيل بالفعل لهذه المهمة. أوقف المؤقت الحالي أولاً.' }
+            );
+        }
+
+        // Generic fallback (should not reach here)
         throw CustomException(
-            'Cannot start timer on completed or canceled task. Reopen the task first. | لا يمكن بدء المؤقت على مهمة مكتملة أو ملغاة. أعد فتح المهمة أولاً.',
-            400
+            'Failed to start timer. Please try again.',
+            400,
+            { messageAr: 'فشل في بدء المؤقت. يرجى المحاولة مرة أخرى.' }
         );
     }
-
-    // Check for active session
-    if (task.timeTracking.isTracking) {
-        throw CustomException('A timer is already running for this task', 400);
-    }
-
-    const now = new Date();
-    task.timeTracking.sessions.push({
-        startedAt: now,
-        userId,
-        notes,
-        isBillable: true
-    });
-
-    task.timeTracking.isTracking = true;
-    task.timeTracking.currentSessionStart = now;
-
-    await task.save();
 
     res.status(200).json({
         success: true,
         message: 'Timer started',
+        messageAr: 'تم بدء المؤقت',
         data: task.timeTracking
     });
 });
 
 // Stop timer
+// GOLD STANDARD: Atomic operation with race condition protection
 const stopTimer = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
@@ -1081,46 +1127,77 @@ const stopTimer = asyncHandler(async (req, res) => {
     const data = pickAllowedFields(req.body, ALLOWED_FIELDS.TIMER_STOP);
     const { notes, isBillable } = data;
 
-    // Use req.firmQuery for proper tenant isolation (solo + firm)
-    const task = await Task.findOne({ _id: taskId, ...req.firmQuery });
+    const now = new Date();
+
+    // Step 1: Atomically claim the stop operation (prevents race condition)
+    // This ensures only one request can stop the timer
+    const task = await Task.findOneAndUpdate(
+        {
+            _id: taskId,
+            ...req.firmQuery,
+            'timeTracking.isTracking': true // Only match if timer is running
+        },
+        {
+            $set: {
+                'timeTracking.isTracking': false,
+                'timeTracking.currentSessionStart': null,
+                'timeTracking.isPaused': false,
+                'timeTracking.pausedAt': null
+            }
+        },
+        { new: true }
+    );
+
+    // Handle failure cases
     if (!task) {
-        throw CustomException('Task not found', 404);
+        const existingTask = await Task.findOne({ _id: taskId, ...req.firmQuery });
+
+        if (!existingTask) {
+            throw CustomException('Task not found', 404, { messageAr: 'المهمة غير موجودة' });
+        }
+
+        if (!existingTask.timeTracking?.isTracking) {
+            throw CustomException(
+                'No active timer found for this task',
+                400,
+                { messageAr: 'لا يوجد مؤقت نشط لهذه المهمة' }
+            );
+        }
+
+        throw CustomException(
+            'Failed to stop timer. Please try again.',
+            400,
+            { messageAr: 'فشل في إيقاف المؤقت. يرجى المحاولة مرة أخرى.' }
+        );
     }
 
-    if (!task.timeTracking.isTracking) {
-        throw CustomException('No active timer found', 400);
+    // Step 2: Find and update the active session
+    // This is safe now because we've atomically claimed ownership
+    const activeSession = task.timeTracking.sessions?.find(s => !s.endedAt);
+    if (activeSession) {
+        activeSession.endedAt = now;
+        activeSession.duration = Math.round((now - new Date(activeSession.startedAt)) / 60000);
+
+        // Update notes and billable status if provided
+        if (notes !== undefined) {
+            activeSession.notes = notes;
+        }
+        if (isBillable !== undefined) {
+            activeSession.isBillable = isBillable;
+        }
+
+        // Update total actual minutes
+        task.timeTracking.actualMinutes = task.timeTracking.sessions
+            .filter(s => s.endedAt)
+            .reduce((total, s) => total + (s.duration || 0), 0);
+
+        await task.save();
     }
-
-    const activeSession = task.timeTracking.sessions.find(s => !s.endedAt);
-    if (!activeSession) {
-        throw CustomException('No active timer found', 400);
-    }
-
-    activeSession.endedAt = new Date();
-    activeSession.duration = Math.round((activeSession.endedAt - activeSession.startedAt) / 60000);
-
-    // Update notes and billable status if provided
-    if (notes !== undefined) {
-        activeSession.notes = notes;
-    }
-    if (isBillable !== undefined) {
-        activeSession.isBillable = isBillable;
-    }
-
-    // Update tracking state
-    task.timeTracking.isTracking = false;
-    task.timeTracking.currentSessionStart = null;
-
-    // Update total actual minutes
-    task.timeTracking.actualMinutes = task.timeTracking.sessions
-        .filter(s => s.endedAt)
-        .reduce((total, s) => total + (s.duration || 0), 0);
-
-    await task.save();
 
     res.status(200).json({
         success: true,
         message: 'Timer stopped',
+        messageAr: 'تم إيقاف المؤقت',
         data: task.timeTracking,
         task: {
             timeTracking: task.timeTracking,
@@ -1130,6 +1207,7 @@ const stopTimer = asyncHandler(async (req, res) => {
 });
 
 // Reset time tracking - clears all sessions and resets counters
+// GOLD STANDARD: Atomic operation with race condition protection
 const resetTimeTracking = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
@@ -1137,48 +1215,77 @@ const resetTimeTracking = asyncHandler(async (req, res) => {
     // IDOR protection
     const taskId = sanitizeObjectId(id);
 
-    // Use req.firmQuery for proper tenant isolation (solo + firm)
-    const task = await Task.findOne({ _id: taskId, ...req.firmQuery });
-    if (!task) {
-        throw CustomException('Task not found', 404);
+    const now = new Date();
+
+    // First, get the task to capture old values for history
+    const existingTask = await Task.findOne({ _id: taskId, ...req.firmQuery });
+    if (!existingTask) {
+        throw CustomException('Task not found', 404, { messageAr: 'المهمة غير موجودة' });
     }
 
-    // Check for active timer - must stop it first
-    if (task.timeTracking.isTracking) {
+    // Check if timer is running
+    if (existingTask.timeTracking?.isTracking) {
         throw CustomException(
-            'Cannot reset time tracking while timer is running. Stop the timer first. | لا يمكن إعادة تعيين تتبع الوقت أثناء تشغيل المؤقت. أوقف المؤقت أولاً.',
-            400
+            'Cannot reset time tracking while timer is running. Stop the timer first.',
+            400,
+            { messageAr: 'لا يمكن إعادة تعيين تتبع الوقت أثناء تشغيل المؤقت. أوقف المؤقت أولاً.' }
         );
     }
 
     // Store old values for history
-    const oldActualMinutes = task.timeTracking.actualMinutes || 0;
-    const oldSessionCount = task.timeTracking.sessions?.length || 0;
+    const oldActualMinutes = existingTask.timeTracking?.actualMinutes || 0;
+    const oldSessionCount = existingTask.timeTracking?.sessions?.length || 0;
 
-    // Reset time tracking
-    task.timeTracking.sessions = [];
-    task.timeTracking.actualMinutes = 0;
-    task.timeTracking.isTracking = false;
-    task.timeTracking.isPaused = false;
-    task.timeTracking.currentSessionStart = null;
-    task.timeTracking.pausedAt = null;
-    task.timeTracking.pausedMinutes = 0;
-    task.timeTracking.elapsedBeforePause = 0;
-    // Keep estimatedMinutes as-is
+    // SECURITY: Atomic reset with race condition protection
+    // Condition: timer must NOT be running (prevents reset during active tracking)
+    const task = await Task.findOneAndUpdate(
+        {
+            _id: taskId,
+            ...req.firmQuery,
+            $or: [
+                { 'timeTracking.isTracking': false },
+                { 'timeTracking.isTracking': { $exists: false } },
+                { timeTracking: { $exists: false } }
+            ]
+        },
+        {
+            $set: {
+                'timeTracking.sessions': [],
+                'timeTracking.actualMinutes': 0,
+                'timeTracking.isTracking': false,
+                'timeTracking.isPaused': false,
+                'timeTracking.currentSessionStart': null,
+                'timeTracking.pausedAt': null,
+                'timeTracking.pausedMinutes': 0,
+                'timeTracking.elapsedBeforePause': 0
+                // Keep estimatedMinutes as-is
+            },
+            $push: {
+                history: {
+                    action: 'time_reset',
+                    userId,
+                    oldValue: { actualMinutes: oldActualMinutes, sessionCount: oldSessionCount },
+                    newValue: { actualMinutes: 0, sessionCount: 0 },
+                    timestamp: now
+                }
+            }
+        },
+        { new: true }
+    );
 
-    task.history.push({
-        action: 'time_reset',
-        userId,
-        oldValue: { actualMinutes: oldActualMinutes, sessionCount: oldSessionCount },
-        newValue: { actualMinutes: 0, sessionCount: 0 },
-        timestamp: new Date()
-    });
-
-    await task.save();
+    // Handle race condition - timer started between check and update
+    if (!task) {
+        throw CustomException(
+            'Cannot reset time tracking while timer is running. Stop the timer first.',
+            400,
+            { messageAr: 'لا يمكن إعادة تعيين تتبع الوقت أثناء تشغيل المؤقت. أوقف المؤقت أولاً.' }
+        );
+    }
 
     res.status(200).json({
         success: true,
-        message: 'Time tracking reset successfully | تم إعادة تعيين تتبع الوقت بنجاح',
+        message: 'Time tracking reset successfully',
+        messageAr: 'تم إعادة تعيين تتبع الوقت بنجاح',
         data: {
             timeTracking: task.timeTracking,
             previousMinutes: oldActualMinutes,
@@ -1188,6 +1295,7 @@ const resetTimeTracking = asyncHandler(async (req, res) => {
 });
 
 // Add manual time
+// GOLD STANDARD: Atomic operation with race condition protection
 const addManualTime = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
@@ -1201,44 +1309,76 @@ const addManualTime = asyncHandler(async (req, res) => {
 
     // Input validation
     if (!minutes || typeof minutes !== 'number' || minutes <= 0) {
-        throw CustomException('Minutes must be a positive number', 400);
+        throw CustomException(
+            'Minutes must be a positive number',
+            400,
+            { messageAr: 'يجب أن تكون الدقائق رقماً موجباً' }
+        );
     }
 
     if (minutes > 1440) { // More than 24 hours
-        throw CustomException('Minutes cannot exceed 1440 (24 hours)', 400);
-    }
-
-    // Use req.firmQuery for proper tenant isolation (solo + firm)
-    const task = await Task.findOne({ _id: taskId, ...req.firmQuery });
-    if (!task) {
-        throw CustomException('Task not found', 404);
-    }
-
-    // Gold Standard: Block time tracking on completed/canceled tasks
-    if (task.status === 'done' || task.status === 'canceled') {
         throw CustomException(
-            'Cannot add time to completed or canceled task. Reopen the task first. | لا يمكن إضافة وقت لمهمة مكتملة أو ملغاة. أعد فتح المهمة أولاً.',
-            400
+            'Minutes cannot exceed 1440 (24 hours)',
+            400,
+            { messageAr: 'لا يمكن أن تتجاوز الدقائق 1440 (24 ساعة)' }
         );
     }
 
     const sessionDate = date ? new Date(date) : new Date();
-    task.timeTracking.sessions.push({
-        startedAt: sessionDate,
-        endedAt: new Date(sessionDate.getTime() + minutes * 60000),
-        duration: minutes,
-        userId,
-        notes,
-        isBillable
-    });
 
-    task.timeTracking.actualMinutes = (task.timeTracking.actualMinutes || 0) + minutes;
+    // SECURITY: Atomic add with race condition protection
+    // Condition: task must NOT be completed or canceled
+    const task = await Task.findOneAndUpdate(
+        {
+            _id: taskId,
+            ...req.firmQuery,
+            status: { $nin: ['done', 'canceled'] }
+        },
+        {
+            $push: {
+                'timeTracking.sessions': {
+                    startedAt: sessionDate,
+                    endedAt: new Date(sessionDate.getTime() + minutes * 60000),
+                    duration: minutes,
+                    userId,
+                    notes: notes || '',
+                    isBillable
+                }
+            },
+            $inc: {
+                'timeTracking.actualMinutes': minutes
+            }
+        },
+        { new: true }
+    );
 
-    await task.save();
+    // Handle failure cases
+    if (!task) {
+        const existingTask = await Task.findOne({ _id: taskId, ...req.firmQuery });
+
+        if (!existingTask) {
+            throw CustomException('Task not found', 404, { messageAr: 'المهمة غير موجودة' });
+        }
+
+        if (existingTask.status === 'done' || existingTask.status === 'canceled') {
+            throw CustomException(
+                'Cannot add time to completed or canceled task. Reopen the task first.',
+                400,
+                { messageAr: 'لا يمكن إضافة وقت لمهمة مكتملة أو ملغاة. أعد فتح المهمة أولاً.' }
+            );
+        }
+
+        throw CustomException(
+            'Failed to add time entry. Please try again.',
+            400,
+            { messageAr: 'فشل في إضافة وقت. يرجى المحاولة مرة أخرى.' }
+        );
+    }
 
     res.status(200).json({
         success: true,
         message: 'Time entry added',
+        messageAr: 'تم إضافة إدخال الوقت',
         data: task.timeTracking,
         task: {
             timeTracking: task.timeTracking,
@@ -2144,7 +2284,7 @@ const getTimeTrackingSummary = asyncHandler(async (req, res) => {
         .populate('timeTracking.sessions.userId', 'firstName lastName');
 
     if (!task) {
-        throw CustomException('Task not found', 404);
+        throw CustomException('Task not found', 404, { messageAr: 'المهمة غير موجودة' });
     }
 
     const estimatedMinutes = task.timeTracking?.estimatedMinutes || 0;
@@ -2482,6 +2622,7 @@ const getActiveTimers = asyncHandler(async (req, res) => {
 /**
  * Pause a running timer
  * PATCH /api/tasks/:id/timer/pause
+ * GOLD STANDARD: Atomic operation with race condition protection
  */
 const pauseTimer = asyncHandler(async (req, res) => {
     const { id } = req.params;
@@ -2494,33 +2635,68 @@ const pauseTimer = asyncHandler(async (req, res) => {
     const data = pickAllowedFields(req.body, ALLOWED_FIELDS.TIMER_PAUSE);
     const { reason } = data;
 
-    // Use req.firmQuery for proper tenant isolation
-    const task = await Task.findOne({ _id: taskId, ...req.firmQuery });
-    if (!task) {
-        throw CustomException('Task not found', 404);
-    }
-
-    if (!task.timeTracking.isTracking) {
-        throw CustomException('No active timer to pause', 400);
-    }
-
-    if (task.timeTracking.isPaused) {
-        throw CustomException('Timer is already paused', 400);
-    }
-
     const now = new Date();
+
+    // SECURITY: Atomic pause with race condition protection
+    // Conditions: timer running AND not already paused
+    const task = await Task.findOneAndUpdate(
+        {
+            _id: taskId,
+            ...req.firmQuery,
+            'timeTracking.isTracking': true,
+            $or: [
+                { 'timeTracking.isPaused': false },
+                { 'timeTracking.isPaused': { $exists: false } }
+            ]
+        },
+        {
+            $set: {
+                'timeTracking.isPaused': true,
+                'timeTracking.pausedAt': now
+            }
+        },
+        { new: true }
+    );
+
+    // Handle failure cases
+    if (!task) {
+        const existingTask = await Task.findOne({ _id: taskId, ...req.firmQuery });
+
+        if (!existingTask) {
+            throw CustomException('Task not found', 404, { messageAr: 'المهمة غير موجودة' });
+        }
+
+        if (!existingTask.timeTracking?.isTracking) {
+            throw CustomException(
+                'No active timer to pause',
+                400,
+                { messageAr: 'لا يوجد مؤقت نشط للإيقاف المؤقت' }
+            );
+        }
+
+        if (existingTask.timeTracking?.isPaused) {
+            throw CustomException(
+                'Timer is already paused',
+                400,
+                { messageAr: 'المؤقت متوقف بالفعل' }
+            );
+        }
+
+        throw CustomException(
+            'Failed to pause timer. Please try again.',
+            400,
+            { messageAr: 'فشل في إيقاف المؤقت مؤقتاً. يرجى المحاولة مرة أخرى.' }
+        );
+    }
+
+    // Calculate elapsed time
     const startTime = task.timeTracking.currentSessionStart;
+    const elapsedBeforePause = startTime ? Math.round((now - new Date(startTime)) / 60000) : 0;
 
-    // Calculate elapsed time before pause
-    const elapsedBeforePause = Math.round((now - new Date(startTime)) / 60000);
-
-    // Mark as paused
-    task.timeTracking.isPaused = true;
-    task.timeTracking.pausedAt = now;
+    // Update elapsed time and session
     task.timeTracking.elapsedBeforePause = (task.timeTracking.elapsedBeforePause || 0) + elapsedBeforePause;
 
-    // Add to active session
-    const activeSession = task.timeTracking.sessions.find(s => !s.endedAt);
+    const activeSession = task.timeTracking.sessions?.find(s => !s.endedAt);
     if (activeSession) {
         activeSession.pausedAt = now;
         activeSession.pauseReason = reason;
@@ -2538,6 +2714,7 @@ const pauseTimer = asyncHandler(async (req, res) => {
     res.status(200).json({
         success: true,
         message: 'Timer paused',
+        messageAr: 'تم إيقاف المؤقت مؤقتاً',
         data: {
             isPaused: true,
             pausedAt: now,
@@ -2549,6 +2726,7 @@ const pauseTimer = asyncHandler(async (req, res) => {
 /**
  * Resume a paused timer
  * PATCH /api/tasks/:id/timer/resume
+ * GOLD STANDARD: Atomic operation with race condition protection
  */
 const resumeTimer = asyncHandler(async (req, res) => {
     const { id } = req.params;
@@ -2561,40 +2739,77 @@ const resumeTimer = asyncHandler(async (req, res) => {
     const data = pickAllowedFields(req.body, ALLOWED_FIELDS.TIMER_RESUME);
     const { notes } = data;
 
-    // Use req.firmQuery for proper tenant isolation
-    const task = await Task.findOne({ _id: taskId, ...req.firmQuery });
-    if (!task) {
-        throw CustomException('Task not found', 404);
-    }
+    const now = new Date();
 
-    // Gold Standard: Block resume on completed/canceled tasks
-    if (task.status === 'done' || task.status === 'canceled') {
+    // SECURITY: Atomic resume with race condition protection
+    // Conditions: timer running AND paused AND not completed/canceled
+    const task = await Task.findOneAndUpdate(
+        {
+            _id: taskId,
+            ...req.firmQuery,
+            status: { $nin: ['done', 'canceled'] },
+            'timeTracking.isTracking': true,
+            'timeTracking.isPaused': true
+        },
+        {
+            $set: {
+                'timeTracking.isPaused': false,
+                'timeTracking.pausedAt': null,
+                'timeTracking.currentSessionStart': now // Reset for accurate tracking
+            }
+        },
+        { new: true }
+    );
+
+    // Handle failure cases
+    if (!task) {
+        const existingTask = await Task.findOne({ _id: taskId, ...req.firmQuery });
+
+        if (!existingTask) {
+            throw CustomException('Task not found', 404, { messageAr: 'المهمة غير موجودة' });
+        }
+
+        if (existingTask.status === 'done' || existingTask.status === 'canceled') {
+            throw CustomException(
+                'Cannot resume timer on completed or canceled task. Reopen the task first.',
+                400,
+                { messageAr: 'لا يمكن استئناف المؤقت على مهمة مكتملة أو ملغاة. أعد فتح المهمة أولاً.' }
+            );
+        }
+
+        if (!existingTask.timeTracking?.isTracking) {
+            throw CustomException(
+                'No active timer to resume',
+                400,
+                { messageAr: 'لا يوجد مؤقت نشط للاستئناف' }
+            );
+        }
+
+        if (!existingTask.timeTracking?.isPaused) {
+            throw CustomException(
+                'Timer is not paused',
+                400,
+                { messageAr: 'المؤقت غير متوقف' }
+            );
+        }
+
         throw CustomException(
-            'Cannot resume timer on completed or canceled task. Reopen the task first. | لا يمكن استئناف المؤقت على مهمة مكتملة أو ملغاة. أعد فتح المهمة أولاً.',
-            400
+            'Failed to resume timer. Please try again.',
+            400,
+            { messageAr: 'فشل في استئناف المؤقت. يرجى المحاولة مرة أخرى.' }
         );
     }
 
-    if (!task.timeTracking.isTracking) {
-        throw CustomException('No active timer to resume', 400);
-    }
+    // Calculate pause duration (we need to get pausedAt from before the update)
+    // Since we already updated, we'll estimate from the session data
+    const activeSession = task.timeTracking.sessions?.find(s => !s.endedAt);
+    const pauseDuration = activeSession?.pausedAt
+        ? Math.round((now - new Date(activeSession.pausedAt)) / 60000)
+        : 0;
 
-    if (!task.timeTracking.isPaused) {
-        throw CustomException('Timer is not paused', 400);
-    }
-
-    const now = new Date();
-    const pausedAt = task.timeTracking.pausedAt;
-    const pauseDuration = pausedAt ? Math.round((now - new Date(pausedAt)) / 60000) : 0;
-
-    // Update pause tracking
-    task.timeTracking.isPaused = false;
-    task.timeTracking.pausedAt = null;
+    // Update accumulated pause time and session
     task.timeTracking.pausedMinutes = (task.timeTracking.pausedMinutes || 0) + pauseDuration;
-    task.timeTracking.currentSessionStart = now; // Reset session start for accurate tracking
 
-    // Update active session
-    const activeSession = task.timeTracking.sessions.find(s => !s.endedAt);
     if (activeSession) {
         activeSession.resumedAt = now;
         activeSession.totalPausedMinutes = (activeSession.totalPausedMinutes || 0) + pauseDuration;
@@ -2615,6 +2830,7 @@ const resumeTimer = asyncHandler(async (req, res) => {
     res.status(200).json({
         success: true,
         message: 'Timer resumed',
+        messageAr: 'تم استئناف المؤقت',
         data: {
             isPaused: false,
             resumedAt: now,
