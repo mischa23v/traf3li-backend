@@ -3,6 +3,7 @@ const { CustomException } = require('../utils');
 const asyncHandler = require('../utils/asyncHandler');
 const { pickAllowedFields, SENSITIVE_FIELDS } = require('../utils/securityUtils');
 const logger = require('../utils/logger');
+const { calculateGOSI } = require('../constants/gosi.constants');
 
 // Helper function to escape regex special characters (ReDoS protection)
 const escapeRegex = (str) => {
@@ -305,12 +306,20 @@ const createSalarySlip = asyncHandler(async (req, res) => {
 
     // SECURITY: CRITICAL - Calculate GOSI on server-side ONLY
     // Never trust user input for calculations
+    // Uses centralized GOSI constants to prevent rate mismatches
+    // GOSI base = Basic Salary + Housing Allowance (per official GOSI regulations)
     const isSaudi = employee.personalInfo?.isSaudi !== false;
-    const gosiEmployeeRate = isSaudi ? 9.75 : 0;
-    const gosiEmployerRate = isSaudi ? 12.75 : 2;
     const basicSalary = safeEarnings.basicSalary || 0;
-    const gosi = Math.round(basicSalary * (gosiEmployeeRate / 100));
-    const gosiEmployer = Math.round(basicSalary * (gosiEmployerRate / 100));
+    // Get housing allowance from earnings or employee compensation
+    const housingAllowance = safeEarnings.allowances?.find(a => a.name?.toLowerCase().includes('housing'))?.amount
+        || employee.compensation?.housingAllowance
+        || 0;
+    const gosiCalc = calculateGOSI(isSaudi, basicSalary, {
+        housingAllowance,
+        employeeStartDate: employee.employment?.gosiStartDate || employee.employment?.joinDate || null
+    });
+    const gosi = gosiCalc.employee;
+    const gosiEmployer = gosiCalc.employer;
 
     // Prepare salary slip data with ONLY server-calculated and validated fields
     const slipData = {
@@ -433,13 +442,22 @@ const updateSalarySlip = asyncHandler(async (req, res) => {
 
         // SECURITY: CRITICAL - Recalculate GOSI if basicSalary changed
         // Always calculated server-side, never from user input
+        // Uses centralized GOSI constants to prevent rate mismatches
+        // GOSI base = Basic Salary + Housing Allowance (per official GOSI regulations)
         if (safeEarnings.basicSalary !== undefined) {
             const employee = await Employee.findOne({ _id: salarySlip.employeeId, ...req.firmQuery });
             const isSaudi = employee?.personalInfo?.isSaudi !== false;
-            const gosiEmployeeRate = isSaudi ? 9.75 : 0;
-            const gosiEmployerRate = isSaudi ? 12.75 : 2;
-            salarySlip.deductions.gosi = Math.round(safeEarnings.basicSalary * (gosiEmployeeRate / 100));
-            salarySlip.deductions.gosiEmployer = Math.round(safeEarnings.basicSalary * (gosiEmployerRate / 100));
+            // Get housing allowance from earnings or employee compensation
+            const housingAllowance = safeEarnings.allowances?.find(a => a.name?.toLowerCase().includes('housing'))?.amount
+                || salarySlip.earnings?.allowances?.find(a => a.name?.toLowerCase().includes('housing'))?.amount
+                || employee?.compensation?.housingAllowance
+                || 0;
+            const gosiCalc = calculateGOSI(isSaudi, safeEarnings.basicSalary, {
+                housingAllowance,
+                employeeStartDate: employee?.employment?.gosiStartDate || employee?.employment?.joinDate || null
+            });
+            salarySlip.deductions.gosi = gosiCalc.employee;
+            salarySlip.deductions.gosiEmployer = gosiCalc.employer;
         }
     }
 

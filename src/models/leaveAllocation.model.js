@@ -1,4 +1,19 @@
 /**
+ * ╔══════════════════════════════════════════════════════════════════════════════╗
+ * ║  ⚠️  SAUDI LABOR LAW COMPLIANCE - DO NOT MODIFY WITHOUT LEGAL REVIEW  ⚠️    ║
+ * ╠══════════════════════════════════════════════════════════════════════════════╣
+ * ║                                                                               ║
+ * ║  Leave Allocation tracking per Saudi Labor Law:                               ║
+ * ║  - Sick Leave Tiers (Article 117):                                           ║
+ * ║    • Tier 1: First 30 days - 100% pay                                        ║
+ * ║    • Tier 2: Next 60 days - 50% pay (was 75%, now 50%)                       ║
+ * ║    • Tier 3: Final 30 days - 0% pay                                          ║
+ * ║    • Total: 120 days per year                                                ║
+ * ║  - Hajj Leave (Article 114): Once per employer, tracked separately           ║
+ * ║                                                                               ║
+ * ║  Official sources: hrsd.gov.sa, mol.gov.sa                                   ║
+ * ╚══════════════════════════════════════════════════════════════════════════════╝
+ *
  * Leave Allocation Model
  *
  * Tracks leave allocations for employees per leave period.
@@ -87,6 +102,53 @@ const leaveAllocationSchema = new mongoose.Schema({
     type: Number,
     default: 0,
     min: 0
+  },
+
+  // ═══════════════════════════════════════════════════════════════
+  // SICK LEAVE TIER TRACKING - Article 117
+  // ⚠️ Saudi Labor Law mandates 3-tier sick leave:
+  // - Tier 1: First 30 days at 100% pay
+  // - Tier 2: Next 60 days at 50% pay
+  // - Tier 3: Final 30 days at 0% pay (unpaid)
+  // ═══════════════════════════════════════════════════════════════
+  sickLeaveTiers: {
+    // Tier 1: 30 days at 100% pay
+    tier1: {
+      maxDays: { type: Number, default: 30 },
+      usedDays: { type: Number, default: 0, min: 0 },
+      remainingDays: { type: Number, default: 30 },
+      payPercentage: { type: Number, default: 100 }
+    },
+    // Tier 2: 60 days at 50% pay (was 75% before 2024 update)
+    tier2: {
+      maxDays: { type: Number, default: 60 },
+      usedDays: { type: Number, default: 0, min: 0 },
+      remainingDays: { type: Number, default: 60 },
+      payPercentage: { type: Number, default: 50 }
+    },
+    // Tier 3: 30 days at 0% pay (unpaid)
+    tier3: {
+      maxDays: { type: Number, default: 30 },
+      usedDays: { type: Number, default: 0, min: 0 },
+      remainingDays: { type: Number, default: 30 },
+      payPercentage: { type: Number, default: 0 }
+    },
+    // Total tracking
+    totalMaxDays: { type: Number, default: 120 },
+    totalUsedDays: { type: Number, default: 0 },
+    totalRemainingDays: { type: Number, default: 120 }
+  },
+
+  // ═══════════════════════════════════════════════════════════════
+  // HAJJ LEAVE TRACKING - Article 114
+  // ⚠️ Hajj leave can only be taken ONCE per employer
+  // Employee must have at least 2 years of service
+  // ═══════════════════════════════════════════════════════════════
+  hajjLeaveTracking: {
+    usedWithCurrentEmployer: { type: Boolean, default: false },
+    usedDate: Date,
+    hijriYear: String, // Hijri year when Hajj was performed
+    approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
   },
 
   // Dates
@@ -243,6 +305,203 @@ leaveAllocationSchema.methods.reserveLeaves = function(days) {
 leaveAllocationSchema.methods.releaseReservedLeaves = function(days) {
   this.leavesPending = Math.max(0, this.leavesPending - days);
   return this.save();
+};
+
+/**
+ * Use sick leave with tier tracking
+ * Automatically distributes days across tiers per Article 117
+ *
+ * @param {Number} days - Number of sick leave days to use
+ * @returns {Object} - Breakdown of days used per tier with pay percentages
+ */
+leaveAllocationSchema.methods.useSickLeave = function(days) {
+  if (!this.sickLeaveTiers) {
+    this.sickLeaveTiers = {
+      tier1: { maxDays: 30, usedDays: 0, remainingDays: 30, payPercentage: 100 },
+      tier2: { maxDays: 60, usedDays: 0, remainingDays: 60, payPercentage: 50 },
+      tier3: { maxDays: 30, usedDays: 0, remainingDays: 30, payPercentage: 0 },
+      totalMaxDays: 120,
+      totalUsedDays: 0,
+      totalRemainingDays: 120
+    };
+  }
+
+  const tiers = this.sickLeaveTiers;
+  let remainingDays = days;
+  const breakdown = {
+    tier1Days: 0,
+    tier2Days: 0,
+    tier3Days: 0,
+    totalDays: days,
+    payCalculation: {
+      fullPay: 0,    // 100%
+      halfPay: 0,    // 50%
+      noPay: 0       // 0%
+    },
+    error: null
+  };
+
+  // Check if enough sick leave balance
+  if (days > tiers.totalRemainingDays) {
+    breakdown.error = `Insufficient sick leave. Requested: ${days}, Available: ${tiers.totalRemainingDays}`;
+    return breakdown;
+  }
+
+  // Tier 1: 100% pay (first 30 days)
+  if (remainingDays > 0 && tiers.tier1.remainingDays > 0) {
+    const useDays = Math.min(remainingDays, tiers.tier1.remainingDays);
+    tiers.tier1.usedDays += useDays;
+    tiers.tier1.remainingDays -= useDays;
+    breakdown.tier1Days = useDays;
+    breakdown.payCalculation.fullPay = useDays;
+    remainingDays -= useDays;
+  }
+
+  // Tier 2: 50% pay (next 60 days)
+  if (remainingDays > 0 && tiers.tier2.remainingDays > 0) {
+    const useDays = Math.min(remainingDays, tiers.tier2.remainingDays);
+    tiers.tier2.usedDays += useDays;
+    tiers.tier2.remainingDays -= useDays;
+    breakdown.tier2Days = useDays;
+    breakdown.payCalculation.halfPay = useDays;
+    remainingDays -= useDays;
+  }
+
+  // Tier 3: 0% pay (final 30 days)
+  if (remainingDays > 0 && tiers.tier3.remainingDays > 0) {
+    const useDays = Math.min(remainingDays, tiers.tier3.remainingDays);
+    tiers.tier3.usedDays += useDays;
+    tiers.tier3.remainingDays -= useDays;
+    breakdown.tier3Days = useDays;
+    breakdown.payCalculation.noPay = useDays;
+    remainingDays -= useDays;
+  }
+
+  // Update totals
+  tiers.totalUsedDays = tiers.tier1.usedDays + tiers.tier2.usedDays + tiers.tier3.usedDays;
+  tiers.totalRemainingDays = tiers.tier1.remainingDays + tiers.tier2.remainingDays + tiers.tier3.remainingDays;
+
+  // Update general leave tracking
+  this.leavesUsed += days;
+
+  return breakdown;
+};
+
+/**
+ * Preview sick leave pay calculation WITHOUT modifying the allocation
+ * Use this for displaying pay breakdown to users before they confirm
+ *
+ * @param {Number} days - Days to calculate
+ * @param {Number} dailyRate - Daily salary rate
+ * @returns {Object} - Pay calculation breakdown (read-only preview)
+ */
+leaveAllocationSchema.methods.previewSickLeavePay = function(days, dailyRate) {
+  const tiers = this.sickLeaveTiers || {
+    tier1: { remainingDays: 30 },
+    tier2: { remainingDays: 60 },
+    tier3: { remainingDays: 30 },
+    totalRemainingDays: 120
+  };
+
+  let remainingDays = days;
+  const breakdown = {
+    tier1Days: 0,
+    tier2Days: 0,
+    tier3Days: 0,
+    totalDays: days,
+    error: null
+  };
+
+  // Check if enough sick leave balance
+  if (days > tiers.totalRemainingDays) {
+    return {
+      error: `Insufficient sick leave. Requested: ${days}, Available: ${tiers.totalRemainingDays}`,
+      totalPay: 0
+    };
+  }
+
+  // Simulate tier distribution (without modifying)
+  if (remainingDays > 0 && tiers.tier1.remainingDays > 0) {
+    breakdown.tier1Days = Math.min(remainingDays, tiers.tier1.remainingDays);
+    remainingDays -= breakdown.tier1Days;
+  }
+  if (remainingDays > 0 && tiers.tier2.remainingDays > 0) {
+    breakdown.tier2Days = Math.min(remainingDays, tiers.tier2.remainingDays);
+    remainingDays -= breakdown.tier2Days;
+  }
+  if (remainingDays > 0 && tiers.tier3.remainingDays > 0) {
+    breakdown.tier3Days = Math.min(remainingDays, tiers.tier3.remainingDays);
+  }
+
+  const pay = {
+    tier1Pay: breakdown.tier1Days * dailyRate * 1.00, // 100%
+    tier2Pay: breakdown.tier2Days * dailyRate * 0.50,  // 50%
+    tier3Pay: breakdown.tier3Days * dailyRate * 0.00,    // 0%
+    totalPay: 0,
+    breakdown,
+    isPreview: true
+  };
+
+  pay.totalPay = pay.tier1Pay + pay.tier2Pay + pay.tier3Pay;
+
+  return pay;
+};
+
+/**
+ * Apply sick leave and calculate pay (modifies the allocation)
+ * Use this when actually processing the leave request
+ *
+ * @param {Number} days - Days to calculate
+ * @param {Number} dailyRate - Daily salary rate
+ * @returns {Object} - Pay calculation breakdown
+ */
+leaveAllocationSchema.methods.applySickLeaveWithPay = function(days, dailyRate) {
+  const breakdown = this.useSickLeave(days);
+
+  if (breakdown.error) {
+    return { error: breakdown.error, totalPay: 0 };
+  }
+
+  const pay = {
+    tier1Pay: breakdown.payCalculation.fullPay * dailyRate * 1.00, // 100%
+    tier2Pay: breakdown.payCalculation.halfPay * dailyRate * 0.50,  // 50%
+    tier3Pay: breakdown.payCalculation.noPay * dailyRate * 0.00,    // 0%
+    totalPay: 0,
+    breakdown,
+    isPreview: false
+  };
+
+  pay.totalPay = pay.tier1Pay + pay.tier2Pay + pay.tier3Pay;
+
+  return pay;
+};
+
+/**
+ * Mark Hajj leave as used for this employee
+ * Hajj can only be taken ONCE per employer (Article 114)
+ *
+ * @param {ObjectId} approvedBy - User who approved the Hajj leave
+ * @param {String} hijriYear - Hijri year when Hajj is performed
+ * @returns {Object} - Result
+ */
+leaveAllocationSchema.methods.markHajjLeaveUsed = function(approvedBy, hijriYear) {
+  if (!this.hajjLeaveTracking) {
+    this.hajjLeaveTracking = {};
+  }
+
+  if (this.hajjLeaveTracking.usedWithCurrentEmployer) {
+    return {
+      success: false,
+      error: 'Hajj leave has already been used with this employer (Article 114)'
+    };
+  }
+
+  this.hajjLeaveTracking.usedWithCurrentEmployer = true;
+  this.hajjLeaveTracking.usedDate = new Date();
+  this.hajjLeaveTracking.hijriYear = hijriYear;
+  this.hajjLeaveTracking.approvedBy = approvedBy;
+
+  return { success: true };
 };
 
 // Statics

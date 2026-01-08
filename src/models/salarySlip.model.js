@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { calculateGOSI } = require('../constants/gosi.constants');
 
 /**
  * Salary Slip Model - Payroll Management
@@ -433,12 +434,19 @@ salarySlipSchema.statics.getStats = async function (firmId, lawyerId, month, yea
 salarySlipSchema.statics.generateFromEmployee = function (employee, month, year, userId, firmId, lawyerId) {
     const isSaudi = employee.personalInfo?.isSaudi !== false;
     const basicSalary = employee.compensation?.basicSalary || 0;
+    // Get housing allowance from compensation
+    const housingAllowance = employee.compensation?.housingAllowance
+        || employee.compensation?.allowances?.find(a => a.name?.toLowerCase().includes('housing'))?.amount
+        || 0;
 
-    // Calculate GOSI
-    const gosiEmployeeRate = isSaudi ? 9.75 : 0;
-    const gosiEmployerRate = isSaudi ? 12.75 : 2;
-    const gosi = Math.round(basicSalary * (gosiEmployeeRate / 100));
-    const gosiEmployer = Math.round(basicSalary * (gosiEmployerRate / 100));
+    // Calculate GOSI using centralized constants (includes 45,000 SAR cap)
+    // GOSI base = Basic Salary + Housing Allowance (per official GOSI regulations)
+    const gosiCalc = calculateGOSI(isSaudi, basicSalary, {
+        housingAllowance,
+        employeeStartDate: employee.employment?.gosiStartDate || employee.employment?.joinDate || null
+    });
+    const gosi = gosiCalc.employee;
+    const gosiEmployer = gosiCalc.employer;
 
     // Map allowances
     const allowances = (employee.compensation?.allowances || []).map(a => ({

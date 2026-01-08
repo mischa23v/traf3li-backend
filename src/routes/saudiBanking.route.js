@@ -260,4 +260,16 @@ router.post('/mudad/compliance/nitaqat', authenticate, saudiBankingController.ch
  */
 router.post('/mudad/compliance/minimum-wage', authenticate, saudiBankingController.checkMinimumWage);
 
+// ============================================
+// COMPLIANCE DASHBOARD
+// ============================================
+
+/**
+ * @route   GET /api/saudi-banking/compliance/deadlines
+ * @desc    Get WPS and GOSI deadline status with reminders
+ * @access  Private
+ * @returns {Object} { wps: {...}, gosi: {...}, quickLinks: {...} }
+ */
+router.get('/compliance/deadlines', authenticate, saudiBankingController.getComplianceDeadlines);
+
 module.exports = router;

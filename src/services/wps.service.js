@@ -11,6 +11,8 @@
  * Reference: https://www.hrsd.gov.sa/sites/default/files/2017-06/WPS%20Wages%20File%20Technical%20Specification.pdf
  */
 
+const { GOSI_RATES } = require('../constants/gosi.constants');
+
 // SARIE Bank IDs for Saudi Banks
 const SARIE_BANK_IDS = {
     'SABB': '45',      // Saudi British Bank
@@ -48,6 +50,240 @@ function getSarieIdFromIban(iban) {
     };
 
     return ibanBankCodes[bankCode] || bankCode;
+}
+
+/**
+ * Validate Saudi IBAN with ISO 7064 Mod 97 checksum
+ * @param {string} iban - IBAN to validate
+ * @returns {Object} { valid: boolean, message?: string, bankCode?: string }
+ */
+function validateIBANChecksum(iban) {
+    if (!iban) return { valid: false, message: 'IBAN is required' };
+
+    // Normalize
+    const normalizedIban = iban.toUpperCase().replace(/\s/g, '');
+
+    // Check format
+    if (!/^SA\d{22}$/.test(normalizedIban)) {
+        return { valid: false, message: 'Invalid format. Saudi IBAN: SA + 22 digits' };
+    }
+
+    // ISO 7064 Mod 97 checksum
+    const rearranged = normalizedIban.slice(4) + normalizedIban.slice(0, 4);
+
+    let numericString = '';
+    for (const char of rearranged) {
+        if (char >= 'A' && char <= 'Z') {
+            numericString += (char.charCodeAt(0) - 55).toString();
+        } else {
+            numericString += char;
+        }
+    }
+
+    let remainder = 0;
+    for (let i = 0; i < numericString.length; i += 7) {
+        const chunk = remainder.toString() + numericString.slice(i, i + 7);
+        remainder = parseInt(chunk, 10) % 97;
+    }
+
+    if (remainder !== 1) {
+        return { valid: false, message: 'IBAN checksum invalid', checksumError: true };
+    }
+
+    return {
+        valid: true,
+        bankCode: normalizedIban.slice(4, 6),
+        normalized: normalizedIban
+    };
+}
+
+/**
+ * Validate Saudi National ID or Iqama with Luhn algorithm
+ * Saudi ID: starts with "1", 10 digits
+ * Iqama: starts with "2", 10 digits
+ * GCC ID: variable format (not validated with Luhn - marked as 'gcc_id')
+ * Passport: alphanumeric (not validated with Luhn - marked as 'passport')
+ *
+ * The Saudi variant of Luhn:
+ * - For each digit from left to right (excluding the last check digit)
+ * - Multiply odd positions (1st, 3rd, 5th...) by 2
+ * - If result >= 10, subtract 9
+ * - Sum all digits
+ * - The check digit makes (sum % 10) == 0
+ *
+ * @param {string} id - National ID or Iqama number
+ * @param {string} idType - Optional: 'saudi_id', 'iqama', 'gcc_id', 'passport'
+ * @returns {Object} { valid: boolean, type?: string, message?: string }
+ */
+function validateSaudiNationalId(id, idType = null) {
+    if (!id) {
+        return {
+            valid: false,
+            message: 'رقم الهوية مطلوب / National ID or Iqama is required'
+        };
+    }
+
+    // Normalize - remove spaces and dashes
+    const normalizedId = id.toString().replace(/[\s-]/g, '');
+
+    // Handle passport - alphanumeric, no Luhn validation
+    if (idType === 'passport' || /[A-Za-z]/.test(normalizedId)) {
+        if (normalizedId.length < 5 || normalizedId.length > 20) {
+            return {
+                valid: false,
+                type: 'passport',
+                message: 'رقم الجواز غير صالح (5-20 حرف) / Invalid passport number (5-20 characters)'
+            };
+        }
+        return {
+            valid: true,
+            type: 'passport',
+            normalized: normalizedId.toUpperCase(),
+            typeLabel: 'جواز سفر / Passport'
+        };
+    }
+
+    // Handle GCC ID - numeric but not Saudi format
+    if (idType === 'gcc_id' || (normalizedId.length > 0 && !/^[12]/.test(normalizedId) && /^\d+$/.test(normalizedId))) {
+        if (normalizedId.length < 8 || normalizedId.length > 15) {
+            return {
+                valid: false,
+                type: 'gcc_id',
+                message: 'رقم هوية مواطني الخليج غير صالح (8-15 رقم) / Invalid GCC ID (8-15 digits)'
+            };
+        }
+        return {
+            valid: true,
+            type: 'gcc_id',
+            normalized: normalizedId,
+            typeLabel: 'هوية خليجية / GCC ID'
+        };
+    }
+
+    // Standard Saudi ID / Iqama validation
+    // Check format: 10 digits starting with 1 or 2
+    if (!/^[12]\d{9}$/.test(normalizedId)) {
+        if (normalizedId.length !== 10) {
+            return {
+                valid: false,
+                message: 'رقم الهوية يجب أن يكون 10 أرقام / ID must be exactly 10 digits'
+            };
+        }
+        if (!/^[12]/.test(normalizedId)) {
+            return {
+                valid: false,
+                message: 'رقم الهوية يجب أن يبدأ بـ 1 (مواطن) أو 2 (مقيم) / ID must start with 1 (Saudi) or 2 (Iqama)'
+            };
+        }
+        return {
+            valid: false,
+            message: 'رقم الهوية يحتوي على أحرف غير صالحة / ID contains invalid characters'
+        };
+    }
+
+    // Determine type
+    const detectedType = normalizedId.charAt(0) === '1' ? 'saudi_id' : 'iqama';
+
+    // Luhn algorithm (Saudi variant)
+    // Odd positions (1st, 3rd, 5th...) are doubled
+    let sum = 0;
+    for (let i = 0; i < normalizedId.length; i++) {
+        let digit = parseInt(normalizedId.charAt(i), 10);
+
+        // Saudi variant: multiply odd positions (1-indexed, so even indices)
+        if (i % 2 === 0) {
+            digit *= 2;
+            if (digit > 9) {
+                digit -= 9;
+            }
+        }
+
+        sum += digit;
+    }
+
+    // Valid if sum is divisible by 10
+    if (sum % 10 !== 0) {
+        return {
+            valid: false,
+            type: detectedType,
+            message: detectedType === 'saudi_id'
+                ? 'رقم الهوية الوطنية غير صالح - خطأ في رقم التحقق / Invalid Saudi ID - checksum error'
+                : 'رقم الإقامة غير صالح - خطأ في رقم التحقق / Invalid Iqama - checksum error',
+            checksumError: true
+        };
+    }
+
+    return {
+        valid: true,
+        type: detectedType,
+        normalized: normalizedId,
+        typeLabel: detectedType === 'saudi_id' ? 'هوية وطنية / Saudi National ID' : 'إقامة / Iqama'
+    };
+}
+
+/**
+ * Validate Iqama expiry date
+ * @param {Date|string} expiryDate - Iqama expiry date
+ * @returns {Object} { valid: boolean, daysRemaining?: number, warning?: string, expired?: boolean }
+ */
+function validateIqamaExpiry(expiryDate) {
+    if (!expiryDate) {
+        return {
+            valid: false,
+            message: 'تاريخ انتهاء الإقامة مطلوب / Iqama expiry date is required'
+        };
+    }
+
+    const expiry = new Date(expiryDate);
+    if (isNaN(expiry.getTime())) {
+        return {
+            valid: false,
+            message: 'تاريخ انتهاء الإقامة غير صالح / Invalid expiry date format'
+        };
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    expiry.setHours(0, 0, 0, 0);
+
+    const diffTime = expiry.getTime() - today.getTime();
+    const daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    // Expired
+    if (daysRemaining < 0) {
+        return {
+            valid: false,
+            expired: true,
+            daysRemaining,
+            message: `الإقامة منتهية منذ ${Math.abs(daysRemaining)} يوم / Iqama expired ${Math.abs(daysRemaining)} days ago`
+        };
+    }
+
+    // Expiring within 30 days - critical warning
+    if (daysRemaining <= 30) {
+        return {
+            valid: true,
+            daysRemaining,
+            warning: 'critical',
+            message: `تنبيه عاجل: الإقامة تنتهي خلال ${daysRemaining} يوم / URGENT: Iqama expires in ${daysRemaining} days`
+        };
+    }
+
+    // Expiring within 90 days - warning
+    if (daysRemaining <= 90) {
+        return {
+            valid: true,
+            daysRemaining,
+            warning: 'moderate',
+            message: `تنبيه: الإقامة تنتهي خلال ${daysRemaining} يوم / Warning: Iqama expires in ${daysRemaining} days`
+        };
+    }
+
+    return {
+        valid: true,
+        daysRemaining,
+        message: `الإقامة صالحة لـ ${daysRemaining} يوم / Iqama valid for ${daysRemaining} days`
+    };
 }
 
 class WPSService {
@@ -186,64 +422,178 @@ class WPSService {
 
     /**
      * Validate employee data before file generation
+     * Includes ISO 7064 Mod 97 IBAN checksum and Saudi National ID Luhn validation
+     * Banks reject files with: duplicate IDs, invalid checksums, format violations
      */
     validateEmployeeData(employees) {
         const errors = [];
         const warnings = [];
+        const iqamaExpiryWarnings = [];
+
+        // Track duplicates (banks reject files with duplicate employee IDs)
+        const seenIds = new Set();
+        const seenIbans = new Set();
+        let hashTotal = 0; // Sum of all MOL IDs for hash verification
 
         employees.forEach((emp, index) => {
-            // Validate IBAN
-            if (!emp.iban || emp.iban.length !== 24) {
-                errors.push(`Employee ${index + 1} (${emp.name}): Invalid IBAN length. Must be 24 characters.`);
+            const empLabel = `Employee ${index + 1} (${emp.name || 'Unknown'})`;
+
+            // ═══════════════════════════════════════════════════════════════
+            // NAME VALIDATION (WPS requires max 50 characters)
+            // ═══════════════════════════════════════════════════════════════
+            if (!emp.name || emp.name.trim().length === 0) {
+                errors.push(`${empLabel}: اسم الموظف مطلوب / Employee name is required.`);
+            } else if (emp.name.length > 50) {
+                warnings.push(`${empLabel}: الاسم سيتم اختصاره إلى 50 حرف / Name will be truncated to 50 characters.`);
             }
 
-            if (emp.iban && !emp.iban.startsWith('SA')) {
-                errors.push(`Employee ${index + 1} (${emp.name}): IBAN must start with 'SA' for Saudi Arabia.`);
+            // ═══════════════════════════════════════════════════════════════
+            // IBAN VALIDATION (Banks reject invalid checksums)
+            // ═══════════════════════════════════════════════════════════════
+            if (!emp.iban) {
+                errors.push(`${empLabel}: رقم IBAN مطلوب / IBAN is required.`);
+            } else {
+                const ibanValidation = validateIBANChecksum(emp.iban);
+                if (!ibanValidation.valid) {
+                    if (ibanValidation.checksumError) {
+                        errors.push(`${empLabel}: رقم IBAN غير صالح - فشل التحقق من الرقم / IBAN checksum invalid.`);
+                    } else {
+                        errors.push(`${empLabel}: ${ibanValidation.message}`);
+                    }
+                } else {
+                    // Check for duplicate IBANs (same account for multiple employees)
+                    const normalizedIban = ibanValidation.normalized;
+                    if (seenIbans.has(normalizedIban)) {
+                        warnings.push(`${empLabel}: رقم IBAN مكرر - قد يتم رفضه من البنك / Duplicate IBAN - may be rejected by bank.`);
+                    }
+                    seenIbans.add(normalizedIban);
+                }
             }
 
-            // Validate MOL ID / National ID
-            if (!emp.molId && !emp.nationalId) {
-                errors.push(`Employee ${index + 1} (${emp.name}): Missing MOL ID or National ID.`);
+            // ═══════════════════════════════════════════════════════════════
+            // NATIONAL ID / MOL ID VALIDATION (Luhn checksum + duplicate check)
+            // ═══════════════════════════════════════════════════════════════
+            const nationalId = emp.molId || emp.nationalId;
+            const nationalIdType = emp.nationalIdType || emp.idType; // Support both field names
+            if (!nationalId) {
+                errors.push(`${empLabel}: رقم الهوية أو رقم وزارة العمل مطلوب / Missing MOL ID or National ID.`);
+            } else {
+                const idValidation = validateSaudiNationalId(nationalId, nationalIdType);
+                if (!idValidation.valid) {
+                    errors.push(`${empLabel}: ${idValidation.message}`);
+                } else {
+                    // Check for duplicate IDs (CRITICAL: banks reject files with duplicate MOL IDs)
+                    const normalizedNationalId = idValidation.normalized || nationalId.toString();
+                    if (seenIds.has(normalizedNationalId)) {
+                        errors.push(`${empLabel}: رقم الهوية مكرر - سيتم رفض الملف / Duplicate ID - file will be rejected by bank.`);
+                    }
+                    seenIds.add(normalizedNationalId);
+
+                    // Add to hash total (banks verify this checksum)
+                    const numericId = parseInt(normalizedNationalId.replace(/\D/g, ''), 10);
+                    if (!isNaN(numericId)) {
+                        hashTotal += numericId;
+                    }
+
+                    // Validate ID type matches nationality (only for Saudi ID and Iqama)
+                    if (idValidation.type === 'saudi_id' || idValidation.type === 'iqama') {
+                        if (emp.nationality === 'SA' && idValidation.type === 'iqama') {
+                            warnings.push(`${empLabel}: موظف سعودي لكن رقم الهوية إقامة / Saudi employee has Iqama number instead of National ID.`);
+                        } else if (emp.nationality !== 'SA' && idValidation.type === 'saudi_id') {
+                            warnings.push(`${empLabel}: موظف غير سعودي لكن رقم الهوية سعودية / Non-Saudi employee has Saudi National ID.`);
+                        }
+                    }
+                }
+
+                // Validate Iqama/ID expiry for non-Saudi employees or Iqama holders
+                const requiresExpiryCheck = emp.nationality !== 'SA' ||
+                    (idValidation && idValidation.type === 'iqama') ||
+                    (idValidation && idValidation.type === 'gcc_id') ||
+                    (idValidation && idValidation.type === 'passport');
+
+                if (requiresExpiryCheck) {
+                    if (emp.iqamaExpiry || emp.nationalIdExpiry) {
+                        const expiryValidation = validateIqamaExpiry(emp.iqamaExpiry || emp.nationalIdExpiry);
+                        if (!expiryValidation.valid) {
+                            errors.push(`${empLabel}: ${expiryValidation.message}`);
+                        } else if (expiryValidation.warning === 'critical') {
+                            iqamaExpiryWarnings.push(`${empLabel}: ${expiryValidation.message}`);
+                        } else if (expiryValidation.warning === 'moderate') {
+                            warnings.push(`${empLabel}: ${expiryValidation.message}`);
+                        }
+                    } else {
+                        warnings.push(`${empLabel}: تاريخ انتهاء الإقامة/الجواز غير محدد / ID/Passport expiry date not specified.`);
+                    }
+                }
             }
 
             // Validate salary
             if (!emp.salary || emp.salary.netSalary <= 0) {
-                errors.push(`Employee ${index + 1} (${emp.name}): Invalid net salary.`);
+                errors.push(`${empLabel}: صافي الراتب غير صالح / Invalid net salary.`);
             }
 
-            // GOSI validation
-            if (emp.nationality === 'SA' && emp.salary.deductions) {
-                const expectedGosi = emp.salary.basic * 0.0975; // 9.75% for Saudi
-                if (Math.abs(emp.salary.gosiDeduction - expectedGosi) > 1) {
-                    warnings.push(`Employee ${index + 1} (${emp.name}): GOSI deduction may be incorrect.`);
+            // GOSI validation using centralized rates from constants
+            if (emp.salary && emp.salary.basic) {
+                const isSaudi = emp.nationality === 'SA';
+                const rates = isSaudi ? GOSI_RATES.SAUDI : GOSI_RATES.NON_SAUDI;
+                const cappedSalary = Math.min(emp.salary.basic, GOSI_RATES.MAX_CONTRIBUTION_BASE);
+                const expectedGosi = Math.round(cappedSalary * rates.employee);
+
+                if (emp.salary.gosiDeduction !== undefined && Math.abs(emp.salary.gosiDeduction - expectedGosi) > 1) {
+                    warnings.push(`${empLabel}: حسم التأمينات قد يكون غير صحيح (المتوقع: ${expectedGosi} ريال) / GOSI deduction may be incorrect (expected: ${expectedGosi} SAR).`);
                 }
             }
 
-            // Minimum wage validation (currently 4000 SAR for Saudis)
-            if (emp.nationality === 'SA' && emp.salary.basic < 4000) {
-                warnings.push(`Employee ${index + 1} (${emp.name}): Basic salary below minimum wage (4000 SAR).`);
+            // Minimum wage validation using centralized constants
+            if (emp.nationality === 'SA' && emp.salary && emp.salary.basic < GOSI_RATES.MINIMUM_WAGE_SAUDI) {
+                warnings.push(`${empLabel}: الراتب الأساسي أقل من الحد الأدنى (${GOSI_RATES.MINIMUM_WAGE_SAUDI} ريال) / Basic salary below minimum wage (${GOSI_RATES.MINIMUM_WAGE_SAUDI} SAR).`);
             }
         });
 
-        return { valid: errors.length === 0, errors, warnings };
+        // Add critical Iqama expiry warnings at the top
+        if (iqamaExpiryWarnings.length > 0) {
+            warnings.unshift(...iqamaExpiryWarnings);
+        }
+
+        return {
+            valid: errors.length === 0,
+            errors,
+            warnings,
+            // Metadata for WPS file generation and verification
+            metadata: {
+                totalEmployees: employees.length,
+                uniqueIds: seenIds.size,
+                uniqueIbans: seenIbans.size,
+                hashTotal, // Banks verify this against file trailer
+                hasDuplicateIds: seenIds.size !== employees.length,
+                hasDuplicateIbans: seenIbans.size !== employees.length
+            }
+        };
     }
 
     /**
      * Validate establishment data
+     * Includes ISO 7064 Mod 97 IBAN checksum validation
      */
     validateEstablishmentData(establishment) {
         const errors = [];
 
         if (!establishment.molId || establishment.molId.length < 10) {
-            errors.push('Invalid MOL Establishment ID. Must be at least 10 digits.');
+            errors.push('رقم منشأة وزارة العمل غير صالح. يجب أن يكون 10 أرقام على الأقل / Invalid MOL Establishment ID. Must be at least 10 digits.');
         }
 
-        if (!establishment.iban || establishment.iban.length !== 24) {
-            errors.push('Invalid establishment IBAN. Must be 24 characters.');
-        }
-
-        if (!establishment.iban?.startsWith('SA')) {
-            errors.push('Establishment IBAN must start with SA for Saudi Arabia.');
+        // Validate establishment IBAN with checksum
+        if (!establishment.iban) {
+            errors.push('رقم IBAN المنشأة مطلوب / Establishment IBAN is required.');
+        } else {
+            const ibanValidation = validateIBANChecksum(establishment.iban);
+            if (!ibanValidation.valid) {
+                if (ibanValidation.checksumError) {
+                    errors.push('رقم IBAN المنشأة غير صالح - فشل التحقق من الرقم / Establishment IBAN checksum invalid.');
+                } else {
+                    errors.push(`رقم IBAN المنشأة: ${ibanValidation.message} / Establishment IBAN: ${ibanValidation.message}`);
+                }
+            }
         }
 
         return { valid: errors.length === 0, errors };
@@ -399,9 +749,249 @@ class WPSService {
     }
 }
 
+/**
+ * Validate file content encoding for WPS submission
+ * Saudi banks accept: Windows-1256 (Arabic), UTF-8, or ASCII
+ * @param {string} content - File content to validate
+ * @returns {Object} { valid: boolean, encoding: string, issues: string[] }
+ */
+function validateFileEncoding(content) {
+    const issues = [];
+    let encoding = 'UTF-8';
+
+    // Handle empty or invalid content
+    if (!content || typeof content !== 'string') {
+        return {
+            valid: false,
+            encoding: 'UNKNOWN',
+            hasArabic: false,
+            lineEnding: 'NONE',
+            issues: ['الملف فارغ أو غير صالح / File is empty or invalid']
+        };
+    }
+
+    // Check for null bytes (indicates binary or corrupt file)
+    if (content.includes('\0')) {
+        issues.push('الملف يحتوي على بايتات غير صالحة / File contains null bytes - may be binary or corrupt');
+        return { valid: false, encoding: 'UNKNOWN', issues };
+    }
+
+    // Check for BOM markers
+    if (content.charCodeAt(0) === 0xFEFF) {
+        encoding = 'UTF-8-BOM';
+        issues.push('الملف يحتوي على BOM - قد لا يتم قبوله / File has BOM marker - may not be accepted by some banks');
+    }
+
+    // Check line endings - WPS typically expects Windows-style (CRLF)
+    const hasCRLF = content.includes('\r\n');
+    const hasLF = content.includes('\n') && !content.includes('\r\n');
+    const hasCR = content.includes('\r') && !content.includes('\r\n');
+
+    if (hasLF && !hasCRLF) {
+        issues.push('تحذير: الملف يستخدم نهاية أسطر Unix - قد تحتاج إلى تحويله / Warning: File uses Unix line endings (LF) - may need conversion to CRLF');
+    }
+    if (hasCR && !hasCRLF) {
+        issues.push('تحذير: الملف يستخدم نهاية أسطر Mac القديمة / Warning: File uses old Mac line endings (CR)');
+    }
+
+    // Check for problematic characters that may not display correctly
+    const arabicPattern = /[\u0600-\u06FF]/;
+    const hasArabic = arabicPattern.test(content);
+
+    // Check for mixed Arabic/English without proper Unicode handling
+    if (hasArabic) {
+        encoding = 'UTF-8 (Arabic)';
+        // Check for common encoding issues with Arabic
+        const brokenArabic = /[\uFFFD\uFFFE\uFFFF]/;
+        if (brokenArabic.test(content)) {
+            issues.push('الملف يحتوي على أحرف عربية تالفة - تحقق من الترميز / File contains broken Arabic characters - check encoding');
+        }
+    }
+
+    // Check field separators - WPS uses pipe (|) delimiters
+    const lines = content.split(/\r?\n/).filter(l => l.trim());
+    if (lines.length > 0) {
+        const firstLine = lines[0];
+        if (!firstLine.includes('|')) {
+            issues.push('تنسيق الملف غير صحيح - يجب أن يستخدم فاصل | / Invalid file format - must use pipe (|) delimiter');
+        }
+    }
+
+    return {
+        valid: issues.filter(i => !i.includes('تحذير') && !i.includes('Warning')).length === 0,
+        encoding,
+        hasArabic,
+        lineEnding: hasCRLF ? 'CRLF' : hasLF ? 'LF' : hasCR ? 'CR' : 'MIXED',
+        issues
+    };
+}
+
+/**
+ * ╔══════════════════════════════════════════════════════════════════════════════╗
+ * ║       OFFICIAL SAUDI PAYROLL COMPLIANCE DEADLINES - DO NOT MODIFY           ║
+ * ╠══════════════════════════════════════════════════════════════════════════════╣
+ * ║                                                                               ║
+ * ║  ⚠️ IMPORTANT: There are TWO SEPARATE WPS deadlines:                         ║
+ * ║                                                                               ║
+ * ║  1. SALARY PAYMENT DEADLINE: By 10th of following month                       ║
+ * ║     - This is when employees must be paid                                     ║
+ * ║     - Penalty: SAR 3,000 per employee per month if late                       ║
+ * ║     - 2+ consecutive months late: MOL services suspended                      ║
+ * ║                                                                               ║
+ * ║  2. WPS FILE UPLOAD DEADLINE: Within 30 days of salary period                 ║
+ * ║     - This is when the WPS file must be uploaded to Mudad                     ║
+ * ║     - Updated March 1, 2025 (was 60 days, now 30 days)                        ║
+ * ║     - Penalty: Warning first, then service suspension                         ║
+ * ║                                                                               ║
+ * ║  3. GOSI PAYMENT DEADLINE: 15th of following month                            ║
+ * ║     - Penalty: 2% monthly on overdue amount                                   ║
+ * ║                                                                               ║
+ * ╠══════════════════════════════════════════════════════════════════════════════╣
+ * ║  Official sources:                                                            ║
+ * ║  - https://www.hrsd.gov.sa (MHRSD Official)                                   ║
+ * ║  - https://mudad.sa (Mudad Platform)                                          ║
+ * ║  - https://www.gosi.gov.sa (GOSI Official)                                    ║
+ * ║                                                                               ║
+ * ║  Last verified: January 2026                                                  ║
+ * ╚══════════════════════════════════════════════════════════════════════════════╝
+ *
+ * @param {Date} referenceDate - Reference date (defaults to today)
+ * @param {Date} salaryDueDate - Optional: specific salary due date (defaults to last day of previous month)
+ * @returns {Object} { wps: {...}, gosi: {...}, currentMonth: {...} }
+ */
+function getComplianceDeadlines(referenceDate = new Date(), salaryDueDate = null) {
+    const today = new Date(referenceDate);
+    today.setHours(0, 0, 0, 0);
+
+    // Get last day of current month
+    const currentYear = today.getFullYear();
+    const currentMonth = today.getMonth();
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // DEADLINE 1: Salary Payment (10th of following month)
+    // Employees must be paid by this date. Penalty: SAR 3,000/employee if late.
+    // ═══════════════════════════════════════════════════════════════════════════
+    const salaryPaymentDeadline = new Date(currentYear, currentMonth, 10);
+    const salaryPaymentDays = Math.ceil((salaryPaymentDeadline - today) / (1000 * 60 * 60 * 24));
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // DEADLINE 2: WPS File Upload (30 days from salary due date)
+    // March 2025 MHRSD update: reduced from 60 to 30 days
+    // Salary due date = last day of salary month
+    // Example: Jan payroll due Jan 31, WPS upload deadline = Mar 2
+    // ═══════════════════════════════════════════════════════════════════════════
+    const defaultSalaryDueDate = new Date(currentYear, currentMonth, 0); // Day 0 = last day of prev month
+    const effectiveSalaryDueDate = salaryDueDate ? new Date(salaryDueDate) : defaultSalaryDueDate;
+    effectiveSalaryDueDate.setHours(0, 0, 0, 0);
+
+    // WPS file upload deadline = salary due date + 30 days
+    const wpsUploadDeadline = new Date(effectiveSalaryDueDate);
+    wpsUploadDeadline.setDate(wpsUploadDeadline.getDate() + 30);
+    const wpsUploadDays = Math.ceil((wpsUploadDeadline - today) / (1000 * 60 * 60 * 24));
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // DEADLINE 3: GOSI Payment (15th of following month)
+    // ═══════════════════════════════════════════════════════════════════════════
+    const gosiDeadline = new Date(currentYear, currentMonth + 1, 15);
+    const gosiDeadlineDays = Math.ceil((gosiDeadline - today) / (1000 * 60 * 60 * 24));
+
+    // Determine urgency levels
+    const getUrgency = (days) => {
+        if (days < 0) return 'overdue';
+        if (days <= 3) return 'critical';
+        if (days <= 7) return 'urgent';
+        if (days <= 14) return 'soon';
+        return 'normal';
+    };
+
+    // Format deadline messages
+    const formatDeadlineMessage = (days, type) => {
+        const typeAr = type === 'WPS' ? 'حماية الأجور' : 'التأمينات';
+        if (days < 0) {
+            return `⚠️ تأخرت ${Math.abs(days)} يوم عن موعد ${typeAr} / ${type} is ${Math.abs(days)} days OVERDUE`;
+        }
+        if (days === 0) {
+            return `🔴 آخر يوم لـ ${typeAr} اليوم / ${type} deadline is TODAY`;
+        }
+        if (days === 1) {
+            return `🔴 آخر يوم لـ ${typeAr} غداً / ${type} deadline is TOMORROW`;
+        }
+        if (days <= 3) {
+            return `🟠 متبقي ${days} أيام لموعد ${typeAr} / ${days} days until ${type} deadline`;
+        }
+        if (days <= 7) {
+            return `🟡 متبقي ${days} أيام لموعد ${typeAr} / ${days} days until ${type} deadline`;
+        }
+        return `🟢 متبقي ${days} يوم لموعد ${typeAr} / ${days} days until ${type} deadline`;
+    };
+
+    // Month names in Arabic and English
+    const monthNames = {
+        ar: ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'],
+        en: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+    };
+
+    return {
+        // ═══════════════════════════════════════════════════════════════════════════
+        // DEADLINE 1: Salary Payment (by 10th of month)
+        // ═══════════════════════════════════════════════════════════════════════════
+        salaryPayment: {
+            deadline: salaryPaymentDeadline,
+            daysRemaining: salaryPaymentDays,
+            urgency: getUrgency(salaryPaymentDays),
+            message: formatDeadlineMessage(salaryPaymentDays, 'Salary'),
+            description: 'موعد صرف الرواتب (10 من الشهر التالي) / Salary payment deadline - 10th of following month',
+            penalty: 'غرامة 3,000 ريال لكل موظف + إيقاف خدمات بعد شهرين / SAR 3,000 per employee + service suspension after 2 months'
+        },
+        // ═══════════════════════════════════════════════════════════════════════════
+        // DEADLINE 2: WPS File Upload (30 days from salary due date)
+        // ═══════════════════════════════════════════════════════════════════════════
+        wps: {
+            deadline: wpsUploadDeadline,
+            daysRemaining: wpsUploadDays,
+            urgency: getUrgency(wpsUploadDays),
+            message: formatDeadlineMessage(wpsUploadDays, 'WPS'),
+            salaryDueDate: effectiveSalaryDueDate,
+            description: 'موعد رفع ملف حماية الأجور (30 يوم من تاريخ استحقاق الراتب) / WPS file upload - 30 days from salary due date',
+            penalty: 'تحذير ثم إيقاف الخدمات / Warning first, then service suspension'
+        },
+        // ═══════════════════════════════════════════════════════════════════════════
+        // DEADLINE 3: GOSI Payment (15th of following month)
+        // ═══════════════════════════════════════════════════════════════════════════
+        gosi: {
+            deadline: gosiDeadline,
+            daysRemaining: gosiDeadlineDays,
+            urgency: getUrgency(gosiDeadlineDays),
+            message: formatDeadlineMessage(gosiDeadlineDays, 'GOSI'),
+            description: 'موعد سداد التأمينات الاجتماعية / Social Insurance payment deadline',
+            penalty: 'غرامة 2% شهرياً على المبلغ المتأخر / 2% monthly penalty on overdue amount'
+        },
+        currentMonth: {
+            year: currentYear,
+            month: currentMonth,
+            nameAr: monthNames.ar[currentMonth],
+            nameEn: monthNames.en[currentMonth],
+            payrollPeriod: `${monthNames.en[currentMonth]} ${currentYear}`
+        },
+        today: today,
+        summary: {
+            mostUrgent: salaryPaymentDays < wpsUploadDays && salaryPaymentDays < gosiDeadlineDays ? 'SALARY'
+                : wpsUploadDays < gosiDeadlineDays ? 'WPS' : 'GOSI',
+            daysToNextDeadline: Math.min(salaryPaymentDays, wpsUploadDays, gosiDeadlineDays),
+            hasOverdue: salaryPaymentDays < 0 || wpsUploadDays < 0 || gosiDeadlineDays < 0,
+            hasCritical: salaryPaymentDays <= 3 || wpsUploadDays <= 3 || gosiDeadlineDays <= 3
+        }
+    };
+}
+
 // Export constants for use in other modules
 module.exports = {
     WPSService: new WPSService(),
     SARIE_BANK_IDS,
     getSarieIdFromIban,
+    validateIBANChecksum,
+    validateSaudiNationalId,
+    validateIqamaExpiry,
+    validateFileEncoding,
+    getComplianceDeadlines,
 };

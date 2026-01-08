@@ -282,6 +282,17 @@ const shiftRoute = require('./shift.route');
 const leaveManagementRoute = require('./leaveManagement.route');
 const hrExtendedRoute = require('./hrExtended.route');
 
+// Who's Out Calendar & Compliance Dashboard Routes
+const whosOutRoute = require('./whosOut.route');
+const complianceDashboardRoute = require('./complianceDashboard.route');
+const employeeSelfServiceRoute = require('./employeeSelfService.route');
+
+// Advanced HR Features Routes (ZenHR/Jisr Parity)
+const skillMatrixRoute = require('./skillMatrix.route');
+const surveyRoute = require('./survey.route');
+const okrRoute = require('./okr.route');
+const fleetRoute = require('./fleet.route');
+
 // Unified Data Flow Routes
 const unifiedDataRoute = require('./unifiedData.route');
 
@@ -668,6 +679,17 @@ module.exports = {
     shiftRoute,
     leaveManagementRoute,
     hrExtendedRoute,
+
+    // Who's Out Calendar & Compliance Dashboard
+    whosOutRoute,
+    complianceDashboardRoute,
+    employeeSelfServiceRoute,
+
+    // Advanced HR Features (ZenHR/Jisr Parity)
+    skillMatrixRoute,
+    surveyRoute,
+    okrRoute,
+    fleetRoute,
 
     // Unified Data Flow
     unifiedDataRoute,

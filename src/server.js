@@ -282,6 +282,17 @@ const {
     analyticsReportRoute,
     kpiAnalyticsRoute,
 
+    // Who's Out Calendar & Compliance Dashboard
+    whosOutRoute,
+    complianceDashboardRoute,
+    employeeSelfServiceRoute,
+
+    // Advanced HR Features (ZenHR/Jisr Parity)
+    skillMatrixRoute,
+    surveyRoute,
+    okrRoute,
+    fleetRoute,
+
     // Accounting
     accountRoute,
     generalLedgerRoute,
@@ -1134,6 +1145,17 @@ app.use('/api/hr/succession-plans', successionPlanRoute);
 app.use('/api/succession-plans', successionPlanRoute);  // Alias for frontend (also available at /hr/succession-plans)
 app.use('/api/hr/compensation', noCache, compensationRewardRoute);
 app.use('/api/hr/compensation-rewards', noCache, compensationRewardRoute);  // Alias for frontend
+
+// Who's Out Calendar & Compliance Dashboard
+app.use('/api/hr/whos-out', noCache, whosOutRoute);
+app.use('/api/hr/compliance', noCache, complianceDashboardRoute);
+app.use('/api/hr/self-service', noCache, employeeSelfServiceRoute);
+
+// Advanced HR Features (ZenHR/Jisr Parity)
+app.use('/api/hr/skills', noCache, skillMatrixRoute);
+app.use('/api/hr/surveys', noCache, surveyRoute);
+app.use('/api/hr/okrs', noCache, okrRoute);
+app.use('/api/hr/fleet', noCache, fleetRoute);
 
 // Analytics Reports Routes
 app.use('/api/analytics-reports', analyticsReportRoute);
