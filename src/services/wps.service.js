@@ -423,16 +423,33 @@ class WPSService {
     /**
      * Validate employee data before file generation
      * Includes ISO 7064 Mod 97 IBAN checksum and Saudi National ID Luhn validation
+     * Banks reject files with: duplicate IDs, invalid checksums, format violations
      */
     validateEmployeeData(employees) {
         const errors = [];
         const warnings = [];
         const iqamaExpiryWarnings = [];
 
+        // Track duplicates (banks reject files with duplicate employee IDs)
+        const seenIds = new Set();
+        const seenIbans = new Set();
+        let hashTotal = 0; // Sum of all MOL IDs for hash verification
+
         employees.forEach((emp, index) => {
             const empLabel = `Employee ${index + 1} (${emp.name || 'Unknown'})`;
 
-            // Validate IBAN with full checksum validation
+            // ═══════════════════════════════════════════════════════════════
+            // NAME VALIDATION (WPS requires max 50 characters)
+            // ═══════════════════════════════════════════════════════════════
+            if (!emp.name || emp.name.trim().length === 0) {
+                errors.push(`${empLabel}: اسم الموظف مطلوب / Employee name is required.`);
+            } else if (emp.name.length > 50) {
+                warnings.push(`${empLabel}: الاسم سيتم اختصاره إلى 50 حرف / Name will be truncated to 50 characters.`);
+            }
+
+            // ═══════════════════════════════════════════════════════════════
+            // IBAN VALIDATION (Banks reject invalid checksums)
+            // ═══════════════════════════════════════════════════════════════
             if (!emp.iban) {
                 errors.push(`${empLabel}: رقم IBAN مطلوب / IBAN is required.`);
             } else {
@@ -443,10 +460,19 @@ class WPSService {
                     } else {
                         errors.push(`${empLabel}: ${ibanValidation.message}`);
                     }
+                } else {
+                    // Check for duplicate IBANs (same account for multiple employees)
+                    const normalizedIban = ibanValidation.normalized;
+                    if (seenIbans.has(normalizedIban)) {
+                        warnings.push(`${empLabel}: رقم IBAN مكرر - قد يتم رفضه من البنك / Duplicate IBAN - may be rejected by bank.`);
+                    }
+                    seenIbans.add(normalizedIban);
                 }
             }
 
-            // Validate National ID or MOL ID with Luhn checksum
+            // ═══════════════════════════════════════════════════════════════
+            // NATIONAL ID / MOL ID VALIDATION (Luhn checksum + duplicate check)
+            // ═══════════════════════════════════════════════════════════════
             const nationalId = emp.molId || emp.nationalId;
             const nationalIdType = emp.nationalIdType || emp.idType; // Support both field names
             if (!nationalId) {
@@ -456,6 +482,19 @@ class WPSService {
                 if (!idValidation.valid) {
                     errors.push(`${empLabel}: ${idValidation.message}`);
                 } else {
+                    // Check for duplicate IDs (CRITICAL: banks reject files with duplicate MOL IDs)
+                    const normalizedNationalId = idValidation.normalized || nationalId.toString();
+                    if (seenIds.has(normalizedNationalId)) {
+                        errors.push(`${empLabel}: رقم الهوية مكرر - سيتم رفض الملف / Duplicate ID - file will be rejected by bank.`);
+                    }
+                    seenIds.add(normalizedNationalId);
+
+                    // Add to hash total (banks verify this checksum)
+                    const numericId = parseInt(normalizedNationalId.replace(/\D/g, ''), 10);
+                    if (!isNaN(numericId)) {
+                        hashTotal += numericId;
+                    }
+
                     // Validate ID type matches nationality (only for Saudi ID and Iqama)
                     if (idValidation.type === 'saudi_id' || idValidation.type === 'iqama') {
                         if (emp.nationality === 'SA' && idValidation.type === 'iqama') {
@@ -516,7 +555,20 @@ class WPSService {
             warnings.unshift(...iqamaExpiryWarnings);
         }
 
-        return { valid: errors.length === 0, errors, warnings };
+        return {
+            valid: errors.length === 0,
+            errors,
+            warnings,
+            // Metadata for WPS file generation and verification
+            metadata: {
+                totalEmployees: employees.length,
+                uniqueIds: seenIds.size,
+                uniqueIbans: seenIbans.size,
+                hashTotal, // Banks verify this against file trailer
+                hasDuplicateIds: seenIds.size !== employees.length,
+                hasDuplicateIbans: seenIbans.size !== employees.length
+            }
+        };
     }
 
     /**
@@ -697,6 +749,176 @@ class WPSService {
     }
 }
 
+/**
+ * Validate file content encoding for WPS submission
+ * Saudi banks accept: Windows-1256 (Arabic), UTF-8, or ASCII
+ * @param {string} content - File content to validate
+ * @returns {Object} { valid: boolean, encoding: string, issues: string[] }
+ */
+function validateFileEncoding(content) {
+    const issues = [];
+    let encoding = 'UTF-8';
+
+    // Handle empty or invalid content
+    if (!content || typeof content !== 'string') {
+        return {
+            valid: false,
+            encoding: 'UNKNOWN',
+            hasArabic: false,
+            lineEnding: 'NONE',
+            issues: ['الملف فارغ أو غير صالح / File is empty or invalid']
+        };
+    }
+
+    // Check for null bytes (indicates binary or corrupt file)
+    if (content.includes('\0')) {
+        issues.push('الملف يحتوي على بايتات غير صالحة / File contains null bytes - may be binary or corrupt');
+        return { valid: false, encoding: 'UNKNOWN', issues };
+    }
+
+    // Check for BOM markers
+    if (content.charCodeAt(0) === 0xFEFF) {
+        encoding = 'UTF-8-BOM';
+        issues.push('الملف يحتوي على BOM - قد لا يتم قبوله / File has BOM marker - may not be accepted by some banks');
+    }
+
+    // Check line endings - WPS typically expects Windows-style (CRLF)
+    const hasCRLF = content.includes('\r\n');
+    const hasLF = content.includes('\n') && !content.includes('\r\n');
+    const hasCR = content.includes('\r') && !content.includes('\r\n');
+
+    if (hasLF && !hasCRLF) {
+        issues.push('تحذير: الملف يستخدم نهاية أسطر Unix - قد تحتاج إلى تحويله / Warning: File uses Unix line endings (LF) - may need conversion to CRLF');
+    }
+    if (hasCR && !hasCRLF) {
+        issues.push('تحذير: الملف يستخدم نهاية أسطر Mac القديمة / Warning: File uses old Mac line endings (CR)');
+    }
+
+    // Check for problematic characters that may not display correctly
+    const arabicPattern = /[\u0600-\u06FF]/;
+    const hasArabic = arabicPattern.test(content);
+
+    // Check for mixed Arabic/English without proper Unicode handling
+    if (hasArabic) {
+        encoding = 'UTF-8 (Arabic)';
+        // Check for common encoding issues with Arabic
+        const brokenArabic = /[\uFFFD\uFFFE\uFFFF]/;
+        if (brokenArabic.test(content)) {
+            issues.push('الملف يحتوي على أحرف عربية تالفة - تحقق من الترميز / File contains broken Arabic characters - check encoding');
+        }
+    }
+
+    // Check field separators - WPS uses pipe (|) delimiters
+    const lines = content.split(/\r?\n/).filter(l => l.trim());
+    if (lines.length > 0) {
+        const firstLine = lines[0];
+        if (!firstLine.includes('|')) {
+            issues.push('تنسيق الملف غير صحيح - يجب أن يستخدم فاصل | / Invalid file format - must use pipe (|) delimiter');
+        }
+    }
+
+    return {
+        valid: issues.filter(i => !i.includes('تحذير') && !i.includes('Warning')).length === 0,
+        encoding,
+        hasArabic,
+        lineEnding: hasCRLF ? 'CRLF' : hasLF ? 'LF' : hasCR ? 'CR' : 'MIXED',
+        issues
+    };
+}
+
+/**
+ * Get WPS and GOSI compliance deadlines for current month
+ * WPS: 10th of following month
+ * GOSI: 15th of following month
+ * @param {Date} referenceDate - Reference date (defaults to today)
+ * @returns {Object} { wps: {...}, gosi: {...}, currentMonth: {...} }
+ */
+function getComplianceDeadlines(referenceDate = new Date()) {
+    const today = new Date(referenceDate);
+    today.setHours(0, 0, 0, 0);
+
+    // Get last day of current month
+    const currentYear = today.getFullYear();
+    const currentMonth = today.getMonth();
+
+    // WPS deadline: 10th of following month
+    const wpsDeadline = new Date(currentYear, currentMonth + 1, 10);
+    const wpsDeadlineDays = Math.ceil((wpsDeadline - today) / (1000 * 60 * 60 * 24));
+
+    // GOSI deadline: 15th of following month
+    const gosiDeadline = new Date(currentYear, currentMonth + 1, 15);
+    const gosiDeadlineDays = Math.ceil((gosiDeadline - today) / (1000 * 60 * 60 * 24));
+
+    // Determine urgency levels
+    const getUrgency = (days) => {
+        if (days < 0) return 'overdue';
+        if (days <= 3) return 'critical';
+        if (days <= 7) return 'urgent';
+        if (days <= 14) return 'soon';
+        return 'normal';
+    };
+
+    // Format deadline messages
+    const formatDeadlineMessage = (days, type) => {
+        const typeAr = type === 'WPS' ? 'حماية الأجور' : 'التأمينات';
+        if (days < 0) {
+            return `⚠️ تأخرت ${Math.abs(days)} يوم عن موعد ${typeAr} / ${type} is ${Math.abs(days)} days OVERDUE`;
+        }
+        if (days === 0) {
+            return `🔴 آخر يوم لـ ${typeAr} اليوم / ${type} deadline is TODAY`;
+        }
+        if (days === 1) {
+            return `🔴 آخر يوم لـ ${typeAr} غداً / ${type} deadline is TOMORROW`;
+        }
+        if (days <= 3) {
+            return `🟠 متبقي ${days} أيام لموعد ${typeAr} / ${days} days until ${type} deadline`;
+        }
+        if (days <= 7) {
+            return `🟡 متبقي ${days} أيام لموعد ${typeAr} / ${days} days until ${type} deadline`;
+        }
+        return `🟢 متبقي ${days} يوم لموعد ${typeAr} / ${days} days until ${type} deadline`;
+    };
+
+    // Month names in Arabic and English
+    const monthNames = {
+        ar: ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'],
+        en: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+    };
+
+    return {
+        wps: {
+            deadline: wpsDeadline,
+            daysRemaining: wpsDeadlineDays,
+            urgency: getUrgency(wpsDeadlineDays),
+            message: formatDeadlineMessage(wpsDeadlineDays, 'WPS'),
+            description: 'موعد رفع ملف حماية الأجور / Wage Protection System file upload deadline',
+            penalty: 'غرامة 10,000 ريال + توقف خدمات المنشأة / 10,000 SAR fine + establishment services suspended'
+        },
+        gosi: {
+            deadline: gosiDeadline,
+            daysRemaining: gosiDeadlineDays,
+            urgency: getUrgency(gosiDeadlineDays),
+            message: formatDeadlineMessage(gosiDeadlineDays, 'GOSI'),
+            description: 'موعد سداد التأمينات الاجتماعية / Social Insurance payment deadline',
+            penalty: 'غرامة 2% شهرياً على المبلغ المتأخر / 2% monthly penalty on overdue amount'
+        },
+        currentMonth: {
+            year: currentYear,
+            month: currentMonth,
+            nameAr: monthNames.ar[currentMonth],
+            nameEn: monthNames.en[currentMonth],
+            payrollPeriod: `${monthNames.en[currentMonth]} ${currentYear}`
+        },
+        today: today,
+        summary: {
+            mostUrgent: wpsDeadlineDays < gosiDeadlineDays ? 'WPS' : 'GOSI',
+            daysToNextDeadline: Math.min(wpsDeadlineDays, gosiDeadlineDays),
+            hasOverdue: wpsDeadlineDays < 0 || gosiDeadlineDays < 0,
+            hasCritical: wpsDeadlineDays <= 3 || gosiDeadlineDays <= 3
+        }
+    };
+}
+
 // Export constants for use in other modules
 module.exports = {
     WPSService: new WPSService(),
@@ -705,4 +927,6 @@ module.exports = {
     validateIBANChecksum,
     validateSaudiNationalId,
     validateIqamaExpiry,
+    validateFileEncoding,
+    getComplianceDeadlines,
 };

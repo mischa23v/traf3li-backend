@@ -156,9 +156,221 @@ function validateGOSIAmount(calculatedAmount, basicSalary, isSaudi, type = 'empl
     };
 }
 
+/**
+ * Generate GOSI payment summary for a list of employees
+ * Useful for displaying total GOSI contributions to be paid
+ * @param {Array} employees - Array of { nationality: 'SA'|'non-SA', basicSalary: number }
+ * @returns {Object} Payment summary with breakdowns
+ */
+function generateGOSIPaymentSummary(employees) {
+    if (!Array.isArray(employees) || employees.length === 0) {
+        return {
+            success: false,
+            error: 'No employees provided',
+            totalEmployees: 0,
+            saudiEmployees: 0,
+            nonSaudiEmployees: 0,
+            totals: {
+                employeeContribution: 0,
+                employerContribution: 0,
+                totalContribution: 0
+            },
+            breakdown: { pension: 0, hazards: 0, saned: 0 },
+            byNationality: { saudi: {}, nonSaudi: {} }
+        };
+    }
+
+    const summary = {
+        success: true,
+        totalEmployees: employees.length,
+        saudiEmployees: 0,
+        nonSaudiEmployees: 0,
+        totals: {
+            employeeContribution: 0,
+            employerContribution: 0,
+            totalContribution: 0
+        },
+        breakdown: {
+            pension: { employee: 0, employer: 0, total: 0 },
+            hazards: { employee: 0, employer: 0, total: 0 },
+            saned: { employee: 0, employer: 0, total: 0 }
+        },
+        byNationality: {
+            saudi: {
+                count: 0,
+                totalBasicSalary: 0,
+                totalCappedSalary: 0,
+                employeeContribution: 0,
+                employerContribution: 0,
+                totalContribution: 0
+            },
+            nonSaudi: {
+                count: 0,
+                totalBasicSalary: 0,
+                totalCappedSalary: 0,
+                employeeContribution: 0,
+                employerContribution: 0,
+                totalContribution: 0
+            }
+        },
+        cappedEmployees: [], // Employees whose salary was capped at 45,000
+        belowMinEmployees: [], // Employees below 400 SAR minimum base
+        invalidEmployees: [], // Employees with invalid salary data
+        processingDetails: []
+    };
+
+    employees.forEach((emp, index) => {
+        const isSaudi = emp.nationality === 'SA' || emp.nationality === 'saudi' || emp.isSaudi === true;
+        const empLabel = emp.name || emp.employeeName || `Employee ${index + 1}`;
+
+        const gosiResult = calculateGOSI(isSaudi, emp.basicSalary);
+
+        // Track invalid employees
+        if (gosiResult.error) {
+            summary.invalidEmployees.push({
+                index,
+                name: empLabel,
+                error: gosiResult.error,
+                salary: emp.basicSalary
+            });
+            return; // Skip invalid employees
+        }
+
+        // Update nationality counts
+        if (isSaudi) {
+            summary.saudiEmployees++;
+            summary.byNationality.saudi.count++;
+            summary.byNationality.saudi.totalBasicSalary += gosiResult.baseSalary;
+            summary.byNationality.saudi.totalCappedSalary += gosiResult.cappedSalary;
+            summary.byNationality.saudi.employeeContribution += gosiResult.employee;
+            summary.byNationality.saudi.employerContribution += gosiResult.employer;
+            summary.byNationality.saudi.totalContribution += gosiResult.total;
+        } else {
+            summary.nonSaudiEmployees++;
+            summary.byNationality.nonSaudi.count++;
+            summary.byNationality.nonSaudi.totalBasicSalary += gosiResult.baseSalary;
+            summary.byNationality.nonSaudi.totalCappedSalary += gosiResult.cappedSalary;
+            summary.byNationality.nonSaudi.employeeContribution += gosiResult.employee;
+            summary.byNationality.nonSaudi.employerContribution += gosiResult.employer;
+            summary.byNationality.nonSaudi.totalContribution += gosiResult.total;
+        }
+
+        // Update totals
+        summary.totals.employeeContribution += gosiResult.employee;
+        summary.totals.employerContribution += gosiResult.employer;
+        summary.totals.totalContribution += gosiResult.total;
+
+        // Update breakdown
+        if (gosiResult.breakdown) {
+            if (gosiResult.breakdown.pension) {
+                summary.breakdown.pension.employee += gosiResult.breakdown.pension.employee || 0;
+                summary.breakdown.pension.employer += gosiResult.breakdown.pension.employer || 0;
+            }
+            if (gosiResult.breakdown.hazards) {
+                summary.breakdown.hazards.employee += gosiResult.breakdown.hazards.employee || 0;
+                summary.breakdown.hazards.employer += gosiResult.breakdown.hazards.employer || 0;
+            }
+            if (gosiResult.breakdown.saned) {
+                summary.breakdown.saned.employee += gosiResult.breakdown.saned.employee || 0;
+                summary.breakdown.saned.employer += gosiResult.breakdown.saned.employer || 0;
+            }
+        }
+
+        // Track capped employees
+        if (gosiResult.wasCapped) {
+            summary.cappedEmployees.push({
+                index,
+                name: empLabel,
+                originalSalary: gosiResult.baseSalary,
+                cappedSalary: gosiResult.cappedSalary,
+                reduction: gosiResult.baseSalary - gosiResult.cappedSalary
+            });
+        }
+
+        // Track below minimum
+        if (gosiResult.wasBelowMin) {
+            summary.belowMinEmployees.push({
+                index,
+                name: empLabel,
+                salary: gosiResult.baseSalary,
+                minimumBase: GOSI_RATES.MIN_CONTRIBUTION_BASE
+            });
+        }
+
+        // Store processing details for audit
+        summary.processingDetails.push({
+            index,
+            name: empLabel,
+            nationality: isSaudi ? 'Saudi' : 'Non-Saudi',
+            basicSalary: gosiResult.baseSalary,
+            cappedSalary: gosiResult.cappedSalary,
+            employeeContribution: gosiResult.employee,
+            employerContribution: gosiResult.employer,
+            totalContribution: gosiResult.total
+        });
+    });
+
+    // Calculate breakdown totals
+    summary.breakdown.pension.total = summary.breakdown.pension.employee + summary.breakdown.pension.employer;
+    summary.breakdown.hazards.total = summary.breakdown.hazards.employee + summary.breakdown.hazards.employer;
+    summary.breakdown.saned.total = summary.breakdown.saned.employee + summary.breakdown.saned.employer;
+
+    // Add formatted summary for display (bilingual)
+    // Calculate next month for deadline (handles December -> January rollover)
+    const now = new Date();
+    const deadlineMonth = now.getMonth() + 1; // 0-indexed, so +1 for next month
+    const deadlineYear = deadlineMonth > 11 ? now.getFullYear() + 1 : now.getFullYear();
+    const actualDeadlineMonth = deadlineMonth > 11 ? 1 : deadlineMonth + 1; // Convert to 1-indexed
+
+    summary.formattedSummary = {
+        title: 'ملخص اشتراكات التأمينات الاجتماعية / GOSI Contributions Summary',
+        period: now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+        deadline: `15/${actualDeadlineMonth}/${deadlineYear}`,
+        items: [
+            {
+                label: 'إجمالي حصة الموظفين / Total Employee Share',
+                value: summary.totals.employeeContribution,
+                formatted: `${summary.totals.employeeContribution.toLocaleString()} SAR`
+            },
+            {
+                label: 'إجمالي حصة صاحب العمل / Total Employer Share',
+                value: summary.totals.employerContribution,
+                formatted: `${summary.totals.employerContribution.toLocaleString()} SAR`
+            },
+            {
+                label: 'المبلغ المطلوب سداده / Total Amount Due',
+                value: summary.totals.totalContribution,
+                formatted: `${summary.totals.totalContribution.toLocaleString()} SAR`,
+                highlight: true
+            }
+        ],
+        warnings: []
+    };
+
+    // Add warnings for capped/below minimum
+    if (summary.cappedEmployees.length > 0) {
+        summary.formattedSummary.warnings.push(
+            `${summary.cappedEmployees.length} موظف تجاوز راتبه الحد الأقصى (45,000 ريال) / ${summary.cappedEmployees.length} employee(s) salary capped at 45,000 SAR`
+        );
+    }
+    if (summary.belowMinEmployees.length > 0) {
+        summary.formattedSummary.warnings.push(
+            `${summary.belowMinEmployees.length} موظف راتبه أقل من الحد الأدنى (400 ريال) / ${summary.belowMinEmployees.length} employee(s) below minimum base (400 SAR)`
+        );
+    }
+    if (summary.invalidEmployees.length > 0) {
+        summary.formattedSummary.warnings.push(
+            `${summary.invalidEmployees.length} موظف ببيانات غير صالحة / ${summary.invalidEmployees.length} employee(s) with invalid data`
+        );
+    }
+
+    return summary;
+}
+
 module.exports = {
     GOSI_RATES,
     calculateGOSI,
     getGOSIRatesPercent,
-    validateGOSIAmount
+    validateGOSIAmount,
+    generateGOSIPaymentSummary
 };
