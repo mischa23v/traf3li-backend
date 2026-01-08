@@ -2,21 +2,40 @@
  * GOSI (التأمينات الاجتماعية) Constants
  * Saudi Arabia General Organization for Social Insurance
  *
- * Official 2024 Rates:
+ * Official 2024 Rates (for employees who started BEFORE July 3, 2024):
  * - Saudi employees: 21.5% total (9.75% employee + 11.75% employer)
  * - Non-Saudi employees: 2% total (0% employee + 2% employer - hazards only)
+ *
+ * 2024 REFORM (New Social Insurance Law - for NEW employees after July 3, 2024):
+ * - Pension rates gradually increase from 9% to 11% by 2028
+ * - July 2024: 9% each → July 2025: 9.5% each → ... → July 2028: 11% each
+ * - Hazards (2%) and SANED (1.5%) remain unchanged
  *
  * CRITICAL: All GOSI calculations in the codebase MUST use these constants
  * to prevent rate mismatches between different files.
  *
  * Reference: https://www.gosi.gov.sa
+ * Reference: https://blog.zenhr.com/en/guide-to-the-gosi-social-insurance-system-in-saudi-arabia
  */
 
+// Date when new GOSI rates took effect (July 3, 2024)
+const GOSI_REFORM_DATE = new Date('2024-07-03');
+
+// 2024 Reform graduated pension rates by year (for NEW employees only)
+// Hazards (2%) and SANED (1.5%) are NOT affected by the reform
+const GOSI_2024_REFORM_PENSION_RATES = {
+    2024: { employee: 0.09, employer: 0.09 },     // July 2024: 9% each
+    2025: { employee: 0.095, employer: 0.095 },   // July 2025: 9.5% each
+    2026: { employee: 0.10, employer: 0.10 },     // July 2026: 10% each
+    2027: { employee: 0.105, employer: 0.105 },   // July 2027: 10.5% each
+    2028: { employee: 0.11, employer: 0.11 },     // July 2028: 11% each (final)
+};
+
 const GOSI_RATES = {
-    // Saudi National rates
+    // Saudi National rates (LEGACY - for employees who started BEFORE July 3, 2024)
     SAUDI: {
-        employee: 0.0975,      // 9.75%
-        employer: 0.1175,      // 11.75%
+        employee: 0.0975,      // 9.75% (9% pension + 0.75% SANED)
+        employer: 0.1175,      // 11.75% (9% pension + 2% hazards + 0.75% SANED)
         total: 0.215,          // 21.5%
         // Detailed breakdown
         breakdown: {
@@ -26,7 +45,7 @@ const GOSI_RATES = {
         }
     },
 
-    // Non-Saudi (expatriate) rates - hazards only
+    // Non-Saudi (expatriate) rates - hazards only (unchanged by 2024 reform)
     NON_SAUDI: {
         employee: 0,           // 0%
         employer: 0.02,        // 2% (hazards only)
@@ -38,44 +57,146 @@ const GOSI_RATES = {
         }
     },
 
-    // Maximum contribution base (salary cap)
+    // Maximum contribution base (salary cap) - Basic + Housing Allowance
     MAX_CONTRIBUTION_BASE: 45000,  // SAR 45,000/month
 
-    // Minimum contribution base
-    MIN_CONTRIBUTION_BASE: 400,    // SAR 400/month
+    // Minimum contribution base (official GOSI minimum)
+    MIN_CONTRIBUTION_BASE: 1500,   // SAR 1,500/month (NOT 400 - that's Nitaqat threshold)
 
-    // Minimum wage for Saudis (for Nitaqat compliance)
+    // Minimum wage for Saudis (for Nitaqat compliance - counts as 0.5 if below)
     MINIMUM_WAGE_SAUDI: 4000,      // SAR 4,000/month
+
+    // Nitaqat threshold where Saudi counts as 0.5 person
+    NITAQAT_HALF_COUNT_THRESHOLD: 4000, // SAR 4,000/month
 };
 
 /**
+ * Get GOSI pension rates for NEW employees based on the 2024 reform
+ * @param {Date} employeeStartDate - Date the employee started working
+ * @param {Date} calculationDate - Date for which to calculate (defaults to now)
+ * @returns {Object} { employee, employer } pension rates
+ */
+function getGOSI2024ReformPensionRates(employeeStartDate, calculationDate = new Date()) {
+    // Legacy employees (started before July 3, 2024) use original rates
+    if (employeeStartDate < GOSI_REFORM_DATE) {
+        return { employee: 0.09, employer: 0.09, isReformEmployee: false };
+    }
+
+    // New employees use graduated rates based on calculation year
+    const year = calculationDate.getFullYear();
+    const month = calculationDate.getMonth();
+
+    // Rates change in July each year
+    let effectiveYear = year;
+    if (month < 6) { // Before July
+        effectiveYear = year - 1;
+    }
+
+    // Cap at 2028 rates (final rates)
+    if (effectiveYear >= 2028) {
+        return { ...GOSI_2024_REFORM_PENSION_RATES[2028], isReformEmployee: true };
+    }
+
+    // Use appropriate year's rates (minimum 2024)
+    const rateYear = Math.max(2024, effectiveYear);
+    return { ...GOSI_2024_REFORM_PENSION_RATES[rateYear], isReformEmployee: true };
+}
+
+/**
+ * Get complete GOSI rates for a Saudi employee accounting for 2024 reform
+ * @param {Date} employeeStartDate - Date the employee started working (null = legacy)
+ * @param {Date} calculationDate - Date for which to calculate
+ * @returns {Object} Complete rate structure
+ */
+function getSaudiGOSIRates(employeeStartDate = null, calculationDate = new Date()) {
+    // If no start date provided, assume legacy employee
+    if (!employeeStartDate) {
+        return GOSI_RATES.SAUDI;
+    }
+
+    const pensionRates = getGOSI2024ReformPensionRates(employeeStartDate, calculationDate);
+
+    // Hazards and SANED are NOT affected by the 2024 reform
+    const hazardsEmployer = 0.02;
+    const sanedEmployee = 0.0075;
+    const sanedEmployer = 0.0075;
+
+    const employeeTotal = pensionRates.employee + sanedEmployee;
+    const employerTotal = pensionRates.employer + hazardsEmployer + sanedEmployer;
+
+    return {
+        employee: employeeTotal,
+        employer: employerTotal,
+        total: employeeTotal + employerTotal,
+        isReformEmployee: pensionRates.isReformEmployee,
+        breakdown: {
+            pension: {
+                employee: pensionRates.employee,
+                employer: pensionRates.employer,
+                total: pensionRates.employee + pensionRates.employer
+            },
+            hazards: { employee: 0, employer: hazardsEmployer, total: hazardsEmployer },
+            saned: { employee: sanedEmployee, employer: sanedEmployer, total: sanedEmployee + sanedEmployer }
+        }
+    };
+}
+
+/**
  * Calculate GOSI contributions for an employee
+ *
+ * IMPORTANT: GOSI is calculated on Basic Salary + Housing Allowance ONLY
+ * Other allowances (transport, food, etc.) are NOT included in the GOSI base
+ *
  * @param {boolean} isSaudi - Whether the employee is Saudi
  * @param {number} basicSalary - Basic salary in SAR
+ * @param {Object} options - Optional parameters
+ * @param {number} options.housingAllowance - Housing allowance in SAR (added to GOSI base)
+ * @param {Date} options.employeeStartDate - Date employee started (for 2024 reform rates)
+ * @param {Date} options.calculationDate - Date for calculation (defaults to now)
  * @returns {Object} { employee, employer, total, capped, breakdown }
  */
-function calculateGOSI(isSaudi, basicSalary) {
-    const rates = isSaudi ? GOSI_RATES.SAUDI : GOSI_RATES.NON_SAUDI;
+function calculateGOSI(isSaudi, basicSalary, options = {}) {
+    const {
+        housingAllowance = 0,
+        employeeStartDate = null,
+        calculationDate = new Date()
+    } = options;
 
-    // Validate input - must be a positive number
-    const salary = parseFloat(basicSalary);
-    if (isNaN(salary) || salary <= 0) {
+    // Get appropriate rates based on nationality and 2024 reform
+    let rates;
+    if (isSaudi) {
+        rates = getSaudiGOSIRates(employeeStartDate, calculationDate);
+    } else {
+        rates = GOSI_RATES.NON_SAUDI;
+    }
+
+    // Validate basic salary - must be a positive number
+    const basic = parseFloat(basicSalary);
+    const housing = parseFloat(housingAllowance) || 0;
+
+    if (isNaN(basic) || basic <= 0) {
         return {
             employee: 0,
             employer: 0,
             total: 0,
             baseSalary: 0,
+            housingAllowance: 0,
+            contributionBase: 0,
             cappedSalary: 0,
             wasCapped: false,
             rates: { employee: rates.employee, employer: rates.employer, total: rates.total },
             breakdown: {},
-            error: salary <= 0 ? 'Salary must be positive' : 'Invalid salary value'
+            error: basic <= 0 ? 'Salary must be positive' : 'Invalid salary value'
         };
     }
 
-    // Apply the 45,000 SAR max cap and 400 SAR minimum base
-    const cappedSalary = Math.min(Math.max(salary, GOSI_RATES.MIN_CONTRIBUTION_BASE), GOSI_RATES.MAX_CONTRIBUTION_BASE);
-    const wasCapped = salary > GOSI_RATES.MAX_CONTRIBUTION_BASE;
+    // GOSI base = Basic + Housing (per official GOSI regulations)
+    const gosiBase = basic + housing;
+
+    // Apply the 45,000 SAR max cap and 1,500 SAR minimum base
+    const cappedSalary = Math.min(Math.max(gosiBase, GOSI_RATES.MIN_CONTRIBUTION_BASE), GOSI_RATES.MAX_CONTRIBUTION_BASE);
+    const wasCapped = gosiBase > GOSI_RATES.MAX_CONTRIBUTION_BASE;
+    const wasBelowMin = gosiBase < GOSI_RATES.MIN_CONTRIBUTION_BASE;
 
     // Calculate contributions
     const employeeContribution = Math.round(cappedSalary * rates.employee);
@@ -84,7 +205,7 @@ function calculateGOSI(isSaudi, basicSalary) {
 
     // Calculate breakdown (for detailed reporting)
     const breakdown = {};
-    if (isSaudi) {
+    if (isSaudi && rates.breakdown) {
         breakdown.pension = {
             employee: Math.round(cappedSalary * rates.breakdown.pension.employee),
             employer: Math.round(cappedSalary * rates.breakdown.pension.employer)
@@ -108,10 +229,13 @@ function calculateGOSI(isSaudi, basicSalary) {
         employee: employeeContribution,
         employer: employerContribution,
         total: totalContribution,
-        baseSalary: salary,
+        baseSalary: basic,
+        housingAllowance: housing,
+        contributionBase: gosiBase,
         cappedSalary,
         wasCapped,
-        wasBelowMin: salary < GOSI_RATES.MIN_CONTRIBUTION_BASE,
+        wasBelowMin,
+        isReformEmployee: rates.isReformEmployee || false,
         rates: {
             employee: rates.employee,
             employer: rates.employer,
@@ -369,7 +493,11 @@ function generateGOSIPaymentSummary(employees) {
 
 module.exports = {
     GOSI_RATES,
+    GOSI_REFORM_DATE,
+    GOSI_2024_REFORM_PENSION_RATES,
     calculateGOSI,
+    getSaudiGOSIRates,
+    getGOSI2024ReformPensionRates,
     getGOSIRatesPercent,
     validateGOSIAmount,
     generateGOSIPaymentSummary
