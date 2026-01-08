@@ -282,6 +282,11 @@ const shiftRoute = require('./shift.route');
 const leaveManagementRoute = require('./leaveManagement.route');
 const hrExtendedRoute = require('./hrExtended.route');
 
+// Who's Out Calendar & Compliance Dashboard Routes
+const whosOutRoute = require('./whosOut.route');
+const complianceDashboardRoute = require('./complianceDashboard.route');
+const employeeSelfServiceRoute = require('./employeeSelfService.route');
+
 // Unified Data Flow Routes
 const unifiedDataRoute = require('./unifiedData.route');
 
@@ -668,6 +673,11 @@ module.exports = {
     shiftRoute,
     leaveManagementRoute,
     hrExtendedRoute,
+
+    // Who's Out Calendar & Compliance Dashboard
+    whosOutRoute,
+    complianceDashboardRoute,
+    employeeSelfServiceRoute,
 
     // Unified Data Flow
     unifiedDataRoute,

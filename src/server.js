@@ -282,6 +282,11 @@ const {
     analyticsReportRoute,
     kpiAnalyticsRoute,
 
+    // Who's Out Calendar & Compliance Dashboard
+    whosOutRoute,
+    complianceDashboardRoute,
+    employeeSelfServiceRoute,
+
     // Accounting
     accountRoute,
     generalLedgerRoute,
@@ -1134,6 +1139,11 @@ app.use('/api/hr/succession-plans', successionPlanRoute);
 app.use('/api/succession-plans', successionPlanRoute);  // Alias for frontend (also available at /hr/succession-plans)
 app.use('/api/hr/compensation', noCache, compensationRewardRoute);
 app.use('/api/hr/compensation-rewards', noCache, compensationRewardRoute);  // Alias for frontend
+
+// Who's Out Calendar & Compliance Dashboard
+app.use('/api/hr/whos-out', noCache, whosOutRoute);
+app.use('/api/hr/compliance', noCache, complianceDashboardRoute);
+app.use('/api/hr/self-service', noCache, employeeSelfServiceRoute);
 
 // Analytics Reports Routes
 app.use('/api/analytics-reports', analyticsReportRoute);
