@@ -1,21 +1,40 @@
 /**
- * GOSI (التأمينات الاجتماعية) Constants
- * Saudi Arabia General Organization for Social Insurance
- *
- * Official 2024 Rates (for employees who started BEFORE July 3, 2024):
- * - Saudi employees: 21.5% total (9.75% employee + 11.75% employer)
- * - Non-Saudi employees: 2% total (0% employee + 2% employer - hazards only)
- *
- * 2024 REFORM (New Social Insurance Law - for NEW employees after July 3, 2024):
- * - Pension rates gradually increase from 9% to 11% by 2028
- * - July 2024: 9% each → July 2025: 9.5% each → ... → July 2028: 11% each
- * - Hazards (2%) and SANED (1.5%) remain unchanged
- *
- * CRITICAL: All GOSI calculations in the codebase MUST use these constants
- * to prevent rate mismatches between different files.
- *
- * Reference: https://www.gosi.gov.sa
- * Reference: https://blog.zenhr.com/en/guide-to-the-gosi-social-insurance-system-in-saudi-arabia
+ * ╔══════════════════════════════════════════════════════════════════════════════╗
+ * ║    ⚠️  OFFICIAL SAUDI GOSI RATES - DO NOT MODIFY WITHOUT VERIFICATION  ⚠️    ║
+ * ╠══════════════════════════════════════════════════════════════════════════════╣
+ * ║                                                                               ║
+ * ║  GOSI (التأمينات الاجتماعية) - General Organization for Social Insurance     ║
+ * ║                                                                               ║
+ * ║  These values are set by GOSI and are legally binding. Incorrect rates:      ║
+ * ║  - Under-payment: 2% monthly penalty on overdue amount                        ║
+ * ║  - Over-payment: No refund, manual correction required                        ║
+ * ║  - Repeated violations: Service suspension                                    ║
+ * ║                                                                               ║
+ * ╠══════════════════════════════════════════════════════════════════════════════╣
+ * ║  OFFICIAL RATES (verified January 2026):                                      ║
+ * ║                                                                               ║
+ * ║  LEGACY EMPLOYEES (before July 3, 2024):                                      ║
+ * ║  - Saudi: 21.5% total (9.75% employee + 11.75% employer)                      ║
+ * ║  - Non-Saudi: 2% total (0% employee + 2% employer - hazards only)             ║
+ * ║                                                                               ║
+ * ║  2024 REFORM (NEW employees after July 3, 2024):                              ║
+ * ║  - Pension rates graduate from 9% to 11% by 2028                              ║
+ * ║  - July 2024: 9% → July 2025: 9.5% → July 2026: 10% → ... → July 2028: 11%   ║
+ * ║  - Hazards (2%) and SANED (1.5%) remain unchanged                             ║
+ * ║                                                                               ║
+ * ║  CONTRIBUTION BASE:                                                           ║
+ * ║  - Base = Basic Salary + Housing Allowance ONLY                               ║
+ * ║  - Maximum: SAR 45,000/month                                                  ║
+ * ║  - Minimum: SAR 1,500/month (some sources cite 400)                           ║
+ * ║                                                                               ║
+ * ╠══════════════════════════════════════════════════════════════════════════════╣
+ * ║  Official sources:                                                            ║
+ * ║  - https://www.gosi.gov.sa (GOSI Official)                                    ║
+ * ║  - https://blog.zenhr.com/en/guide-to-the-gosi-social-insurance-system        ║
+ * ║  - https://mercans.com/resources/statutory-alerts/saudi-arabia                ║
+ * ║                                                                               ║
+ * ║  Last verified: January 2026                                                  ║
+ * ╚══════════════════════════════════════════════════════════════════════════════╝
  */
 
 // Date when new GOSI rates took effect (July 3, 2024)

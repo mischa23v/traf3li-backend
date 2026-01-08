@@ -24,23 +24,62 @@ const {
 } = require('../constants/gosi.constants');
 
 /**
- * Nitaqat Weighting Rules (2024)
- * Reference: https://www.cercli.com/resources/nitaqat
- * Reference: https://www.centuroglobal.com/article/saudization/
+ * ╔══════════════════════════════════════════════════════════════════════════════╗
+ * ║  ⚠️  OFFICIAL SAUDI GOVERNMENT NITAQAT WEIGHTING RULES - DO NOT MODIFY  ⚠️   ║
+ * ╠══════════════════════════════════════════════════════════════════════════════╣
+ * ║  These values are set by MHRSD (Ministry of Human Resources and Social      ║
+ * ║  Development) and are legally binding. Incorrect values will cause:         ║
+ * ║  - Client fines up to SAR 100,000                                            ║
+ * ║  - Service suspension (visa, Qiwa, MOL)                                      ║
+ * ║  - Legal liability for software provider                                     ║
+ * ╠══════════════════════════════════════════════════════════════════════════════╣
+ * ║  Last verified: January 2026                                                  ║
+ * ║  Official sources:                                                            ║
+ * ║  - https://www.hrsd.gov.sa (MHRSD Official)                                   ║
+ * ║  - https://www.cercli.com/resources/nitaqat                                   ║
+ * ║  - https://www.centuroglobal.com/article/saudization/                         ║
+ * ║  - Saudi Press Agency Decision November 23, 2020 (SAR 4,000 minimum)         ║
+ * ║  - MHRSD Decision April 11, 2024 (remote workers, foreign investors)         ║
+ * ╚══════════════════════════════════════════════════════════════════════════════╝
  */
 const NITAQAT_WEIGHTS = {
-    // Saudi with salary < 4000 SAR counts as 0.5 person
-    BELOW_MINIMUM_WAGE: 0.5,
-    // Disabled Saudi employee counts as 4 persons
-    DISABLED_EMPLOYEE: 4.0,
-    // GCC national counts as 1 Saudi
-    GCC_NATIONAL: 1.0,
-    // Foreign investor owner counts as 1 Saudi (April 2024 update)
-    FOREIGN_INVESTOR_OWNER: 1.0,
-    // Remote worker counts as 1 Saudi (2024 update)
-    REMOTE_WORKER: 1.0,
-    // Normal Saudi employee
-    NORMAL_SAUDI: 1.0,
+    // ═══════════════════════════════════════════════════════════════════════════
+    // SALARY-BASED WEIGHTING (Effective April 18, 2021)
+    // ═══════════════════════════════════════════════════════════════════════════
+    // SAR 4,000+ = Full count (1.0)
+    FULL_COUNT_THRESHOLD: 4000,           // SAR 4,000/month minimum for full count
+    // SAR 3,000 - 3,999 = Half count (0.5)
+    HALF_COUNT_MIN: 3000,                 // Minimum for half count
+    HALF_COUNT_WEIGHT: 0.5,               // Weight for SAR 3,000-3,999
+    // Below SAR 3,000 = NOT counted (0.0)
+    NO_COUNT_WEIGHT: 0.0,                 // Weight for salary < SAR 3,000
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // SPECIAL CATEGORY WEIGHTS
+    // ═══════════════════════════════════════════════════════════════════════════
+    NORMAL_SAUDI: 1.0,                    // Standard Saudi employee (>= SAR 4,000)
+    DISABLED_EMPLOYEE: 4.0,               // Disabled Saudi = 4 persons (up to regulatory limit)
+    RELEASED_PRISONER: 2.0,               // Saudi ex-prisoner = 2 persons (up to 2 years)
+    PART_TIME_EMPLOYEE: 0.5,              // Part-time (must earn min SAR 3,000; max 2 entities)
+    FLEXIBLE_WORK: 0.33,                  // Flexible Work System (168 hrs/month + social insurance)
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // NATIONALITY-BASED WEIGHTS (April 11, 2024 Updates)
+    // ═══════════════════════════════════════════════════════════════════════════
+    GCC_NATIONAL: 1.0,                    // GCC nationals count as Saudi
+    FOREIGN_INVESTOR_OWNER: 1.0,          // Foreign investor owners (April 2024)
+    REMOTE_WORKER: 1.0,                   // Remote workers (April 2024)
+    SAUDI_WOMANS_CHILD: 1.0,              // Children of Saudi women (non-Saudi father)
+    NON_SAUDI_WIDOW: 1.0,                 // Non-Saudi widows of Saudis
+    DISPLACED_TRIBES: 1.0,                // Displaced tribes
+    ATHLETES: 1.0,                        // Athletes
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // PARTIAL NATIONALITY WEIGHTS (April 11, 2024)
+    // ═══════════════════════════════════════════════════════════════════════════
+    PALESTINIAN_EGYPTIAN_PASSPORT: 0.25,  // 4 = 1 foreign worker; max 50% of workforce
+    BALOCH_ETHNICITY: 0.25,               // 4 = 1 foreign worker; max 50% of workforce
+    BURMESE: 0.25,                        // 4 = 1 foreign worker (except Mecca/Medina)
 };
 
 // GCC country codes (count as Saudi for Nitaqat)
@@ -379,17 +418,29 @@ class MudadService {
     }
 
     /**
-     * Get Nitaqat (Saudization) calculation with proper weighting
-     *
-     * Official Weighting Rules (2024):
-     * - Saudi with salary < 4000 SAR = counts as 0.5 person
-     * - Disabled Saudi employee = counts as 4 persons
-     * - GCC national = counts as 1 Saudi
-     * - Foreign investor owner = counts as 1 Saudi (April 2024)
-     * - Remote worker (Saudi) = counts as 1 Saudi (2024)
-     *
-     * Reference: https://www.cercli.com/resources/nitaqat
-     * Reference: https://www.centuroglobal.com/article/saudization/
+     * ╔══════════════════════════════════════════════════════════════════════════════╗
+     * ║         OFFICIAL NITAQAT CALCULATION - DO NOT MODIFY WITHOUT APPROVAL        ║
+     * ╠══════════════════════════════════════════════════════════════════════════════╣
+     * ║  This calculation follows official MHRSD weighting rules:                    ║
+     * ║                                                                               ║
+     * ║  SALARY-BASED WEIGHTING (April 18, 2021):                                     ║
+     * ║  - SAR 4,000+ monthly = 1.0 person (full count)                               ║
+     * ║  - SAR 3,000 - 3,999 monthly = 0.5 person (half count)                        ║
+     * ║  - Below SAR 3,000 monthly = 0.0 person (NOT COUNTED)                         ║
+     * ║                                                                               ║
+     * ║  SPECIAL CATEGORIES:                                                          ║
+     * ║  - Disabled Saudi = 4.0 persons                                               ║
+     * ║  - Released prisoners = 2.0 persons (for 2 years)                             ║
+     * ║  - Part-time = 0.5 person                                                     ║
+     * ║  - Flexible work = 0.33 person                                                ║
+     * ║                                                                               ║
+     * ║  BAND THRESHOLDS (January 26, 2020 - YELLOW ABOLISHED):                       ║
+     * ║  - RED: Below required percentage (non-compliant)                             ║
+     * ║  - GREEN_LOW, GREEN_MID, GREEN_HIGH: Compliant levels                         ║
+     * ║  - PLATINUM: Highest tier                                                     ║
+     * ║                                                                               ║
+     * ║  ⚠️ YELLOW BAND WAS ABOLISHED JANUARY 26, 2020 - DO NOT ADD BACK ⚠️          ║
+     * ╚══════════════════════════════════════════════════════════════════════════════╝
      */
     calculateNitaqat(employees) {
         const totalEmployees = employees.length;
@@ -399,9 +450,13 @@ class MudadService {
         let rawSaudiCount = 0;
         let gccCount = 0;
         let disabledCount = 0;
-        let belowMinWageCount = 0;
+        let halfCountSalaryCount = 0;  // SAR 3,000-3,999
+        let notCountedSalaryCount = 0; // Below SAR 3,000
         let remoteWorkerCount = 0;
         let foreignInvestorOwnerCount = 0;
+        let partTimeCount = 0;
+        let flexibleWorkCount = 0;
+        let releasedPrisonerCount = 0;
 
         const employeeDetails = [];
 
@@ -413,6 +468,9 @@ class MudadService {
             const isDisabled = emp.isDisabled === true || emp.disability === true;
             const isRemoteWorker = emp.isRemoteWorker === true || emp.workType === 'remote';
             const isForeignInvestorOwner = emp.isForeignInvestorOwner === true || emp.ownerType === 'foreign_investor';
+            const isPartTime = emp.isPartTime === true || emp.employmentType === 'part_time';
+            const isFlexibleWork = emp.isFlexibleWork === true || emp.employmentType === 'flexible';
+            const isReleasedPrisoner = emp.isReleasedPrisoner === true;
 
             let weight = 0;
             let category = 'non-saudi';
@@ -421,25 +479,59 @@ class MudadService {
                 rawSaudiCount++;
                 category = 'saudi';
 
-                // Check for special weighting
+                // ═══════════════════════════════════════════════════════════════
+                // PRIORITY 1: Special categories (apply before salary check)
+                // ═══════════════════════════════════════════════════════════════
                 if (isDisabled) {
-                    // Disabled Saudi = 4 persons
+                    // Disabled Saudi = 4 persons (highest weight)
                     weight = NITAQAT_WEIGHTS.DISABLED_EMPLOYEE;
                     disabledCount++;
                     category = 'saudi_disabled';
-                } else if (basicSalary < GOSI_RATES.MINIMUM_WAGE_SAUDI && basicSalary > 0) {
-                    // Below minimum wage Saudi = 0.5 person
-                    weight = NITAQAT_WEIGHTS.BELOW_MINIMUM_WAGE;
-                    belowMinWageCount++;
-                    category = 'saudi_below_min_wage';
-                } else if (isRemoteWorker) {
-                    // Remote worker = 1 person (2024 update)
-                    weight = NITAQAT_WEIGHTS.REMOTE_WORKER;
-                    remoteWorkerCount++;
-                    category = 'saudi_remote';
+                } else if (isReleasedPrisoner) {
+                    // Released prisoner = 2 persons (for up to 2 years)
+                    weight = NITAQAT_WEIGHTS.RELEASED_PRISONER;
+                    releasedPrisonerCount++;
+                    category = 'saudi_released_prisoner';
+                } else if (isFlexibleWork) {
+                    // Flexible work = 0.33 person
+                    weight = NITAQAT_WEIGHTS.FLEXIBLE_WORK;
+                    flexibleWorkCount++;
+                    category = 'saudi_flexible_work';
+                } else if (isPartTime) {
+                    // Part-time = 0.5 person (must earn min SAR 3,000)
+                    weight = basicSalary >= NITAQAT_WEIGHTS.HALF_COUNT_MIN
+                        ? NITAQAT_WEIGHTS.PART_TIME_EMPLOYEE
+                        : NITAQAT_WEIGHTS.NO_COUNT_WEIGHT;
+                    partTimeCount++;
+                    category = 'saudi_part_time';
+                }
+                // ═══════════════════════════════════════════════════════════════
+                // PRIORITY 2: Salary-based weighting (if no special category)
+                // OFFICIAL THRESHOLDS (April 18, 2021):
+                // - SAR 4,000+ = 1.0 (full count)
+                // - SAR 3,000 - 3,999 = 0.5 (half count)
+                // - Below SAR 3,000 = 0.0 (NOT counted)
+                // ═══════════════════════════════════════════════════════════════
+                else if (basicSalary >= NITAQAT_WEIGHTS.FULL_COUNT_THRESHOLD) {
+                    // Full count: SAR 4,000+ monthly
+                    if (isRemoteWorker) {
+                        weight = NITAQAT_WEIGHTS.REMOTE_WORKER;
+                        remoteWorkerCount++;
+                        category = 'saudi_remote';
+                    } else {
+                        weight = NITAQAT_WEIGHTS.NORMAL_SAUDI;
+                        category = 'saudi_full_count';
+                    }
+                } else if (basicSalary >= NITAQAT_WEIGHTS.HALF_COUNT_MIN) {
+                    // Half count: SAR 3,000 - 3,999 monthly
+                    weight = NITAQAT_WEIGHTS.HALF_COUNT_WEIGHT;
+                    halfCountSalaryCount++;
+                    category = 'saudi_half_count';
                 } else {
-                    // Normal Saudi = 1 person
-                    weight = NITAQAT_WEIGHTS.NORMAL_SAUDI;
+                    // NOT counted: Below SAR 3,000 monthly
+                    weight = NITAQAT_WEIGHTS.NO_COUNT_WEIGHT;
+                    notCountedSalaryCount++;
+                    category = 'saudi_not_counted';
                 }
             } else if (isGCC) {
                 // GCC national counts as Saudi
@@ -464,6 +556,8 @@ class MudadService {
                 basicSalary,
                 isDisabled,
                 isRemoteWorker,
+                isPartTime,
+                isFlexibleWork,
             });
         });
 
@@ -472,10 +566,15 @@ class MudadService {
             ? (weightedSaudiCount / totalEmployees) * 100
             : 0;
 
-        // Nitaqat ranges (simplified - actual ranges depend on company size and sector)
+        // ═══════════════════════════════════════════════════════════════════════════
+        // NITAQAT BAND THRESHOLDS
+        // ⚠️ IMPORTANT: YELLOW BAND WAS ABOLISHED JANUARY 26, 2020
+        // Only RED, GREEN (low/mid/high), and PLATINUM exist now
+        // Thresholds vary by company size and sector - these are general defaults
+        // ═══════════════════════════════════════════════════════════════════════════
         let nitaqatBand = 'RED';
-        if (saudizationRate >= 10) nitaqatBand = 'YELLOW';
-        if (saudizationRate >= 40) nitaqatBand = 'GREEN_LOW';
+        // Note: No YELLOW band - it was abolished January 26, 2020
+        if (saudizationRate >= 30) nitaqatBand = 'GREEN_LOW';   // General threshold for >100 employees
         if (saudizationRate >= 50) nitaqatBand = 'GREEN_MID';
         if (saudizationRate >= 60) nitaqatBand = 'GREEN_HIGH';
         if (saudizationRate >= 70) nitaqatBand = 'PLATINUM';
@@ -492,47 +591,59 @@ class MudadService {
             weightedCounts: {
                 saudi: weightedSaudiCount,
                 disabled: disabledCount,
-                belowMinWage: belowMinWageCount,
+                halfCountSalary: halfCountSalaryCount,    // SAR 3,000-3,999 = 0.5
+                notCountedSalary: notCountedSalaryCount,  // Below SAR 3,000 = 0.0
                 remoteWorkers: remoteWorkerCount,
                 gccNationals: gccCount,
                 foreignInvestorOwners: foreignInvestorOwnerCount,
+                partTime: partTimeCount,
+                flexibleWork: flexibleWorkCount,
+                releasedPrisoners: releasedPrisonerCount,
             },
             // Summary
             saudizationRate: Math.round(saudizationRate * 100) / 100,
             nitaqatBand,
-            compliant: nitaqatBand !== 'RED' && nitaqatBand !== 'YELLOW',
+            // Note: YELLOW band abolished January 26, 2020 - only RED is non-compliant
+            compliant: nitaqatBand !== 'RED',
             // Warnings
-            warnings: this._getNitaqatWarnings(saudizationRate, belowMinWageCount, rawSaudiCount),
+            warnings: this._getNitaqatWarnings(saudizationRate, halfCountSalaryCount, notCountedSalaryCount, rawSaudiCount),
             // Details for audit
             employeeDetails,
         };
     }
 
     /**
-     * Get warnings for Nitaqat compliance
+     * ╔══════════════════════════════════════════════════════════════════════════════╗
+     * ║               NITAQAT WARNINGS - OFFICIAL COMPLIANCE MESSAGES                ║
+     * ╚══════════════════════════════════════════════════════════════════════════════╝
      */
-    _getNitaqatWarnings(rate, belowMinWageCount, rawSaudiCount) {
+    _getNitaqatWarnings(rate, halfCountSalaryCount, notCountedSalaryCount, rawSaudiCount) {
         const warnings = [];
 
-        if (rate < 10) {
+        // Band-based warnings
+        if (rate < 30) {
             warnings.push({
                 level: 'critical',
                 messageAr: 'منشأتك في النطاق الأحمر - خطر إيقاف الخدمات',
                 messageEn: 'Your establishment is in RED band - risk of service suspension',
             });
-        } else if (rate < 40) {
+        }
+        // Note: No YELLOW band warning - it was abolished January 26, 2020
+
+        // Salary-based warnings (official thresholds April 18, 2021)
+        if (halfCountSalaryCount > 0) {
             warnings.push({
-                level: 'warning',
-                messageAr: 'منشأتك في النطاق الأصفر - يجب زيادة السعودة',
-                messageEn: 'Your establishment is in YELLOW band - need to increase Saudization',
+                level: 'info',
+                messageAr: `${halfCountSalaryCount} موظف سعودي براتب 3000-3999 ريال - يحتسب كنصف موظف`,
+                messageEn: `${halfCountSalaryCount} Saudi employee(s) earning SAR 3,000-3,999 - counted as 0.5 each`,
             });
         }
 
-        if (belowMinWageCount > 0) {
+        if (notCountedSalaryCount > 0) {
             warnings.push({
-                level: 'info',
-                messageAr: `${belowMinWageCount} موظف سعودي براتب أقل من 4000 ريال - يحتسب كنصف موظف`,
-                messageEn: `${belowMinWageCount} Saudi employee(s) with salary below 4000 SAR - counted as 0.5 each`,
+                level: 'warning',
+                messageAr: `⚠️ ${notCountedSalaryCount} موظف سعودي براتب أقل من 3000 ريال - لا يحتسب في نسبة السعودة`,
+                messageEn: `⚠️ ${notCountedSalaryCount} Saudi employee(s) earning below SAR 3,000 - NOT counted toward Saudization`,
             });
         }
 

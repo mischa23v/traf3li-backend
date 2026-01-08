@@ -827,15 +827,33 @@ function validateFileEncoding(content) {
 }
 
 /**
- * Get WPS and GOSI compliance deadlines for current month
- *
- * IMPORTANT - March 2025 MHRSD Update:
- * WPS deadline changed from "10th of following month" to "30 days from salary due date"
- *
- * @see https://www.mhrsd.gov.sa - Ministry of Human Resources and Social Development
- *
- * WPS: 30 days from salary due date (last day of salary month)
- * GOSI: 15th of following month
+ * ╔══════════════════════════════════════════════════════════════════════════════╗
+ * ║       OFFICIAL SAUDI PAYROLL COMPLIANCE DEADLINES - DO NOT MODIFY           ║
+ * ╠══════════════════════════════════════════════════════════════════════════════╣
+ * ║                                                                               ║
+ * ║  ⚠️ IMPORTANT: There are TWO SEPARATE WPS deadlines:                         ║
+ * ║                                                                               ║
+ * ║  1. SALARY PAYMENT DEADLINE: By 10th of following month                       ║
+ * ║     - This is when employees must be paid                                     ║
+ * ║     - Penalty: SAR 3,000 per employee per month if late                       ║
+ * ║     - 2+ consecutive months late: MOL services suspended                      ║
+ * ║                                                                               ║
+ * ║  2. WPS FILE UPLOAD DEADLINE: Within 30 days of salary period                 ║
+ * ║     - This is when the WPS file must be uploaded to Mudad                     ║
+ * ║     - Updated March 1, 2025 (was 60 days, now 30 days)                        ║
+ * ║     - Penalty: Warning first, then service suspension                         ║
+ * ║                                                                               ║
+ * ║  3. GOSI PAYMENT DEADLINE: 15th of following month                            ║
+ * ║     - Penalty: 2% monthly on overdue amount                                   ║
+ * ║                                                                               ║
+ * ╠══════════════════════════════════════════════════════════════════════════════╣
+ * ║  Official sources:                                                            ║
+ * ║  - https://www.hrsd.gov.sa (MHRSD Official)                                   ║
+ * ║  - https://mudad.sa (Mudad Platform)                                          ║
+ * ║  - https://www.gosi.gov.sa (GOSI Official)                                    ║
+ * ║                                                                               ║
+ * ║  Last verified: January 2026                                                  ║
+ * ╚══════════════════════════════════════════════════════════════════════════════╝
  *
  * @param {Date} referenceDate - Reference date (defaults to today)
  * @param {Date} salaryDueDate - Optional: specific salary due date (defaults to last day of previous month)
@@ -849,23 +867,31 @@ function getComplianceDeadlines(referenceDate = new Date(), salaryDueDate = null
     const currentYear = today.getFullYear();
     const currentMonth = today.getMonth();
 
-    // WPS deadline: 30 days from salary due date (March 2025 MHRSD update)
-    // Salary due date is typically the last day of the salary month
-    // For current month reference, we assume we're looking at LAST month's payroll
-    // Example: On Feb 15, we're looking at Jan payroll, Jan salary was due Jan 31
-    // WPS deadline = Jan 31 + 30 days = Mar 2
+    // ═══════════════════════════════════════════════════════════════════════════
+    // DEADLINE 1: Salary Payment (10th of following month)
+    // Employees must be paid by this date. Penalty: SAR 3,000/employee if late.
+    // ═══════════════════════════════════════════════════════════════════════════
+    const salaryPaymentDeadline = new Date(currentYear, currentMonth, 10);
+    const salaryPaymentDays = Math.ceil((salaryPaymentDeadline - today) / (1000 * 60 * 60 * 24));
 
-    // Default salary due date: last day of previous month
+    // ═══════════════════════════════════════════════════════════════════════════
+    // DEADLINE 2: WPS File Upload (30 days from salary due date)
+    // March 2025 MHRSD update: reduced from 60 to 30 days
+    // Salary due date = last day of salary month
+    // Example: Jan payroll due Jan 31, WPS upload deadline = Mar 2
+    // ═══════════════════════════════════════════════════════════════════════════
     const defaultSalaryDueDate = new Date(currentYear, currentMonth, 0); // Day 0 = last day of prev month
     const effectiveSalaryDueDate = salaryDueDate ? new Date(salaryDueDate) : defaultSalaryDueDate;
     effectiveSalaryDueDate.setHours(0, 0, 0, 0);
 
-    // WPS deadline = salary due date + 30 days
-    const wpsDeadline = new Date(effectiveSalaryDueDate);
-    wpsDeadline.setDate(wpsDeadline.getDate() + 30);
-    const wpsDeadlineDays = Math.ceil((wpsDeadline - today) / (1000 * 60 * 60 * 24));
+    // WPS file upload deadline = salary due date + 30 days
+    const wpsUploadDeadline = new Date(effectiveSalaryDueDate);
+    wpsUploadDeadline.setDate(wpsUploadDeadline.getDate() + 30);
+    const wpsUploadDays = Math.ceil((wpsUploadDeadline - today) / (1000 * 60 * 60 * 24));
 
-    // GOSI deadline: 15th of following month
+    // ═══════════════════════════════════════════════════════════════════════════
+    // DEADLINE 3: GOSI Payment (15th of following month)
+    // ═══════════════════════════════════════════════════════════════════════════
     const gosiDeadline = new Date(currentYear, currentMonth + 1, 15);
     const gosiDeadlineDays = Math.ceil((gosiDeadline - today) / (1000 * 60 * 60 * 24));
 
@@ -906,15 +932,32 @@ function getComplianceDeadlines(referenceDate = new Date(), salaryDueDate = null
     };
 
     return {
-        wps: {
-            deadline: wpsDeadline,
-            daysRemaining: wpsDeadlineDays,
-            urgency: getUrgency(wpsDeadlineDays),
-            message: formatDeadlineMessage(wpsDeadlineDays, 'WPS'),
-            salaryDueDate: effectiveSalaryDueDate, // The base date for calculation
-            description: 'موعد رفع ملف حماية الأجور (30 يوم من تاريخ استحقاق الراتب) / WPS deadline - 30 days from salary due date',
-            penalty: 'غرامة 10,000 ريال + توقف خدمات المنشأة / 10,000 SAR fine + establishment services suspended'
+        // ═══════════════════════════════════════════════════════════════════════════
+        // DEADLINE 1: Salary Payment (by 10th of month)
+        // ═══════════════════════════════════════════════════════════════════════════
+        salaryPayment: {
+            deadline: salaryPaymentDeadline,
+            daysRemaining: salaryPaymentDays,
+            urgency: getUrgency(salaryPaymentDays),
+            message: formatDeadlineMessage(salaryPaymentDays, 'Salary'),
+            description: 'موعد صرف الرواتب (10 من الشهر التالي) / Salary payment deadline - 10th of following month',
+            penalty: 'غرامة 3,000 ريال لكل موظف + إيقاف خدمات بعد شهرين / SAR 3,000 per employee + service suspension after 2 months'
         },
+        // ═══════════════════════════════════════════════════════════════════════════
+        // DEADLINE 2: WPS File Upload (30 days from salary due date)
+        // ═══════════════════════════════════════════════════════════════════════════
+        wps: {
+            deadline: wpsUploadDeadline,
+            daysRemaining: wpsUploadDays,
+            urgency: getUrgency(wpsUploadDays),
+            message: formatDeadlineMessage(wpsUploadDays, 'WPS'),
+            salaryDueDate: effectiveSalaryDueDate,
+            description: 'موعد رفع ملف حماية الأجور (30 يوم من تاريخ استحقاق الراتب) / WPS file upload - 30 days from salary due date',
+            penalty: 'تحذير ثم إيقاف الخدمات / Warning first, then service suspension'
+        },
+        // ═══════════════════════════════════════════════════════════════════════════
+        // DEADLINE 3: GOSI Payment (15th of following month)
+        // ═══════════════════════════════════════════════════════════════════════════
         gosi: {
             deadline: gosiDeadline,
             daysRemaining: gosiDeadlineDays,
@@ -932,10 +975,11 @@ function getComplianceDeadlines(referenceDate = new Date(), salaryDueDate = null
         },
         today: today,
         summary: {
-            mostUrgent: wpsDeadlineDays < gosiDeadlineDays ? 'WPS' : 'GOSI',
-            daysToNextDeadline: Math.min(wpsDeadlineDays, gosiDeadlineDays),
-            hasOverdue: wpsDeadlineDays < 0 || gosiDeadlineDays < 0,
-            hasCritical: wpsDeadlineDays <= 3 || gosiDeadlineDays <= 3
+            mostUrgent: salaryPaymentDays < wpsUploadDays && salaryPaymentDays < gosiDeadlineDays ? 'SALARY'
+                : wpsUploadDays < gosiDeadlineDays ? 'WPS' : 'GOSI',
+            daysToNextDeadline: Math.min(salaryPaymentDays, wpsUploadDays, gosiDeadlineDays),
+            hasOverdue: salaryPaymentDays < 0 || wpsUploadDays < 0 || gosiDeadlineDays < 0,
+            hasCritical: salaryPaymentDays <= 3 || wpsUploadDays <= 3 || gosiDeadlineDays <= 3
         }
     };
 }
