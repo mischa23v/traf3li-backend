@@ -935,6 +935,314 @@ nineBoxSchema.statics.getDistribution = async function(firmId, periodYear) {
     ]);
 };
 
+/**
+ * Get recommended development actions based on box position
+ * Following HR best practices for each 9-box category
+ */
+nineBoxSchema.statics.getDevelopmentRecommendations = function(boxPosition) {
+    const recommendations = {
+        1: { // Bad Hire - Low Performance, Low Potential
+            label: 'Bad Hire',
+            labelAr: 'توظيف خاطئ',
+            strategy: 'Performance Improvement or Exit',
+            strategyAr: 'تحسين الأداء أو إنهاء الخدمة',
+            actions: [
+                'Create immediate performance improvement plan (PIP)',
+                'Set clear 30-60-90 day expectations',
+                'Provide intensive coaching and support',
+                'Consider role reassignment if skills mismatch',
+                'Document all performance discussions',
+                'Prepare transition plan if no improvement'
+            ],
+            actionsAr: [
+                'إنشاء خطة تحسين أداء فورية',
+                'تحديد توقعات واضحة لـ 30-60-90 يوم',
+                'توفير تدريب ودعم مكثف',
+                'النظر في إعادة تعيين الدور',
+                'توثيق جميع مناقشات الأداء',
+                'إعداد خطة انتقالية'
+            ],
+            timeframe: '30-90 days',
+            investmentLevel: 'Low',
+            managerFocus: 'Weekly check-ins, clear documentation'
+        },
+        2: { // Grinder - Low Performance, Moderate Potential
+            label: 'Grinder',
+            labelAr: 'مجتهد',
+            strategy: 'Focused Development',
+            strategyAr: 'تطوير مركّز',
+            actions: [
+                'Identify specific skill gaps',
+                'Provide targeted training programs',
+                'Assign a mentor or coach',
+                'Set stretch assignments with support',
+                'Regular feedback on progress',
+                'Consider different role that matches strengths'
+            ],
+            actionsAr: [
+                'تحديد فجوات المهارات المحددة',
+                'توفير برامج تدريبية مستهدفة',
+                'تعيين موجه أو مدرب',
+                'تكليف بمهام تحدي مع الدعم',
+                'ملاحظات منتظمة على التقدم',
+                'النظر في دور مختلف يناسب نقاط القوة'
+            ],
+            timeframe: '6-12 months',
+            investmentLevel: 'Moderate',
+            managerFocus: 'Bi-weekly coaching, skill development'
+        },
+        3: { // Dilemma - Low Performance, High Potential
+            label: 'Dilemma',
+            labelAr: 'معضلة',
+            strategy: 'Diagnose and Develop',
+            strategyAr: 'تشخيص وتطوير',
+            actions: [
+                'Investigate root cause of low performance',
+                'Check for role-fit issues',
+                'Consider if personal issues affecting work',
+                'Provide executive coaching',
+                'Explore cross-functional opportunities',
+                'Create challenging project assignments'
+            ],
+            actionsAr: [
+                'التحقيق في السبب الجذري لانخفاض الأداء',
+                'التحقق من مشاكل ملاءمة الدور',
+                'النظر في تأثير المشاكل الشخصية',
+                'توفير تدريب تنفيذي',
+                'استكشاف فرص متعددة الوظائف',
+                'إنشاء مهام مشاريع تحدي'
+            ],
+            timeframe: '3-6 months',
+            investmentLevel: 'High',
+            managerFocus: 'Deep investigation, accelerated development'
+        },
+        4: { // Up or Out - Moderate Performance, Low Potential
+            label: 'Up or Out',
+            labelAr: 'ترقية أو إنهاء',
+            strategy: 'Maintain or Transition',
+            strategyAr: 'الحفاظ أو الانتقال',
+            actions: [
+                'Maximize current role contribution',
+                'Recognize and reward consistently',
+                'Provide stability-focused assignments',
+                'Consider specialist track vs management',
+                'Transparent career discussion',
+                'Plan for graceful transition if needed'
+            ],
+            actionsAr: [
+                'تعظيم المساهمة في الدور الحالي',
+                'الاعتراف والمكافأة باستمرار',
+                'توفير مهام تركز على الاستقرار',
+                'النظر في مسار التخصص مقابل الإدارة',
+                'مناقشة مهنية شفافة',
+                'التخطيط لانتقال سلس إذا لزم الأمر'
+            ],
+            timeframe: 'Ongoing',
+            investmentLevel: 'Low-Moderate',
+            managerFocus: 'Recognition, clear expectations'
+        },
+        5: { // Core Player - Moderate Performance, Moderate Potential
+            label: 'Core Player',
+            labelAr: 'لاعب أساسي',
+            strategy: 'Develop and Engage',
+            strategyAr: 'تطوير وإشراك',
+            actions: [
+                'Provide ongoing skill development',
+                'Rotate through different assignments',
+                'Include in cross-functional projects',
+                'Regular career development discussions',
+                'Recognize contributions publicly',
+                'Consider for team lead opportunities'
+            ],
+            actionsAr: [
+                'توفير تطوير مهارات مستمر',
+                'التناوب عبر مهام مختلفة',
+                'الإشراك في مشاريع متعددة الوظائف',
+                'مناقشات تطوير مهني منتظمة',
+                'الاعتراف بالمساهمات علنياً',
+                'النظر في فرص قيادة الفريق'
+            ],
+            timeframe: '12 months',
+            investmentLevel: 'Moderate',
+            managerFocus: 'Development, engagement, stretch goals'
+        },
+        6: { // High Potential - Moderate Performance, High Potential
+            label: 'High Potential',
+            labelAr: 'إمكانات عالية',
+            strategy: 'Accelerated Development',
+            strategyAr: 'تطوير متسارع',
+            actions: [
+                'Fast-track to leadership development program',
+                'Assign executive sponsor/mentor',
+                'Provide high-visibility project assignments',
+                'Include in strategic planning sessions',
+                'Cross-functional rotation program',
+                'Create individual development plan (IDP)'
+            ],
+            actionsAr: [
+                'المسار السريع لبرنامج تطوير القيادة',
+                'تعيين راعي/موجه تنفيذي',
+                'تكليف بمشاريع عالية الظهور',
+                'الإشراك في جلسات التخطيط الاستراتيجي',
+                'برنامج تناوب متعدد الوظائف',
+                'إنشاء خطة تطوير فردية'
+            ],
+            timeframe: '6-12 months',
+            investmentLevel: 'High',
+            managerFocus: 'Accelerated growth, exposure, stretch assignments'
+        },
+        7: { // Solid Performer - High Performance, Low Potential
+            label: 'Solid Performer',
+            labelAr: 'أداء ثابت',
+            strategy: 'Recognize and Retain',
+            strategyAr: 'الاعتراف والاحتفاظ',
+            actions: [
+                'Recognize as subject matter expert',
+                'Leverage for knowledge transfer',
+                'Consider as mentor for others',
+                'Provide competitive compensation',
+                'Offer work-life balance flexibility',
+                'Create technical expert career path'
+            ],
+            actionsAr: [
+                'الاعتراف كخبير موضوعي',
+                'الاستفادة لنقل المعرفة',
+                'النظر كموجه للآخرين',
+                'توفير تعويض تنافسي',
+                'تقديم مرونة التوازن بين العمل والحياة',
+                'إنشاء مسار وظيفي للخبير التقني'
+            ],
+            timeframe: 'Ongoing',
+            investmentLevel: 'Moderate',
+            managerFocus: 'Recognition, retention, knowledge sharing'
+        },
+        8: { // High Performer - High Performance, Moderate Potential
+            label: 'High Performer',
+            labelAr: 'أداء عالي',
+            strategy: 'Invest and Grow',
+            strategyAr: 'الاستثمار والنمو',
+            actions: [
+                'Provide leadership development training',
+                'Assign to strategic initiatives',
+                'Include in succession planning',
+                'Create visibility with senior leadership',
+                'Offer promotion path clarity',
+                'Consider for expanded role scope'
+            ],
+            actionsAr: [
+                'توفير تدريب تطوير القيادة',
+                'تكليف بمبادرات استراتيجية',
+                'الإشراك في تخطيط التعاقب',
+                'إنشاء ظهور مع القيادة العليا',
+                'تقديم وضوح مسار الترقية',
+                'النظر في توسيع نطاق الدور'
+            ],
+            timeframe: '6-12 months',
+            investmentLevel: 'High',
+            managerFocus: 'Growth opportunities, succession planning'
+        },
+        9: { // Star - High Performance, High Potential
+            label: 'Star',
+            labelAr: 'نجم',
+            strategy: 'Retain and Accelerate',
+            strategyAr: 'الاحتفاظ والتسريع',
+            actions: [
+                'Fast-track for executive positions',
+                'Assign C-level mentor/sponsor',
+                'Include in board-level presentations',
+                'Provide executive compensation packages',
+                'Create customized development path',
+                'Priority succession candidate'
+            ],
+            actionsAr: [
+                'المسار السريع للمناصب التنفيذية',
+                'تعيين موجه/راعي من المستوى التنفيذي',
+                'الإشراك في عروض مستوى مجلس الإدارة',
+                'توفير حزم تعويض تنفيذية',
+                'إنشاء مسار تطوير مخصص',
+                'مرشح أولوية للتعاقب'
+            ],
+            timeframe: '3-6 months',
+            investmentLevel: 'Very High',
+            managerFocus: 'Maximum investment, retention, rapid advancement'
+        }
+    };
+
+    return recommendations[boxPosition] || null;
+};
+
+/**
+ * Get succession candidates for a specific role level
+ */
+nineBoxSchema.statics.getSuccessionCandidates = async function(firmId, options = {}) {
+    const query = {
+        firmId: new mongoose.Types.ObjectId(firmId),
+        isSuccessionCandidate: true
+    };
+
+    if (options.periodYear) query.periodYear = options.periodYear;
+    if (options.readinessLevel) query.readinessLevel = options.readinessLevel;
+    if (options.minBoxPosition) query.boxPosition = { $gte: options.minBoxPosition };
+
+    return this.find(query)
+        .populate('employeeId', 'employeeId firstName lastName department designation')
+        .sort({ boxPosition: -1, readinessLevel: 1 });
+};
+
+/**
+ * Get talent pool statistics
+ */
+nineBoxSchema.statics.getTalentPoolStats = async function(firmId, periodYear) {
+    const stats = await this.aggregate([
+        {
+            $match: {
+                firmId: new mongoose.Types.ObjectId(firmId),
+                periodYear
+            }
+        },
+        {
+            $group: {
+                _id: null,
+                total: { $sum: 1 },
+                stars: { $sum: { $cond: [{ $eq: ['$boxPosition', 9] }, 1, 0] } },
+                highPerformers: { $sum: { $cond: [{ $eq: ['$boxPosition', 8] }, 1, 0] } },
+                highPotentials: { $sum: { $cond: [{ $eq: ['$boxPosition', 6] }, 1, 0] } },
+                corePlayers: { $sum: { $cond: [{ $eq: ['$boxPosition', 5] }, 1, 0] } },
+                successionCandidates: { $sum: { $cond: ['$isSuccessionCandidate', 1, 0] } },
+                flightRiskHigh: { $sum: { $cond: [{ $eq: ['$flightRisk', 'high'] }, 1, 0] } },
+                retentionCritical: { $sum: { $cond: [{ $eq: ['$retentionPriority', 'critical'] }, 1, 0] } },
+                readyNow: { $sum: { $cond: [{ $eq: ['$readinessLevel', 'ready_now'] }, 1, 0] } },
+                readyIn1Year: { $sum: { $cond: [{ $eq: ['$readinessLevel', 'ready_1_year'] }, 1, 0] } }
+            }
+        }
+    ]);
+
+    if (stats.length === 0) {
+        return {
+            total: 0,
+            stars: 0,
+            highPerformers: 0,
+            highPotentials: 0,
+            corePlayers: 0,
+            topTalent: 0,
+            topTalentPercentage: 0,
+            successionCandidates: 0,
+            flightRiskHigh: 0,
+            retentionCritical: 0,
+            readyNow: 0,
+            readyIn1Year: 0
+        };
+    }
+
+    const result = stats[0];
+    result.topTalent = result.stars + result.highPerformers + result.highPotentials;
+    result.topTalentPercentage = result.total > 0
+        ? parseFloat(((result.topTalent / result.total) * 100).toFixed(1))
+        : 0;
+
+    return result;
+};
+
 // ═══════════════════════════════════════════════════════════════
 // EXPORTS
 // ═══════════════════════════════════════════════════════════════
