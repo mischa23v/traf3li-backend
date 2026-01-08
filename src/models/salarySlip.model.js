@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { calculateGOSI } = require('../constants/gosi.constants');
 
 /**
  * Salary Slip Model - Payroll Management
@@ -434,11 +435,10 @@ salarySlipSchema.statics.generateFromEmployee = function (employee, month, year,
     const isSaudi = employee.personalInfo?.isSaudi !== false;
     const basicSalary = employee.compensation?.basicSalary || 0;
 
-    // Calculate GOSI
-    const gosiEmployeeRate = isSaudi ? 9.75 : 0;
-    const gosiEmployerRate = isSaudi ? 11.75 : 2;
-    const gosi = Math.round(basicSalary * (gosiEmployeeRate / 100));
-    const gosiEmployer = Math.round(basicSalary * (gosiEmployerRate / 100));
+    // Calculate GOSI using centralized constants (includes 45,000 SAR cap)
+    const gosiCalc = calculateGOSI(isSaudi, basicSalary);
+    const gosi = gosiCalc.employee;
+    const gosiEmployer = gosiCalc.employer;
 
     // Map allowances
     const allowances = (employee.compensation?.allowances || []).map(a => ({

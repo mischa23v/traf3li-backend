@@ -4,6 +4,7 @@ const asyncHandler = require('../utils/asyncHandler');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const mongoose = require('mongoose');
 const logger = require('../utils/logger');
+const { calculateGOSI, GOSI_RATES } = require('../constants/gosi.constants');
 
 // Helper function to escape regex special characters (ReDoS protection)
 const escapeRegex = (str) => {
@@ -376,18 +377,18 @@ const calculatePayroll = asyncHandler(async (req, res) => {
 
         const grossPay = basicSalary + allowances;
 
-        // GOSI calculation
+        // GOSI calculation using centralized constants (includes 45,000 SAR cap)
         const isSaudi = emp.personalInfo?.isSaudi !== false;
         let gosiEmployee = 0;
         let gosiEmployer = 0;
 
         if (payrollRun.configuration.calculateGOSI) {
+            const gosiCalc = calculateGOSI(isSaudi, basicSalary);
+            gosiEmployee = gosiCalc.employee;
+            gosiEmployer = gosiCalc.employer;
             if (isSaudi) {
-                gosiEmployee = Math.round(basicSalary * 0.0975); // 9.75%
-                gosiEmployer = Math.round(basicSalary * 0.1175); // 11.75%
                 saudiCount++;
             } else {
-                gosiEmployer = Math.round(basicSalary * 0.02); // 2% for non-Saudi
                 nonSaudiCount++;
             }
         }
@@ -1273,12 +1274,13 @@ const includeEmployee = asyncHandler(async (req, res) => {
     // Remove from excluded list
     payrollRun.configuration.excludedEmployees.splice(excludedIndex, 1);
 
-    // Calculate employee payroll data
+    // Calculate employee payroll data using centralized GOSI constants
     const basicSalary = parseFloat(employee.compensation?.basicSalary) || 0;
     const allowances = (employee.compensation?.allowances || []).reduce((sum, a) => sum + (parseFloat(a.amount) || 0), 0);
     const grossPay = basicSalary + allowances;
     const isSaudi = employee.personalInfo?.isSaudi !== false;
-    const gosiEmployee = payrollRun.configuration.calculateGOSI && isSaudi ? Math.round(basicSalary * 0.0975) : 0;
+    const gosiCalc = payrollRun.configuration.calculateGOSI ? calculateGOSI(isSaudi, basicSalary) : { employee: 0, employer: 0 };
+    const gosiEmployee = gosiCalc.employee;
     const netPay = grossPay - gosiEmployee;
 
     // Add to employee list
@@ -1407,13 +1409,14 @@ const recalculateSingleEmployee = asyncHandler(async (req, res) => {
 
     const oldData = payrollRun.employeeList[empIndex];
 
-    // Recalculate
+    // Recalculate using centralized GOSI constants (includes 45,000 SAR cap)
     const basicSalary = parseFloat(employee.compensation?.basicSalary) || 0;
     const allowances = (employee.compensation?.allowances || []).reduce((sum, a) => sum + (parseFloat(a.amount) || 0), 0);
     const grossPay = basicSalary + allowances;
     const isSaudi = employee.personalInfo?.isSaudi !== false;
-    const gosiEmployee = payrollRun.configuration.calculateGOSI && isSaudi ? Math.round(basicSalary * 0.0975) : 0;
-    const gosiEmployer = payrollRun.configuration.calculateGOSI && isSaudi ? Math.round(basicSalary * 0.1175) : (payrollRun.configuration.calculateGOSI ? Math.round(basicSalary * 0.02) : 0);
+    const gosiCalc = payrollRun.configuration.calculateGOSI ? calculateGOSI(isSaudi, basicSalary) : { employee: 0, employer: 0 };
+    const gosiEmployee = gosiCalc.employee;
+    const gosiEmployer = gosiCalc.employer;
     const netPay = grossPay - gosiEmployee;
 
     // Update employee entry

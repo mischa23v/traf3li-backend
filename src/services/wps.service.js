@@ -11,6 +11,8 @@
  * Reference: https://www.hrsd.gov.sa/sites/default/files/2017-06/WPS%20Wages%20File%20Technical%20Specification.pdf
  */
 
+const { GOSI_RATES } = require('../constants/gosi.constants');
+
 // SARIE Bank IDs for Saudi Banks
 const SARIE_BANK_IDS = {
     'SABB': '45',      // Saudi British Bank
@@ -92,6 +94,195 @@ function validateIBANChecksum(iban) {
         valid: true,
         bankCode: normalizedIban.slice(4, 6),
         normalized: normalizedIban
+    };
+}
+
+/**
+ * Validate Saudi National ID or Iqama with Luhn algorithm
+ * Saudi ID: starts with "1", 10 digits
+ * Iqama: starts with "2", 10 digits
+ * GCC ID: variable format (not validated with Luhn - marked as 'gcc_id')
+ * Passport: alphanumeric (not validated with Luhn - marked as 'passport')
+ *
+ * The Saudi variant of Luhn:
+ * - For each digit from left to right (excluding the last check digit)
+ * - Multiply odd positions (1st, 3rd, 5th...) by 2
+ * - If result >= 10, subtract 9
+ * - Sum all digits
+ * - The check digit makes (sum % 10) == 0
+ *
+ * @param {string} id - National ID or Iqama number
+ * @param {string} idType - Optional: 'saudi_id', 'iqama', 'gcc_id', 'passport'
+ * @returns {Object} { valid: boolean, type?: string, message?: string }
+ */
+function validateSaudiNationalId(id, idType = null) {
+    if (!id) {
+        return {
+            valid: false,
+            message: 'رقم الهوية مطلوب / National ID or Iqama is required'
+        };
+    }
+
+    // Normalize - remove spaces and dashes
+    const normalizedId = id.toString().replace(/[\s-]/g, '');
+
+    // Handle passport - alphanumeric, no Luhn validation
+    if (idType === 'passport' || /[A-Za-z]/.test(normalizedId)) {
+        if (normalizedId.length < 5 || normalizedId.length > 20) {
+            return {
+                valid: false,
+                type: 'passport',
+                message: 'رقم الجواز غير صالح (5-20 حرف) / Invalid passport number (5-20 characters)'
+            };
+        }
+        return {
+            valid: true,
+            type: 'passport',
+            normalized: normalizedId.toUpperCase(),
+            typeLabel: 'جواز سفر / Passport'
+        };
+    }
+
+    // Handle GCC ID - numeric but not Saudi format
+    if (idType === 'gcc_id' || (normalizedId.length > 0 && !/^[12]/.test(normalizedId) && /^\d+$/.test(normalizedId))) {
+        if (normalizedId.length < 8 || normalizedId.length > 15) {
+            return {
+                valid: false,
+                type: 'gcc_id',
+                message: 'رقم هوية مواطني الخليج غير صالح (8-15 رقم) / Invalid GCC ID (8-15 digits)'
+            };
+        }
+        return {
+            valid: true,
+            type: 'gcc_id',
+            normalized: normalizedId,
+            typeLabel: 'هوية خليجية / GCC ID'
+        };
+    }
+
+    // Standard Saudi ID / Iqama validation
+    // Check format: 10 digits starting with 1 or 2
+    if (!/^[12]\d{9}$/.test(normalizedId)) {
+        if (normalizedId.length !== 10) {
+            return {
+                valid: false,
+                message: 'رقم الهوية يجب أن يكون 10 أرقام / ID must be exactly 10 digits'
+            };
+        }
+        if (!/^[12]/.test(normalizedId)) {
+            return {
+                valid: false,
+                message: 'رقم الهوية يجب أن يبدأ بـ 1 (مواطن) أو 2 (مقيم) / ID must start with 1 (Saudi) or 2 (Iqama)'
+            };
+        }
+        return {
+            valid: false,
+            message: 'رقم الهوية يحتوي على أحرف غير صالحة / ID contains invalid characters'
+        };
+    }
+
+    // Determine type
+    const detectedType = normalizedId.charAt(0) === '1' ? 'saudi_id' : 'iqama';
+
+    // Luhn algorithm (Saudi variant)
+    // Odd positions (1st, 3rd, 5th...) are doubled
+    let sum = 0;
+    for (let i = 0; i < normalizedId.length; i++) {
+        let digit = parseInt(normalizedId.charAt(i), 10);
+
+        // Saudi variant: multiply odd positions (1-indexed, so even indices)
+        if (i % 2 === 0) {
+            digit *= 2;
+            if (digit > 9) {
+                digit -= 9;
+            }
+        }
+
+        sum += digit;
+    }
+
+    // Valid if sum is divisible by 10
+    if (sum % 10 !== 0) {
+        return {
+            valid: false,
+            type: detectedType,
+            message: detectedType === 'saudi_id'
+                ? 'رقم الهوية الوطنية غير صالح - خطأ في رقم التحقق / Invalid Saudi ID - checksum error'
+                : 'رقم الإقامة غير صالح - خطأ في رقم التحقق / Invalid Iqama - checksum error',
+            checksumError: true
+        };
+    }
+
+    return {
+        valid: true,
+        type: detectedType,
+        normalized: normalizedId,
+        typeLabel: detectedType === 'saudi_id' ? 'هوية وطنية / Saudi National ID' : 'إقامة / Iqama'
+    };
+}
+
+/**
+ * Validate Iqama expiry date
+ * @param {Date|string} expiryDate - Iqama expiry date
+ * @returns {Object} { valid: boolean, daysRemaining?: number, warning?: string, expired?: boolean }
+ */
+function validateIqamaExpiry(expiryDate) {
+    if (!expiryDate) {
+        return {
+            valid: false,
+            message: 'تاريخ انتهاء الإقامة مطلوب / Iqama expiry date is required'
+        };
+    }
+
+    const expiry = new Date(expiryDate);
+    if (isNaN(expiry.getTime())) {
+        return {
+            valid: false,
+            message: 'تاريخ انتهاء الإقامة غير صالح / Invalid expiry date format'
+        };
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    expiry.setHours(0, 0, 0, 0);
+
+    const diffTime = expiry.getTime() - today.getTime();
+    const daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    // Expired
+    if (daysRemaining < 0) {
+        return {
+            valid: false,
+            expired: true,
+            daysRemaining,
+            message: `الإقامة منتهية منذ ${Math.abs(daysRemaining)} يوم / Iqama expired ${Math.abs(daysRemaining)} days ago`
+        };
+    }
+
+    // Expiring within 30 days - critical warning
+    if (daysRemaining <= 30) {
+        return {
+            valid: true,
+            daysRemaining,
+            warning: 'critical',
+            message: `تنبيه عاجل: الإقامة تنتهي خلال ${daysRemaining} يوم / URGENT: Iqama expires in ${daysRemaining} days`
+        };
+    }
+
+    // Expiring within 90 days - warning
+    if (daysRemaining <= 90) {
+        return {
+            valid: true,
+            daysRemaining,
+            warning: 'moderate',
+            message: `تنبيه: الإقامة تنتهي خلال ${daysRemaining} يوم / Warning: Iqama expires in ${daysRemaining} days`
+        };
+    }
+
+    return {
+        valid: true,
+        daysRemaining,
+        message: `الإقامة صالحة لـ ${daysRemaining} يوم / Iqama valid for ${daysRemaining} days`
     };
 }
 
@@ -231,11 +422,12 @@ class WPSService {
 
     /**
      * Validate employee data before file generation
-     * Includes ISO 7064 Mod 97 IBAN checksum validation
+     * Includes ISO 7064 Mod 97 IBAN checksum and Saudi National ID Luhn validation
      */
     validateEmployeeData(employees) {
         const errors = [];
         const warnings = [];
+        const iqamaExpiryWarnings = [];
 
         employees.forEach((emp, index) => {
             const empLabel = `Employee ${index + 1} (${emp.name || 'Unknown'})`;
@@ -254,9 +446,46 @@ class WPSService {
                 }
             }
 
-            // Validate MOL ID / National ID
-            if (!emp.molId && !emp.nationalId) {
+            // Validate National ID or MOL ID with Luhn checksum
+            const nationalId = emp.molId || emp.nationalId;
+            const nationalIdType = emp.nationalIdType || emp.idType; // Support both field names
+            if (!nationalId) {
                 errors.push(`${empLabel}: رقم الهوية أو رقم وزارة العمل مطلوب / Missing MOL ID or National ID.`);
+            } else {
+                const idValidation = validateSaudiNationalId(nationalId, nationalIdType);
+                if (!idValidation.valid) {
+                    errors.push(`${empLabel}: ${idValidation.message}`);
+                } else {
+                    // Validate ID type matches nationality (only for Saudi ID and Iqama)
+                    if (idValidation.type === 'saudi_id' || idValidation.type === 'iqama') {
+                        if (emp.nationality === 'SA' && idValidation.type === 'iqama') {
+                            warnings.push(`${empLabel}: موظف سعودي لكن رقم الهوية إقامة / Saudi employee has Iqama number instead of National ID.`);
+                        } else if (emp.nationality !== 'SA' && idValidation.type === 'saudi_id') {
+                            warnings.push(`${empLabel}: موظف غير سعودي لكن رقم الهوية سعودية / Non-Saudi employee has Saudi National ID.`);
+                        }
+                    }
+                }
+
+                // Validate Iqama/ID expiry for non-Saudi employees or Iqama holders
+                const requiresExpiryCheck = emp.nationality !== 'SA' ||
+                    (idValidation && idValidation.type === 'iqama') ||
+                    (idValidation && idValidation.type === 'gcc_id') ||
+                    (idValidation && idValidation.type === 'passport');
+
+                if (requiresExpiryCheck) {
+                    if (emp.iqamaExpiry || emp.nationalIdExpiry) {
+                        const expiryValidation = validateIqamaExpiry(emp.iqamaExpiry || emp.nationalIdExpiry);
+                        if (!expiryValidation.valid) {
+                            errors.push(`${empLabel}: ${expiryValidation.message}`);
+                        } else if (expiryValidation.warning === 'critical') {
+                            iqamaExpiryWarnings.push(`${empLabel}: ${expiryValidation.message}`);
+                        } else if (expiryValidation.warning === 'moderate') {
+                            warnings.push(`${empLabel}: ${expiryValidation.message}`);
+                        }
+                    } else {
+                        warnings.push(`${empLabel}: تاريخ انتهاء الإقامة/الجواز غير محدد / ID/Passport expiry date not specified.`);
+                    }
+                }
             }
 
             // Validate salary
@@ -264,19 +493,28 @@ class WPSService {
                 errors.push(`${empLabel}: صافي الراتب غير صالح / Invalid net salary.`);
             }
 
-            // GOSI validation
-            if (emp.nationality === 'SA' && emp.salary && emp.salary.basic) {
-                const expectedGosi = emp.salary.basic * 0.0975; // 9.75% for Saudi employee
+            // GOSI validation using centralized rates from constants
+            if (emp.salary && emp.salary.basic) {
+                const isSaudi = emp.nationality === 'SA';
+                const rates = isSaudi ? GOSI_RATES.SAUDI : GOSI_RATES.NON_SAUDI;
+                const cappedSalary = Math.min(emp.salary.basic, GOSI_RATES.MAX_CONTRIBUTION_BASE);
+                const expectedGosi = Math.round(cappedSalary * rates.employee);
+
                 if (emp.salary.gosiDeduction !== undefined && Math.abs(emp.salary.gosiDeduction - expectedGosi) > 1) {
-                    warnings.push(`${empLabel}: حسم التأمينات قد يكون غير صحيح / GOSI deduction may be incorrect.`);
+                    warnings.push(`${empLabel}: حسم التأمينات قد يكون غير صحيح (المتوقع: ${expectedGosi} ريال) / GOSI deduction may be incorrect (expected: ${expectedGosi} SAR).`);
                 }
             }
 
-            // Minimum wage validation (currently 4000 SAR for Saudis)
-            if (emp.nationality === 'SA' && emp.salary && emp.salary.basic < 4000) {
-                warnings.push(`${empLabel}: الراتب الأساسي أقل من الحد الأدنى (4000 ريال) / Basic salary below minimum wage (4000 SAR).`);
+            // Minimum wage validation using centralized constants
+            if (emp.nationality === 'SA' && emp.salary && emp.salary.basic < GOSI_RATES.MINIMUM_WAGE_SAUDI) {
+                warnings.push(`${empLabel}: الراتب الأساسي أقل من الحد الأدنى (${GOSI_RATES.MINIMUM_WAGE_SAUDI} ريال) / Basic salary below minimum wage (${GOSI_RATES.MINIMUM_WAGE_SAUDI} SAR).`);
             }
         });
+
+        // Add critical Iqama expiry warnings at the top
+        if (iqamaExpiryWarnings.length > 0) {
+            warnings.unshift(...iqamaExpiryWarnings);
+        }
 
         return { valid: errors.length === 0, errors, warnings };
     }
@@ -465,4 +703,6 @@ module.exports = {
     SARIE_BANK_IDS,
     getSarieIdFromIban,
     validateIBANChecksum,
+    validateSaudiNationalId,
+    validateIqamaExpiry,
 };
