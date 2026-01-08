@@ -1,4 +1,22 @@
 /**
+ * ╔══════════════════════════════════════════════════════════════════════════════╗
+ * ║  ⚠️  SAUDI LABOR LAW COMPLIANCE - DO NOT MODIFY WITHOUT LEGAL REVIEW  ⚠️    ║
+ * ╠══════════════════════════════════════════════════════════════════════════════╣
+ * ║                                                                               ║
+ * ║  Leave entitlements mandated by Saudi Labor Law (verified January 2026):     ║
+ * ║  - Annual: 21 days (<5 yrs), 30 days (≥5 yrs) - Article 109                  ║
+ * ║  - Sick: 30 full + 60 half + 30 unpaid = 120 days - Article 117              ║
+ * ║  - Maternity: 84 days (12 weeks) - Article 151 (2025 update)                 ║
+ * ║  - Paternity: 3 days - Article 113                                           ║
+ * ║  - Marriage: 5 days - Article 113                                            ║
+ * ║  - Death (spouse/relative): 5 days - Article 113                             ║
+ * ║  - Hajj: 10-15 days, ONCE per employer - Article 114                         ║
+ * ║  - Iddah (widow): 130 days Muslim, 15 days non-Muslim - Article 160          ║
+ * ║  - Exam: Duration of exam (with supporting docs) - Article 115               ║
+ * ║                                                                               ║
+ * ║  Official sources: hrsd.gov.sa, mol.gov.sa                                   ║
+ * ╚══════════════════════════════════════════════════════════════════════════════╝
+ *
  * Leave Type Model
  *
  * Defines configurable leave types for the organization.
@@ -228,25 +246,13 @@ leaveTypeSchema.statics.getDefaultTypes = function() {
       isSystemDefault: true
     },
     {
-      code: 'HAJJ',
-      name: 'Hajj Leave',
-      nameAr: 'إجازة حج',
-      laborLawArticle: 'Article 114',
-      laborLawArticleAr: 'المادة 114',
-      maxDays: 15,
-      isPaid: true,
-      requiresApproval: true,
-      color: '#8B5CF6',
-      sortOrder: 3,
-      isSystemDefault: true
-    },
-    {
       code: 'MARRIAGE',
       name: 'Marriage Leave',
       nameAr: 'إجازة زواج',
       laborLawArticle: 'Article 113',
       laborLawArticleAr: 'المادة 113',
-      maxDays: 3,
+      // ⚠️ LABOR LAW: 5 days paid leave for marriage
+      maxDays: 5,
       isPaid: true,
       requiresDocument: true,
       documentType: 'marriage_certificate',
@@ -273,11 +279,12 @@ leaveTypeSchema.statics.getDefaultTypes = function() {
     },
     {
       code: 'DEATH',
-      name: 'Death Leave',
+      name: 'Death Leave (Bereavement)',
       nameAr: 'إجازة وفاة',
       laborLawArticle: 'Article 113',
       laborLawArticleAr: 'المادة 113',
-      maxDays: 3,
+      // ⚠️ LABOR LAW: 5 days paid leave for death of spouse or close relative
+      maxDays: 5,
       isPaid: true,
       requiresDocument: true,
       documentType: 'death_certificate',
@@ -292,7 +299,10 @@ leaveTypeSchema.statics.getDefaultTypes = function() {
       nameAr: 'إجازة وضع',
       laborLawArticle: 'Article 151',
       laborLawArticleAr: 'المادة 151',
-      maxDays: 70,
+      // ⚠️ LABOR LAW (2025 Update): 84 days (12 weeks) maternity leave
+      // Can start up to 4 weeks before expected delivery
+      // Remaining days taken after delivery
+      maxDays: 84,
       isPaid: true,
       requiresDocument: true,
       documentType: 'medical_certificate',
@@ -341,6 +351,56 @@ leaveTypeSchema.statics.getDefaultTypes = function() {
       requiresApproval: true,
       color: '#9CA3AF',
       sortOrder: 10,
+      isSystemDefault: true
+    },
+    {
+      // ⚠️ IDDAH LEAVE - Article 160
+      // Muslim widow: 130 days (4 months, 10 days)
+      // Non-Muslim widow: 15 days
+      // Starts from date of husband's death
+      // Employee religion determines duration (stored in employee.personalInfo.religion)
+      code: 'IDDAH',
+      name: 'Iddah Leave (Widow)',
+      nameAr: 'إجازة العدة',
+      description: 'Leave for widowed female employees. Duration based on religion: 130 days (Muslim) or 15 days (Non-Muslim).',
+      descriptionAr: 'إجازة للموظفات المتوفى عنهن أزواجهن. المدة حسب الدين: 130 يومًا (مسلمة) أو 15 يومًا (غير مسلمة)',
+      laborLawArticle: 'Article 160',
+      laborLawArticleAr: 'المادة 160',
+      // Default to Muslim duration (130 days)
+      // System should check employee.personalInfo.religion and use 15 for non-Muslim
+      maxDays: 130,
+      isPaid: true,
+      payPercentage: 100,
+      requiresDocument: true,
+      documentType: 'death_certificate',
+      applicableGender: 'female',
+      requiresApproval: true,
+      color: '#1F2937',
+      sortOrder: 11,
+      isSystemDefault: true
+    },
+    {
+      // ⚠️ HAJJ LEAVE - Article 114
+      // 10-15 days paid leave for Hajj pilgrimage
+      // Can only be taken ONCE per employer (track hajjUsedWithCurrentEmployer in leave allocation)
+      // Employee must have worked at least 2 years
+      code: 'HAJJ',
+      name: 'Hajj Leave',
+      nameAr: 'إجازة حج',
+      description: 'Leave for Hajj pilgrimage. Once per employer, requires 2+ years of service.',
+      descriptionAr: 'إجازة لأداء فريضة الحج. مرة واحدة لكل صاحب عمل، يشترط سنتين من الخدمة',
+      laborLawArticle: 'Article 114',
+      laborLawArticleAr: 'المادة 114',
+      maxDays: 15,
+      minServiceDays: 730, // 2 years minimum service
+      isPaid: true,
+      payPercentage: 100,
+      requiresDocument: false,
+      requiresApproval: true,
+      // Note: Track if employee has used Hajj leave with current employer
+      // in leaveAllocation.hajjUsedWithCurrentEmployer
+      color: '#8B5CF6',
+      sortOrder: 12,
       isSystemDefault: true
     }
   ];
