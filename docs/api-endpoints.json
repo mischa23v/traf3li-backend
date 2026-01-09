@@ -1,7 +1,7 @@
 {
-  "generated": "2026-01-09T09:29:15.432Z",
-  "totalEndpoints": 4147,
-  "totalModules": 265,
+  "generated": "2026-01-09T09:37:17.345Z",
+  "totalEndpoints": 4184,
+  "totalModules": 267,
   "modules": {
     "account": [
       {
@@ -8205,6 +8205,152 @@
         "module": "crmReports"
       }
     ],
+    "crmReportsAlias": [
+      {
+        "method": "GET",
+        "path": "/pipeline/overview",
+        "controller": "unknown",
+        "file": "crmReportsAlias.route.js",
+        "fullPath": "/api/crm/reports/pipeline/overview",
+        "module": "crmReportsAlias"
+      },
+      {
+        "method": "GET",
+        "path": "/pipeline/velocity",
+        "controller": "unknown",
+        "file": "crmReportsAlias.route.js",
+        "fullPath": "/api/crm/reports/pipeline/velocity",
+        "module": "crmReportsAlias"
+      },
+      {
+        "method": "GET",
+        "path": "/pipeline/stage-duration",
+        "controller": "unknown",
+        "file": "crmReportsAlias.route.js",
+        "fullPath": "/api/crm/reports/pipeline/stage-duration",
+        "module": "crmReportsAlias"
+      },
+      {
+        "method": "GET",
+        "path": "/pipeline/deal-aging",
+        "controller": "unknown",
+        "file": "crmReportsAlias.route.js",
+        "fullPath": "/api/crm/reports/pipeline/deal-aging",
+        "module": "crmReportsAlias"
+      },
+      {
+        "method": "GET",
+        "path": "/pipeline/movement",
+        "controller": "unknown",
+        "file": "crmReportsAlias.route.js",
+        "fullPath": "/api/crm/reports/pipeline/movement",
+        "module": "crmReportsAlias"
+      },
+      {
+        "method": "GET",
+        "path": "/leads/by-source",
+        "controller": "unknown",
+        "file": "crmReportsAlias.route.js",
+        "fullPath": "/api/crm/reports/leads/by-source",
+        "module": "crmReportsAlias"
+      },
+      {
+        "method": "GET",
+        "path": "/leads/conversion-funnel",
+        "controller": "unknown",
+        "file": "crmReportsAlias.route.js",
+        "fullPath": "/api/crm/reports/leads/conversion-funnel",
+        "module": "crmReportsAlias"
+      },
+      {
+        "method": "GET",
+        "path": "/leads/response-time",
+        "controller": "unknown",
+        "file": "crmReportsAlias.route.js",
+        "fullPath": "/api/crm/reports/leads/response-time",
+        "module": "crmReportsAlias"
+      },
+      {
+        "method": "GET",
+        "path": "/leads/velocity",
+        "controller": "unknown",
+        "file": "crmReportsAlias.route.js",
+        "fullPath": "/api/crm/reports/leads/velocity",
+        "module": "crmReportsAlias"
+      },
+      {
+        "method": "GET",
+        "path": "/leads/distribution",
+        "controller": "unknown",
+        "file": "crmReportsAlias.route.js",
+        "fullPath": "/api/crm/reports/leads/distribution",
+        "module": "crmReportsAlias"
+      },
+      {
+        "method": "GET",
+        "path": "/activity/summary",
+        "controller": "unknown",
+        "file": "crmReportsAlias.route.js",
+        "fullPath": "/api/crm/reports/activity/summary",
+        "module": "crmReportsAlias"
+      },
+      {
+        "method": "GET",
+        "path": "/activity/calls",
+        "controller": "unknown",
+        "file": "crmReportsAlias.route.js",
+        "fullPath": "/api/crm/reports/activity/calls",
+        "module": "crmReportsAlias"
+      },
+      {
+        "method": "GET",
+        "path": "/activity/emails",
+        "controller": "unknown",
+        "file": "crmReportsAlias.route.js",
+        "fullPath": "/api/crm/reports/activity/emails",
+        "module": "crmReportsAlias"
+      },
+      {
+        "method": "GET",
+        "path": "/activity/meetings",
+        "controller": "unknown",
+        "file": "crmReportsAlias.route.js",
+        "fullPath": "/api/crm/reports/activity/meetings",
+        "module": "crmReportsAlias"
+      },
+      {
+        "method": "GET",
+        "path": "/activity/tasks",
+        "controller": "unknown",
+        "file": "crmReportsAlias.route.js",
+        "fullPath": "/api/crm/reports/activity/tasks",
+        "module": "crmReportsAlias"
+      },
+      {
+        "method": "GET",
+        "path": "/revenue/forecast",
+        "controller": "unknown",
+        "file": "crmReportsAlias.route.js",
+        "fullPath": "/api/crm/reports/revenue/forecast",
+        "module": "crmReportsAlias"
+      },
+      {
+        "method": "GET",
+        "path": "/revenue/by-month",
+        "controller": "unknown",
+        "file": "crmReportsAlias.route.js",
+        "fullPath": "/api/crm/reports/revenue/by-month",
+        "module": "crmReportsAlias"
+      },
+      {
+        "method": "GET",
+        "path": "/revenue/by-rep",
+        "controller": "unknown",
+        "file": "crmReportsAlias.route.js",
+        "fullPath": "/api/crm/reports/revenue/by-rep",
+        "module": "crmReportsAlias"
+      }
+    ],
     "crmSettings": [
       {
         "method": "GET",
@@ -11359,6 +11505,160 @@
         "file": "employeeSelfService.route.js",
         "fullPath": "/api/hr/self-service/approvals/pending",
         "module": "employeeSelfService"
+      }
+    ],
+    "employeeTransfer": [
+      {
+        "method": "GET",
+        "path": "/",
+        "controller": "unknown",
+        "file": "employeeTransfer.route.js",
+        "fullPath": "/api/hr/transfers",
+        "module": "employeeTransfer"
+      },
+      {
+        "method": "GET",
+        "path": "/pending-approvals",
+        "controller": "unknown",
+        "file": "employeeTransfer.route.js",
+        "fullPath": "/api/hr/transfers/pending-approvals",
+        "module": "employeeTransfer"
+      },
+      {
+        "method": "GET",
+        "path": "/pending-handovers",
+        "controller": "unknown",
+        "file": "employeeTransfer.route.js",
+        "fullPath": "/api/hr/transfers/pending-handovers",
+        "module": "employeeTransfer"
+      },
+      {
+        "method": "GET",
+        "path": "/stats",
+        "controller": "unknown",
+        "file": "employeeTransfer.route.js",
+        "fullPath": "/api/hr/transfers/stats",
+        "module": "employeeTransfer"
+      },
+      {
+        "method": "GET",
+        "path": "/history/:employeeId",
+        "controller": "unknown",
+        "file": "employeeTransfer.route.js",
+        "fullPath": "/api/hr/transfers/history/:employeeId",
+        "module": "employeeTransfer"
+      },
+      {
+        "method": "GET",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "employeeTransfer.route.js",
+        "fullPath": "/api/hr/transfers/:id",
+        "module": "employeeTransfer"
+      },
+      {
+        "method": "POST",
+        "path": "/",
+        "controller": "unknown",
+        "file": "employeeTransfer.route.js",
+        "fullPath": "/api/hr/transfers",
+        "module": "employeeTransfer"
+      },
+      {
+        "method": "PUT",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "employeeTransfer.route.js",
+        "fullPath": "/api/hr/transfers/:id",
+        "module": "employeeTransfer"
+      },
+      {
+        "method": "DELETE",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "employeeTransfer.route.js",
+        "fullPath": "/api/hr/transfers/:id",
+        "module": "employeeTransfer"
+      },
+      {
+        "method": "POST",
+        "path": "/bulk-delete",
+        "controller": "unknown",
+        "file": "employeeTransfer.route.js",
+        "fullPath": "/api/hr/transfers/bulk-delete",
+        "module": "employeeTransfer"
+      },
+      {
+        "method": "PATCH",
+        "path": "/:id/status",
+        "controller": "unknown",
+        "file": "employeeTransfer.route.js",
+        "fullPath": "/api/hr/transfers/:id/status",
+        "module": "employeeTransfer"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/approve",
+        "controller": "unknown",
+        "file": "employeeTransfer.route.js",
+        "fullPath": "/api/hr/transfers/:id/approve",
+        "module": "employeeTransfer"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/reject",
+        "controller": "unknown",
+        "file": "employeeTransfer.route.js",
+        "fullPath": "/api/hr/transfers/:id/reject",
+        "module": "employeeTransfer"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/apply",
+        "controller": "unknown",
+        "file": "employeeTransfer.route.js",
+        "fullPath": "/api/hr/transfers/:id/apply",
+        "module": "employeeTransfer"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/approvals",
+        "controller": "unknown",
+        "file": "employeeTransfer.route.js",
+        "fullPath": "/api/hr/transfers/:id/approvals",
+        "module": "employeeTransfer"
+      },
+      {
+        "method": "PATCH",
+        "path": "/:id/approvals/:stepIndex",
+        "controller": "unknown",
+        "file": "employeeTransfer.route.js",
+        "fullPath": "/api/hr/transfers/:id/approvals/:stepIndex",
+        "module": "employeeTransfer"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/handover",
+        "controller": "unknown",
+        "file": "employeeTransfer.route.js",
+        "fullPath": "/api/hr/transfers/:id/handover",
+        "module": "employeeTransfer"
+      },
+      {
+        "method": "PATCH",
+        "path": "/:id/handover/:itemIndex",
+        "controller": "unknown",
+        "file": "employeeTransfer.route.js",
+        "fullPath": "/api/hr/transfers/:id/handover/:itemIndex",
+        "module": "employeeTransfer"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/notify",
+        "controller": "unknown",
+        "file": "employeeTransfer.route.js",
+        "fullPath": "/api/hr/transfers/:id/notify",
+        "module": "employeeTransfer"
       }
     ],
     "event": [

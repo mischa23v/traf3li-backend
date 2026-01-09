@@ -110,6 +110,7 @@ const crmTransactionRoute = require('./crmTransaction.route');
 
 // CRM Reports Routes
 const crmReportsRoute = require('./crmReports.route');
+const crmReportsAliasRoute = require('./crmReportsAlias.route');
 
 // Appointment Routes
 const appointmentRoute = require('./appointment.route');
@@ -282,10 +283,11 @@ const shiftRoute = require('./shift.route');
 const leaveManagementRoute = require('./leaveManagement.route');
 const hrExtendedRoute = require('./hrExtended.route');
 
-// HR Frontend-Expected Routes (employee-incentives, employee-promotions, skill-maps)
+// HR Frontend-Expected Routes (employee-incentives, employee-promotions, skill-maps, transfers)
 const employeeIncentiveRoute = require('./employeeIncentive.route');
 const employeePromotionRoute = require('./employeePromotion.route');
 const skillMapRoute = require('./skillMap.route');
+const employeeTransferRoute = require('./employeeTransfer.route');
 
 // Who's Out Calendar & Compliance Dashboard Routes
 const whosOutRoute = require('./whosOut.route');
@@ -513,6 +515,7 @@ module.exports = {
 
     // CRM Reports
     crmReportsRoute,
+    crmReportsAliasRoute,
 
     // Appointments
     appointmentRoute,
@@ -689,6 +692,7 @@ module.exports = {
     employeeIncentiveRoute,
     employeePromotionRoute,
     skillMapRoute,
+    employeeTransferRoute,
 
     // Who's Out Calendar & Compliance Dashboard
     whosOutRoute,

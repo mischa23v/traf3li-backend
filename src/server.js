@@ -222,6 +222,7 @@ const {
 
     // CRM Reports
     crmReportsRoute,
+    crmReportsAliasRoute,
 
     // Appointments
     appointmentRoute,
@@ -399,6 +400,7 @@ const {
     employeeIncentiveRoute,
     employeePromotionRoute,
     skillMapRoute,
+    employeeTransferRoute,
 
     // Unified Data Flow
     unifiedDataRoute,
@@ -1091,6 +1093,7 @@ app.use('/api/sales-forecasts', salesForecastRoutes);  // Sales forecasting & qu
 app.use('/api/sales-quotas', salesQuotaRoute);  // Sales quota management
 app.use('/api/crm-transactions', noCache, crmTransactionRoute);  // CRM transaction logging & analytics
 app.use('/api/crm-reports', noCache, crmReportsRoute);  // CRM reports & analytics dashboard
+app.use('/api/crm/reports', noCache, crmReportsAliasRoute);  // CRM reports alias for frontend expected paths
 app.use('/api/appointments', appointmentRoute);  // Appointments, availability, and scheduling
 app.use('/api/sales', noCache, salesRoute);  // Sales module (orders, deliveries, returns, commissions)
 app.use('/api/whatsapp', whatsappRoute);
@@ -1290,10 +1293,11 @@ app.use('/api/hr/leave-management', noCache, leaveManagementRoute);
 // Extended HR features (encashment, compensatory, promotions, transfers, etc.)
 app.use('/api/hr/extended', noCache, hrExtendedRoute);
 
-// HR Frontend-Expected Routes (employee-incentives, employee-promotions, skill-maps)
+// HR Frontend-Expected Routes (employee-incentives, employee-promotions, skill-maps, transfers)
 app.use('/api/hr/employee-incentives', noCache, employeeIncentiveRoute);
 app.use('/api/hr/employee-promotions', noCache, employeePromotionRoute);
 app.use('/api/hr/skill-maps', noCache, skillMapRoute);
+app.use('/api/hr/transfers', noCache, employeeTransferRoute);
 
 // ============================================
 // UNIFIED DATA FLOW ROUTES

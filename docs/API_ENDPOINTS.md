@@ -71,6 +71,7 @@
 - [crmActivity](#crmactivity) (14 endpoints)
 - [crmPipeline](#crmpipeline) (12 endpoints)
 - [crmReports](#crmreports) (27 endpoints)
+- [crmReportsAlias](#crmreportsalias) (18 endpoints)
 - [crmSettings](#crmsettings) (3 endpoints)
 - [crmTransaction](#crmtransaction) (15 endpoints)
 - [currency](#currency) (6 endpoints)
@@ -97,6 +98,7 @@
 - [employeeLoan](#employeeloan) (24 endpoints)
 - [employeePromotion](#employeepromotion) (18 endpoints)
 - [employeeSelfService](#employeeselfservice) (11 endpoints)
+- [employeeTransfer](#employeetransfer) (19 endpoints)
 - [event](#event) (51 endpoints)
 - [exchangeRateRevaluation](#exchangeraterevaluation) (9 endpoints)
 - [expense](#expense) (17 endpoints)
@@ -278,8 +280,8 @@
 
 | Metric | Count |
 |--------|-------|
-| Total Endpoints | 4147 |
-| Total Modules | 265 |
+| Total Endpoints | 4184 |
+| Total Modules | 267 |
 
 ---
 
@@ -1617,6 +1619,29 @@
 | `GET` | `/api/crm-reports/prospects-engaged` | unknown | crmReports.route.js |
 | `GET` | `/api/crm-reports/lead-conversion-time` | unknown | crmReports.route.js |
 
+## crmReportsAlias
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/crm/reports/pipeline/overview` | unknown | crmReportsAlias.route.js |
+| `GET` | `/api/crm/reports/pipeline/velocity` | unknown | crmReportsAlias.route.js |
+| `GET` | `/api/crm/reports/pipeline/stage-duration` | unknown | crmReportsAlias.route.js |
+| `GET` | `/api/crm/reports/pipeline/deal-aging` | unknown | crmReportsAlias.route.js |
+| `GET` | `/api/crm/reports/pipeline/movement` | unknown | crmReportsAlias.route.js |
+| `GET` | `/api/crm/reports/leads/by-source` | unknown | crmReportsAlias.route.js |
+| `GET` | `/api/crm/reports/leads/conversion-funnel` | unknown | crmReportsAlias.route.js |
+| `GET` | `/api/crm/reports/leads/response-time` | unknown | crmReportsAlias.route.js |
+| `GET` | `/api/crm/reports/leads/velocity` | unknown | crmReportsAlias.route.js |
+| `GET` | `/api/crm/reports/leads/distribution` | unknown | crmReportsAlias.route.js |
+| `GET` | `/api/crm/reports/activity/summary` | unknown | crmReportsAlias.route.js |
+| `GET` | `/api/crm/reports/activity/calls` | unknown | crmReportsAlias.route.js |
+| `GET` | `/api/crm/reports/activity/emails` | unknown | crmReportsAlias.route.js |
+| `GET` | `/api/crm/reports/activity/meetings` | unknown | crmReportsAlias.route.js |
+| `GET` | `/api/crm/reports/activity/tasks` | unknown | crmReportsAlias.route.js |
+| `GET` | `/api/crm/reports/revenue/forecast` | unknown | crmReportsAlias.route.js |
+| `GET` | `/api/crm/reports/revenue/by-month` | unknown | crmReportsAlias.route.js |
+| `GET` | `/api/crm/reports/revenue/by-rep` | unknown | crmReportsAlias.route.js |
+
 ## crmSettings
 
 | Method | Path | Controller | File |
@@ -2134,6 +2159,30 @@
 | `GET` | `/api/hr/self-service/advances` | unknown | employeeSelfService.route.js |
 | `GET` | `/api/hr/self-service/payslips` | unknown | employeeSelfService.route.js |
 | `GET` | `/api/hr/self-service/approvals/pending` | unknown | employeeSelfService.route.js |
+
+## employeeTransfer
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/hr/transfers` | unknown | employeeTransfer.route.js |
+| `GET` | `/api/hr/transfers/pending-approvals` | unknown | employeeTransfer.route.js |
+| `GET` | `/api/hr/transfers/pending-handovers` | unknown | employeeTransfer.route.js |
+| `GET` | `/api/hr/transfers/stats` | unknown | employeeTransfer.route.js |
+| `GET` | `/api/hr/transfers/history/:employeeId` | unknown | employeeTransfer.route.js |
+| `GET` | `/api/hr/transfers/:id` | unknown | employeeTransfer.route.js |
+| `POST` | `/api/hr/transfers` | unknown | employeeTransfer.route.js |
+| `PUT` | `/api/hr/transfers/:id` | unknown | employeeTransfer.route.js |
+| `DELETE` | `/api/hr/transfers/:id` | unknown | employeeTransfer.route.js |
+| `POST` | `/api/hr/transfers/bulk-delete` | unknown | employeeTransfer.route.js |
+| `PATCH` | `/api/hr/transfers/:id/status` | unknown | employeeTransfer.route.js |
+| `POST` | `/api/hr/transfers/:id/approve` | unknown | employeeTransfer.route.js |
+| `POST` | `/api/hr/transfers/:id/reject` | unknown | employeeTransfer.route.js |
+| `POST` | `/api/hr/transfers/:id/apply` | unknown | employeeTransfer.route.js |
+| `POST` | `/api/hr/transfers/:id/approvals` | unknown | employeeTransfer.route.js |
+| `PATCH` | `/api/hr/transfers/:id/approvals/:stepIndex` | unknown | employeeTransfer.route.js |
+| `POST` | `/api/hr/transfers/:id/handover` | unknown | employeeTransfer.route.js |
+| `PATCH` | `/api/hr/transfers/:id/handover/:itemIndex` | unknown | employeeTransfer.route.js |
+| `POST` | `/api/hr/transfers/:id/notify` | unknown | employeeTransfer.route.js |
 
 ## event
 
@@ -5759,7 +5808,7 @@
 
 ## Quick Reference by Method
 
-### GET (1764)
+### GET (1788)
 
 <details>
 <summary>Click to expand</summary>
@@ -6235,6 +6284,24 @@ GET    /api/crm-transactions/stale-leads/by-stage
 GET    /api/crm-transactions/stale-leads/summary
 GET    /api/crm-transactions/summary
 GET    /api/crm-transactions/user-activity/:userId
+GET    /api/crm/reports/activity/calls
+GET    /api/crm/reports/activity/emails
+GET    /api/crm/reports/activity/meetings
+GET    /api/crm/reports/activity/summary
+GET    /api/crm/reports/activity/tasks
+GET    /api/crm/reports/leads/by-source
+GET    /api/crm/reports/leads/conversion-funnel
+GET    /api/crm/reports/leads/distribution
+GET    /api/crm/reports/leads/response-time
+GET    /api/crm/reports/leads/velocity
+GET    /api/crm/reports/pipeline/deal-aging
+GET    /api/crm/reports/pipeline/movement
+GET    /api/crm/reports/pipeline/overview
+GET    /api/crm/reports/pipeline/stage-duration
+GET    /api/crm/reports/pipeline/velocity
+GET    /api/crm/reports/revenue/by-month
+GET    /api/crm/reports/revenue/by-rep
+GET    /api/crm/reports/revenue/forecast
 GET    /api/crmSettings
 GET    /api/currency/rates
 GET    /api/currency/settings
@@ -6757,6 +6824,12 @@ GET    /api/hr/trainings/policies
 GET    /api/hr/trainings/providers
 GET    /api/hr/trainings/stats
 GET    /api/hr/trainings/upcoming
+GET    /api/hr/transfers
+GET    /api/hr/transfers/:id
+GET    /api/hr/transfers/history/:employeeId
+GET    /api/hr/transfers/pending-approvals
+GET    /api/hr/transfers/pending-handovers
+GET    /api/hr/transfers/stats
 GET    /api/hr/whos-out/coverage/:department
 GET    /api/hr/whos-out/departments
 GET    /api/hr/whos-out/month
@@ -7533,7 +7606,7 @@ GET    /api/zoom/status
 
 </details>
 
-### POST (1684)
+### POST (1692)
 
 <details>
 <summary>Click to expand</summary>
@@ -8447,6 +8520,14 @@ POST   /api/hr/trainings/:trainingId/reject
 POST   /api/hr/trainings/:trainingId/start
 POST   /api/hr/trainings/:trainingId/submit
 POST   /api/hr/trainings/bulk-delete
+POST   /api/hr/transfers
+POST   /api/hr/transfers/:id/apply
+POST   /api/hr/transfers/:id/approvals
+POST   /api/hr/transfers/:id/approve
+POST   /api/hr/transfers/:id/handover
+POST   /api/hr/transfers/:id/notify
+POST   /api/hr/transfers/:id/reject
+POST   /api/hr/transfers/bulk-delete
 POST   /api/incomeTaxSlab
 POST   /api/incomeTaxSlab/:id/calculate
 POST   /api/incomeTaxSlab/calculate-by-country
@@ -9227,7 +9308,7 @@ POST   /api/zoom/webhook
 
 </details>
 
-### PUT (227)
+### PUT (228)
 
 <details>
 <summary>Click to expand</summary>
@@ -9337,6 +9418,7 @@ PUT    /api/hr/leave-management/leave-periods/:id
 PUT    /api/hr/leave-management/leave-policies/:id
 PUT    /api/hr/payroll/:id
 PUT    /api/hr/skill-maps/:employeeId/skills
+PUT    /api/hr/transfers/:id
 PUT    /api/incomeTaxSlab/:id
 PUT    /api/integrations/discord/settings
 PUT    /api/integrations/quickbooks/mappings/accounts
@@ -9464,7 +9546,7 @@ PUT    /api/zoom/settings
 
 </details>
 
-### PATCH (183)
+### PATCH (186)
 
 <details>
 <summary>Click to expand</summary>
@@ -9583,6 +9665,9 @@ PATCH  /api/hr/skills/types/:id
 PATCH  /api/hr/surveys/:id
 PATCH  /api/hr/surveys/templates/:id
 PATCH  /api/hr/trainings/:trainingId
+PATCH  /api/hr/transfers/:id/approvals/:stepIndex
+PATCH  /api/hr/transfers/:id/handover/:itemIndex
+PATCH  /api/hr/transfers/:id/status
 PATCH  /api/invoice-templates/:id
 PATCH  /api/invoices/:_id
 PATCH  /api/invoices/:id
@@ -9657,7 +9742,7 @@ PATCH  /api/webhooks/:id
 
 </details>
 
-### DELETE (289)
+### DELETE (290)
 
 <details>
 <summary>Click to expand</summary>
@@ -9825,6 +9910,7 @@ DELETE /api/hr/skills/competencies/:id
 DELETE /api/hr/surveys/:id
 DELETE /api/hr/surveys/templates/:id
 DELETE /api/hr/trainings/:trainingId
+DELETE /api/hr/transfers/:id
 DELETE /api/incomeTaxSlab/:id
 DELETE /api/interestAreas/:id
 DELETE /api/inventory/items/:id
