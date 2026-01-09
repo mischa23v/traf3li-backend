@@ -69,7 +69,7 @@ const createConversation = async (request, response) => {
         return response.status(status).send({
             error: true,
             message
-        })
+        });
     }
 };
 
@@ -86,7 +86,7 @@ const getConversations = async (request, response) => {
         return response.status(status).send({
             error: true,
             message
-        })
+        });
     }
 };
 
@@ -131,7 +131,7 @@ const getSingleConversation = async (request, response) => {
         return response.status(status).send({
             error: true,
             message
-        })
+        });
     }
 };
 
@@ -196,7 +196,7 @@ const updateConversation = async (request, response) => {
         return response.status(status).send({
             error: true,
             message
-        })
+        });
     }
 };
 
@@ -215,12 +215,7 @@ const getInbox = asyncHandler(async (req, res) => {
         throw CustomException('ليس لديك صلاحية للوصول', 403);
     }
 
-    const firmId = req.firmId;
     const userId = req.userID;
-
-    if (!firmId) {
-        throw CustomException('Firm ID is required', 400);
-    }
 
     // Extract and sanitize filters
     const filters = {
@@ -241,7 +236,8 @@ const getInbox = asyncHandler(async (req, res) => {
         filters.assignedTo = userId;
     }
 
-    const result = await OmnichannelInboxService.getUnifiedInbox(firmId, null, filters);
+    // Use firmQuery for proper multi-tenant isolation (supports both firm members and solo lawyers)
+    const result = await OmnichannelInboxService.getUnifiedInbox(req.firmQuery, null, filters);
 
     res.json({
         success: true,
@@ -262,7 +258,6 @@ const getConversation = asyncHandler(async (req, res) => {
 
     const { id } = req.params;
     const userId = req.userID;
-    const firmId = req.firmId;
 
     // Validate ID parameter
     const sanitizedId = sanitizeObjectId(id);
@@ -270,7 +265,7 @@ const getConversation = asyncHandler(async (req, res) => {
         throw CustomException('Invalid conversation ID format', 400);
     }
 
-    const conversation = await OmnichannelInboxService.getOmnichannelConversation(sanitizedId, firmId, userId);
+    const conversation = await OmnichannelInboxService.getOmnichannelConversation(sanitizedId, req.firmQuery, userId);
 
     res.json({
         success: true,
@@ -290,7 +285,6 @@ const addMessage = asyncHandler(async (req, res) => {
 
     const { id } = req.params;
     const userId = req.userID;
-    const firmId = req.firmId;
 
     // Validate ID parameter
     const sanitizedId = sanitizeObjectId(id);
@@ -313,7 +307,7 @@ const addMessage = asyncHandler(async (req, res) => {
     // Set direction to outbound for user-sent messages
     messageData.direction = 'outbound';
 
-    const conversation = await OmnichannelInboxService.addMessage(sanitizedId, firmId, messageData, userId);
+    const conversation = await OmnichannelInboxService.addMessage(sanitizedId, req.firmQuery, messageData, userId);
 
     res.status(201).json({
         success: true,
@@ -335,7 +329,6 @@ const assignConversation = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { assigneeId } = req.body;
     const userId = req.userID;
-    const firmId = req.firmId;
 
     // Validate ID parameter
     const sanitizedId = sanitizeObjectId(id);
@@ -354,7 +347,7 @@ const assignConversation = asyncHandler(async (req, res) => {
 
     const conversation = await OmnichannelInboxService.assignOmnichannelConversation(
         sanitizedId,
-        firmId,
+        req.firmQuery,
         sanitizedAssigneeId,
         userId
     );
@@ -379,7 +372,6 @@ const snoozeConversation = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { until } = req.body;
     const userId = req.userID;
-    const firmId = req.firmId;
 
     // Validate ID parameter
     const sanitizedId = sanitizeObjectId(id);
@@ -401,7 +393,7 @@ const snoozeConversation = asyncHandler(async (req, res) => {
         throw CustomException('Snooze date must be in the future', 400);
     }
 
-    const conversation = await OmnichannelInboxService.snoozeOmnichannelConversation(sanitizedId, firmId, snoozeDate, userId);
+    const conversation = await OmnichannelInboxService.snoozeOmnichannelConversation(sanitizedId, req.firmQuery, snoozeDate, userId);
 
     res.json({
         success: true,
@@ -422,7 +414,6 @@ const closeConversation = asyncHandler(async (req, res) => {
 
     const { id } = req.params;
     const userId = req.userID;
-    const firmId = req.firmId;
 
     // Validate ID parameter
     const sanitizedId = sanitizeObjectId(id);
@@ -439,7 +430,7 @@ const closeConversation = asyncHandler(async (req, res) => {
         resolution.notes = sanitizeString(resolution.notes);
     }
 
-    const conversation = await OmnichannelInboxService.closeOmnichannelConversation(sanitizedId, firmId, userId, resolution);
+    const conversation = await OmnichannelInboxService.closeOmnichannelConversation(sanitizedId, req.firmQuery, userId, resolution);
 
     res.json({
         success: true,
@@ -460,7 +451,6 @@ const reopenConversation = asyncHandler(async (req, res) => {
 
     const { id } = req.params;
     const userId = req.userID;
-    const firmId = req.firmId;
 
     // Validate ID parameter
     const sanitizedId = sanitizeObjectId(id);
@@ -468,7 +458,7 @@ const reopenConversation = asyncHandler(async (req, res) => {
         throw CustomException('Invalid conversation ID format', 400);
     }
 
-    const conversation = await OmnichannelInboxService.reopenOmnichannelConversation(sanitizedId, firmId, userId);
+    const conversation = await OmnichannelInboxService.reopenOmnichannelConversation(sanitizedId, req.firmQuery, userId);
 
     res.json({
         success: true,
@@ -487,17 +477,13 @@ const getStats = asyncHandler(async (req, res) => {
         throw CustomException('ليس لديك صلاحية للوصول', 403);
     }
 
-    const firmId = req.firmId;
     const userId = req.userID;
-
-    if (!firmId) {
-        throw CustomException('Firm ID is required', 400);
-    }
 
     // If user wants their own stats, pass their userId
     const agentId = req.query.myStats === 'true' ? userId : null;
 
-    const stats = await OmnichannelInboxService.getStats(firmId, agentId);
+    // Use firmQuery for proper multi-tenant isolation
+    const stats = await OmnichannelInboxService.getStats(req.firmQuery, agentId);
 
     res.json({
         success: true,
@@ -518,7 +504,6 @@ const updateTags = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { tags } = req.body;
     const userId = req.userID;
-    const firmId = req.firmId;
 
     // Validate ID parameter
     const sanitizedId = sanitizeObjectId(id);
@@ -534,7 +519,7 @@ const updateTags = asyncHandler(async (req, res) => {
     // Sanitize tags
     const sanitizedTags = tags.map(tag => sanitizeString(tag)).filter(Boolean);
 
-    const conversation = await OmnichannelInboxService.updateTags(sanitizedId, firmId, sanitizedTags, userId);
+    const conversation = await OmnichannelInboxService.updateTags(sanitizedId, req.firmQuery, sanitizedTags, userId);
 
     res.json({
         success: true,
@@ -556,7 +541,6 @@ const updatePriority = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { priority } = req.body;
     const userId = req.userID;
-    const firmId = req.firmId;
 
     // Validate ID parameter
     const sanitizedId = sanitizeObjectId(id);
@@ -570,7 +554,7 @@ const updatePriority = asyncHandler(async (req, res) => {
         throw CustomException(`Invalid priority. Must be one of: ${validPriorities.join(', ')}`, 400);
     }
 
-    const conversation = await OmnichannelInboxService.updatePriority(sanitizedId, firmId, priority, userId);
+    const conversation = await OmnichannelInboxService.updatePriority(sanitizedId, req.firmQuery, priority, userId);
 
     res.json({
         success: true,

@@ -31,7 +31,7 @@ const logger = require('../utils/logger');
 class OmnichannelInboxService {
   /**
    * Get unified inbox with filters
-   * @param {String|ObjectId} firmId - Firm ID
+   * @param {Object} firmQuery - Firm isolation query (e.g., { firmId: X } or { lawyerId: Y })
    * @param {String|ObjectId} agentId - Agent/User ID (optional)
    * @param {Object} filters - Filter options
    * @param {String|Array} filters.assignedTo - Filter by assigned user(s)
@@ -46,12 +46,10 @@ class OmnichannelInboxService {
    * @param {Number} filters.limit - Items per page (default: 20)
    * @returns {Promise<Object>} - Paginated conversations with metadata
    */
-  async getUnifiedInbox(firmId, agentId = null, filters = {}) {
+  async getUnifiedInbox(firmQuery, agentId = null, filters = {}) {
     try {
-      // Build query
-      const query = {
-        firmId: new mongoose.Types.ObjectId(firmId)
-      };
+      // Build query with firm isolation (supports both firm members and solo lawyers)
+      const query = { ...firmQuery };
 
       // Apply agent filter if provided
       if (agentId) {
@@ -239,15 +237,15 @@ class OmnichannelInboxService {
   /**
    * Get conversation with full history
    * @param {String|ObjectId} conversationId - OmnichannelConversation ID
-   * @param {String|ObjectId} firmId - Firm ID for IDOR protection
+   * @param {Object} firmQuery - Firm isolation query (e.g., { firmId: X } or { lawyerId: Y })
    * @param {String|ObjectId} viewingAgentId - Agent viewing the conversation (optional)
    * @returns {Promise<Object>} - OmnichannelConversation with messages
    */
-  async getOmnichannelConversation(conversationId, firmId, viewingAgentId = null) {
+  async getOmnichannelConversation(conversationId, firmQuery, viewingAgentId = null) {
     try {
       const conversation = await OmnichannelConversation.findOne({
         _id: conversationId,
-        firmId: new mongoose.Types.ObjectId(firmId)
+        ...firmQuery
       })
         .populate('contactId', 'firstName lastName email phone avatar')
         .populate('assignedTo', 'firstName lastName email avatar')
@@ -273,7 +271,7 @@ class OmnichannelInboxService {
   /**
    * Add message to conversation
    * @param {String|ObjectId} conversationId - OmnichannelConversation ID
-   * @param {String|ObjectId} firmId - Firm ID for IDOR protection
+   * @param {Object} firmQuery - Firm isolation query (e.g., { firmId: X } or { lawyerId: Y })
    * @param {Object} messageData - Message data
    * @param {String} messageData.content - Message content
    * @param {String} messageData.direction - 'inbound' or 'outbound'
@@ -282,11 +280,11 @@ class OmnichannelInboxService {
    * @param {String|ObjectId} userId - User ID (for outbound messages)
    * @returns {Promise<Object>} - Updated conversation with new message
    */
-  async addMessage(conversationId, firmId, messageData, userId = null) {
+  async addMessage(conversationId, firmQuery, messageData, userId = null) {
     try {
       const conversation = await OmnichannelConversation.findOne({
         _id: conversationId,
-        firmId: new mongoose.Types.ObjectId(firmId)
+        ...firmQuery
       });
 
       if (!conversation) {
@@ -348,16 +346,16 @@ class OmnichannelInboxService {
   /**
    * Assign conversation to a user
    * @param {String|ObjectId} conversationId - OmnichannelConversation ID
-   * @param {String|ObjectId} firmId - Firm ID for IDOR protection
+   * @param {Object} firmQuery - Firm isolation query (e.g., { firmId: X } or { lawyerId: Y })
    * @param {String|ObjectId} assigneeId - User ID to assign to
    * @param {String|ObjectId} assignedBy - User ID who is assigning
    * @returns {Promise<Object>} - Updated conversation
    */
-  async assignOmnichannelConversation(conversationId, firmId, assigneeId, assignedBy) {
+  async assignOmnichannelConversation(conversationId, firmQuery, assigneeId, assignedBy) {
     try {
       const conversation = await OmnichannelConversation.findOne({
         _id: conversationId,
-        firmId: new mongoose.Types.ObjectId(firmId)
+        ...firmQuery
       });
 
       if (!conversation) {
@@ -409,16 +407,16 @@ class OmnichannelInboxService {
   /**
    * Snooze conversation until a specific date
    * @param {String|ObjectId} conversationId - OmnichannelConversation ID
-   * @param {String|ObjectId} firmId - Firm ID for IDOR protection
+   * @param {Object} firmQuery - Firm isolation query (e.g., { firmId: X } or { lawyerId: Y })
    * @param {Date} until - Date to snooze until
    * @param {String|ObjectId} userId - User ID who is snoozing
    * @returns {Promise<Object>} - Updated conversation
    */
-  async snoozeOmnichannelConversation(conversationId, firmId, until, userId) {
+  async snoozeOmnichannelConversation(conversationId, firmQuery, until, userId) {
     try {
       const conversation = await OmnichannelConversation.findOne({
         _id: conversationId,
-        firmId: new mongoose.Types.ObjectId(firmId)
+        ...firmQuery
       });
 
       if (!conversation) {
@@ -465,16 +463,16 @@ class OmnichannelInboxService {
   /**
    * Close conversation
    * @param {String|ObjectId} conversationId - OmnichannelConversation ID
-   * @param {String|ObjectId} firmId - Firm ID for IDOR protection
+   * @param {Object} firmQuery - Firm isolation query (e.g., { firmId: X } or { lawyerId: Y })
    * @param {String|ObjectId} userId - User ID who is closing
    * @param {Object} resolution - Resolution details (optional)
    * @returns {Promise<Object>} - Updated conversation
    */
-  async closeOmnichannelConversation(conversationId, firmId, userId, resolution = {}) {
+  async closeOmnichannelConversation(conversationId, firmQuery, userId, resolution = {}) {
     try {
       const conversation = await OmnichannelConversation.findOne({
         _id: conversationId,
-        firmId: new mongoose.Types.ObjectId(firmId)
+        ...firmQuery
       });
 
       if (!conversation) {
@@ -534,15 +532,15 @@ class OmnichannelInboxService {
   /**
    * Reopen a closed conversation
    * @param {String|ObjectId} conversationId - OmnichannelConversation ID
-   * @param {String|ObjectId} firmId - Firm ID for IDOR protection
+   * @param {Object} firmQuery - Firm isolation query (e.g., { firmId: X } or { lawyerId: Y })
    * @param {String|ObjectId} userId - User ID who is reopening
    * @returns {Promise<Object>} - Updated conversation
    */
-  async reopenOmnichannelConversation(conversationId, firmId, userId) {
+  async reopenOmnichannelConversation(conversationId, firmQuery, userId) {
     try {
       const conversation = await OmnichannelConversation.findOne({
         _id: conversationId,
-        firmId: new mongoose.Types.ObjectId(firmId)
+        ...firmQuery
       });
 
       if (!conversation) {
@@ -584,15 +582,13 @@ class OmnichannelInboxService {
 
   /**
    * Get conversation statistics for dashboard
-   * @param {String|ObjectId} firmId - Firm ID
+   * @param {Object} firmQuery - Firm isolation query (e.g., { firmId: X } or { lawyerId: Y })
    * @param {String|ObjectId} agentId - Agent ID (optional, for agent-specific stats)
    * @returns {Promise<Object>} - OmnichannelConversation statistics
    */
-  async getStats(firmId, agentId = null) {
+  async getStats(firmQuery, agentId = null) {
     try {
-      const matchQuery = {
-        firmId: new mongoose.Types.ObjectId(firmId)
-      };
+      const matchQuery = { ...firmQuery };
 
       if (agentId) {
         matchQuery.assignedTo = new mongoose.Types.ObjectId(agentId);
@@ -737,16 +733,16 @@ class OmnichannelInboxService {
   /**
    * Update conversation tags
    * @param {String|ObjectId} conversationId - OmnichannelConversation ID
-   * @param {String|ObjectId} firmId - Firm ID for IDOR protection
+   * @param {Object} firmQuery - Firm query object for multi-tenant isolation (firmId or lawyerId)
    * @param {Array<String>} tags - Array of tags
    * @param {String|ObjectId} userId - User ID
    * @returns {Promise<Object>} - Updated conversation
    */
-  async updateTags(conversationId, firmId, tags, userId) {
+  async updateTags(conversationId, firmQuery, tags, userId) {
     try {
       const conversation = await OmnichannelConversation.findOne({
         _id: conversationId,
-        firmId: new mongoose.Types.ObjectId(firmId)
+        ...firmQuery
       });
 
       if (!conversation) {
@@ -789,16 +785,16 @@ class OmnichannelInboxService {
   /**
    * Update conversation priority
    * @param {String|ObjectId} conversationId - OmnichannelConversation ID
-   * @param {String|ObjectId} firmId - Firm ID for IDOR protection
+   * @param {Object} firmQuery - Firm query object for multi-tenant isolation (firmId or lawyerId)
    * @param {String} priority - Priority level ('urgent', 'high', 'normal', 'low')
    * @param {String|ObjectId} userId - User ID
    * @returns {Promise<Object>} - Updated conversation
    */
-  async updatePriority(conversationId, firmId, priority, userId) {
+  async updatePriority(conversationId, firmQuery, priority, userId) {
     try {
       const conversation = await OmnichannelConversation.findOne({
         _id: conversationId,
-        firmId: new mongoose.Types.ObjectId(firmId)
+        ...firmQuery
       });
 
       if (!conversation) {
