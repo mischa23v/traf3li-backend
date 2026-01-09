@@ -3,12 +3,15 @@
  * Contract Generator for Frontend Team
  *
  * Automates TypeScript contract generation from:
- * 1. Mongoose schemas → TypeScript interfaces
- * 2. Controller ALLOWED_FIELDS → Request types
- * 3. API endpoints → Contract stubs
+ * 1. Mongoose schemas → TypeScript interfaces (ACCURATE)
+ * 2. Controller ALLOWED_FIELDS → Request types (for reference only)
+ *
+ * NOTE: Stub generation has been removed - stubs contained guessed types
+ * that could break API connections. Use generateContractsV2.js for
+ * accurate request types from Joi validators.
  *
  * Usage:
- *   npm run contracts:generate          # Generate all
+ *   npm run contracts:generate          # Generate model types
  *   npm run contracts:models            # Only model types
  *   npm run contracts:coverage          # Coverage report
  *   npm run contracts:sync              # Check if contracts are stale
@@ -417,7 +420,9 @@ function main() {
             break;
 
         case 'stubs':
-            generateContractStubs();
+            console.log('⚠️  Stub generation has been disabled.');
+            console.log('   Stubs contained guessed types that could break API connections.');
+            console.log('   Use "npm run contracts:full" for accurate request types from Joi validators.');
             break;
 
         case 'coverage':
@@ -470,12 +475,8 @@ function main() {
         default:
             generateModelTypes();
             console.log('');
-            generateContractStubs();
-            console.log('');
-            const cov = generateCoverageReport();
-            if (cov) {
-                console.log(`📊 Coverage: ${cov.percentage}% (${cov.covered}/${cov.total})`);
-            }
+            console.log('💡 For request/response types, run: npm run contracts:full');
+            console.log('   This generates accurate types from Joi validators.');
             break;
     }
 }

@@ -66,7 +66,6 @@
     "docs:api": "node scripts/extractEndpoints.js",
     "contracts:generate": "node scripts/generateContracts.js",
     "contracts:models": "node scripts/generateContracts.js models",
-    "contracts:stubs": "node scripts/generateContracts.js stubs",
     "contracts:coverage": "node scripts/generateContracts.js coverage",
     "contracts:sync": "node scripts/generateContracts.js sync",
     "contracts:full": "node scripts/generateContractsV2.js"
