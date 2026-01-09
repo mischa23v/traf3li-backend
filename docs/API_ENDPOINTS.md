@@ -31,6 +31,7 @@
 - [audit](#audit) (5 endpoints)
 - [auditLog](#auditlog) (33 endpoints)
 - [auth](#auth) (42 endpoints)
+- [authExtended](#authextended) (24 endpoints)
 - [automatedActions](#automatedactions) (15 endpoints)
 - [automations](#automations) (10 endpoints)
 - [bankAccount](#bankaccount) (10 endpoints)
@@ -68,6 +69,7 @@
 - [conversation](#conversation) (4 endpoints)
 - [conversations](#conversations) (10 endpoints)
 - [corporateCard](#corporatecard) (15 endpoints)
+- [corporateCards](#corporatecards) (19 endpoints)
 - [creditNote](#creditnote) (10 endpoints)
 - [crmActivity](#crmactivity) (14 endpoints)
 - [crmAlias](#crmalias) (26 endpoints)
@@ -103,6 +105,7 @@
 - [employeeSelfService](#employeeselfservice) (11 endpoints)
 - [employeeTransfer](#employeetransfer) (19 endpoints)
 - [event](#event) (51 endpoints)
+- [eventsExtended](#eventsextended) (25 endpoints)
 - [exchangeRateRevaluation](#exchangeraterevaluation) (9 endpoints)
 - [expense](#expense) (17 endpoints)
 - [expenseClaim](#expenseclaim) (32 endpoints)
@@ -134,6 +137,7 @@
 - [incomeTaxSlab](#incometaxslab) (9 endpoints)
 - [integrations](#integrations) (45 endpoints)
 - [interCompany](#intercompany) (10 endpoints)
+- [interCompanyExtended](#intercompanyextended) (16 endpoints)
 - [interestAreas](#interestareas) (6 endpoints)
 - [inventory](#inventory) (38 endpoints)
 - [investmentSearch](#investmentsearch) (9 endpoints)
@@ -200,6 +204,7 @@
 - [preparedReport](#preparedreport) (7 endpoints)
 - [priceLevel](#pricelevel) (7 endpoints)
 - [products](#products) (9 endpoints)
+- [productsEnhanced](#productsenhanced) (18 endpoints)
 - [proposal](#proposal) (6 endpoints)
 - [quality](#quality) (19 endpoints)
 - [question](#question) (5 endpoints)
@@ -248,6 +253,7 @@
 - [statement](#statement) (7 endpoints)
 - [status](#status) (22 endpoints)
 - [subcontracting](#subcontracting) (14 endpoints)
+- [subscriptions](#subscriptions) (21 endpoints)
 - [successionPlan](#successionplan) (27 endpoints)
 - [support](#support) (16 endpoints)
 - [survey](#survey) (16 endpoints)
@@ -292,8 +298,8 @@
 
 | Metric | Count |
 |--------|-------|
-| Total Endpoints | 4400 |
-| Total Modules | 279 |
+| Total Endpoints | 4523 |
+| Total Modules | 285 |
 
 ---
 
@@ -817,6 +823,35 @@
 | `POST` | `/api/auth/reauthenticate/challenge` | createReauthChallenge | auth.route.js |
 | `POST` | `/api/auth/reauthenticate/verify` | verifyReauthChallenge | auth.route.js |
 | `GET` | `/api/auth/reauthenticate/status` | getReauthStatus | auth.route.js |
+
+## authExtended
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `POST` | `/api/auth/refresh-activity` | unknown | authExtended.route.js |
+| `POST` | `/api/auth/anonymous/extend` | unknown | authExtended.route.js |
+| `POST` | `/api/auth/captcha/verify` | unknown | authExtended.route.js |
+| `GET` | `/api/auth/captcha/settings` | unknown | authExtended.route.js |
+| `PUT` | `/api/auth/captcha/settings` | unknown | authExtended.route.js |
+| `POST` | `/api/auth/captcha/check-required` | unknown | authExtended.route.js |
+| `POST` | `/api/auth/mfa/sms/send` | unknown | authExtended.route.js |
+| `POST` | `/api/auth/mfa/email/send` | unknown | authExtended.route.js |
+| `GET` | `/api/auth/mfa/required` | unknown | authExtended.route.js |
+| `POST` | `/api/auth/onboarding-progress` | unknown | authExtended.route.js |
+| `POST` | `/api/auth/onboarding/company-info` | unknown | authExtended.route.js |
+| `POST` | `/api/auth/onboarding/company-logo` | unknown | authExtended.route.js |
+| `POST` | `/api/auth/onboarding/user-profile` | unknown | authExtended.route.js |
+| `POST` | `/api/auth/onboarding/user-avatar` | unknown | authExtended.route.js |
+| `POST` | `/api/auth/onboarding/modules` | unknown | authExtended.route.js |
+| `POST` | `/api/auth/onboarding/complete` | unknown | authExtended.route.js |
+| `POST` | `/api/auth/onboarding/skip` | unknown | authExtended.route.js |
+| `GET` | `/api/auth/reset-password/validate` | unknown | authExtended.route.js |
+| `POST` | `/api/auth/password/check-breach` | unknown | authExtended.route.js |
+| `POST` | `/api/auth/phone/verify` | unknown | authExtended.route.js |
+| `POST` | `/api/auth/sessions/extend` | unknown | authExtended.route.js |
+| `POST` | `/api/auth/sessions/:sessionId/report` | unknown | authExtended.route.js |
+| `DELETE` | `/api/auth/sessions/:sessionId/report` | unknown | authExtended.route.js |
+| `GET` | `/api/auth/reauthenticate/methods` | unknown | authExtended.route.js |
 
 ## automatedActions
 
@@ -1573,6 +1608,30 @@
 | `POST` | `/api/corporate-cards/:id/transactions/:transactionId/dispute` | disputeTransaction | corporateCard.route.js |
 | `POST` | `/api/corporate-cards/:id/transactions/:transactionId/categorize` | categorizeTransaction | corporateCard.route.js |
 | `DELETE` | `/api/corporate-cards/:id` | deleteCorporateCard | corporateCard.route.js |
+
+## corporateCards
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/corporate-cards/transactions` | unknown | corporateCards.route.js |
+| `GET` | `/api/corporate-cards/transactions/:id` | unknown | corporateCards.route.js |
+| `POST` | `/api/corporate-cards/transactions` | unknown | corporateCards.route.js |
+| `PATCH` | `/api/corporate-cards/transactions/:id` | unknown | corporateCards.route.js |
+| `DELETE` | `/api/corporate-cards/transactions/:id` | unknown | corporateCards.route.js |
+| `POST` | `/api/corporate-cards/transactions/:transactionId/reconcile` | unknown | corporateCards.route.js |
+| `POST` | `/api/corporate-cards/transactions/bulk-reconcile` | unknown | corporateCards.route.js |
+| `POST` | `/api/corporate-cards/transactions/:transactionId/match` | unknown | corporateCards.route.js |
+| `GET` | `/api/corporate-cards/transactions/:transactionId/potential-matches` | unknown | corporateCards.route.js |
+| `POST` | `/api/corporate-cards/transactions/:transactionId/dispute` | unknown | corporateCards.route.js |
+| `POST` | `/api/corporate-cards/transactions/:transactionId/resolve-dispute` | unknown | corporateCards.route.js |
+| `POST` | `/api/corporate-cards/transactions/import` | unknown | corporateCards.route.js |
+| `GET` | `/api/corporate-cards/transactions/csv-template` | unknown | corporateCards.route.js |
+| `GET` | `/api/corporate-cards/statistics` | unknown | corporateCards.route.js |
+| `GET` | `/api/corporate-cards/reports/reconciliation` | unknown | corporateCards.route.js |
+| `GET` | `/api/corporate-cards/reports/reconciliation/export` | unknown | corporateCards.route.js |
+| `GET` | `/api/corporate-cards/analytics/spending-by-category` | unknown | corporateCards.route.js |
+| `GET` | `/api/corporate-cards/analytics/spending-by-card` | unknown | corporateCards.route.js |
+| `GET` | `/api/corporate-cards/analytics/monthly-trend` | unknown | corporateCards.route.js |
 
 ## creditNote
 
@@ -2338,6 +2397,36 @@
 | `PUT` | `/api/events/:id/action-items/:itemId` | updateActionItem | event.route.js |
 | `DELETE` | `/api/events/:id/action-items/:itemId` | deleteActionItem | event.route.js |
 
+## eventsExtended
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `POST` | `/api/events/:id/start` | unknown | eventsExtended.route.js |
+| `POST` | `/api/events/:eventId/send-invitations` | unknown | eventsExtended.route.js |
+| `POST` | `/api/events/:eventId/attendees/:attendeeId/check-in` | unknown | eventsExtended.route.js |
+| `POST` | `/api/events/:eventId/attendees/:attendeeId/check-out` | unknown | eventsExtended.route.js |
+| `PATCH` | `/api/events/:eventId/notes` | unknown | eventsExtended.route.js |
+| `POST` | `/api/events/:eventId/action-items/:actionItemId/toggle` | unknown | eventsExtended.route.js |
+| `POST` | `/api/events/:eventId/attachments` | unknown | eventsExtended.route.js |
+| `DELETE` | `/api/events/:eventId/attachments/:attachmentId` | unknown | eventsExtended.route.js |
+| `POST` | `/api/events/:eventId/comments` | unknown | eventsExtended.route.js |
+| `PATCH` | `/api/events/:eventId/comments/:commentId` | unknown | eventsExtended.route.js |
+| `DELETE` | `/api/events/:eventId/comments/:commentId` | unknown | eventsExtended.route.js |
+| `GET` | `/api/events/today` | unknown | eventsExtended.route.js |
+| `GET` | `/api/events/my-events` | unknown | eventsExtended.route.js |
+| `GET` | `/api/events/pending-rsvp` | unknown | eventsExtended.route.js |
+| `POST` | `/api/events/:eventId/recurring/skip` | unknown | eventsExtended.route.js |
+| `POST` | `/api/events/:eventId/recurring/stop` | unknown | eventsExtended.route.js |
+| `GET` | `/api/events/:eventId/recurring/instances` | unknown | eventsExtended.route.js |
+| `PUT` | `/api/events/:eventId/recurring/instance/:instanceDate` | unknown | eventsExtended.route.js |
+| `POST` | `/api/events/:eventId/calendar-sync` | unknown | eventsExtended.route.js |
+| `POST` | `/api/events/bulk/cancel` | unknown | eventsExtended.route.js |
+| `GET` | `/api/events/templates` | unknown | eventsExtended.route.js |
+| `POST` | `/api/events/templates/:templateId/create` | unknown | eventsExtended.route.js |
+| `POST` | `/api/events/:eventId/save-as-template` | unknown | eventsExtended.route.js |
+| `POST` | `/api/events/check-availability` | unknown | eventsExtended.route.js |
+| `POST` | `/api/events/find-slots` | unknown | eventsExtended.route.js |
+
 ## exchangeRateRevaluation
 
 | Method | Path | Controller | File |
@@ -3055,6 +3144,27 @@
 | `GET` | `/api/inter-company/balances/:firmId` | unknown | interCompany.route.js |
 | `GET` | `/api/inter-company/reconciliation` | unknown | interCompany.route.js |
 | `POST` | `/api/inter-company/reconciliation` | unknown | interCompany.route.js |
+
+## interCompanyExtended
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `POST` | `/api/inter-company/transactions/:id/post` | unknown | interCompanyExtended.route.js |
+| `GET` | `/api/inter-company/balances/between` | unknown | interCompanyExtended.route.js |
+| `GET` | `/api/inter-company/transactions/between` | unknown | interCompanyExtended.route.js |
+| `GET` | `/api/inter-company/reconciliations` | unknown | interCompanyExtended.route.js |
+| `GET` | `/api/inter-company/reconciliations/:id` | unknown | interCompanyExtended.route.js |
+| `POST` | `/api/inter-company/reconciliations` | unknown | interCompanyExtended.route.js |
+| `POST` | `/api/inter-company/reconciliations/:reconciliationId/auto-match` | unknown | interCompanyExtended.route.js |
+| `POST` | `/api/inter-company/reconciliations/:reconciliationId/manual-match` | unknown | interCompanyExtended.route.js |
+| `POST` | `/api/inter-company/reconciliations/:reconciliationId/unmatch` | unknown | interCompanyExtended.route.js |
+| `POST` | `/api/inter-company/reconciliations/:reconciliationId/adjustments` | unknown | interCompanyExtended.route.js |
+| `POST` | `/api/inter-company/reconciliations/:reconciliationId/complete` | unknown | interCompanyExtended.route.js |
+| `POST` | `/api/inter-company/reconciliations/:reconciliationId/approve` | unknown | interCompanyExtended.route.js |
+| `GET` | `/api/inter-company/firms` | unknown | interCompanyExtended.route.js |
+| `GET` | `/api/inter-company/exchange-rate` | unknown | interCompanyExtended.route.js |
+| `GET` | `/api/inter-company/reports/summary` | unknown | interCompanyExtended.route.js |
+| `POST` | `/api/inter-company/reports/export` | unknown | interCompanyExtended.route.js |
 
 ## interestAreas
 
@@ -4278,6 +4388,29 @@
 | `PUT` | `/api/products/:id` | updateProduct | product.routes.js |
 | `DELETE` | `/api/products/:id` | deleteProduct | product.routes.js |
 
+## productsEnhanced
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/products/enhanced` | unknown | productsEnhanced.route.js |
+| `GET` | `/api/products/enhanced/:productId` | unknown | productsEnhanced.route.js |
+| `POST` | `/api/products/enhanced` | unknown | productsEnhanced.route.js |
+| `PUT` | `/api/products/enhanced/:productId` | unknown | productsEnhanced.route.js |
+| `DELETE` | `/api/products/enhanced/:productId` | unknown | productsEnhanced.route.js |
+| `PATCH` | `/api/products/enhanced/:productId/cost-price` | unknown | productsEnhanced.route.js |
+| `GET` | `/api/products/enhanced/:productId/margin` | unknown | productsEnhanced.route.js |
+| `POST` | `/api/products/enhanced/bulk-update-prices` | unknown | productsEnhanced.route.js |
+| `GET` | `/api/products/enhanced/:productId/variants` | unknown | productsEnhanced.route.js |
+| `GET` | `/api/products/enhanced/:productId/variants/:variantId` | unknown | productsEnhanced.route.js |
+| `POST` | `/api/products/enhanced/:productId/variants` | unknown | productsEnhanced.route.js |
+| `PUT` | `/api/products/enhanced/:productId/variants/:variantId` | unknown | productsEnhanced.route.js |
+| `DELETE` | `/api/products/enhanced/:productId/variants/:variantId` | unknown | productsEnhanced.route.js |
+| `POST` | `/api/products/enhanced/:productId/variants/generate` | unknown | productsEnhanced.route.js |
+| `GET` | `/api/products/enhanced/:productId/barcodes` | unknown | productsEnhanced.route.js |
+| `POST` | `/api/products/enhanced/:productId/barcodes` | unknown | productsEnhanced.route.js |
+| `DELETE` | `/api/products/enhanced/:productId/barcodes/:barcodeId` | unknown | productsEnhanced.route.js |
+| `GET` | `/api/products/enhanced/lookup/barcode` | unknown | productsEnhanced.route.js |
+
 ## proposal
 
 | Method | Path | Controller | File |
@@ -5230,6 +5363,32 @@
 | `GET` | `/api/subcontracting/receipts/:id` | unknown | subcontracting.route.js |
 | `POST` | `/api/subcontracting/receipts/:id/submit` | unknown | subcontracting.route.js |
 
+## subscriptions
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/subscriptions` | unknown | subscriptions.route.js |
+| `GET` | `/api/subscriptions/:id` | unknown | subscriptions.route.js |
+| `POST` | `/api/subscriptions` | unknown | subscriptions.route.js |
+| `PATCH` | `/api/subscriptions/:id` | unknown | subscriptions.route.js |
+| `DELETE` | `/api/subscriptions/:id` | unknown | subscriptions.route.js |
+| `POST` | `/api/subscriptions/:id/activate` | unknown | subscriptions.route.js |
+| `POST` | `/api/subscriptions/:id/pause` | unknown | subscriptions.route.js |
+| `POST` | `/api/subscriptions/:id/resume` | unknown | subscriptions.route.js |
+| `POST` | `/api/subscriptions/:id/cancel` | unknown | subscriptions.route.js |
+| `POST` | `/api/subscriptions/:id/renew` | unknown | subscriptions.route.js |
+| `POST` | `/api/subscriptions/:id/change-plan` | unknown | subscriptions.route.js |
+| `POST` | `/api/subscriptions/:id/consume-hours` | unknown | subscriptions.route.js |
+| `GET` | `/api/subscriptions/:id/hours-usage` | unknown | subscriptions.route.js |
+| `POST` | `/api/subscriptions/:id/reset-hours` | unknown | subscriptions.route.js |
+| `GET` | `/api/subscriptions/:id/invoices` | unknown | subscriptions.route.js |
+| `POST` | `/api/subscriptions/:id/generate-invoice` | unknown | subscriptions.route.js |
+| `GET` | `/api/subscriptions/:id/upcoming-invoice` | unknown | subscriptions.route.js |
+| `GET` | `/api/subscriptions/:id/renewal-preview` | unknown | subscriptions.route.js |
+| `GET` | `/api/subscriptions/stats` | unknown | subscriptions.route.js |
+| `GET` | `/api/subscriptions/upcoming-renewals` | unknown | subscriptions.route.js |
+| `GET` | `/api/subscriptions/past-due` | unknown | subscriptions.route.js |
+
 ## successionPlan
 
 | Method | Path | Controller | File |
@@ -6096,7 +6255,7 @@
 
 ## Quick Reference by Method
 
-### GET (1895)
+### GET (1937)
 
 <details>
 <summary>Click to expand</summary>
@@ -6270,18 +6429,22 @@ GET    /api/audit/options
 GET    /api/audit/stats
 GET    /api/audit/user/:userId
 GET    /api/auth/captcha/providers
+GET    /api/auth/captcha/settings
 GET    /api/auth/captcha/status/:provider
 GET    /api/auth/csrf
 GET    /api/auth/me
 GET    /api/auth/mfa/backup-codes/count
 GET    /api/auth/mfa/backup-codes/count
+GET    /api/auth/mfa/required
 GET    /api/auth/mfa/status
 GET    /api/auth/mfa/status
 GET    /api/auth/onboarding-status
 GET    /api/auth/otp-status
 GET    /api/auth/password-status
 GET    /api/auth/phone/otp-status
+GET    /api/auth/reauthenticate/methods
 GET    /api/auth/reauthenticate/status
+GET    /api/auth/reset-password/validate
 GET    /api/auth/saml/config
 GET    /api/auth/saml/login/:firmId
 GET    /api/auth/saml/logout/:firmId
@@ -6525,8 +6688,18 @@ GET    /api/corporate-cards
 GET    /api/corporate-cards/:id
 GET    /api/corporate-cards/:id/transactions
 GET    /api/corporate-cards/:id/transactions/unmatched
+GET    /api/corporate-cards/analytics/monthly-trend
+GET    /api/corporate-cards/analytics/spending-by-card
+GET    /api/corporate-cards/analytics/spending-by-category
+GET    /api/corporate-cards/reports/reconciliation
+GET    /api/corporate-cards/reports/reconciliation/export
 GET    /api/corporate-cards/spending-stats
+GET    /api/corporate-cards/statistics
 GET    /api/corporate-cards/summary
+GET    /api/corporate-cards/transactions
+GET    /api/corporate-cards/transactions/:id
+GET    /api/corporate-cards/transactions/:transactionId/potential-matches
+GET    /api/corporate-cards/transactions/csv-template
 GET    /api/credit-notes
 GET    /api/credit-notes/:id
 GET    /api/credit-notes/invoice/:invoiceId
@@ -6757,6 +6930,7 @@ GET    /api/emailTemplates/:id
 GET    /api/emailTemplates/trigger/:triggerEvent
 GET    /api/emailTemplates/variables
 GET    /api/events
+GET    /api/events/:eventId/recurring/instances
 GET    /api/events/:id
 GET    /api/events/:id/activity
 GET    /api/events/:id/export/ics
@@ -6770,8 +6944,12 @@ GET    /api/events/export
 GET    /api/events/ids
 GET    /api/events/location-triggers
 GET    /api/events/month/:year/:month
+GET    /api/events/my-events
+GET    /api/events/pending-rsvp
 GET    /api/events/search
 GET    /api/events/stats
+GET    /api/events/templates
+GET    /api/events/today
 GET    /api/events/upcoming
 GET    /api/exchangeRateRevaluation
 GET    /api/exchangeRateRevaluation/:id
@@ -7229,9 +7407,16 @@ GET    /api/integrations/xero/sync/history
 GET    /api/integrations/xero/webhook/status
 GET    /api/inter-company/balances
 GET    /api/inter-company/balances/:firmId
+GET    /api/inter-company/balances/between
+GET    /api/inter-company/exchange-rate
+GET    /api/inter-company/firms
 GET    /api/inter-company/reconciliation
+GET    /api/inter-company/reconciliations
+GET    /api/inter-company/reconciliations/:id
+GET    /api/inter-company/reports/summary
 GET    /api/inter-company/transactions
 GET    /api/inter-company/transactions/:id
+GET    /api/inter-company/transactions/between
 GET    /api/interestAreas
 GET    /api/interestAreas/:id
 GET    /api/interestAreas/tree
@@ -7501,6 +7686,13 @@ GET    /api/price-levels/client-rate
 GET    /api/products
 GET    /api/products/:id
 GET    /api/products/category/:category
+GET    /api/products/enhanced
+GET    /api/products/enhanced/:productId
+GET    /api/products/enhanced/:productId/barcodes
+GET    /api/products/enhanced/:productId/margin
+GET    /api/products/enhanced/:productId/variants
+GET    /api/products/enhanced/:productId/variants/:variantId
+GET    /api/products/enhanced/lookup/barcode
 GET    /api/products/search
 GET    /api/products/stats
 GET    /api/proposals/job/:jobId
@@ -7768,6 +7960,15 @@ GET    /api/subcontracting/receipts
 GET    /api/subcontracting/receipts/:id
 GET    /api/subcontracting/settings
 GET    /api/subcontracting/stats
+GET    /api/subscriptions
+GET    /api/subscriptions/:id
+GET    /api/subscriptions/:id/hours-usage
+GET    /api/subscriptions/:id/invoices
+GET    /api/subscriptions/:id/renewal-preview
+GET    /api/subscriptions/:id/upcoming-invoice
+GET    /api/subscriptions/past-due
+GET    /api/subscriptions/stats
+GET    /api/subscriptions/upcoming-renewals
 GET    /api/succession-plans
 GET    /api/succession-plans/:id
 GET    /api/succession-plans/by-incumbent/:incumbentId
@@ -8001,7 +8202,7 @@ GET    /api/zoom/status
 
 </details>
 
-### POST (1751)
+### POST (1815)
 
 <details>
 <summary>Click to expand</summary>
@@ -8118,6 +8319,9 @@ POST   /api/audit-logs/log-security-event
 POST   /api/audit-logs/log-with-diff
 POST   /api/auth/anonymous
 POST   /api/auth/anonymous/convert
+POST   /api/auth/anonymous/extend
+POST   /api/auth/captcha/check-required
+POST   /api/auth/captcha/verify
 POST   /api/auth/change-password
 POST   /api/auth/check-availability
 POST   /api/auth/forgot-password
@@ -8134,16 +8338,29 @@ POST   /api/auth/mfa/backup-codes/regenerate
 POST   /api/auth/mfa/backup-codes/verify
 POST   /api/auth/mfa/backup-codes/verify
 POST   /api/auth/mfa/disable
+POST   /api/auth/mfa/email/send
 POST   /api/auth/mfa/setup
+POST   /api/auth/mfa/sms/send
 POST   /api/auth/mfa/verify
 POST   /api/auth/mfa/verify-setup
+POST   /api/auth/onboarding-progress
+POST   /api/auth/onboarding/company-info
+POST   /api/auth/onboarding/company-logo
+POST   /api/auth/onboarding/complete
+POST   /api/auth/onboarding/modules
+POST   /api/auth/onboarding/skip
+POST   /api/auth/onboarding/user-avatar
+POST   /api/auth/onboarding/user-profile
+POST   /api/auth/password/check-breach
 POST   /api/auth/phone/resend-otp
 POST   /api/auth/phone/send-otp
+POST   /api/auth/phone/verify
 POST   /api/auth/phone/verify-otp
 POST   /api/auth/reauthenticate
 POST   /api/auth/reauthenticate/challenge
 POST   /api/auth/reauthenticate/verify
 POST   /api/auth/refresh
+POST   /api/auth/refresh-activity
 POST   /api/auth/register
 POST   /api/auth/resend-otp
 POST   /api/auth/resend-verification
@@ -8152,6 +8369,8 @@ POST   /api/auth/saml/acs/:firmId
 POST   /api/auth/saml/config/test
 POST   /api/auth/saml/sls/:firmId
 POST   /api/auth/send-otp
+POST   /api/auth/sessions/:sessionId/report
+POST   /api/auth/sessions/extend
 POST   /api/auth/sso/:provider/callback
 POST   /api/auth/sso/callback
 POST   /api/auth/sso/detect
@@ -8403,6 +8622,13 @@ POST   /api/corporate-cards/:id/transactions/:transactionId/dispute
 POST   /api/corporate-cards/:id/transactions/:transactionId/reconcile
 POST   /api/corporate-cards/:id/transactions/import
 POST   /api/corporate-cards/:id/unblock
+POST   /api/corporate-cards/transactions
+POST   /api/corporate-cards/transactions/:transactionId/dispute
+POST   /api/corporate-cards/transactions/:transactionId/match
+POST   /api/corporate-cards/transactions/:transactionId/reconcile
+POST   /api/corporate-cards/transactions/:transactionId/resolve-dispute
+POST   /api/corporate-cards/transactions/bulk-reconcile
+POST   /api/corporate-cards/transactions/import
 POST   /api/credit-notes
 POST   /api/credit-notes/:id/apply
 POST   /api/credit-notes/:id/issue
@@ -8524,6 +8750,16 @@ POST   /api/emailTemplates/:id/duplicate
 POST   /api/emailTemplates/:id/preview
 POST   /api/emailTemplates/:id/test
 POST   /api/events
+POST   /api/events/:eventId/action-items/:actionItemId/toggle
+POST   /api/events/:eventId/attachments
+POST   /api/events/:eventId/attendees/:attendeeId/check-in
+POST   /api/events/:eventId/attendees/:attendeeId/check-out
+POST   /api/events/:eventId/calendar-sync
+POST   /api/events/:eventId/comments
+POST   /api/events/:eventId/recurring/skip
+POST   /api/events/:eventId/recurring/stop
+POST   /api/events/:eventId/save-as-template
+POST   /api/events/:eventId/send-invitations
 POST   /api/events/:id/action-items
 POST   /api/events/:id/agenda
 POST   /api/events/:id/archive
@@ -8535,15 +8771,20 @@ POST   /api/events/:id/location/check
 POST   /api/events/:id/postpone
 POST   /api/events/:id/reschedule
 POST   /api/events/:id/rsvp
+POST   /api/events/:id/start
 POST   /api/events/:id/unarchive
 POST   /api/events/availability
 POST   /api/events/bulk
 POST   /api/events/bulk/archive
+POST   /api/events/bulk/cancel
 POST   /api/events/bulk/complete
 POST   /api/events/bulk/unarchive
+POST   /api/events/check-availability
+POST   /api/events/find-slots
 POST   /api/events/import/ics
 POST   /api/events/location/check
 POST   /api/events/parse
+POST   /api/events/templates/:templateId/create
 POST   /api/events/voice
 POST   /api/exchangeRateRevaluation
 POST   /api/exchangeRateRevaluation/:id/post
@@ -8993,9 +9234,18 @@ POST   /api/integrations/xero/sync/invoices
 POST   /api/integrations/xero/sync/payments
 POST   /api/integrations/xero/webhook
 POST   /api/inter-company/reconciliation
+POST   /api/inter-company/reconciliations
+POST   /api/inter-company/reconciliations/:reconciliationId/adjustments
+POST   /api/inter-company/reconciliations/:reconciliationId/approve
+POST   /api/inter-company/reconciliations/:reconciliationId/auto-match
+POST   /api/inter-company/reconciliations/:reconciliationId/complete
+POST   /api/inter-company/reconciliations/:reconciliationId/manual-match
+POST   /api/inter-company/reconciliations/:reconciliationId/unmatch
+POST   /api/inter-company/reports/export
 POST   /api/inter-company/transactions
 POST   /api/inter-company/transactions/:id/cancel
 POST   /api/inter-company/transactions/:id/confirm
+POST   /api/inter-company/transactions/:id/post
 POST   /api/interestAreas
 POST   /api/inventory/batches
 POST   /api/inventory/item-groups
@@ -9243,6 +9493,11 @@ POST   /api/preparedReport/request
 POST   /api/price-levels
 POST   /api/price-levels/:id/set-default
 POST   /api/products
+POST   /api/products/enhanced
+POST   /api/products/enhanced/:productId/barcodes
+POST   /api/products/enhanced/:productId/variants
+POST   /api/products/enhanced/:productId/variants/generate
+POST   /api/products/enhanced/bulk-update-prices
 POST   /api/proposals
 POST   /api/quality/actions
 POST   /api/quality/inspections
@@ -9470,6 +9725,16 @@ POST   /api/subcontracting/orders/:id/cancel
 POST   /api/subcontracting/orders/:id/submit
 POST   /api/subcontracting/receipts
 POST   /api/subcontracting/receipts/:id/submit
+POST   /api/subscriptions
+POST   /api/subscriptions/:id/activate
+POST   /api/subscriptions/:id/cancel
+POST   /api/subscriptions/:id/change-plan
+POST   /api/subscriptions/:id/consume-hours
+POST   /api/subscriptions/:id/generate-invoice
+POST   /api/subscriptions/:id/pause
+POST   /api/subscriptions/:id/renew
+POST   /api/subscriptions/:id/reset-hours
+POST   /api/subscriptions/:id/resume
 POST   /api/succession-plans
 POST   /api/succession-plans/:id/actions
 POST   /api/succession-plans/:id/activate
@@ -9762,7 +10027,7 @@ POST   /api/zoom/webhook
 
 </details>
 
-### PUT (239)
+### PUT (243)
 
 <details>
 <summary>Click to expand</summary>
@@ -9787,6 +10052,7 @@ PUT    /api/assets/settings
 PUT    /api/attendance/:id
 PUT    /api/attendance/:id/corrections/:correctionId
 PUT    /api/attendance/:id/violations/:violationIndex/resolve
+PUT    /api/auth/captcha/settings
 PUT    /api/auth/saml/config
 PUT    /api/automations/:id
 PUT    /api/bank-accounts/:id
@@ -9830,6 +10096,7 @@ PUT    /api/email-marketing/segments/:id
 PUT    /api/email-marketing/subscribers/:id
 PUT    /api/email-marketing/templates/:id
 PUT    /api/emailTemplates/:id
+PUT    /api/events/:eventId/recurring/instance/:instanceDate
 PUT    /api/events/:id
 PUT    /api/events/:id/action-items/:itemId
 PUT    /api/events/:id/agenda/:agendaId
@@ -9931,6 +10198,8 @@ PUT    /api/playbook/:id
 PUT    /api/price-levels/:id
 PUT    /api/products/:id
 PUT    /api/products/bulk-prices
+PUT    /api/products/enhanced/:productId
+PUT    /api/products/enhanced/:productId/variants/:variantId
 PUT    /api/quality/actions/:id
 PUT    /api/quality/inspections/:id
 PUT    /api/quality/settings
@@ -10011,7 +10280,7 @@ PUT    /api/zoom/settings
 
 </details>
 
-### PATCH (212)
+### PATCH (217)
 
 <details>
 <summary>Click to expand</summary>
@@ -10069,9 +10338,12 @@ PATCH  /api/contracts/:contractId
 PATCH  /api/contracts/:contractId/enforcement
 PATCH  /api/contracts/:contractId/parties/:partyIndex
 PATCH  /api/conversations/:conversationID
+PATCH  /api/corporate-cards/transactions/:id
 PATCH  /api/customFields/:id
 PATCH  /api/data-export/templates/:id
 PATCH  /api/documents/:id
+PATCH  /api/events/:eventId/comments/:commentId
+PATCH  /api/events/:eventId/notes
 PATCH  /api/events/:id
 PATCH  /api/events/reorder
 PATCH  /api/firms/:_id
@@ -10169,6 +10441,7 @@ PATCH  /api/organizations/:id
 PATCH  /api/payroll-runs/:id
 PATCH  /api/peerReview/verify/:_id
 PATCH  /api/plugins/installations/:installationId/settings
+PATCH  /api/products/enhanced/:productId/cost-price
 PATCH  /api/proposals/accept/:_id
 PATCH  /api/proposals/reject/:_id
 PATCH  /api/proposals/withdraw/:_id
@@ -10199,6 +10472,7 @@ PATCH  /api/settings/taxes/:id/default
 PATCH  /api/setup/admin/sections/:sectionId
 PATCH  /api/setup/admin/tasks/:taskId
 PATCH  /api/staff/:id
+PATCH  /api/subscriptions/:id
 PATCH  /api/succession-plans/:id
 PATCH  /api/succession-plans/:id/actions/:actionId
 PATCH  /api/succession-plans/:id/successors/:successorId
@@ -10233,7 +10507,7 @@ PATCH  /api/webhooks/:id
 
 </details>
 
-### DELETE (303)
+### DELETE (311)
 
 <details>
 <summary>Click to expand</summary>
@@ -10257,6 +10531,7 @@ DELETE /api/assets/categories/:id
 DELETE /api/attendance/:id
 DELETE /api/auth/sessions
 DELETE /api/auth/sessions/:id
+DELETE /api/auth/sessions/:sessionId/report
 DELETE /api/auth/sso/unlink/:providerType
 DELETE /api/auth/webauthn/credentials/:id
 DELETE /api/automatedActions/:id
@@ -10318,6 +10593,7 @@ DELETE /api/contacts/bulk
 DELETE /api/contracts/:contractId
 DELETE /api/contracts/:contractId/parties/:partyIndex
 DELETE /api/corporate-cards/:id
+DELETE /api/corporate-cards/transactions/:id
 DELETE /api/credit-notes/:id
 DELETE /api/crm-activities/:id
 DELETE /api/crm-pipelines/:id
@@ -10340,6 +10616,8 @@ DELETE /api/email-marketing/segments/:id
 DELETE /api/email-marketing/subscribers/:id
 DELETE /api/email-marketing/templates/:id
 DELETE /api/emailTemplates/:id
+DELETE /api/events/:eventId/attachments/:attachmentId
+DELETE /api/events/:eventId/comments/:commentId
 DELETE /api/events/:id
 DELETE /api/events/:id/action-items/:itemId
 DELETE /api/events/:id/agenda/:agendaId
@@ -10461,6 +10739,9 @@ DELETE /api/plugins/:id/uninstall
 DELETE /api/preparedReport/:id
 DELETE /api/price-levels/:id
 DELETE /api/products/:id
+DELETE /api/products/enhanced/:productId
+DELETE /api/products/enhanced/:productId/barcodes/:barcodeId
+DELETE /api/products/enhanced/:productId/variants/:variantId
 DELETE /api/quality/actions/:id
 DELETE /api/quality/inspections/:id
 DELETE /api/quality/templates/:id
@@ -10505,6 +10786,7 @@ DELETE /api/staff/:id
 DELETE /api/statements/:id
 DELETE /api/status/admin/components/:id
 DELETE /api/subcontracting/orders/:id
+DELETE /api/subscriptions/:id
 DELETE /api/succession-plans/:id
 DELETE /api/succession-plans/:id/successors/:successorId
 DELETE /api/support/slas/:id

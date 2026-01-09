@@ -1,7 +1,7 @@
 {
-  "generated": "2026-01-09T10:14:54.536Z",
-  "totalEndpoints": 4400,
-  "totalModules": 279,
+  "generated": "2026-01-09T10:31:27.359Z",
+  "totalEndpoints": 4523,
+  "totalModules": 285,
   "modules": {
     "account": [
       {
@@ -3219,6 +3219,200 @@
         "file": "auth.route.js",
         "fullPath": "/api/auth/reauthenticate/status",
         "module": "auth"
+      }
+    ],
+    "authExtended": [
+      {
+        "method": "POST",
+        "path": "/refresh-activity",
+        "controller": "unknown",
+        "file": "authExtended.route.js",
+        "fullPath": "/api/auth/refresh-activity",
+        "module": "authExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/anonymous/extend",
+        "controller": "unknown",
+        "file": "authExtended.route.js",
+        "fullPath": "/api/auth/anonymous/extend",
+        "module": "authExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/captcha/verify",
+        "controller": "unknown",
+        "file": "authExtended.route.js",
+        "fullPath": "/api/auth/captcha/verify",
+        "module": "authExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/captcha/settings",
+        "controller": "unknown",
+        "file": "authExtended.route.js",
+        "fullPath": "/api/auth/captcha/settings",
+        "module": "authExtended"
+      },
+      {
+        "method": "PUT",
+        "path": "/captcha/settings",
+        "controller": "unknown",
+        "file": "authExtended.route.js",
+        "fullPath": "/api/auth/captcha/settings",
+        "module": "authExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/captcha/check-required",
+        "controller": "unknown",
+        "file": "authExtended.route.js",
+        "fullPath": "/api/auth/captcha/check-required",
+        "module": "authExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/mfa/sms/send",
+        "controller": "unknown",
+        "file": "authExtended.route.js",
+        "fullPath": "/api/auth/mfa/sms/send",
+        "module": "authExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/mfa/email/send",
+        "controller": "unknown",
+        "file": "authExtended.route.js",
+        "fullPath": "/api/auth/mfa/email/send",
+        "module": "authExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/mfa/required",
+        "controller": "unknown",
+        "file": "authExtended.route.js",
+        "fullPath": "/api/auth/mfa/required",
+        "module": "authExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/onboarding-progress",
+        "controller": "unknown",
+        "file": "authExtended.route.js",
+        "fullPath": "/api/auth/onboarding-progress",
+        "module": "authExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/onboarding/company-info",
+        "controller": "unknown",
+        "file": "authExtended.route.js",
+        "fullPath": "/api/auth/onboarding/company-info",
+        "module": "authExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/onboarding/company-logo",
+        "controller": "unknown",
+        "file": "authExtended.route.js",
+        "fullPath": "/api/auth/onboarding/company-logo",
+        "module": "authExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/onboarding/user-profile",
+        "controller": "unknown",
+        "file": "authExtended.route.js",
+        "fullPath": "/api/auth/onboarding/user-profile",
+        "module": "authExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/onboarding/user-avatar",
+        "controller": "unknown",
+        "file": "authExtended.route.js",
+        "fullPath": "/api/auth/onboarding/user-avatar",
+        "module": "authExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/onboarding/modules",
+        "controller": "unknown",
+        "file": "authExtended.route.js",
+        "fullPath": "/api/auth/onboarding/modules",
+        "module": "authExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/onboarding/complete",
+        "controller": "unknown",
+        "file": "authExtended.route.js",
+        "fullPath": "/api/auth/onboarding/complete",
+        "module": "authExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/onboarding/skip",
+        "controller": "unknown",
+        "file": "authExtended.route.js",
+        "fullPath": "/api/auth/onboarding/skip",
+        "module": "authExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/reset-password/validate",
+        "controller": "unknown",
+        "file": "authExtended.route.js",
+        "fullPath": "/api/auth/reset-password/validate",
+        "module": "authExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/password/check-breach",
+        "controller": "unknown",
+        "file": "authExtended.route.js",
+        "fullPath": "/api/auth/password/check-breach",
+        "module": "authExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/phone/verify",
+        "controller": "unknown",
+        "file": "authExtended.route.js",
+        "fullPath": "/api/auth/phone/verify",
+        "module": "authExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/sessions/extend",
+        "controller": "unknown",
+        "file": "authExtended.route.js",
+        "fullPath": "/api/auth/sessions/extend",
+        "module": "authExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/sessions/:sessionId/report",
+        "controller": "unknown",
+        "file": "authExtended.route.js",
+        "fullPath": "/api/auth/sessions/:sessionId/report",
+        "module": "authExtended"
+      },
+      {
+        "method": "DELETE",
+        "path": "/sessions/:sessionId/report",
+        "controller": "unknown",
+        "file": "authExtended.route.js",
+        "fullPath": "/api/auth/sessions/:sessionId/report",
+        "module": "authExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/reauthenticate/methods",
+        "controller": "unknown",
+        "file": "authExtended.route.js",
+        "fullPath": "/api/auth/reauthenticate/methods",
+        "module": "authExtended"
       }
     ],
     "automatedActions": [
@@ -7861,6 +8055,160 @@
         "file": "corporateCard.route.js",
         "fullPath": "/api/corporate-cards/:id",
         "module": "corporateCard"
+      }
+    ],
+    "corporateCards": [
+      {
+        "method": "GET",
+        "path": "/transactions",
+        "controller": "unknown",
+        "file": "corporateCards.route.js",
+        "fullPath": "/api/corporate-cards/transactions",
+        "module": "corporateCards"
+      },
+      {
+        "method": "GET",
+        "path": "/transactions/:id",
+        "controller": "unknown",
+        "file": "corporateCards.route.js",
+        "fullPath": "/api/corporate-cards/transactions/:id",
+        "module": "corporateCards"
+      },
+      {
+        "method": "POST",
+        "path": "/transactions",
+        "controller": "unknown",
+        "file": "corporateCards.route.js",
+        "fullPath": "/api/corporate-cards/transactions",
+        "module": "corporateCards"
+      },
+      {
+        "method": "PATCH",
+        "path": "/transactions/:id",
+        "controller": "unknown",
+        "file": "corporateCards.route.js",
+        "fullPath": "/api/corporate-cards/transactions/:id",
+        "module": "corporateCards"
+      },
+      {
+        "method": "DELETE",
+        "path": "/transactions/:id",
+        "controller": "unknown",
+        "file": "corporateCards.route.js",
+        "fullPath": "/api/corporate-cards/transactions/:id",
+        "module": "corporateCards"
+      },
+      {
+        "method": "POST",
+        "path": "/transactions/:transactionId/reconcile",
+        "controller": "unknown",
+        "file": "corporateCards.route.js",
+        "fullPath": "/api/corporate-cards/transactions/:transactionId/reconcile",
+        "module": "corporateCards"
+      },
+      {
+        "method": "POST",
+        "path": "/transactions/bulk-reconcile",
+        "controller": "unknown",
+        "file": "corporateCards.route.js",
+        "fullPath": "/api/corporate-cards/transactions/bulk-reconcile",
+        "module": "corporateCards"
+      },
+      {
+        "method": "POST",
+        "path": "/transactions/:transactionId/match",
+        "controller": "unknown",
+        "file": "corporateCards.route.js",
+        "fullPath": "/api/corporate-cards/transactions/:transactionId/match",
+        "module": "corporateCards"
+      },
+      {
+        "method": "GET",
+        "path": "/transactions/:transactionId/potential-matches",
+        "controller": "unknown",
+        "file": "corporateCards.route.js",
+        "fullPath": "/api/corporate-cards/transactions/:transactionId/potential-matches",
+        "module": "corporateCards"
+      },
+      {
+        "method": "POST",
+        "path": "/transactions/:transactionId/dispute",
+        "controller": "unknown",
+        "file": "corporateCards.route.js",
+        "fullPath": "/api/corporate-cards/transactions/:transactionId/dispute",
+        "module": "corporateCards"
+      },
+      {
+        "method": "POST",
+        "path": "/transactions/:transactionId/resolve-dispute",
+        "controller": "unknown",
+        "file": "corporateCards.route.js",
+        "fullPath": "/api/corporate-cards/transactions/:transactionId/resolve-dispute",
+        "module": "corporateCards"
+      },
+      {
+        "method": "POST",
+        "path": "/transactions/import",
+        "controller": "unknown",
+        "file": "corporateCards.route.js",
+        "fullPath": "/api/corporate-cards/transactions/import",
+        "module": "corporateCards"
+      },
+      {
+        "method": "GET",
+        "path": "/transactions/csv-template",
+        "controller": "unknown",
+        "file": "corporateCards.route.js",
+        "fullPath": "/api/corporate-cards/transactions/csv-template",
+        "module": "corporateCards"
+      },
+      {
+        "method": "GET",
+        "path": "/statistics",
+        "controller": "unknown",
+        "file": "corporateCards.route.js",
+        "fullPath": "/api/corporate-cards/statistics",
+        "module": "corporateCards"
+      },
+      {
+        "method": "GET",
+        "path": "/reports/reconciliation",
+        "controller": "unknown",
+        "file": "corporateCards.route.js",
+        "fullPath": "/api/corporate-cards/reports/reconciliation",
+        "module": "corporateCards"
+      },
+      {
+        "method": "GET",
+        "path": "/reports/reconciliation/export",
+        "controller": "unknown",
+        "file": "corporateCards.route.js",
+        "fullPath": "/api/corporate-cards/reports/reconciliation/export",
+        "module": "corporateCards"
+      },
+      {
+        "method": "GET",
+        "path": "/analytics/spending-by-category",
+        "controller": "unknown",
+        "file": "corporateCards.route.js",
+        "fullPath": "/api/corporate-cards/analytics/spending-by-category",
+        "module": "corporateCards"
+      },
+      {
+        "method": "GET",
+        "path": "/analytics/spending-by-card",
+        "controller": "unknown",
+        "file": "corporateCards.route.js",
+        "fullPath": "/api/corporate-cards/analytics/spending-by-card",
+        "module": "corporateCards"
+      },
+      {
+        "method": "GET",
+        "path": "/analytics/monthly-trend",
+        "controller": "unknown",
+        "file": "corporateCards.route.js",
+        "fullPath": "/api/corporate-cards/analytics/monthly-trend",
+        "module": "corporateCards"
       }
     ],
     "creditNote": [
@@ -12645,6 +12993,208 @@
         "module": "event"
       }
     ],
+    "eventsExtended": [
+      {
+        "method": "POST",
+        "path": "/:id/start",
+        "controller": "unknown",
+        "file": "eventsExtended.route.js",
+        "fullPath": "/api/events/:id/start",
+        "module": "eventsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:eventId/send-invitations",
+        "controller": "unknown",
+        "file": "eventsExtended.route.js",
+        "fullPath": "/api/events/:eventId/send-invitations",
+        "module": "eventsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:eventId/attendees/:attendeeId/check-in",
+        "controller": "unknown",
+        "file": "eventsExtended.route.js",
+        "fullPath": "/api/events/:eventId/attendees/:attendeeId/check-in",
+        "module": "eventsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:eventId/attendees/:attendeeId/check-out",
+        "controller": "unknown",
+        "file": "eventsExtended.route.js",
+        "fullPath": "/api/events/:eventId/attendees/:attendeeId/check-out",
+        "module": "eventsExtended"
+      },
+      {
+        "method": "PATCH",
+        "path": "/:eventId/notes",
+        "controller": "unknown",
+        "file": "eventsExtended.route.js",
+        "fullPath": "/api/events/:eventId/notes",
+        "module": "eventsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:eventId/action-items/:actionItemId/toggle",
+        "controller": "unknown",
+        "file": "eventsExtended.route.js",
+        "fullPath": "/api/events/:eventId/action-items/:actionItemId/toggle",
+        "module": "eventsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:eventId/attachments",
+        "controller": "unknown",
+        "file": "eventsExtended.route.js",
+        "fullPath": "/api/events/:eventId/attachments",
+        "module": "eventsExtended"
+      },
+      {
+        "method": "DELETE",
+        "path": "/:eventId/attachments/:attachmentId",
+        "controller": "unknown",
+        "file": "eventsExtended.route.js",
+        "fullPath": "/api/events/:eventId/attachments/:attachmentId",
+        "module": "eventsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:eventId/comments",
+        "controller": "unknown",
+        "file": "eventsExtended.route.js",
+        "fullPath": "/api/events/:eventId/comments",
+        "module": "eventsExtended"
+      },
+      {
+        "method": "PATCH",
+        "path": "/:eventId/comments/:commentId",
+        "controller": "unknown",
+        "file": "eventsExtended.route.js",
+        "fullPath": "/api/events/:eventId/comments/:commentId",
+        "module": "eventsExtended"
+      },
+      {
+        "method": "DELETE",
+        "path": "/:eventId/comments/:commentId",
+        "controller": "unknown",
+        "file": "eventsExtended.route.js",
+        "fullPath": "/api/events/:eventId/comments/:commentId",
+        "module": "eventsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/today",
+        "controller": "unknown",
+        "file": "eventsExtended.route.js",
+        "fullPath": "/api/events/today",
+        "module": "eventsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/my-events",
+        "controller": "unknown",
+        "file": "eventsExtended.route.js",
+        "fullPath": "/api/events/my-events",
+        "module": "eventsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/pending-rsvp",
+        "controller": "unknown",
+        "file": "eventsExtended.route.js",
+        "fullPath": "/api/events/pending-rsvp",
+        "module": "eventsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:eventId/recurring/skip",
+        "controller": "unknown",
+        "file": "eventsExtended.route.js",
+        "fullPath": "/api/events/:eventId/recurring/skip",
+        "module": "eventsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:eventId/recurring/stop",
+        "controller": "unknown",
+        "file": "eventsExtended.route.js",
+        "fullPath": "/api/events/:eventId/recurring/stop",
+        "module": "eventsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/:eventId/recurring/instances",
+        "controller": "unknown",
+        "file": "eventsExtended.route.js",
+        "fullPath": "/api/events/:eventId/recurring/instances",
+        "module": "eventsExtended"
+      },
+      {
+        "method": "PUT",
+        "path": "/:eventId/recurring/instance/:instanceDate",
+        "controller": "unknown",
+        "file": "eventsExtended.route.js",
+        "fullPath": "/api/events/:eventId/recurring/instance/:instanceDate",
+        "module": "eventsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:eventId/calendar-sync",
+        "controller": "unknown",
+        "file": "eventsExtended.route.js",
+        "fullPath": "/api/events/:eventId/calendar-sync",
+        "module": "eventsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/bulk/cancel",
+        "controller": "unknown",
+        "file": "eventsExtended.route.js",
+        "fullPath": "/api/events/bulk/cancel",
+        "module": "eventsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/templates",
+        "controller": "unknown",
+        "file": "eventsExtended.route.js",
+        "fullPath": "/api/events/templates",
+        "module": "eventsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/templates/:templateId/create",
+        "controller": "unknown",
+        "file": "eventsExtended.route.js",
+        "fullPath": "/api/events/templates/:templateId/create",
+        "module": "eventsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:eventId/save-as-template",
+        "controller": "unknown",
+        "file": "eventsExtended.route.js",
+        "fullPath": "/api/events/:eventId/save-as-template",
+        "module": "eventsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/check-availability",
+        "controller": "unknown",
+        "file": "eventsExtended.route.js",
+        "fullPath": "/api/events/check-availability",
+        "module": "eventsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/find-slots",
+        "controller": "unknown",
+        "file": "eventsExtended.route.js",
+        "fullPath": "/api/events/find-slots",
+        "module": "eventsExtended"
+      }
+    ],
     "exchangeRateRevaluation": [
       {
         "method": "GET",
@@ -17209,6 +17759,136 @@
         "file": "interCompany.route.js",
         "fullPath": "/api/inter-company/reconciliation",
         "module": "interCompany"
+      }
+    ],
+    "interCompanyExtended": [
+      {
+        "method": "POST",
+        "path": "/transactions/:id/post",
+        "controller": "unknown",
+        "file": "interCompanyExtended.route.js",
+        "fullPath": "/api/inter-company/transactions/:id/post",
+        "module": "interCompanyExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/balances/between",
+        "controller": "unknown",
+        "file": "interCompanyExtended.route.js",
+        "fullPath": "/api/inter-company/balances/between",
+        "module": "interCompanyExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/transactions/between",
+        "controller": "unknown",
+        "file": "interCompanyExtended.route.js",
+        "fullPath": "/api/inter-company/transactions/between",
+        "module": "interCompanyExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/reconciliations",
+        "controller": "unknown",
+        "file": "interCompanyExtended.route.js",
+        "fullPath": "/api/inter-company/reconciliations",
+        "module": "interCompanyExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/reconciliations/:id",
+        "controller": "unknown",
+        "file": "interCompanyExtended.route.js",
+        "fullPath": "/api/inter-company/reconciliations/:id",
+        "module": "interCompanyExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/reconciliations",
+        "controller": "unknown",
+        "file": "interCompanyExtended.route.js",
+        "fullPath": "/api/inter-company/reconciliations",
+        "module": "interCompanyExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/reconciliations/:reconciliationId/auto-match",
+        "controller": "unknown",
+        "file": "interCompanyExtended.route.js",
+        "fullPath": "/api/inter-company/reconciliations/:reconciliationId/auto-match",
+        "module": "interCompanyExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/reconciliations/:reconciliationId/manual-match",
+        "controller": "unknown",
+        "file": "interCompanyExtended.route.js",
+        "fullPath": "/api/inter-company/reconciliations/:reconciliationId/manual-match",
+        "module": "interCompanyExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/reconciliations/:reconciliationId/unmatch",
+        "controller": "unknown",
+        "file": "interCompanyExtended.route.js",
+        "fullPath": "/api/inter-company/reconciliations/:reconciliationId/unmatch",
+        "module": "interCompanyExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/reconciliations/:reconciliationId/adjustments",
+        "controller": "unknown",
+        "file": "interCompanyExtended.route.js",
+        "fullPath": "/api/inter-company/reconciliations/:reconciliationId/adjustments",
+        "module": "interCompanyExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/reconciliations/:reconciliationId/complete",
+        "controller": "unknown",
+        "file": "interCompanyExtended.route.js",
+        "fullPath": "/api/inter-company/reconciliations/:reconciliationId/complete",
+        "module": "interCompanyExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/reconciliations/:reconciliationId/approve",
+        "controller": "unknown",
+        "file": "interCompanyExtended.route.js",
+        "fullPath": "/api/inter-company/reconciliations/:reconciliationId/approve",
+        "module": "interCompanyExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/firms",
+        "controller": "unknown",
+        "file": "interCompanyExtended.route.js",
+        "fullPath": "/api/inter-company/firms",
+        "module": "interCompanyExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/exchange-rate",
+        "controller": "unknown",
+        "file": "interCompanyExtended.route.js",
+        "fullPath": "/api/inter-company/exchange-rate",
+        "module": "interCompanyExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/reports/summary",
+        "controller": "unknown",
+        "file": "interCompanyExtended.route.js",
+        "fullPath": "/api/inter-company/reports/summary",
+        "module": "interCompanyExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/reports/export",
+        "controller": "unknown",
+        "file": "interCompanyExtended.route.js",
+        "fullPath": "/api/inter-company/reports/export",
+        "module": "interCompanyExtended"
       }
     ],
     "interestAreas": [
@@ -24479,6 +25159,152 @@
         "module": "products"
       }
     ],
+    "productsEnhanced": [
+      {
+        "method": "GET",
+        "path": "/",
+        "controller": "unknown",
+        "file": "productsEnhanced.route.js",
+        "fullPath": "/api/products/enhanced",
+        "module": "productsEnhanced"
+      },
+      {
+        "method": "GET",
+        "path": "/:productId",
+        "controller": "unknown",
+        "file": "productsEnhanced.route.js",
+        "fullPath": "/api/products/enhanced/:productId",
+        "module": "productsEnhanced"
+      },
+      {
+        "method": "POST",
+        "path": "/",
+        "controller": "unknown",
+        "file": "productsEnhanced.route.js",
+        "fullPath": "/api/products/enhanced",
+        "module": "productsEnhanced"
+      },
+      {
+        "method": "PUT",
+        "path": "/:productId",
+        "controller": "unknown",
+        "file": "productsEnhanced.route.js",
+        "fullPath": "/api/products/enhanced/:productId",
+        "module": "productsEnhanced"
+      },
+      {
+        "method": "DELETE",
+        "path": "/:productId",
+        "controller": "unknown",
+        "file": "productsEnhanced.route.js",
+        "fullPath": "/api/products/enhanced/:productId",
+        "module": "productsEnhanced"
+      },
+      {
+        "method": "PATCH",
+        "path": "/:productId/cost-price",
+        "controller": "unknown",
+        "file": "productsEnhanced.route.js",
+        "fullPath": "/api/products/enhanced/:productId/cost-price",
+        "module": "productsEnhanced"
+      },
+      {
+        "method": "GET",
+        "path": "/:productId/margin",
+        "controller": "unknown",
+        "file": "productsEnhanced.route.js",
+        "fullPath": "/api/products/enhanced/:productId/margin",
+        "module": "productsEnhanced"
+      },
+      {
+        "method": "POST",
+        "path": "/bulk-update-prices",
+        "controller": "unknown",
+        "file": "productsEnhanced.route.js",
+        "fullPath": "/api/products/enhanced/bulk-update-prices",
+        "module": "productsEnhanced"
+      },
+      {
+        "method": "GET",
+        "path": "/:productId/variants",
+        "controller": "unknown",
+        "file": "productsEnhanced.route.js",
+        "fullPath": "/api/products/enhanced/:productId/variants",
+        "module": "productsEnhanced"
+      },
+      {
+        "method": "GET",
+        "path": "/:productId/variants/:variantId",
+        "controller": "unknown",
+        "file": "productsEnhanced.route.js",
+        "fullPath": "/api/products/enhanced/:productId/variants/:variantId",
+        "module": "productsEnhanced"
+      },
+      {
+        "method": "POST",
+        "path": "/:productId/variants",
+        "controller": "unknown",
+        "file": "productsEnhanced.route.js",
+        "fullPath": "/api/products/enhanced/:productId/variants",
+        "module": "productsEnhanced"
+      },
+      {
+        "method": "PUT",
+        "path": "/:productId/variants/:variantId",
+        "controller": "unknown",
+        "file": "productsEnhanced.route.js",
+        "fullPath": "/api/products/enhanced/:productId/variants/:variantId",
+        "module": "productsEnhanced"
+      },
+      {
+        "method": "DELETE",
+        "path": "/:productId/variants/:variantId",
+        "controller": "unknown",
+        "file": "productsEnhanced.route.js",
+        "fullPath": "/api/products/enhanced/:productId/variants/:variantId",
+        "module": "productsEnhanced"
+      },
+      {
+        "method": "POST",
+        "path": "/:productId/variants/generate",
+        "controller": "unknown",
+        "file": "productsEnhanced.route.js",
+        "fullPath": "/api/products/enhanced/:productId/variants/generate",
+        "module": "productsEnhanced"
+      },
+      {
+        "method": "GET",
+        "path": "/:productId/barcodes",
+        "controller": "unknown",
+        "file": "productsEnhanced.route.js",
+        "fullPath": "/api/products/enhanced/:productId/barcodes",
+        "module": "productsEnhanced"
+      },
+      {
+        "method": "POST",
+        "path": "/:productId/barcodes",
+        "controller": "unknown",
+        "file": "productsEnhanced.route.js",
+        "fullPath": "/api/products/enhanced/:productId/barcodes",
+        "module": "productsEnhanced"
+      },
+      {
+        "method": "DELETE",
+        "path": "/:productId/barcodes/:barcodeId",
+        "controller": "unknown",
+        "file": "productsEnhanced.route.js",
+        "fullPath": "/api/products/enhanced/:productId/barcodes/:barcodeId",
+        "module": "productsEnhanced"
+      },
+      {
+        "method": "GET",
+        "path": "/lookup/barcode",
+        "controller": "unknown",
+        "file": "productsEnhanced.route.js",
+        "fullPath": "/api/products/enhanced/lookup/barcode",
+        "module": "productsEnhanced"
+      }
+    ],
     "proposal": [
       {
         "method": "POST",
@@ -30269,6 +31095,176 @@
         "file": "subcontracting.route.js",
         "fullPath": "/api/subcontracting/receipts/:id/submit",
         "module": "subcontracting"
+      }
+    ],
+    "subscriptions": [
+      {
+        "method": "GET",
+        "path": "/",
+        "controller": "unknown",
+        "file": "subscriptions.route.js",
+        "fullPath": "/api/subscriptions",
+        "module": "subscriptions"
+      },
+      {
+        "method": "GET",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "subscriptions.route.js",
+        "fullPath": "/api/subscriptions/:id",
+        "module": "subscriptions"
+      },
+      {
+        "method": "POST",
+        "path": "/",
+        "controller": "unknown",
+        "file": "subscriptions.route.js",
+        "fullPath": "/api/subscriptions",
+        "module": "subscriptions"
+      },
+      {
+        "method": "PATCH",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "subscriptions.route.js",
+        "fullPath": "/api/subscriptions/:id",
+        "module": "subscriptions"
+      },
+      {
+        "method": "DELETE",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "subscriptions.route.js",
+        "fullPath": "/api/subscriptions/:id",
+        "module": "subscriptions"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/activate",
+        "controller": "unknown",
+        "file": "subscriptions.route.js",
+        "fullPath": "/api/subscriptions/:id/activate",
+        "module": "subscriptions"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/pause",
+        "controller": "unknown",
+        "file": "subscriptions.route.js",
+        "fullPath": "/api/subscriptions/:id/pause",
+        "module": "subscriptions"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/resume",
+        "controller": "unknown",
+        "file": "subscriptions.route.js",
+        "fullPath": "/api/subscriptions/:id/resume",
+        "module": "subscriptions"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/cancel",
+        "controller": "unknown",
+        "file": "subscriptions.route.js",
+        "fullPath": "/api/subscriptions/:id/cancel",
+        "module": "subscriptions"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/renew",
+        "controller": "unknown",
+        "file": "subscriptions.route.js",
+        "fullPath": "/api/subscriptions/:id/renew",
+        "module": "subscriptions"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/change-plan",
+        "controller": "unknown",
+        "file": "subscriptions.route.js",
+        "fullPath": "/api/subscriptions/:id/change-plan",
+        "module": "subscriptions"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/consume-hours",
+        "controller": "unknown",
+        "file": "subscriptions.route.js",
+        "fullPath": "/api/subscriptions/:id/consume-hours",
+        "module": "subscriptions"
+      },
+      {
+        "method": "GET",
+        "path": "/:id/hours-usage",
+        "controller": "unknown",
+        "file": "subscriptions.route.js",
+        "fullPath": "/api/subscriptions/:id/hours-usage",
+        "module": "subscriptions"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/reset-hours",
+        "controller": "unknown",
+        "file": "subscriptions.route.js",
+        "fullPath": "/api/subscriptions/:id/reset-hours",
+        "module": "subscriptions"
+      },
+      {
+        "method": "GET",
+        "path": "/:id/invoices",
+        "controller": "unknown",
+        "file": "subscriptions.route.js",
+        "fullPath": "/api/subscriptions/:id/invoices",
+        "module": "subscriptions"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/generate-invoice",
+        "controller": "unknown",
+        "file": "subscriptions.route.js",
+        "fullPath": "/api/subscriptions/:id/generate-invoice",
+        "module": "subscriptions"
+      },
+      {
+        "method": "GET",
+        "path": "/:id/upcoming-invoice",
+        "controller": "unknown",
+        "file": "subscriptions.route.js",
+        "fullPath": "/api/subscriptions/:id/upcoming-invoice",
+        "module": "subscriptions"
+      },
+      {
+        "method": "GET",
+        "path": "/:id/renewal-preview",
+        "controller": "unknown",
+        "file": "subscriptions.route.js",
+        "fullPath": "/api/subscriptions/:id/renewal-preview",
+        "module": "subscriptions"
+      },
+      {
+        "method": "GET",
+        "path": "/stats",
+        "controller": "unknown",
+        "file": "subscriptions.route.js",
+        "fullPath": "/api/subscriptions/stats",
+        "module": "subscriptions"
+      },
+      {
+        "method": "GET",
+        "path": "/upcoming-renewals",
+        "controller": "unknown",
+        "file": "subscriptions.route.js",
+        "fullPath": "/api/subscriptions/upcoming-renewals",
+        "module": "subscriptions"
+      },
+      {
+        "method": "GET",
+        "path": "/past-due",
+        "controller": "unknown",
+        "file": "subscriptions.route.js",
+        "fullPath": "/api/subscriptions/past-due",
+        "module": "subscriptions"
       }
     ],
     "successionPlan": [

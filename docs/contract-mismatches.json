@@ -86,12 +86,6 @@
         "source": "hooks/use-crm-reports.ts"
       },
       {
-        "method": "POST",
-        "endpoint": "/auth/refresh-activity",
-        "responseType": null,
-        "source": "hooks/use-session-warning.ts"
-      },
-      {
         "method": "GET",
         "endpoint": "/finance/overview",
         "responseType": null,
@@ -234,12 +228,6 @@
         "endpoint": "/activities/entity/${entityType}/${entityId}?limit=${limit}",
         "responseType": null,
         "source": "services/activityService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/auth/anonymous/extend",
-        "responseType": "{ expiresAt: string }",
-        "source": "services/anonymousAuthService.ts"
       },
       {
         "method": "GET",
@@ -734,30 +722,6 @@
         "source": "services/campaignService.ts"
       },
       {
-        "method": "POST",
-        "endpoint": "/auth/captcha/verify",
-        "responseType": "VerifyCaptchaResponse",
-        "source": "services/captchaService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/auth/captcha/settings",
-        "responseType": "CaptchaSettings",
-        "source": "services/captchaService.ts"
-      },
-      {
-        "method": "PUT",
-        "endpoint": "/auth/captcha/settings",
-        "responseType": "CaptchaSettings",
-        "source": "services/captchaService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/auth/captcha/check-required",
-        "responseType": "CaptchaRequirementCheck",
-        "source": "services/captchaService.ts"
-      },
-      {
         "method": "DELETE",
         "endpoint": "/cases/${caseId}/notion/pages/${pageId}",
         "responseType": null,
@@ -978,120 +942,6 @@
         "endpoint": "/contacts/${contactId}/stakeholder/${leadId}",
         "responseType": null,
         "source": "services/contactService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/corporate-cards/transactions",
-        "responseType": null,
-        "source": "services/corporateCardService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/corporate-cards/transactions/${id}",
-        "responseType": null,
-        "source": "services/corporateCardService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/corporate-cards/transactions",
-        "responseType": null,
-        "source": "services/corporateCardService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/corporate-cards/transactions/${id}",
-        "responseType": null,
-        "source": "services/corporateCardService.ts"
-      },
-      {
-        "method": "DELETE",
-        "endpoint": "/corporate-cards/transactions/${id}",
-        "responseType": null,
-        "source": "services/corporateCardService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/corporate-cards/transactions/${data.transactionId}/reconcile",
-        "responseType": null,
-        "source": "services/corporateCardService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/corporate-cards/transactions/bulk-reconcile",
-        "responseType": null,
-        "source": "services/corporateCardService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/corporate-cards/transactions/${transactionId}/match",
-        "responseType": null,
-        "source": "services/corporateCardService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/corporate-cards/transactions/${transactionId}/potential-matches",
-        "responseType": null,
-        "source": "services/corporateCardService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/corporate-cards/transactions/${transactionId}/dispute",
-        "responseType": null,
-        "source": "services/corporateCardService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/corporate-cards/transactions/${transactionId}/resolve-dispute",
-        "responseType": null,
-        "source": "services/corporateCardService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/corporate-cards/transactions/import",
-        "responseType": null,
-        "source": "services/corporateCardService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/corporate-cards/transactions/csv-template",
-        "responseType": null,
-        "source": "services/corporateCardService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/corporate-cards/statistics",
-        "responseType": null,
-        "source": "services/corporateCardService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/corporate-cards/reports/reconciliation",
-        "responseType": null,
-        "source": "services/corporateCardService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/corporate-cards/reports/reconciliation/export",
-        "responseType": null,
-        "source": "services/corporateCardService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/corporate-cards/analytics/spending-by-category",
-        "responseType": null,
-        "source": "services/corporateCardService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/corporate-cards/analytics/spending-by-card",
-        "responseType": null,
-        "source": "services/corporateCardService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/corporate-cards/analytics/monthly-trend",
-        "responseType": null,
-        "source": "services/corporateCardService.ts"
       },
       {
         "method": "POST",
@@ -1724,156 +1574,6 @@
         "source": "services/employeeSkillMapService.ts"
       },
       {
-        "method": "POST",
-        "endpoint": "/events/${id}/start",
-        "responseType": null,
-        "source": "services/eventsService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/events/${eventId}/send-invitations",
-        "responseType": null,
-        "source": "services/eventsService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/events/${eventId}/attendees/${attendeeId}/check-in",
-        "responseType": null,
-        "source": "services/eventsService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/events/${eventId}/attendees/${attendeeId}/check-out",
-        "responseType": null,
-        "source": "services/eventsService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/events/${eventId}/notes",
-        "responseType": null,
-        "source": "services/eventsService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/events/${eventId}/action-items/${actionItemId}/toggle",
-        "responseType": null,
-        "source": "services/eventsService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/events/${eventId}/attachments",
-        "responseType": null,
-        "source": "services/eventsService.ts"
-      },
-      {
-        "method": "DELETE",
-        "endpoint": "/events/${eventId}/attachments/${attachmentId}",
-        "responseType": null,
-        "source": "services/eventsService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/events/${eventId}/comments",
-        "responseType": null,
-        "source": "services/eventsService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/events/${eventId}/comments/${commentId}",
-        "responseType": null,
-        "source": "services/eventsService.ts"
-      },
-      {
-        "method": "DELETE",
-        "endpoint": "/events/${eventId}/comments/${commentId}",
-        "responseType": null,
-        "source": "services/eventsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/events/today",
-        "responseType": null,
-        "source": "services/eventsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/events/my-events",
-        "responseType": null,
-        "source": "services/eventsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/events/pending-rsvp",
-        "responseType": null,
-        "source": "services/eventsService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/events/${eventId}/recurring/skip",
-        "responseType": null,
-        "source": "services/eventsService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/events/${eventId}/recurring/stop",
-        "responseType": null,
-        "source": "services/eventsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/events/${eventId}/recurring/instances",
-        "responseType": null,
-        "source": "services/eventsService.ts"
-      },
-      {
-        "method": "PUT",
-        "endpoint": "/events/${eventId}/recurring/instance/${instanceDate}",
-        "responseType": null,
-        "source": "services/eventsService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/events/${eventId}/calendar-sync",
-        "responseType": null,
-        "source": "services/eventsService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/events/bulk/cancel",
-        "responseType": null,
-        "source": "services/eventsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/events/templates",
-        "responseType": null,
-        "source": "services/eventsService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/events/templates/${templateId}/create",
-        "responseType": null,
-        "source": "services/eventsService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/events/${eventId}/save-as-template",
-        "responseType": null,
-        "source": "services/eventsService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/events/check-availability",
-        "responseType": null,
-        "source": "services/eventsService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/events/find-slots",
-        "responseType": null,
-        "source": "services/eventsService.ts"
-      },
-      {
         "method": "GET",
         "endpoint": "/exchange-rate-revaluation?${params.toString()}",
         "responseType": null,
@@ -2217,102 +1917,6 @@
       },
       {
         "method": "POST",
-        "endpoint": "/api/inter-company/transactions/${id}/post",
-        "responseType": null,
-        "source": "services/interCompanyService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/api/inter-company/balances/between",
-        "responseType": null,
-        "source": "services/interCompanyService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/api/inter-company/transactions/between",
-        "responseType": null,
-        "source": "services/interCompanyService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/api/inter-company/reconciliations",
-        "responseType": null,
-        "source": "services/interCompanyService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/api/inter-company/reconciliations/${id}",
-        "responseType": null,
-        "source": "services/interCompanyService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/api/inter-company/reconciliations",
-        "responseType": null,
-        "source": "services/interCompanyService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/api/inter-company/reconciliations/${reconciliationId}/auto-match",
-        "responseType": null,
-        "source": "services/interCompanyService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/api/inter-company/reconciliations/${reconciliationId}/manual-match",
-        "responseType": null,
-        "source": "services/interCompanyService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/api/inter-company/reconciliations/${reconciliationId}/unmatch",
-        "responseType": null,
-        "source": "services/interCompanyService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/api/inter-company/reconciliations/${reconciliationId}/adjustments",
-        "responseType": null,
-        "source": "services/interCompanyService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/api/inter-company/reconciliations/${reconciliationId}/complete",
-        "responseType": null,
-        "source": "services/interCompanyService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/api/inter-company/reconciliations/${reconciliationId}/approve",
-        "responseType": null,
-        "source": "services/interCompanyService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/api/inter-company/firms",
-        "responseType": null,
-        "source": "services/interCompanyService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/api/inter-company/exchange-rate",
-        "responseType": null,
-        "source": "services/interCompanyService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/api/inter-company/reports/summary",
-        "responseType": null,
-        "source": "services/interCompanyService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/api/inter-company/reports/export",
-        "responseType": null,
-        "source": "services/interCompanyService.ts"
-      },
-      {
-        "method": "POST",
         "endpoint": "/journal-entries/${id}/attachments",
         "responseType": null,
         "source": "services/journalEntryService.ts"
@@ -2612,24 +2216,6 @@
         "source": "services/messageService.ts"
       },
       {
-        "method": "POST",
-        "endpoint": "/auth/mfa/sms/send",
-        "responseType": "{\n        success: boolean\n        expiresIn: number\n      }",
-        "source": "services/mfaService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/auth/mfa/email/send",
-        "responseType": "{\n        success: boolean\n        expiresIn: number\n      }",
-        "source": "services/mfaService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/auth/mfa/required",
-        "responseType": "{ required: boolean }",
-        "source": "services/mfaService.ts"
-      },
-      {
         "method": "GET",
         "endpoint": "/notifications/settings",
         "responseType": null,
@@ -2708,54 +2294,6 @@
         "source": "services/offboardingWorkflowService.ts"
       },
       {
-        "method": "POST",
-        "endpoint": "/auth/onboarding-progress",
-        "responseType": null,
-        "source": "services/onboardingWizardService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/auth/onboarding/company-info",
-        "responseType": null,
-        "source": "services/onboardingWizardService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/auth/onboarding/company-logo",
-        "responseType": null,
-        "source": "services/onboardingWizardService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/auth/onboarding/user-profile",
-        "responseType": null,
-        "source": "services/onboardingWizardService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/auth/onboarding/user-avatar",
-        "responseType": null,
-        "source": "services/onboardingWizardService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/auth/onboarding/modules",
-        "responseType": null,
-        "source": "services/onboardingWizardService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/auth/onboarding/complete",
-        "responseType": null,
-        "source": "services/onboardingWizardService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/auth/onboarding/skip",
-        "responseType": null,
-        "source": "services/onboardingWizardService.ts"
-      },
-      {
         "method": "DELETE",
         "endpoint": "/employees/${employeeId}/onboarding/cancel",
         "responseType": null,
@@ -2766,18 +2304,6 @@
         "endpoint": "/hr/organizational-structure/merge",
         "responseType": "OrganizationalUnit",
         "source": "services/organizationalStructureService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/auth/reset-password/validate",
-        "responseType": "{\n        valid: boolean\n        email?: string\n      }",
-        "source": "services/passwordService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/auth/password/check-breach",
-        "responseType": "{\n        breached: boolean\n        count?: number\n      }",
-        "source": "services/passwordService.ts"
       },
       {
         "method": "GET",
@@ -2978,12 +2504,6 @@
         "source": "services/permissionService.ts"
       },
       {
-        "method": "POST",
-        "endpoint": "/auth/phone/verify",
-        "responseType": "{\n        success: boolean\n        message: string\n      }",
-        "source": "services/phoneAuthService.ts"
-      },
-      {
         "method": "GET",
         "endpoint": "/prepared-reports?${params.toString()}",
         "responseType": null,
@@ -3060,114 +2580,6 @@
         "endpoint": "/price-levels/${id}/restore",
         "responseType": null,
         "source": "services/priceLevelService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/products/enhanced",
-        "responseType": null,
-        "source": "services/productEnhancedService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/products/enhanced/${productId}",
-        "responseType": null,
-        "source": "services/productEnhancedService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/products/enhanced",
-        "responseType": null,
-        "source": "services/productEnhancedService.ts"
-      },
-      {
-        "method": "PUT",
-        "endpoint": "/products/enhanced/${productId}",
-        "responseType": null,
-        "source": "services/productEnhancedService.ts"
-      },
-      {
-        "method": "DELETE",
-        "endpoint": "/products/enhanced/${productId}",
-        "responseType": null,
-        "source": "services/productEnhancedService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/products/enhanced/${productId}/cost-price",
-        "responseType": null,
-        "source": "services/productEnhancedService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/products/enhanced/${productId}/margin",
-        "responseType": null,
-        "source": "services/productEnhancedService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/products/enhanced/bulk-update-prices",
-        "responseType": null,
-        "source": "services/productEnhancedService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/products/enhanced/${productId}/variants",
-        "responseType": null,
-        "source": "services/productEnhancedService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/products/enhanced/${productId}/variants/${variantId}",
-        "responseType": null,
-        "source": "services/productEnhancedService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/products/enhanced/${productId}/variants",
-        "responseType": null,
-        "source": "services/productEnhancedService.ts"
-      },
-      {
-        "method": "PUT",
-        "endpoint": "/products/enhanced/${productId}/variants/${variantId}",
-        "responseType": null,
-        "source": "services/productEnhancedService.ts"
-      },
-      {
-        "method": "DELETE",
-        "endpoint": "/products/enhanced/${productId}/variants/${variantId}",
-        "responseType": null,
-        "source": "services/productEnhancedService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/products/enhanced/${productId}/variants/generate",
-        "responseType": null,
-        "source": "services/productEnhancedService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/products/enhanced/${productId}/barcodes",
-        "responseType": null,
-        "source": "services/productEnhancedService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/products/enhanced/${productId}/barcodes",
-        "responseType": null,
-        "source": "services/productEnhancedService.ts"
-      },
-      {
-        "method": "DELETE",
-        "endpoint": "/products/enhanced/${productId}/barcodes/${barcodeId}",
-        "responseType": null,
-        "source": "services/productEnhancedService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/products/enhanced/lookup/barcode",
-        "responseType": null,
-        "source": "services/productEnhancedService.ts"
       },
       {
         "method": "GET",
@@ -3687,24 +3099,6 @@
       },
       {
         "method": "POST",
-        "endpoint": "/auth/sessions/extend",
-        "responseType": "{ expiresAt: string }",
-        "source": "services/sessionService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/auth/sessions/${sessionId}/report",
-        "responseType": null,
-        "source": "services/sessionService.ts"
-      },
-      {
-        "method": "DELETE",
-        "endpoint": "/auth/sessions/:param/report",
-        "source": "services/sessionService.ts",
-        "dynamic": true
-      },
-      {
-        "method": "POST",
         "endpoint": "/setup-orchestration/modules/${module}/complete",
         "responseType": null,
         "source": "services/setupOrchestrationService.ts"
@@ -4208,12 +3602,6 @@
         "dynamic": true
       },
       {
-        "method": "GET",
-        "endpoint": "/auth/reauthenticate/methods",
-        "responseType": "{ methods: ReauthMethod[] }",
-        "source": "services/stepUpAuthService.ts"
-      },
-      {
         "method": "POST",
         "endpoint": "/cases/${caseId}/documents/confirm-upload",
         "responseType": null,
@@ -4268,140 +3656,8 @@
         "source": "services/subscriptionService.ts"
       },
       {
-        "method": "GET",
-        "endpoint": "/subscriptions",
-        "responseType": null,
-        "source": "services/subscriptionService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/subscriptions/${id}",
-        "responseType": null,
-        "source": "services/subscriptionService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/subscriptions",
-        "responseType": null,
-        "source": "services/subscriptionService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/subscriptions/${id}",
-        "responseType": null,
-        "source": "services/subscriptionService.ts"
-      },
-      {
-        "method": "DELETE",
-        "endpoint": "/subscriptions/${id}",
-        "responseType": null,
-        "source": "services/subscriptionService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/subscriptions/${id}/activate",
-        "responseType": null,
-        "source": "services/subscriptionService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/subscriptions/${id}/pause",
-        "responseType": null,
-        "source": "services/subscriptionService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/subscriptions/${id}/resume",
-        "responseType": null,
-        "source": "services/subscriptionService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/subscriptions/${id}/cancel",
-        "responseType": null,
-        "source": "services/subscriptionService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/subscriptions/${id}/renew",
-        "responseType": null,
-        "source": "services/subscriptionService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/subscriptions/${id}/change-plan",
-        "responseType": null,
-        "source": "services/subscriptionService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/subscriptions/${id}/consume-hours",
-        "responseType": null,
-        "source": "services/subscriptionService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/subscriptions/${id}/hours-usage",
-        "responseType": null,
-        "source": "services/subscriptionService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/subscriptions/${id}/reset-hours",
-        "responseType": null,
-        "source": "services/subscriptionService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/subscriptions/${id}/invoices",
-        "responseType": null,
-        "source": "services/subscriptionService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/subscriptions/${id}/generate-invoice",
-        "responseType": null,
-        "source": "services/subscriptionService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/subscriptions/${id}/upcoming-invoice",
-        "responseType": null,
-        "source": "services/subscriptionService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/subscriptions/${id}/renewal-preview",
-        "responseType": null,
-        "source": "services/subscriptionService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/subscriptions/stats",
-        "responseType": null,
-        "source": "services/subscriptionService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/subscriptions/upcoming-renewals",
-        "responseType": null,
-        "source": "services/subscriptionService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/subscriptions/past-due",
-        "responseType": null,
-        "source": "services/subscriptionService.ts"
-      },
-      {
         "method": "POST",
         "endpoint": "/subscription-plans/:param",
-        "source": "services/subscriptionService.ts",
-        "dynamic": true
-      },
-      {
-        "method": "POST",
-        "endpoint": "/subscriptions/:param",
         "source": "services/subscriptionService.ts",
         "dynamic": true
       },
@@ -23830,6 +23086,11 @@
       },
       {
         "path": "/hr/skills/:param",
+        "frontendMethod": "POST",
+        "backendMethod": "GET"
+      },
+      {
+        "path": "/subscriptions/:param",
         "frontendMethod": "POST",
         "backendMethod": "GET"
       },

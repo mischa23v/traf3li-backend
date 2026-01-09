@@ -311,6 +311,14 @@ const leaveEncashmentRoute = require('./leaveEncashment.route');
 const leaveAllocationRoute = require('./leaveAllocation.route');
 const compensatoryLeaveRoute = require('./compensatoryLeave.route');
 
+// Batch 4 Routes (events, auth, inter-company, products, subscriptions, corporate cards)
+const eventsExtendedRoute = require('./eventsExtended.route');
+const authExtendedRoute = require('./authExtended.route');
+const interCompanyExtendedRoute = require('./interCompanyExtended.route');
+const productsEnhancedRoute = require('./productsEnhanced.route');
+const subscriptionsRoute = require('./subscriptions.route');
+const corporateCardsRoute = require('./corporateCards.route');
+
 // Who's Out Calendar & Compliance Dashboard Routes
 const whosOutRoute = require('./whosOut.route');
 const complianceDashboardRoute = require('./complianceDashboard.route');
@@ -737,6 +745,14 @@ module.exports = {
     leaveEncashmentRoute,
     leaveAllocationRoute,
     compensatoryLeaveRoute,
+
+    // Batch 4 Routes (events, auth, inter-company, products, subscriptions, corporate cards)
+    eventsExtendedRoute,
+    authExtendedRoute,
+    interCompanyExtendedRoute,
+    productsEnhancedRoute,
+    subscriptionsRoute,
+    corporateCardsRoute,
 
     // Who's Out Calendar & Compliance Dashboard
     whosOutRoute,

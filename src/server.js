@@ -424,6 +424,14 @@ const {
     leaveAllocationRoute,
     compensatoryLeaveRoute,
 
+    // Batch 4 Routes
+    eventsExtendedRoute,
+    authExtendedRoute,
+    interCompanyExtendedRoute,
+    productsEnhancedRoute,
+    subscriptionsRoute,
+    corporateCardsRoute,
+
     // Unified Data Flow
     unifiedDataRoute,
 
@@ -971,6 +979,7 @@ app.use('/api/gigs', gigRoute);
 app.use('/api/auth', noCache, authRoute); // No cache for auth endpoints
 app.use('/api/auth/mfa', noCache, mfaRoute); // MFA/TOTP authentication endpoints
 app.use('/api/auth', noCache, captchaRoute); // CAPTCHA verification endpoints
+app.use('/api/auth', noCache, authExtendedRoute); // Auth extended (MFA, onboarding, sessions)
 app.use('/api/admin', noCache, adminRoute); // Admin endpoints for token management
 app.use('/api/admin-api', noCache, adminApiRoute); // Comprehensive Admin API for Appsmith/Budibase integration
 app.use('/api/admin/tools', noCache, adminToolsRoute); // Admin tools for system management
@@ -1004,6 +1013,7 @@ app.use('/api/gantt', ganttRoute);
 app.use('/api/notifications', noCache, notificationRoute); // No cache for notifications
 app.use('/api/notification-preferences', noCache, notificationPreferenceRoute); // No cache for preferences
 app.use('/api/events', eventRoute);
+app.use('/api/events', eventsExtendedRoute); // Events extended (actions, recurring, templates)
 
 // ============================================
 // DASHBOARD FINANCE ROUTES (Sensitive Data)
@@ -1215,6 +1225,7 @@ app.use('/api/recurring-transactions', recurringTransactionRoute);
 app.use('/api/price-levels', priceLevelRoute);
 app.use('/api/fiscal-periods', fiscalPeriodRoute);
 app.use('/api/inter-company', noCache, interCompanyRoute);
+app.use('/api/inter-company', noCache, interCompanyExtendedRoute); // Inter-company extended (reconciliation, reports)
 app.use('/api/reports/consolidated', noCache, consolidatedReportsRoute);
 
 // ============================================
@@ -1227,6 +1238,9 @@ app.use('/api/recurring-invoices', noCache, recurringInvoiceRoute);
 app.use('/api/payment-terms', paymentTermsRoute);
 app.use('/api/expense-policies', expensePolicyRoute);
 app.use('/api/corporate-cards', noCache, corporateCardRoute);
+app.use('/api/corporate-cards', noCache, corporateCardsRoute); // Corporate cards extended (transactions, analytics)
+app.use('/api/subscriptions', noCache, subscriptionsRoute); // Subscription management
+app.use('/api/products/enhanced', noCache, productsEnhancedRoute); // Enhanced products (variants, barcodes)
 app.use('/api/payment-receipts', noCache, paymentReceiptRoute);
 app.use('/api/invoice-approvals', noCache, invoiceApprovalRoute);
 app.use('/api/notification-settings', noCache, notificationSettingsRoute);

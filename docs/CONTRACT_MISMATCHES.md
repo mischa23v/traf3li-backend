@@ -1,12 +1,12 @@
 # Frontend vs Backend Contract Mismatch Report
 
-> Generated: 2026-01-09T10:15:01.810Z
+> Generated: 2026-01-09T10:31:33.372Z
 
 ## Summary
 
 | Category | Frontend Only | Backend Only | Mismatches |
 |----------|--------------|--------------|------------|
-| API Endpoints | 823 | 2290 | 127 |
+| API Endpoints | 699 | 2290 | 128 |
 | Interfaces/Entities | 2871 | 154 | 0 |
 | Enums | 88 | 2138 | 0 |
 | Type Aliases | 167 | 0 | - |
@@ -72,170 +72,6 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | POST | `/hr/retention-bonuses/:param` | services/retentionBonusService.ts |
 | GET | `/hr/retention-bonuses/department-summary?departmentId=:param` | services/retentionBonusService.ts |
 | ... | *75 more* | - |
-
-### events (25 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| POST | `/events/${id}/start` | services/eventsService.ts |
-| POST | `/events/${eventId}/send-invitations` | services/eventsService.ts |
-| POST | `/events/${eventId}/attendees/${attendeeId}/check-in` | services/eventsService.ts |
-| POST | `/events/${eventId}/attendees/${attendeeId}/check-out` | services/eventsService.ts |
-| PATCH | `/events/${eventId}/notes` | services/eventsService.ts |
-| POST | `/events/${eventId}/action-items/${actionItemId}/toggle` | services/eventsService.ts |
-| POST | `/events/${eventId}/attachments` | services/eventsService.ts |
-| DELETE | `/events/${eventId}/attachments/${attachmentId}` | services/eventsService.ts |
-| POST | `/events/${eventId}/comments` | services/eventsService.ts |
-| PATCH | `/events/${eventId}/comments/${commentId}` | services/eventsService.ts |
-| DELETE | `/events/${eventId}/comments/${commentId}` | services/eventsService.ts |
-| GET | `/events/today` | services/eventsService.ts |
-| GET | `/events/my-events` | services/eventsService.ts |
-| GET | `/events/pending-rsvp` | services/eventsService.ts |
-| POST | `/events/${eventId}/recurring/skip` | services/eventsService.ts |
-| POST | `/events/${eventId}/recurring/stop` | services/eventsService.ts |
-| GET | `/events/${eventId}/recurring/instances` | services/eventsService.ts |
-| PUT | `/events/${eventId}/recurring/instance/${instanceDate}` | services/eventsService.ts |
-| POST | `/events/${eventId}/calendar-sync` | services/eventsService.ts |
-| POST | `/events/bulk/cancel` | services/eventsService.ts |
-| GET | `/events/templates` | services/eventsService.ts |
-| POST | `/events/templates/${templateId}/create` | services/eventsService.ts |
-| POST | `/events/${eventId}/save-as-template` | services/eventsService.ts |
-| POST | `/events/check-availability` | services/eventsService.ts |
-| POST | `/events/find-slots` | services/eventsService.ts |
-
-### auth (24 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| POST | `/auth/refresh-activity` | hooks/use-session-warning.ts |
-| POST | `/auth/anonymous/extend` | services/anonymousAuthService.ts |
-| POST | `/auth/captcha/verify` | services/captchaService.ts |
-| GET | `/auth/captcha/settings` | services/captchaService.ts |
-| PUT | `/auth/captcha/settings` | services/captchaService.ts |
-| POST | `/auth/captcha/check-required` | services/captchaService.ts |
-| POST | `/auth/mfa/sms/send` | services/mfaService.ts |
-| POST | `/auth/mfa/email/send` | services/mfaService.ts |
-| GET | `/auth/mfa/required` | services/mfaService.ts |
-| POST | `/auth/onboarding-progress` | services/onboardingWizardService.ts |
-| POST | `/auth/onboarding/company-info` | services/onboardingWizardService.ts |
-| POST | `/auth/onboarding/company-logo` | services/onboardingWizardService.ts |
-| POST | `/auth/onboarding/user-profile` | services/onboardingWizardService.ts |
-| POST | `/auth/onboarding/user-avatar` | services/onboardingWizardService.ts |
-| POST | `/auth/onboarding/modules` | services/onboardingWizardService.ts |
-| POST | `/auth/onboarding/complete` | services/onboardingWizardService.ts |
-| POST | `/auth/onboarding/skip` | services/onboardingWizardService.ts |
-| GET | `/auth/reset-password/validate` | services/passwordService.ts |
-| POST | `/auth/password/check-breach` | services/passwordService.ts |
-| POST | `/auth/phone/verify` | services/phoneAuthService.ts |
-| POST | `/auth/sessions/extend` | services/sessionService.ts |
-| POST | `/auth/sessions/${sessionId}/report` | services/sessionService.ts |
-| DELETE | `/auth/sessions/:param/report` | services/sessionService.ts |
-| GET | `/auth/reauthenticate/methods` | services/stepUpAuthService.ts |
-
-### api (22 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| POST | `/api/inter-company/transactions/${id}/post` | services/interCompanyService.ts |
-| GET | `/api/inter-company/balances/between` | services/interCompanyService.ts |
-| GET | `/api/inter-company/transactions/between` | services/interCompanyService.ts |
-| GET | `/api/inter-company/reconciliations` | services/interCompanyService.ts |
-| GET | `/api/inter-company/reconciliations/${id}` | services/interCompanyService.ts |
-| POST | `/api/inter-company/reconciliations` | services/interCompanyService.ts |
-| POST | `/api/inter-company/reconciliations/${reconciliationId}/auto-match` | services/interCompanyService.ts |
-| POST | `/api/inter-company/reconciliations/${reconciliationId}/manual-match` | services/interCompanyService.ts |
-| POST | `/api/inter-company/reconciliations/${reconciliationId}/unmatch` | services/interCompanyService.ts |
-| POST | `/api/inter-company/reconciliations/${reconciliationId}/adjustments` | services/interCompanyService.ts |
-| POST | `/api/inter-company/reconciliations/${reconciliationId}/complete` | services/interCompanyService.ts |
-| POST | `/api/inter-company/reconciliations/${reconciliationId}/approve` | services/interCompanyService.ts |
-| GET | `/api/inter-company/firms` | services/interCompanyService.ts |
-| GET | `/api/inter-company/exchange-rate` | services/interCompanyService.ts |
-| GET | `/api/inter-company/reports/summary` | services/interCompanyService.ts |
-| POST | `/api/inter-company/reports/export` | services/interCompanyService.ts |
-| GET | `/api/settings/sales` | services/salesSettingsService.ts |
-| GET | `/api/settings/sales/reset/${section}` | services/salesSettingsService.ts |
-| GET | `/api/settings/sales/history?limit=${limit}` | services/salesSettingsService.ts |
-| GET | `/api/settings/sales/export` | services/salesSettingsService.ts |
-| GET | `/api/settings/sales/import` | services/salesSettingsService.ts |
-| GET | `/api/settings/sales/validate` | services/salesSettingsService.ts |
-
-### products (22 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/products/enhanced` | services/productEnhancedService.ts |
-| GET | `/products/enhanced/${productId}` | services/productEnhancedService.ts |
-| POST | `/products/enhanced` | services/productEnhancedService.ts |
-| PUT | `/products/enhanced/${productId}` | services/productEnhancedService.ts |
-| DELETE | `/products/enhanced/${productId}` | services/productEnhancedService.ts |
-| PATCH | `/products/enhanced/${productId}/cost-price` | services/productEnhancedService.ts |
-| GET | `/products/enhanced/${productId}/margin` | services/productEnhancedService.ts |
-| POST | `/products/enhanced/bulk-update-prices` | services/productEnhancedService.ts |
-| GET | `/products/enhanced/${productId}/variants` | services/productEnhancedService.ts |
-| GET | `/products/enhanced/${productId}/variants/${variantId}` | services/productEnhancedService.ts |
-| POST | `/products/enhanced/${productId}/variants` | services/productEnhancedService.ts |
-| PUT | `/products/enhanced/${productId}/variants/${variantId}` | services/productEnhancedService.ts |
-| DELETE | `/products/enhanced/${productId}/variants/${variantId}` | services/productEnhancedService.ts |
-| POST | `/products/enhanced/${productId}/variants/generate` | services/productEnhancedService.ts |
-| GET | `/products/enhanced/${productId}/barcodes` | services/productEnhancedService.ts |
-| POST | `/products/enhanced/${productId}/barcodes` | services/productEnhancedService.ts |
-| DELETE | `/products/enhanced/${productId}/barcodes/${barcodeId}` | services/productEnhancedService.ts |
-| GET | `/products/enhanced/lookup/barcode` | services/productEnhancedService.ts |
-| POST | `/products/${productId}/duplicate` | services/productService.ts |
-| POST | `/products/${productId}/toggle-active` | services/productService.ts |
-| GET | `/products/categories` | services/productService.ts |
-| GET | `/products/${productId}/stats` | services/productService.ts |
-
-### subscriptions (22 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/subscriptions` | services/subscriptionService.ts |
-| GET | `/subscriptions/${id}` | services/subscriptionService.ts |
-| POST | `/subscriptions` | services/subscriptionService.ts |
-| PATCH | `/subscriptions/${id}` | services/subscriptionService.ts |
-| DELETE | `/subscriptions/${id}` | services/subscriptionService.ts |
-| POST | `/subscriptions/${id}/activate` | services/subscriptionService.ts |
-| POST | `/subscriptions/${id}/pause` | services/subscriptionService.ts |
-| POST | `/subscriptions/${id}/resume` | services/subscriptionService.ts |
-| POST | `/subscriptions/${id}/cancel` | services/subscriptionService.ts |
-| POST | `/subscriptions/${id}/renew` | services/subscriptionService.ts |
-| POST | `/subscriptions/${id}/change-plan` | services/subscriptionService.ts |
-| POST | `/subscriptions/${id}/consume-hours` | services/subscriptionService.ts |
-| GET | `/subscriptions/${id}/hours-usage` | services/subscriptionService.ts |
-| POST | `/subscriptions/${id}/reset-hours` | services/subscriptionService.ts |
-| GET | `/subscriptions/${id}/invoices` | services/subscriptionService.ts |
-| POST | `/subscriptions/${id}/generate-invoice` | services/subscriptionService.ts |
-| GET | `/subscriptions/${id}/upcoming-invoice` | services/subscriptionService.ts |
-| GET | `/subscriptions/${id}/renewal-preview` | services/subscriptionService.ts |
-| GET | `/subscriptions/stats` | services/subscriptionService.ts |
-| GET | `/subscriptions/upcoming-renewals` | services/subscriptionService.ts |
-| GET | `/subscriptions/past-due` | services/subscriptionService.ts |
-| POST | `/subscriptions/:param` | services/subscriptionService.ts |
-
-### corporate-cards (19 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/corporate-cards/transactions` | services/corporateCardService.ts |
-| GET | `/corporate-cards/transactions/${id}` | services/corporateCardService.ts |
-| POST | `/corporate-cards/transactions` | services/corporateCardService.ts |
-| PATCH | `/corporate-cards/transactions/${id}` | services/corporateCardService.ts |
-| DELETE | `/corporate-cards/transactions/${id}` | services/corporateCardService.ts |
-| POST | `/corporate-cards/transactions/${data.transactionId}/reconcile` | services/corporateCardService.ts |
-| POST | `/corporate-cards/transactions/bulk-reconcile` | services/corporateCardService.ts |
-| POST | `/corporate-cards/transactions/${transactionId}/match` | services/corporateCardService.ts |
-| GET | `/corporate-cards/transactions/${transactionId}/potential-matches` | services/corporateCardService.ts |
-| POST | `/corporate-cards/transactions/${transactionId}/dispute` | services/corporateCardService.ts |
-| POST | `/corporate-cards/transactions/${transactionId}/resolve-dispute` | services/corporateCardService.ts |
-| POST | `/corporate-cards/transactions/import` | services/corporateCardService.ts |
-| GET | `/corporate-cards/transactions/csv-template` | services/corporateCardService.ts |
-| GET | `/corporate-cards/statistics` | services/corporateCardService.ts |
-| GET | `/corporate-cards/reports/reconciliation` | services/corporateCardService.ts |
-| GET | `/corporate-cards/reports/reconciliation/export` | services/corporateCardService.ts |
-| GET | `/corporate-cards/analytics/spending-by-category` | services/corporateCardService.ts |
-| GET | `/corporate-cards/analytics/spending-by-card` | services/corporateCardService.ts |
-| GET | `/corporate-cards/analytics/monthly-trend` | services/corporateCardService.ts |
 
 ### workflows (19 missing)
 
@@ -896,6 +732,17 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | GET | `/messages/search?${params.toString()}` | services/messageService.ts |
 | POST | `/messages/${id}/star` | services/messageService.ts |
 
+### api (6 missing)
+
+| Method | Endpoint | Source File |
+|--------|----------|-------------|
+| GET | `/api/settings/sales` | services/salesSettingsService.ts |
+| GET | `/api/settings/sales/reset/${section}` | services/salesSettingsService.ts |
+| GET | `/api/settings/sales/history?limit=${limit}` | services/salesSettingsService.ts |
+| GET | `/api/settings/sales/export` | services/salesSettingsService.ts |
+| GET | `/api/settings/sales/import` | services/salesSettingsService.ts |
+| GET | `/api/settings/sales/validate` | services/salesSettingsService.ts |
+
 ### api-keys (5 missing)
 
 | Method | Endpoint | Source File |
@@ -993,6 +840,15 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | GET | `/credit-notes/${id}/zatca/status` | services/financeService.ts |
 | GET | `/credit-notes/${id}/pdf` | services/financeService.ts |
 | GET | `/credit-notes/${id}/xml` | services/financeService.ts |
+
+### products (4 missing)
+
+| Method | Endpoint | Source File |
+|--------|----------|-------------|
+| POST | `/products/${productId}/duplicate` | services/productService.ts |
+| POST | `/products/${productId}/toggle-active` | services/productService.ts |
+| GET | `/products/categories` | services/productService.ts |
+| GET | `/products/${productId}/stats` | services/productService.ts |
 
 ### quotes (4 missing)
 
@@ -2032,6 +1888,7 @@ Frontend calls with different HTTP method than backend expects.
 | `/auth/sessions/:param` | GET | DELETE |
 | `/hr/shift-types/${shiftTypeId}` | PATCH | GET |
 | `/hr/skills/:param` | POST | GET |
+| `/subscriptions/:param` | POST | GET |
 | `/succession-plans/:param` | POST | GET |
 | `/succession-plans/by-position/:param` | POST | GET |
 | `/succession-plans/:param/successors` | GET | POST |
@@ -2446,8 +2303,8 @@ Enums in backend models not exposed to frontend.
 ## Action Items
 
 ### 🔴 Critical (Will Break App)
-1. Add 823 missing backend endpoints
-2. Fix 127 HTTP method mismatches
+1. Add 699 missing backend endpoints
+2. Fix 128 HTTP method mismatches
 3. Sync 0 enum value differences
 
 ### 🟡 Important (May Cause Issues)
