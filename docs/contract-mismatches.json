@@ -1706,36 +1706,6 @@
         "source": "services/organizationalStructureService.ts"
       },
       {
-        "method": "GET",
-        "endpoint": "/settings/payment-terms",
-        "responseType": null,
-        "source": "services/paymentTermsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/settings/payment-terms/${id}",
-        "responseType": null,
-        "source": "services/paymentTermsService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/settings/payment-terms",
-        "responseType": null,
-        "source": "services/paymentTermsService.ts"
-      },
-      {
-        "method": "PUT",
-        "endpoint": "/settings/payment-terms/${id}",
-        "responseType": null,
-        "source": "services/paymentTermsService.ts"
-      },
-      {
-        "method": "DELETE",
-        "endpoint": "/settings/payment-terms/${id}",
-        "responseType": null,
-        "source": "services/paymentTermsService.ts"
-      },
-      {
         "method": "PATCH",
         "endpoint": "/settings/payment-terms/${id}/default",
         "responseType": null,
@@ -2066,18 +2036,6 @@
         "source": "services/quoteService.ts"
       },
       {
-        "method": "POST",
-        "endpoint": "/reminders/${id}/reopen",
-        "responseType": null,
-        "source": "services/remindersService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/reminders/${id}/cancel-snooze",
-        "responseType": null,
-        "source": "services/remindersService.ts"
-      },
-      {
         "method": "GET",
         "endpoint": "/reminders/today",
         "responseType": null,
@@ -2092,18 +2050,6 @@
       {
         "method": "GET",
         "endpoint": "/reminders/my-reminders",
-        "responseType": null,
-        "source": "services/remindersService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/reminders/${id}/recurring/skip",
-        "responseType": null,
-        "source": "services/remindersService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/reminders/${id}/recurring/stop",
         "responseType": null,
         "source": "services/remindersService.ts"
       },
@@ -2348,44 +2294,8 @@
         "source": "services/skillService.ts"
       },
       {
-        "method": "GET",
-        "endpoint": "/settings/sso",
-        "responseType": null,
-        "source": "services/ssoService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/settings/sso",
-        "responseType": null,
-        "source": "services/ssoService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/settings/sso/providers/available",
-        "responseType": null,
-        "source": "services/ssoService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/settings/sso/providers/${providerId}",
-        "responseType": null,
-        "source": "services/ssoService.ts"
-      },
-      {
         "method": "POST",
         "endpoint": "/settings/sso/providers",
-        "responseType": null,
-        "source": "services/ssoService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/settings/sso/providers/${providerId}",
-        "responseType": null,
-        "source": "services/ssoService.ts"
-      },
-      {
-        "method": "DELETE",
-        "endpoint": "/settings/sso/providers/${providerId}",
         "responseType": null,
         "source": "services/ssoService.ts"
       },
@@ -2394,30 +2304,6 @@
         "endpoint": "/settings/sso/test-connection",
         "responseType": null,
         "source": "services/ssoService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/staffing-plans/${planId}/details",
-        "responseType": "StaffingPlan",
-        "source": "services/staffingPlanService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/hr/staffing-plans/${planId}/details/${detailId}",
-        "responseType": "StaffingPlan",
-        "source": "services/staffingPlanService.ts"
-      },
-      {
-        "method": "DELETE",
-        "endpoint": "/hr/staffing-plans/${planId}/details/${detailId}",
-        "responseType": "StaffingPlan",
-        "source": "services/staffingPlanService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/staffing-plans/headcount",
-        "responseType": "HeadcountData",
-        "source": "services/staffingPlanService.ts"
       },
       {
         "method": "POST",
@@ -2740,30 +2626,6 @@
       {
         "method": "POST",
         "endpoint": "/workflows",
-        "responseType": null,
-        "source": "services/workflowService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/workflows/${id}",
-        "responseType": null,
-        "source": "services/workflowService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/workflows/${id}",
-        "responseType": null,
-        "source": "services/workflowService.ts"
-      },
-      {
-        "method": "DELETE",
-        "endpoint": "/workflows/${id}",
-        "responseType": null,
-        "source": "services/workflowService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/workflows/${id}/duplicate",
         "responseType": null,
         "source": "services/workflowService.ts"
       },
@@ -10849,6 +10711,110 @@
       },
       {
         "method": "GET",
+        "path": "/headcount/by-department",
+        "controller": "unknown",
+        "file": "hrStaffingPlanDetails.route.js",
+        "fullPath": "/api/hr/staffing-plans/headcount/by-department",
+        "module": "hrStaffingPlanDetails"
+      },
+      {
+        "method": "GET",
+        "path": "/headcount/by-location",
+        "controller": "unknown",
+        "file": "hrStaffingPlanDetails.route.js",
+        "fullPath": "/api/hr/staffing-plans/headcount/by-location",
+        "module": "hrStaffingPlanDetails"
+      },
+      {
+        "method": "GET",
+        "path": "/headcount/by-job-family",
+        "controller": "unknown",
+        "file": "hrStaffingPlanDetails.route.js",
+        "fullPath": "/api/hr/staffing-plans/headcount/by-job-family",
+        "module": "hrStaffingPlanDetails"
+      },
+      {
+        "method": "GET",
+        "path": "/headcount/trends",
+        "controller": "unknown",
+        "file": "hrStaffingPlanDetails.route.js",
+        "fullPath": "/api/hr/staffing-plans/headcount/trends",
+        "module": "hrStaffingPlanDetails"
+      },
+      {
+        "method": "GET",
+        "path": "/variance",
+        "controller": "unknown",
+        "file": "hrStaffingPlanDetails.route.js",
+        "fullPath": "/api/hr/staffing-plans/variance",
+        "module": "hrStaffingPlanDetails"
+      },
+      {
+        "method": "GET",
+        "path": "/scenarios",
+        "controller": "unknown",
+        "file": "hrStaffingPlanDetails.route.js",
+        "fullPath": "/api/hr/staffing-plans/scenarios",
+        "module": "hrStaffingPlanDetails"
+      },
+      {
+        "method": "POST",
+        "path": "/scenarios",
+        "controller": "unknown",
+        "file": "hrStaffingPlanDetails.route.js",
+        "fullPath": "/api/hr/staffing-plans/scenarios",
+        "module": "hrStaffingPlanDetails"
+      },
+      {
+        "method": "PATCH",
+        "path": "/scenarios/:scenarioId",
+        "controller": "unknown",
+        "file": "hrStaffingPlanDetails.route.js",
+        "fullPath": "/api/hr/staffing-plans/scenarios/:scenarioId",
+        "module": "hrStaffingPlanDetails"
+      },
+      {
+        "method": "DELETE",
+        "path": "/scenarios/:scenarioId",
+        "controller": "unknown",
+        "file": "hrStaffingPlanDetails.route.js",
+        "fullPath": "/api/hr/staffing-plans/scenarios/:scenarioId",
+        "module": "hrStaffingPlanDetails"
+      },
+      {
+        "method": "POST",
+        "path": "/scenarios/:scenarioId/apply",
+        "controller": "unknown",
+        "file": "hrStaffingPlanDetails.route.js",
+        "fullPath": "/api/hr/staffing-plans/scenarios/:scenarioId/apply",
+        "module": "hrStaffingPlanDetails"
+      },
+      {
+        "method": "GET",
+        "path": "/cost-analysis",
+        "controller": "unknown",
+        "file": "hrStaffingPlanDetails.route.js",
+        "fullPath": "/api/hr/staffing-plans/cost-analysis",
+        "module": "hrStaffingPlanDetails"
+      },
+      {
+        "method": "GET",
+        "path": "/attrition-forecast",
+        "controller": "unknown",
+        "file": "hrStaffingPlanDetails.route.js",
+        "fullPath": "/api/hr/staffing-plans/attrition-forecast",
+        "module": "hrStaffingPlanDetails"
+      },
+      {
+        "method": "POST",
+        "path": "/bulk-update",
+        "controller": "unknown",
+        "file": "hrStaffingPlanDetails.route.js",
+        "fullPath": "/api/hr/staffing-plans/bulk-update",
+        "module": "hrStaffingPlanDetails"
+      },
+      {
+        "method": "GET",
         "path": "/analytics",
         "controller": "unknown",
         "file": "hrStaffingPlans.route.js",
@@ -12513,6 +12479,62 @@
       },
       {
         "method": "GET",
+        "path": "/:id/signature-status",
+        "controller": "unknown",
+        "file": "legalDocumentsExtended.route.js",
+        "fullPath": "/api/legal-documents/:id/signature-status",
+        "module": "legalDocumentsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/request-signature",
+        "controller": "unknown",
+        "file": "legalDocumentsExtended.route.js",
+        "fullPath": "/api/legal-documents/:id/request-signature",
+        "module": "legalDocumentsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/sign",
+        "controller": "unknown",
+        "file": "legalDocumentsExtended.route.js",
+        "fullPath": "/api/legal-documents/:id/sign",
+        "module": "legalDocumentsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/execute",
+        "controller": "unknown",
+        "file": "legalDocumentsExtended.route.js",
+        "fullPath": "/api/legal-documents/:id/execute",
+        "module": "legalDocumentsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/:id/audit-trail",
+        "controller": "unknown",
+        "file": "legalDocumentsExtended.route.js",
+        "fullPath": "/api/legal-documents/:id/audit-trail",
+        "module": "legalDocumentsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/send-reminder",
+        "controller": "unknown",
+        "file": "legalDocumentsExtended.route.js",
+        "fullPath": "/api/legal-documents/:id/send-reminder",
+        "module": "legalDocumentsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/:id/parties",
+        "controller": "unknown",
+        "file": "legalDocumentsExtended.route.js",
+        "fullPath": "/api/legal-documents/:id/parties",
+        "module": "legalDocumentsExtended"
+      },
+      {
+        "method": "GET",
         "path": "/workflows",
         "controller": "unknown",
         "file": "lifecycle.routes.js",
@@ -13894,6 +13916,22 @@
         "file": "paymentTerms.route.js",
         "fullPath": "/api/payment-terms/:id",
         "module": "paymentTerms"
+      },
+      {
+        "method": "GET",
+        "path": "/templates",
+        "controller": "unknown",
+        "file": "paymentTermsSettings.route.js",
+        "fullPath": "/api/settings/payment-terms/templates",
+        "module": "paymentTermsSettings"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/set-default",
+        "controller": "unknown",
+        "file": "paymentTermsSettings.route.js",
+        "fullPath": "/api/settings/payment-terms/:id/set-default",
+        "module": "paymentTermsSettings"
       },
       {
         "method": "POST",
@@ -15462,6 +15500,46 @@
         "file": "reminder.route.js",
         "fullPath": "/api/reminders/:id/activity",
         "module": "reminder"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/recurring/resume",
+        "controller": "unknown",
+        "file": "remindersExtended.route.js",
+        "fullPath": "/api/reminders/:id/recurring/resume",
+        "module": "remindersExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/:id/occurrences",
+        "controller": "unknown",
+        "file": "remindersExtended.route.js",
+        "fullPath": "/api/reminders/:id/occurrences",
+        "module": "remindersExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/duplicate",
+        "controller": "unknown",
+        "file": "remindersExtended.route.js",
+        "fullPath": "/api/reminders/:id/duplicate",
+        "module": "remindersExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/bulk-snooze",
+        "controller": "unknown",
+        "file": "remindersExtended.route.js",
+        "fullPath": "/api/reminders/bulk-snooze",
+        "module": "remindersExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/bulk-complete",
+        "controller": "unknown",
+        "file": "remindersExtended.route.js",
+        "fullPath": "/api/reminders/bulk-complete",
+        "module": "remindersExtended"
       },
       {
         "method": "GET",
@@ -17942,6 +18020,22 @@
         "file": "ssoConfig.route.js",
         "fullPath": "/api/firms/:firmId/sso",
         "module": "ssoConfig"
+      },
+      {
+        "method": "POST",
+        "path": "/providers/:providerId/test",
+        "controller": "unknown",
+        "file": "ssoSettings.route.js",
+        "fullPath": "/api/settings/sso/providers/:providerId/test",
+        "module": "ssoSettings"
+      },
+      {
+        "method": "GET",
+        "path": "/domains",
+        "controller": "unknown",
+        "file": "ssoSettings.route.js",
+        "fullPath": "/api/settings/sso/domains",
+        "module": "ssoSettings"
       },
       {
         "method": "GET",
@@ -21448,6 +21542,46 @@
         "module": "workflows"
       },
       {
+        "method": "POST",
+        "path": "/:id/activate",
+        "controller": "unknown",
+        "file": "workflowsExtended.route.js",
+        "fullPath": "/api/workflows/:id/activate",
+        "module": "workflowsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/deactivate",
+        "controller": "unknown",
+        "file": "workflowsExtended.route.js",
+        "fullPath": "/api/workflows/:id/deactivate",
+        "module": "workflowsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/:id/executions",
+        "controller": "unknown",
+        "file": "workflowsExtended.route.js",
+        "fullPath": "/api/workflows/:id/executions",
+        "module": "workflowsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/test",
+        "controller": "unknown",
+        "file": "workflowsExtended.route.js",
+        "fullPath": "/api/workflows/:id/test",
+        "module": "workflowsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/:id/analytics",
+        "controller": "unknown",
+        "file": "workflowsExtended.route.js",
+        "fullPath": "/api/workflows/:id/analytics",
+        "module": "workflowsExtended"
+      },
+      {
         "method": "GET",
         "path": "/config",
         "controller": "unknown",
@@ -22330,6 +22464,11 @@
       {
         "path": "/hr/skills/:param",
         "frontendMethod": "POST",
+        "backendMethod": "GET"
+      },
+      {
+        "path": "/settings/sso/providers/${providerId}",
+        "frontendMethod": "PATCH",
         "backendMethod": "GET"
       },
       {

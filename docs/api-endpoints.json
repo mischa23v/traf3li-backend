@@ -1,7 +1,7 @@
 {
-  "generated": "2026-01-09T11:36:44.291Z",
-  "totalEndpoints": 4811,
-  "totalModules": 305,
+  "generated": "2026-01-09T11:46:38.109Z",
+  "totalEndpoints": 4868,
+  "totalModules": 311,
   "modules": {
     "account": [
       {
@@ -18685,6 +18685,144 @@
         "module": "hrShiftTypesExtended"
       }
     ],
+    "hrStaffingPlanDetails": [
+      {
+        "method": "GET",
+        "path": "/headcount",
+        "controller": "unknown",
+        "file": "hrStaffingPlanDetails.route.js",
+        "fullPath": "/api/hr/staffing-plans/headcount",
+        "module": "hrStaffingPlanDetails"
+      },
+      {
+        "method": "GET",
+        "path": "/headcount/by-department",
+        "controller": "unknown",
+        "file": "hrStaffingPlanDetails.route.js",
+        "fullPath": "/api/hr/staffing-plans/headcount/by-department",
+        "module": "hrStaffingPlanDetails"
+      },
+      {
+        "method": "GET",
+        "path": "/headcount/by-location",
+        "controller": "unknown",
+        "file": "hrStaffingPlanDetails.route.js",
+        "fullPath": "/api/hr/staffing-plans/headcount/by-location",
+        "module": "hrStaffingPlanDetails"
+      },
+      {
+        "method": "GET",
+        "path": "/headcount/by-job-family",
+        "controller": "unknown",
+        "file": "hrStaffingPlanDetails.route.js",
+        "fullPath": "/api/hr/staffing-plans/headcount/by-job-family",
+        "module": "hrStaffingPlanDetails"
+      },
+      {
+        "method": "GET",
+        "path": "/headcount/trends",
+        "controller": "unknown",
+        "file": "hrStaffingPlanDetails.route.js",
+        "fullPath": "/api/hr/staffing-plans/headcount/trends",
+        "module": "hrStaffingPlanDetails"
+      },
+      {
+        "method": "GET",
+        "path": "/variance",
+        "controller": "unknown",
+        "file": "hrStaffingPlanDetails.route.js",
+        "fullPath": "/api/hr/staffing-plans/variance",
+        "module": "hrStaffingPlanDetails"
+      },
+      {
+        "method": "GET",
+        "path": "/scenarios",
+        "controller": "unknown",
+        "file": "hrStaffingPlanDetails.route.js",
+        "fullPath": "/api/hr/staffing-plans/scenarios",
+        "module": "hrStaffingPlanDetails"
+      },
+      {
+        "method": "POST",
+        "path": "/scenarios",
+        "controller": "unknown",
+        "file": "hrStaffingPlanDetails.route.js",
+        "fullPath": "/api/hr/staffing-plans/scenarios",
+        "module": "hrStaffingPlanDetails"
+      },
+      {
+        "method": "PATCH",
+        "path": "/scenarios/:scenarioId",
+        "controller": "unknown",
+        "file": "hrStaffingPlanDetails.route.js",
+        "fullPath": "/api/hr/staffing-plans/scenarios/:scenarioId",
+        "module": "hrStaffingPlanDetails"
+      },
+      {
+        "method": "DELETE",
+        "path": "/scenarios/:scenarioId",
+        "controller": "unknown",
+        "file": "hrStaffingPlanDetails.route.js",
+        "fullPath": "/api/hr/staffing-plans/scenarios/:scenarioId",
+        "module": "hrStaffingPlanDetails"
+      },
+      {
+        "method": "POST",
+        "path": "/scenarios/:scenarioId/apply",
+        "controller": "unknown",
+        "file": "hrStaffingPlanDetails.route.js",
+        "fullPath": "/api/hr/staffing-plans/scenarios/:scenarioId/apply",
+        "module": "hrStaffingPlanDetails"
+      },
+      {
+        "method": "GET",
+        "path": "/cost-analysis",
+        "controller": "unknown",
+        "file": "hrStaffingPlanDetails.route.js",
+        "fullPath": "/api/hr/staffing-plans/cost-analysis",
+        "module": "hrStaffingPlanDetails"
+      },
+      {
+        "method": "GET",
+        "path": "/attrition-forecast",
+        "controller": "unknown",
+        "file": "hrStaffingPlanDetails.route.js",
+        "fullPath": "/api/hr/staffing-plans/attrition-forecast",
+        "module": "hrStaffingPlanDetails"
+      },
+      {
+        "method": "POST",
+        "path": "/:planId/details",
+        "controller": "unknown",
+        "file": "hrStaffingPlanDetails.route.js",
+        "fullPath": "/api/hr/staffing-plans/:planId/details",
+        "module": "hrStaffingPlanDetails"
+      },
+      {
+        "method": "PATCH",
+        "path": "/:planId/details/:detailId",
+        "controller": "unknown",
+        "file": "hrStaffingPlanDetails.route.js",
+        "fullPath": "/api/hr/staffing-plans/:planId/details/:detailId",
+        "module": "hrStaffingPlanDetails"
+      },
+      {
+        "method": "DELETE",
+        "path": "/:planId/details/:detailId",
+        "controller": "unknown",
+        "file": "hrStaffingPlanDetails.route.js",
+        "fullPath": "/api/hr/staffing-plans/:planId/details/:detailId",
+        "module": "hrStaffingPlanDetails"
+      },
+      {
+        "method": "POST",
+        "path": "/bulk-update",
+        "controller": "unknown",
+        "file": "hrStaffingPlanDetails.route.js",
+        "fullPath": "/api/hr/staffing-plans/bulk-update",
+        "module": "hrStaffingPlanDetails"
+      }
+    ],
     "hrStaffingPlans": [
       {
         "method": "GET",
@@ -22669,6 +22807,64 @@
         "module": "legalDocument"
       }
     ],
+    "legalDocumentsExtended": [
+      {
+        "method": "GET",
+        "path": "/:id/signature-status",
+        "controller": "unknown",
+        "file": "legalDocumentsExtended.route.js",
+        "fullPath": "/api/legal-documents/:id/signature-status",
+        "module": "legalDocumentsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/request-signature",
+        "controller": "unknown",
+        "file": "legalDocumentsExtended.route.js",
+        "fullPath": "/api/legal-documents/:id/request-signature",
+        "module": "legalDocumentsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/sign",
+        "controller": "unknown",
+        "file": "legalDocumentsExtended.route.js",
+        "fullPath": "/api/legal-documents/:id/sign",
+        "module": "legalDocumentsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/execute",
+        "controller": "unknown",
+        "file": "legalDocumentsExtended.route.js",
+        "fullPath": "/api/legal-documents/:id/execute",
+        "module": "legalDocumentsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/:id/audit-trail",
+        "controller": "unknown",
+        "file": "legalDocumentsExtended.route.js",
+        "fullPath": "/api/legal-documents/:id/audit-trail",
+        "module": "legalDocumentsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/send-reminder",
+        "controller": "unknown",
+        "file": "legalDocumentsExtended.route.js",
+        "fullPath": "/api/legal-documents/:id/send-reminder",
+        "module": "legalDocumentsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/:id/parties",
+        "controller": "unknown",
+        "file": "legalDocumentsExtended.route.js",
+        "fullPath": "/api/legal-documents/:id/parties",
+        "module": "legalDocumentsExtended"
+      }
+    ],
     "lifecycles": [
       {
         "method": "GET",
@@ -25449,6 +25645,64 @@
         "file": "paymentTerms.route.js",
         "fullPath": "/api/payment-terms/:id",
         "module": "paymentTerms"
+      }
+    ],
+    "paymentTermsSettings": [
+      {
+        "method": "GET",
+        "path": "/",
+        "controller": "unknown",
+        "file": "paymentTermsSettings.route.js",
+        "fullPath": "/api/settings/payment-terms",
+        "module": "paymentTermsSettings"
+      },
+      {
+        "method": "GET",
+        "path": "/templates",
+        "controller": "unknown",
+        "file": "paymentTermsSettings.route.js",
+        "fullPath": "/api/settings/payment-terms/templates",
+        "module": "paymentTermsSettings"
+      },
+      {
+        "method": "GET",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "paymentTermsSettings.route.js",
+        "fullPath": "/api/settings/payment-terms/:id",
+        "module": "paymentTermsSettings"
+      },
+      {
+        "method": "POST",
+        "path": "/",
+        "controller": "unknown",
+        "file": "paymentTermsSettings.route.js",
+        "fullPath": "/api/settings/payment-terms",
+        "module": "paymentTermsSettings"
+      },
+      {
+        "method": "PUT",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "paymentTermsSettings.route.js",
+        "fullPath": "/api/settings/payment-terms/:id",
+        "module": "paymentTermsSettings"
+      },
+      {
+        "method": "DELETE",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "paymentTermsSettings.route.js",
+        "fullPath": "/api/settings/payment-terms/:id",
+        "module": "paymentTermsSettings"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/set-default",
+        "controller": "unknown",
+        "file": "paymentTermsSettings.route.js",
+        "fullPath": "/api/settings/payment-terms/:id/set-default",
+        "module": "paymentTermsSettings"
       }
     ],
     "payout": [
@@ -28963,6 +29217,80 @@
         "file": "reminder.route.js",
         "fullPath": "/api/reminders/:id/unarchive",
         "module": "reminder"
+      }
+    ],
+    "remindersExtended": [
+      {
+        "method": "POST",
+        "path": "/:id/reopen",
+        "controller": "unknown",
+        "file": "remindersExtended.route.js",
+        "fullPath": "/api/reminders/:id/reopen",
+        "module": "remindersExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/cancel-snooze",
+        "controller": "unknown",
+        "file": "remindersExtended.route.js",
+        "fullPath": "/api/reminders/:id/cancel-snooze",
+        "module": "remindersExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/recurring/skip",
+        "controller": "unknown",
+        "file": "remindersExtended.route.js",
+        "fullPath": "/api/reminders/:id/recurring/skip",
+        "module": "remindersExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/recurring/stop",
+        "controller": "unknown",
+        "file": "remindersExtended.route.js",
+        "fullPath": "/api/reminders/:id/recurring/stop",
+        "module": "remindersExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/recurring/resume",
+        "controller": "unknown",
+        "file": "remindersExtended.route.js",
+        "fullPath": "/api/reminders/:id/recurring/resume",
+        "module": "remindersExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/:id/occurrences",
+        "controller": "unknown",
+        "file": "remindersExtended.route.js",
+        "fullPath": "/api/reminders/:id/occurrences",
+        "module": "remindersExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/duplicate",
+        "controller": "unknown",
+        "file": "remindersExtended.route.js",
+        "fullPath": "/api/reminders/:id/duplicate",
+        "module": "remindersExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/bulk-snooze",
+        "controller": "unknown",
+        "file": "remindersExtended.route.js",
+        "fullPath": "/api/reminders/bulk-snooze",
+        "module": "remindersExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/bulk-complete",
+        "controller": "unknown",
+        "file": "remindersExtended.route.js",
+        "fullPath": "/api/reminders/bulk-complete",
+        "module": "remindersExtended"
       }
     ],
     "report": [
@@ -32657,6 +32985,72 @@
         "file": "ssoConfig.route.js",
         "fullPath": "/api/firms/:firmId/sso",
         "module": "ssoConfig"
+      }
+    ],
+    "ssoSettings": [
+      {
+        "method": "GET",
+        "path": "/",
+        "controller": "unknown",
+        "file": "ssoSettings.route.js",
+        "fullPath": "/api/settings/sso",
+        "module": "ssoSettings"
+      },
+      {
+        "method": "PATCH",
+        "path": "/",
+        "controller": "unknown",
+        "file": "ssoSettings.route.js",
+        "fullPath": "/api/settings/sso",
+        "module": "ssoSettings"
+      },
+      {
+        "method": "GET",
+        "path": "/providers/available",
+        "controller": "unknown",
+        "file": "ssoSettings.route.js",
+        "fullPath": "/api/settings/sso/providers/available",
+        "module": "ssoSettings"
+      },
+      {
+        "method": "GET",
+        "path": "/providers/:providerId",
+        "controller": "unknown",
+        "file": "ssoSettings.route.js",
+        "fullPath": "/api/settings/sso/providers/:providerId",
+        "module": "ssoSettings"
+      },
+      {
+        "method": "PUT",
+        "path": "/providers/:providerId",
+        "controller": "unknown",
+        "file": "ssoSettings.route.js",
+        "fullPath": "/api/settings/sso/providers/:providerId",
+        "module": "ssoSettings"
+      },
+      {
+        "method": "DELETE",
+        "path": "/providers/:providerId",
+        "controller": "unknown",
+        "file": "ssoSettings.route.js",
+        "fullPath": "/api/settings/sso/providers/:providerId",
+        "module": "ssoSettings"
+      },
+      {
+        "method": "POST",
+        "path": "/providers/:providerId/test",
+        "controller": "unknown",
+        "file": "ssoSettings.route.js",
+        "fullPath": "/api/settings/sso/providers/:providerId/test",
+        "module": "ssoSettings"
+      },
+      {
+        "method": "GET",
+        "path": "/domains",
+        "controller": "unknown",
+        "file": "ssoSettings.route.js",
+        "fullPath": "/api/settings/sso/domains",
+        "module": "ssoSettings"
       }
     ],
     "staff": [
@@ -38887,6 +39281,80 @@
         "file": "workflow.routes.js",
         "fullPath": "/api/workflows/approvals/analytics/overview",
         "module": "workflows"
+      }
+    ],
+    "workflowsExtended": [
+      {
+        "method": "GET",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "workflowsExtended.route.js",
+        "fullPath": "/api/workflows/:id",
+        "module": "workflowsExtended"
+      },
+      {
+        "method": "PATCH",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "workflowsExtended.route.js",
+        "fullPath": "/api/workflows/:id",
+        "module": "workflowsExtended"
+      },
+      {
+        "method": "DELETE",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "workflowsExtended.route.js",
+        "fullPath": "/api/workflows/:id",
+        "module": "workflowsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/duplicate",
+        "controller": "unknown",
+        "file": "workflowsExtended.route.js",
+        "fullPath": "/api/workflows/:id/duplicate",
+        "module": "workflowsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/activate",
+        "controller": "unknown",
+        "file": "workflowsExtended.route.js",
+        "fullPath": "/api/workflows/:id/activate",
+        "module": "workflowsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/deactivate",
+        "controller": "unknown",
+        "file": "workflowsExtended.route.js",
+        "fullPath": "/api/workflows/:id/deactivate",
+        "module": "workflowsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/:id/executions",
+        "controller": "unknown",
+        "file": "workflowsExtended.route.js",
+        "fullPath": "/api/workflows/:id/executions",
+        "module": "workflowsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/test",
+        "controller": "unknown",
+        "file": "workflowsExtended.route.js",
+        "fullPath": "/api/workflows/:id/test",
+        "module": "workflowsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/:id/analytics",
+        "controller": "unknown",
+        "file": "workflowsExtended.route.js",
+        "fullPath": "/api/workflows/:id/analytics",
+        "module": "workflowsExtended"
       }
     ],
     "zatca": [

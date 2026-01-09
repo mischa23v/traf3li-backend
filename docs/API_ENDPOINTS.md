@@ -147,6 +147,7 @@
 - [hrSalaryComponents](#hrsalarycomponents) (11 endpoints)
 - [hrSetup](#hrsetup) (27 endpoints)
 - [hrShiftTypesExtended](#hrshifttypesextended) (13 endpoints)
+- [hrStaffingPlanDetails](#hrstaffingplandetails) (17 endpoints)
 - [hrStaffingPlans](#hrstaffingplans) (26 endpoints)
 - [hrVehicles](#hrvehicles) (16 endpoints)
 - [incomeTaxSlab](#incometaxslab) (9 endpoints)
@@ -179,6 +180,7 @@
 - [leaveRequest](#leaverequest) (20 endpoints)
 - [legalContract](#legalcontract) (33 endpoints)
 - [legalDocument](#legaldocument) (6 endpoints)
+- [legalDocumentsExtended](#legaldocumentsextended) (7 endpoints)
 - [lifecycles](#lifecycles) (10 endpoints)
 - [lockDates](#lockdates) (8 endpoints)
 - [lostReason](#lostreason) (7 endpoints)
@@ -206,6 +208,7 @@
 - [payment](#payment) (20 endpoints)
 - [paymentReceipt](#paymentreceipt) (7 endpoints)
 - [paymentTerms](#paymentterms) (10 endpoints)
+- [paymentTermsSettings](#paymenttermssettings) (7 endpoints)
 - [payout](#payout) (10 endpoints)
 - [payroll](#payroll) (13 endpoints)
 - [payrollRun](#payrollrun) (20 endpoints)
@@ -235,6 +238,7 @@
 - [refund](#refund) (11 endpoints)
 - [regionalBanks](#regionalbanks) (9 endpoints)
 - [reminder](#reminder) (48 endpoints)
+- [remindersExtended](#remindersextended) (9 endpoints)
 - [report](#report) (21 endpoints)
 - [reports](#reports) (10 endpoints)
 - [retainer](#retainer) (10 endpoints)
@@ -266,6 +270,7 @@
 - [smartButton](#smartbutton) (2 endpoints)
 - [smartScheduling](#smartscheduling) (6 endpoints)
 - [ssoConfig](#ssoconfig) (5 endpoints)
+- [ssoSettings](#ssosettings) (8 endpoints)
 - [staff](#staff) (9 endpoints)
 - [statement](#statement) (7 endpoints)
 - [status](#status) (22 endpoints)
@@ -309,6 +314,7 @@
 - [workflow](#workflow) (13 endpoints)
 - [workflowExtended](#workflowextended) (17 endpoints)
 - [workflows](#workflows) (154 endpoints)
+- [workflowsExtended](#workflowsextended) (9 endpoints)
 - [zatca](#zatca) (12 endpoints)
 - [zoom](#zoom) (14 endpoints)
 
@@ -318,8 +324,8 @@
 
 | Metric | Count |
 |--------|-------|
-| Total Endpoints | 4811 |
-| Total Modules | 305 |
+| Total Endpoints | 4868 |
+| Total Modules | 311 |
 
 ---
 
@@ -3328,6 +3334,28 @@
 | `POST` | `/api/hr/shift-types/bulk-delete` | unknown | hrShiftTypesExtended.route.js |
 | `POST` | `/api/hr/shift-types/import` | unknown | hrShiftTypesExtended.route.js |
 
+## hrStaffingPlanDetails
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/hr/staffing-plans/headcount` | unknown | hrStaffingPlanDetails.route.js |
+| `GET` | `/api/hr/staffing-plans/headcount/by-department` | unknown | hrStaffingPlanDetails.route.js |
+| `GET` | `/api/hr/staffing-plans/headcount/by-location` | unknown | hrStaffingPlanDetails.route.js |
+| `GET` | `/api/hr/staffing-plans/headcount/by-job-family` | unknown | hrStaffingPlanDetails.route.js |
+| `GET` | `/api/hr/staffing-plans/headcount/trends` | unknown | hrStaffingPlanDetails.route.js |
+| `GET` | `/api/hr/staffing-plans/variance` | unknown | hrStaffingPlanDetails.route.js |
+| `GET` | `/api/hr/staffing-plans/scenarios` | unknown | hrStaffingPlanDetails.route.js |
+| `POST` | `/api/hr/staffing-plans/scenarios` | unknown | hrStaffingPlanDetails.route.js |
+| `PATCH` | `/api/hr/staffing-plans/scenarios/:scenarioId` | unknown | hrStaffingPlanDetails.route.js |
+| `DELETE` | `/api/hr/staffing-plans/scenarios/:scenarioId` | unknown | hrStaffingPlanDetails.route.js |
+| `POST` | `/api/hr/staffing-plans/scenarios/:scenarioId/apply` | unknown | hrStaffingPlanDetails.route.js |
+| `GET` | `/api/hr/staffing-plans/cost-analysis` | unknown | hrStaffingPlanDetails.route.js |
+| `GET` | `/api/hr/staffing-plans/attrition-forecast` | unknown | hrStaffingPlanDetails.route.js |
+| `POST` | `/api/hr/staffing-plans/:planId/details` | unknown | hrStaffingPlanDetails.route.js |
+| `PATCH` | `/api/hr/staffing-plans/:planId/details/:detailId` | unknown | hrStaffingPlanDetails.route.js |
+| `DELETE` | `/api/hr/staffing-plans/:planId/details/:detailId` | unknown | hrStaffingPlanDetails.route.js |
+| `POST` | `/api/hr/staffing-plans/bulk-update` | unknown | hrStaffingPlanDetails.route.js |
+
 ## hrStaffingPlans
 
 | Method | Path | Controller | File |
@@ -3978,6 +4006,18 @@
 | `DELETE` | `/api/legalDocument/:_id` | deleteDocument | legalDocument.route.js |
 | `POST` | `/api/legalDocument/:_id/download` | incrementDownload | legalDocument.route.js |
 
+## legalDocumentsExtended
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/legal-documents/:id/signature-status` | unknown | legalDocumentsExtended.route.js |
+| `POST` | `/api/legal-documents/:id/request-signature` | unknown | legalDocumentsExtended.route.js |
+| `POST` | `/api/legal-documents/:id/sign` | unknown | legalDocumentsExtended.route.js |
+| `POST` | `/api/legal-documents/:id/execute` | unknown | legalDocumentsExtended.route.js |
+| `GET` | `/api/legal-documents/:id/audit-trail` | unknown | legalDocumentsExtended.route.js |
+| `POST` | `/api/legal-documents/:id/send-reminder` | unknown | legalDocumentsExtended.route.js |
+| `GET` | `/api/legal-documents/:id/parties` | unknown | legalDocumentsExtended.route.js |
+
 ## lifecycles
 
 | Method | Path | Controller | File |
@@ -4453,6 +4493,18 @@
 | `PUT` | `/api/payment-terms/:id` | updatePaymentTerm | paymentTerms.route.js |
 | `POST` | `/api/payment-terms/:id/set-default` | setAsDefault | paymentTerms.route.js |
 | `DELETE` | `/api/payment-terms/:id` | deletePaymentTerm | paymentTerms.route.js |
+
+## paymentTermsSettings
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/settings/payment-terms` | unknown | paymentTermsSettings.route.js |
+| `GET` | `/api/settings/payment-terms/templates` | unknown | paymentTermsSettings.route.js |
+| `GET` | `/api/settings/payment-terms/:id` | unknown | paymentTermsSettings.route.js |
+| `POST` | `/api/settings/payment-terms` | unknown | paymentTermsSettings.route.js |
+| `PUT` | `/api/settings/payment-terms/:id` | unknown | paymentTermsSettings.route.js |
+| `DELETE` | `/api/settings/payment-terms/:id` | unknown | paymentTermsSettings.route.js |
+| `POST` | `/api/settings/payment-terms/:id/set-default` | unknown | paymentTermsSettings.route.js |
 
 ## payout
 
@@ -5030,6 +5082,20 @@
 | `GET` | `/api/reminders/:id/activity` | getReminderActivity | reminder.route.js |
 | `POST` | `/api/reminders/:id/archive` | archiveReminder | reminder.route.js |
 | `POST` | `/api/reminders/:id/unarchive` | unarchiveReminder | reminder.route.js |
+
+## remindersExtended
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `POST` | `/api/reminders/:id/reopen` | unknown | remindersExtended.route.js |
+| `POST` | `/api/reminders/:id/cancel-snooze` | unknown | remindersExtended.route.js |
+| `POST` | `/api/reminders/:id/recurring/skip` | unknown | remindersExtended.route.js |
+| `POST` | `/api/reminders/:id/recurring/stop` | unknown | remindersExtended.route.js |
+| `POST` | `/api/reminders/:id/recurring/resume` | unknown | remindersExtended.route.js |
+| `GET` | `/api/reminders/:id/occurrences` | unknown | remindersExtended.route.js |
+| `POST` | `/api/reminders/:id/duplicate` | unknown | remindersExtended.route.js |
+| `POST` | `/api/reminders/bulk-snooze` | unknown | remindersExtended.route.js |
+| `POST` | `/api/reminders/bulk-complete` | unknown | remindersExtended.route.js |
 
 ## report
 
@@ -5639,6 +5705,19 @@
 | `POST` | `/api/firms/:firmId/sso/test` | unknown | ssoConfig.route.js |
 | `POST` | `/api/firms/:firmId/sso/upload-metadata` | unknown | ssoConfig.route.js |
 | `DELETE` | `/api/firms/:firmId/sso` | unknown | ssoConfig.route.js |
+
+## ssoSettings
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/settings/sso` | unknown | ssoSettings.route.js |
+| `PATCH` | `/api/settings/sso` | unknown | ssoSettings.route.js |
+| `GET` | `/api/settings/sso/providers/available` | unknown | ssoSettings.route.js |
+| `GET` | `/api/settings/sso/providers/:providerId` | unknown | ssoSettings.route.js |
+| `PUT` | `/api/settings/sso/providers/:providerId` | unknown | ssoSettings.route.js |
+| `DELETE` | `/api/settings/sso/providers/:providerId` | unknown | ssoSettings.route.js |
+| `POST` | `/api/settings/sso/providers/:providerId/test` | unknown | ssoSettings.route.js |
+| `GET` | `/api/settings/sso/domains` | unknown | ssoSettings.route.js |
 
 ## staff
 
@@ -6623,6 +6702,20 @@
 | `GET` | `/api/workflows/approvals/metrics/approval-rate` | unknown | workflow.routes.js |
 | `GET` | `/api/workflows/approvals/analytics/overview` | unknown | workflow.routes.js |
 
+## workflowsExtended
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/workflows/:id` | unknown | workflowsExtended.route.js |
+| `PATCH` | `/api/workflows/:id` | unknown | workflowsExtended.route.js |
+| `DELETE` | `/api/workflows/:id` | unknown | workflowsExtended.route.js |
+| `POST` | `/api/workflows/:id/duplicate` | unknown | workflowsExtended.route.js |
+| `POST` | `/api/workflows/:id/activate` | unknown | workflowsExtended.route.js |
+| `POST` | `/api/workflows/:id/deactivate` | unknown | workflowsExtended.route.js |
+| `GET` | `/api/workflows/:id/executions` | unknown | workflowsExtended.route.js |
+| `POST` | `/api/workflows/:id/test` | unknown | workflowsExtended.route.js |
+| `GET` | `/api/workflows/:id/analytics` | unknown | workflowsExtended.route.js |
+
 ## zatca
 
 | Method | Path | Controller | File |
@@ -6663,7 +6756,7 @@
 
 ## Quick Reference by Method
 
-### GET (2055)
+### GET (2078)
 
 <details>
 <summary>Click to expand</summary>
@@ -7839,9 +7932,18 @@ GET    /api/hr/staffing-plans/:planId/positions/open
 GET    /api/hr/staffing-plans/:planId/progress
 GET    /api/hr/staffing-plans/:planId/timeline
 GET    /api/hr/staffing-plans/analytics
+GET    /api/hr/staffing-plans/attrition-forecast
+GET    /api/hr/staffing-plans/cost-analysis
 GET    /api/hr/staffing-plans/export
 GET    /api/hr/staffing-plans/forecast
 GET    /api/hr/staffing-plans/gaps
+GET    /api/hr/staffing-plans/headcount
+GET    /api/hr/staffing-plans/headcount/by-department
+GET    /api/hr/staffing-plans/headcount/by-job-family
+GET    /api/hr/staffing-plans/headcount/by-location
+GET    /api/hr/staffing-plans/headcount/trends
+GET    /api/hr/staffing-plans/scenarios
+GET    /api/hr/staffing-plans/variance
 GET    /api/hr/surveys
 GET    /api/hr/surveys/:id
 GET    /api/hr/surveys/:id/results
@@ -8032,6 +8134,9 @@ GET    /api/leave-requests/calendar
 GET    /api/leave-requests/pending-approvals
 GET    /api/leave-requests/stats
 GET    /api/leave-requests/types
+GET    /api/legal-documents/:id/audit-trail
+GET    /api/legal-documents/:id/parties
+GET    /api/legal-documents/:id/signature-status
 GET    /api/legalDocument
 GET    /api/legalDocument/:_id
 GET    /api/lifecycles/:entityType/:entityId
@@ -8258,6 +8363,7 @@ GET    /api/regional-banks/status/:accountId
 GET    /api/reminders
 GET    /api/reminders/:id
 GET    /api/reminders/:id/activity
+GET    /api/reminders/:id/occurrences
 GET    /api/reminders/archived
 GET    /api/reminders/case/:caseId
 GET    /api/reminders/client/:clientId
@@ -8403,6 +8509,13 @@ GET    /api/settings/email/templates/:id
 GET    /api/settings/finance
 GET    /api/settings/hr
 GET    /api/settings/payment-modes
+GET    /api/settings/payment-terms
+GET    /api/settings/payment-terms/:id
+GET    /api/settings/payment-terms/templates
+GET    /api/settings/sso
+GET    /api/settings/sso/domains
+GET    /api/settings/sso/providers/:providerId
+GET    /api/settings/sso/providers/available
 GET    /api/settings/taxes
 GET    /api/setup/next-task
 GET    /api/setup/progress-percentage
@@ -8668,6 +8781,9 @@ GET    /api/workflow/presets/:presetType
 GET    /api/workflow/stats
 GET    /api/workflow/templates
 GET    /api/workflow/templates/:id
+GET    /api/workflows/:id
+GET    /api/workflows/:id/analytics
+GET    /api/workflows/:id/executions
 GET    /api/workflows/activities/chain/:chainId/status
 GET    /api/workflows/activities/completion-rate
 GET    /api/workflows/activities/due-reminders
@@ -8728,7 +8844,7 @@ GET    /api/zoom/status
 
 </details>
 
-### POST (1943)
+### POST (1966)
 
 <details>
 <summary>Click to expand</summary>
@@ -9791,6 +9907,7 @@ POST   /api/hr/staffing-plans
 POST   /api/hr/staffing-plans/:planId/activate
 POST   /api/hr/staffing-plans/:planId/approve
 POST   /api/hr/staffing-plans/:planId/archive
+POST   /api/hr/staffing-plans/:planId/details
 POST   /api/hr/staffing-plans/:planId/duplicate
 POST   /api/hr/staffing-plans/:planId/fill/:posId
 POST   /api/hr/staffing-plans/:planId/positions
@@ -9798,6 +9915,9 @@ POST   /api/hr/staffing-plans/:planId/reject
 POST   /api/hr/staffing-plans/:planId/submit
 POST   /api/hr/staffing-plans/bulk-archive
 POST   /api/hr/staffing-plans/bulk-delete
+POST   /api/hr/staffing-plans/bulk-update
+POST   /api/hr/staffing-plans/scenarios
+POST   /api/hr/staffing-plans/scenarios/:scenarioId/apply
 POST   /api/hr/surveys
 POST   /api/hr/surveys/:id/close
 POST   /api/hr/surveys/:id/launch
@@ -9985,6 +10105,10 @@ POST   /api/leave-requests/:id/request-extension
 POST   /api/leave-requests/:id/submit
 POST   /api/leave-requests/bulk-delete
 POST   /api/leave-requests/check-conflicts
+POST   /api/legal-documents/:id/execute
+POST   /api/legal-documents/:id/request-signature
+POST   /api/legal-documents/:id/send-reminder
+POST   /api/legal-documents/:id/sign
 POST   /api/legalDocument
 POST   /api/legalDocument/:_id/download
 POST   /api/lifecycles/initiate
@@ -10178,14 +10302,22 @@ POST   /api/regional-banks/disconnect/:accountId
 POST   /api/regional-banks/sync/:accountId
 POST   /api/reminders
 POST   /api/reminders/:id/archive
+POST   /api/reminders/:id/cancel-snooze
 POST   /api/reminders/:id/clone
 POST   /api/reminders/:id/complete
 POST   /api/reminders/:id/delegate
 POST   /api/reminders/:id/dismiss
+POST   /api/reminders/:id/duplicate
+POST   /api/reminders/:id/recurring/resume
+POST   /api/reminders/:id/recurring/skip
+POST   /api/reminders/:id/recurring/stop
+POST   /api/reminders/:id/reopen
 POST   /api/reminders/:id/reschedule
 POST   /api/reminders/:id/snooze
 POST   /api/reminders/:id/unarchive
 POST   /api/reminders/bulk
+POST   /api/reminders/bulk-complete
+POST   /api/reminders/bulk-snooze
 POST   /api/reminders/bulk/archive
 POST   /api/reminders/bulk/complete
 POST   /api/reminders/bulk/unarchive
@@ -10311,6 +10443,9 @@ POST   /api/settings/email/smtp/test
 POST   /api/settings/email/templates
 POST   /api/settings/email/templates/:id/preview
 POST   /api/settings/payment-modes
+POST   /api/settings/payment-terms
+POST   /api/settings/payment-terms/:id/set-default
+POST   /api/settings/sso/providers/:providerId/test
 POST   /api/settings/taxes
 POST   /api/setup/admin/sections
 POST   /api/setup/admin/tasks
@@ -10559,6 +10694,10 @@ POST   /api/workflow/instances/:id/advance
 POST   /api/workflow/instances/:id/cancel
 POST   /api/workflow/instances/:id/pause
 POST   /api/workflow/instances/:id/resume
+POST   /api/workflows/:id/activate
+POST   /api/workflows/:id/deactivate
+POST   /api/workflows/:id/duplicate
+POST   /api/workflows/:id/test
 POST   /api/workflows/activities/:id/cancel
 POST   /api/workflows/activities/:id/complete
 POST   /api/workflows/activities/:id/end-recurrence
@@ -10681,7 +10820,7 @@ POST   /api/zoom/webhook
 
 </details>
 
-### PUT (255)
+### PUT (257)
 
 <details>
 <summary>Click to expand</summary>
@@ -10897,6 +11036,8 @@ PUT    /api/settings/email/smtp
 PUT    /api/settings/email/templates/:id
 PUT    /api/settings/finance
 PUT    /api/settings/payment-modes/:id
+PUT    /api/settings/payment-terms/:id
+PUT    /api/settings/sso/providers/:providerId
 PUT    /api/settings/taxes/:id
 PUT    /api/shift-assignments/:assignmentId
 PUT    /api/shift-requests/:requestId
@@ -10946,7 +11087,7 @@ PUT    /api/zoom/settings
 
 </details>
 
-### PATCH (223)
+### PATCH (227)
 
 <details>
 <summary>Click to expand</summary>
@@ -11079,7 +11220,9 @@ PATCH  /api/hr/skills/assessments/:id
 PATCH  /api/hr/skills/competencies/:id
 PATCH  /api/hr/skills/types/:id
 PATCH  /api/hr/staffing-plans/:planId
+PATCH  /api/hr/staffing-plans/:planId/details/:detailId
 PATCH  /api/hr/staffing-plans/:planId/positions/:posId
+PATCH  /api/hr/staffing-plans/scenarios/:scenarioId
 PATCH  /api/hr/surveys/:id
 PATCH  /api/hr/surveys/templates/:id
 PATCH  /api/hr/trainings/:trainingId
@@ -11139,6 +11282,7 @@ PATCH  /api/settings/hr/leave
 PATCH  /api/settings/hr/payroll
 PATCH  /api/settings/notifications
 PATCH  /api/settings/payment-modes/:id/default
+PATCH  /api/settings/sso
 PATCH  /api/settings/taxes/:id/default
 PATCH  /api/setup/admin/sections/:sectionId
 PATCH  /api/setup/admin/tasks/:taskId
@@ -11175,11 +11319,12 @@ PATCH  /api/v1/trades/:id
 PATCH  /api/v1/trading-accounts/:id
 PATCH  /api/views/:id
 PATCH  /api/webhooks/:id
+PATCH  /api/workflows/:id
 ```
 
 </details>
 
-### DELETE (335)
+### DELETE (340)
 
 <details>
 <summary>Click to expand</summary>
@@ -11370,7 +11515,9 @@ DELETE /api/hr/skills/:id
 DELETE /api/hr/skills/assign/:employeeId/:skillId
 DELETE /api/hr/skills/competencies/:id
 DELETE /api/hr/staffing-plans/:planId
+DELETE /api/hr/staffing-plans/:planId/details/:detailId
 DELETE /api/hr/staffing-plans/:planId/positions/:posId
+DELETE /api/hr/staffing-plans/scenarios/:scenarioId
 DELETE /api/hr/surveys/:id
 DELETE /api/hr/surveys/templates/:id
 DELETE /api/hr/trainings/:trainingId
@@ -11464,6 +11611,8 @@ DELETE /api/settings/ai/keys/:provider
 DELETE /api/settings/email/signatures/:id
 DELETE /api/settings/email/templates/:id
 DELETE /api/settings/payment-modes/:id
+DELETE /api/settings/payment-terms/:id
+DELETE /api/settings/sso/providers/:providerId
 DELETE /api/settings/taxes/:id
 DELETE /api/setup/admin/sections/:sectionId
 DELETE /api/setup/admin/tasks/:taskId
@@ -11519,6 +11668,7 @@ DELETE /api/views/:id
 DELETE /api/walkthroughs/admin/:id
 DELETE /api/webhooks/:id
 DELETE /api/whatsapp/broadcasts/:id/recipients
+DELETE /api/workflows/:id
 DELETE /api/zoom/meetings/:meetingId
 ```
 

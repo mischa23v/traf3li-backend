@@ -464,6 +464,16 @@ const {
     documentsExtendedRoute,
     dripCampaignsRoute,
 
+    // Batch 11 Routes (staffing plan details, reminders extended, workflows extended)
+    hrStaffingPlanDetailsRoute,
+    remindersExtendedRoute,
+    workflowsExtendedRoute,
+
+    // Batch 12 Routes (SSO settings, legal documents extended, payment terms settings)
+    ssoSettingsRoute,
+    legalDocumentsExtendedRoute,
+    paymentTermsSettingsRoute,
+
     // Unified Data Flow
     unifiedDataRoute,
 
@@ -1412,6 +1422,16 @@ app.use('/api/hr/shift-types', noCache, hrShiftTypesExtendedRoute); // Extended 
 app.use('/api/tasks', noCache, tasksExtendedRoute); // Extended task operations
 app.use('/api/documents', noCache, documentsExtendedRoute); // Extended document operations
 app.use('/api/email-marketing/drip-campaigns', noCache, dripCampaignsRoute); // Drip campaign management
+
+// Batch 11 Routes (staffing plan details, reminders extended, workflows extended)
+app.use('/api/hr/staffing-plans', noCache, hrStaffingPlanDetailsRoute); // Staffing plan details operations
+app.use('/api/reminders', noCache, remindersExtendedRoute); // Extended reminder operations
+app.use('/api/workflows', noCache, workflowsExtendedRoute); // Extended workflow operations
+
+// Batch 12 Routes (SSO settings, legal documents extended, payment terms settings)
+app.use('/api/settings/sso', noCache, ssoSettingsRoute); // SSO configuration
+app.use('/api/legal-documents', noCache, legalDocumentsExtendedRoute); // Legal document signing/tracking
+app.use('/api/settings/payment-terms', noCache, paymentTermsSettingsRoute); // Payment terms configuration
 
 // ============================================
 // UNIFIED DATA FLOW ROUTES

@@ -351,6 +351,16 @@ const tasksExtendedRoute = require('./tasksExtended.route');
 const documentsExtendedRoute = require('./documentsExtended.route');
 const dripCampaignsRoute = require('./dripCampaigns.route');
 
+// Batch 11 Routes (staffing plan details, reminders extended, workflows extended)
+const hrStaffingPlanDetailsRoute = require('./hrStaffingPlanDetails.route');
+const remindersExtendedRoute = require('./remindersExtended.route');
+const workflowsExtendedRoute = require('./workflowsExtended.route');
+
+// Batch 12 Routes (SSO settings, legal documents extended, payment terms settings)
+const ssoSettingsRoute = require('./ssoSettings.route');
+const legalDocumentsExtendedRoute = require('./legalDocumentsExtended.route');
+const paymentTermsSettingsRoute = require('./paymentTermsSettings.route');
+
 // Who's Out Calendar & Compliance Dashboard Routes
 const whosOutRoute = require('./whosOut.route');
 const complianceDashboardRoute = require('./complianceDashboard.route');
@@ -817,6 +827,16 @@ module.exports = {
     tasksExtendedRoute,
     documentsExtendedRoute,
     dripCampaignsRoute,
+
+    // Batch 11 Routes (staffing plan details, reminders extended, workflows extended)
+    hrStaffingPlanDetailsRoute,
+    remindersExtendedRoute,
+    workflowsExtendedRoute,
+
+    // Batch 12 Routes (SSO settings, legal documents extended, payment terms settings)
+    ssoSettingsRoute,
+    legalDocumentsExtendedRoute,
+    paymentTermsSettingsRoute,
 
     // Who's Out Calendar & Compliance Dashboard
     whosOutRoute,

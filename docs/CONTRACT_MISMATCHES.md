@@ -1,12 +1,12 @@
 # Frontend vs Backend Contract Mismatch Report
 
-> Generated: 2026-01-09T11:36:54.285Z
+> Generated: 2026-01-09T11:47:12.314Z
 
 ## Summary
 
 | Category | Frontend Only | Backend Only | Mismatches |
 |----------|--------------|--------------|------------|
-| API Endpoints | 474 | 2351 | 156 |
+| API Endpoints | 451 | 2385 | 157 |
 | Interfaces/Entities | 2871 | 154 | 0 |
 | Enums | 88 | 2138 | 0 |
 | Type Aliases | 167 | 0 | - |
@@ -17,7 +17,7 @@
 
 These endpoints are called by frontend but don't exist in backend - **will cause 404 errors**.
 
-### hr (56 missing)
+### hr (52 missing)
 
 | Method | Endpoint | Source File |
 |--------|----------|-------------|
@@ -51,10 +51,6 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | GET | `/hr/skills/by-category/${category}` | services/skillService.ts |
 | POST | `/hr/skills/bulk-delete` | services/skillService.ts |
 | GET | `/hr/skills/export?${params.toString()}` | services/skillService.ts |
-| POST | `/hr/staffing-plans/${planId}/details` | services/staffingPlanService.ts |
-| PATCH | `/hr/staffing-plans/${planId}/details/${detailId}` | services/staffingPlanService.ts |
-| DELETE | `/hr/staffing-plans/${planId}/details/${detailId}` | services/staffingPlanService.ts |
-| GET | `/hr/staffing-plans/headcount` | services/staffingPlanService.ts |
 | POST | `/hr/staffing-plans/${planId}/calculate-vacancies` | services/staffingPlanService.ts |
 | GET | `/hr/staffing-plans/vacancies-summary` | services/staffingPlanService.ts |
 | POST | `/hr/staffing-plans/${planId}/details/${detailId}/create-job-opening` | services/staffingPlanService.ts |
@@ -71,54 +67,11 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | GET | `/hr/vehicle-logs?${params.toString()}` | services/vehicleService.ts |
 | POST | `/hr/vehicle-logs` | services/vehicleService.ts |
 | GET | `/hr/vehicles/service-due` | services/vehicleService.ts |
-| ... | *6 more* | - |
-
-### workflows (19 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/workflows/presets` | services/workflowService.ts |
-| POST | `/workflows/presets/${presetType}` | services/workflowService.ts |
-| GET | `/workflows/stats` | services/workflowService.ts |
-| GET | `/workflows/category/${category}` | services/workflowService.ts |
-| GET | `/workflows` | services/workflowService.ts |
-| POST | `/workflows` | services/workflowService.ts |
-| GET | `/workflows/${id}` | services/workflowService.ts |
-| PATCH | `/workflows/${id}` | services/workflowService.ts |
-| DELETE | `/workflows/${id}` | services/workflowService.ts |
-| POST | `/workflows/${id}/duplicate` | services/workflowService.ts |
-| POST | `/workflows/${id}/stages` | services/workflowService.ts |
-| PATCH | `/workflows/${id}/stages/${stageId}` | services/workflowService.ts |
-| DELETE | `/workflows/${id}/stages/${stageId}` | services/workflowService.ts |
-| POST | `/workflows/${id}/stages/reorder` | services/workflowService.ts |
-| POST | `/workflows/${id}/transitions` | services/workflowService.ts |
-| POST | `/workflows/cases/${caseId}/initialize` | services/workflowService.ts |
-| GET | `/workflows/cases/${caseId}/progress` | services/workflowService.ts |
-| POST | `/workflows/cases/${caseId}/move` | services/workflowService.ts |
-| POST | `/workflows/cases/${caseId}/requirements/${requirementId}/complete` | services/workflowService.ts |
-
-### settings (18 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| POST | `/settings/email/smtp/test-connection` | services/emailSettingsService.ts |
-| POST | `/settings/email/smtp/send-test` | services/emailSettingsService.ts |
-| PATCH | `/settings/email/templates/${id}/toggle` | services/emailSettingsService.ts |
-| GET | `/settings/payment-terms` | services/paymentTermsService.ts |
-| GET | `/settings/payment-terms/${id}` | services/paymentTermsService.ts |
-| POST | `/settings/payment-terms` | services/paymentTermsService.ts |
-| PUT | `/settings/payment-terms/${id}` | services/paymentTermsService.ts |
-| DELETE | `/settings/payment-terms/${id}` | services/paymentTermsService.ts |
-| PATCH | `/settings/payment-terms/${id}/default` | services/paymentTermsService.ts |
-| POST | `/settings/payment-terms/initialize` | services/paymentTermsService.ts |
-| GET | `/settings/sso` | services/ssoService.ts |
-| PATCH | `/settings/sso` | services/ssoService.ts |
-| GET | `/settings/sso/providers/available` | services/ssoService.ts |
-| GET | `/settings/sso/providers/${providerId}` | services/ssoService.ts |
-| POST | `/settings/sso/providers` | services/ssoService.ts |
-| PATCH | `/settings/sso/providers/${providerId}` | services/ssoService.ts |
-| DELETE | `/settings/sso/providers/${providerId}` | services/ssoService.ts |
-| POST | `/settings/sso/test-connection` | services/ssoService.ts |
+| GET | `/hr/vehicles/${vehicleId}/utilization?${params.toString()}` | services/vehicleService.ts |
+| GET | `/hr/vehicles/fleet-summary` | services/vehicleService.ts |
+| PATCH | `/hr/vehicle-logs/${logId}/reimbursement` | services/vehicleService.ts |
+| POST | `/hr/vehicles/bulk-delete` | services/vehicleService.ts |
+| ... | *2 more* | - |
 
 ### chatter (17 missing)
 
@@ -142,27 +95,25 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | GET | `/chatter/attachments/${resModel}/${resId}` | services/chatterService.ts |
 | DELETE | `/chatter/attachments/${attachmentId}` | services/chatterService.ts |
 
-### reminders (17 missing)
+### workflows (15 missing)
 
 | Method | Endpoint | Source File |
 |--------|----------|-------------|
-| POST | `/reminders/${id}/reopen` | services/remindersService.ts |
-| POST | `/reminders/${id}/cancel-snooze` | services/remindersService.ts |
-| GET | `/reminders/today` | services/remindersService.ts |
-| GET | `/reminders/snoozed` | services/remindersService.ts |
-| GET | `/reminders/my-reminders` | services/remindersService.ts |
-| POST | `/reminders/${id}/recurring/skip` | services/remindersService.ts |
-| POST | `/reminders/${id}/recurring/stop` | services/remindersService.ts |
-| GET | `/reminders/${id}/recurring/history` | services/remindersService.ts |
-| PATCH | `/reminders/${id}/notification` | services/remindersService.ts |
-| POST | `/reminders/${id}/notification/test` | services/remindersService.ts |
-| POST | `/reminders/${id}/acknowledge` | services/remindersService.ts |
-| POST | `/reminders/bulk/snooze` | services/remindersService.ts |
-| POST | `/reminders/bulk/dismiss` | services/remindersService.ts |
-| POST | `/reminders/import` | services/remindersService.ts |
-| GET | `/reminders/templates` | services/remindersService.ts |
-| POST | `/reminders/templates/${templateId}/create` | services/remindersService.ts |
-| POST | `/reminders/${id}/save-as-template` | services/remindersService.ts |
+| GET | `/workflows/presets` | services/workflowService.ts |
+| POST | `/workflows/presets/${presetType}` | services/workflowService.ts |
+| GET | `/workflows/stats` | services/workflowService.ts |
+| GET | `/workflows/category/${category}` | services/workflowService.ts |
+| GET | `/workflows` | services/workflowService.ts |
+| POST | `/workflows` | services/workflowService.ts |
+| POST | `/workflows/${id}/stages` | services/workflowService.ts |
+| PATCH | `/workflows/${id}/stages/${stageId}` | services/workflowService.ts |
+| DELETE | `/workflows/${id}/stages/${stageId}` | services/workflowService.ts |
+| POST | `/workflows/${id}/stages/reorder` | services/workflowService.ts |
+| POST | `/workflows/${id}/transitions` | services/workflowService.ts |
+| POST | `/workflows/cases/${caseId}/initialize` | services/workflowService.ts |
+| GET | `/workflows/cases/${caseId}/progress` | services/workflowService.ts |
+| POST | `/workflows/cases/${caseId}/move` | services/workflowService.ts |
+| POST | `/workflows/cases/${caseId}/requirements/${requirementId}/complete` | services/workflowService.ts |
 
 ### crm-reports (14 missing)
 
@@ -201,6 +152,24 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | GET | `/leave-periods/${periodId}/allocation-summary` | services/leavePeriodService.ts |
 | POST | `/leave-periods/:param` | services/leavePeriodService.ts |
 | GET | `/leave-periods/:param/allocate` | services/leavePeriodService.ts |
+
+### reminders (13 missing)
+
+| Method | Endpoint | Source File |
+|--------|----------|-------------|
+| GET | `/reminders/today` | services/remindersService.ts |
+| GET | `/reminders/snoozed` | services/remindersService.ts |
+| GET | `/reminders/my-reminders` | services/remindersService.ts |
+| GET | `/reminders/${id}/recurring/history` | services/remindersService.ts |
+| PATCH | `/reminders/${id}/notification` | services/remindersService.ts |
+| POST | `/reminders/${id}/notification/test` | services/remindersService.ts |
+| POST | `/reminders/${id}/acknowledge` | services/remindersService.ts |
+| POST | `/reminders/bulk/snooze` | services/remindersService.ts |
+| POST | `/reminders/bulk/dismiss` | services/remindersService.ts |
+| POST | `/reminders/import` | services/remindersService.ts |
+| GET | `/reminders/templates` | services/remindersService.ts |
+| POST | `/reminders/templates/${templateId}/create` | services/remindersService.ts |
+| POST | `/reminders/${id}/save-as-template` | services/remindersService.ts |
 
 ### legal-documents (12 missing)
 
@@ -463,6 +432,18 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | DELETE | `/email-templates/${id}` | services/crmSettingsService.ts |
 | POST | `/email-templates/${id}/duplicate` | services/crmSettingsService.ts |
 | POST | `/email-templates/preview` | services/crmSettingsService.ts |
+
+### settings (7 missing)
+
+| Method | Endpoint | Source File |
+|--------|----------|-------------|
+| POST | `/settings/email/smtp/test-connection` | services/emailSettingsService.ts |
+| POST | `/settings/email/smtp/send-test` | services/emailSettingsService.ts |
+| PATCH | `/settings/email/templates/${id}/toggle` | services/emailSettingsService.ts |
+| PATCH | `/settings/payment-terms/${id}/default` | services/paymentTermsService.ts |
+| POST | `/settings/payment-terms/initialize` | services/paymentTermsService.ts |
+| POST | `/settings/sso/providers` | services/ssoService.ts |
+| POST | `/settings/sso/test-connection` | services/ssoService.ts |
 
 ### exchange-rate-revaluation (7 missing)
 
@@ -877,7 +858,7 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 
 These endpoints exist in backend but frontend doesn't call them - potentially dead code or undocumented features.
 
-### hr (297 unused)
+### hr (310 unused)
 
 | Method | Endpoint |
 |--------|----------|
@@ -911,9 +892,9 @@ These endpoints exist in backend but frontend doesn't call them - potentially de
 | GET | `/api/hr/fleet/vehicles` |
 | GET | `/api/hr/fleet/vehicles/:id` |
 | POST | `/api/hr/fleet/vehicles` |
-| ... | *267 more* |
+| ... | *280 more* |
 
-### workflows (154 unused)
+### workflows (159 unused)
 
 | Method | Endpoint |
 |--------|----------|
@@ -947,7 +928,7 @@ These endpoints exist in backend but frontend doesn't call them - potentially de
 | POST | `/api/workflows/quotes/:id/reject` |
 | GET | `/api/workflows/quotes/:id/approval-status` |
 | GET | `/api/workflows/quotes/pending-approvals` |
-| ... | *124 more* |
+| ... | *129 more* |
 
 ### saless (75 unused)
 
@@ -1370,6 +1351,38 @@ These endpoints exist in backend but frontend doesn't call them - potentially de
 | POST | `/api/appointments/:id/reschedule` |
 | DELETE | `/api/appointments/:id` |
 
+### reminders (27 unused)
+
+| Method | Endpoint |
+|--------|----------|
+| GET | `/api/reminders/location/summary` |
+| GET | `/api/reminders/location/locations` |
+| POST | `/api/reminders/location` |
+| POST | `/api/reminders/location/check` |
+| POST | `/api/reminders/location/nearby` |
+| POST | `/api/reminders/location/save` |
+| POST | `/api/reminders/location/distance` |
+| PUT | `/api/reminders/location/locations/:locationId` |
+| DELETE | `/api/reminders/location/locations/:locationId` |
+| POST | `/api/reminders/location/:reminderId/reset` |
+| GET | `/api/reminders/client/:clientId` |
+| GET | `/api/reminders/case/:caseId` |
+| POST | `/api/reminders/from-task/:taskId` |
+| POST | `/api/reminders/from-event/:eventId` |
+| POST | `/api/reminders/parse` |
+| POST | `/api/reminders/voice` |
+| PATCH | `/api/reminders/reorder` |
+| GET | `/api/reminders/search` |
+| GET | `/api/reminders/conflicts` |
+| POST | `/api/reminders/:id/clone` |
+| POST | `/api/reminders/:id/reschedule` |
+| GET | `/api/reminders/:id/activity` |
+| POST | `/api/reminders/:id/recurring/resume` |
+| GET | `/api/reminders/:id/occurrences` |
+| POST | `/api/reminders/:id/duplicate` |
+| POST | `/api/reminders/bulk-snooze` |
+| POST | `/api/reminders/bulk-complete` |
+
 ### analyticss (26 unused)
 
 | Method | Endpoint |
@@ -1515,33 +1528,6 @@ These endpoints exist in backend but frontend doesn't call them - potentially de
 | POST | `/api/reports/:id/clone` |
 | GET | `/api/reports/:id/export/:format` |
 
-### reminders (22 unused)
-
-| Method | Endpoint |
-|--------|----------|
-| GET | `/api/reminders/location/summary` |
-| GET | `/api/reminders/location/locations` |
-| POST | `/api/reminders/location` |
-| POST | `/api/reminders/location/check` |
-| POST | `/api/reminders/location/nearby` |
-| POST | `/api/reminders/location/save` |
-| POST | `/api/reminders/location/distance` |
-| PUT | `/api/reminders/location/locations/:locationId` |
-| DELETE | `/api/reminders/location/locations/:locationId` |
-| POST | `/api/reminders/location/:reminderId/reset` |
-| GET | `/api/reminders/client/:clientId` |
-| GET | `/api/reminders/case/:caseId` |
-| POST | `/api/reminders/from-task/:taskId` |
-| POST | `/api/reminders/from-event/:eventId` |
-| POST | `/api/reminders/parse` |
-| POST | `/api/reminders/voice` |
-| PATCH | `/api/reminders/reorder` |
-| GET | `/api/reminders/search` |
-| GET | `/api/reminders/conflicts` |
-| POST | `/api/reminders/:id/clone` |
-| POST | `/api/reminders/:id/reschedule` |
-| GET | `/api/reminders/:id/activity` |
-
 ---
 
 ## 🔴 Method Mismatches
@@ -1685,6 +1671,7 @@ Frontend calls with different HTTP method than backend expects.
 | `/shift-assignments/export?:param` | POST | GET |
 | `/hr/shift-types/${shiftTypeId}` | PATCH | GET |
 | `/hr/skills/:param` | POST | GET |
+| `/settings/sso/providers/${providerId}` | PATCH | GET |
 | `/hr/staffing-plans/:param` | POST | GET |
 | `/subscriptions/:param` | POST | GET |
 | `/succession-plans/:param` | POST | GET |
@@ -2107,13 +2094,13 @@ Enums in backend models not exposed to frontend.
 ## Action Items
 
 ### 🔴 Critical (Will Break App)
-1. Add 474 missing backend endpoints
-2. Fix 156 HTTP method mismatches
+1. Add 451 missing backend endpoints
+2. Fix 157 HTTP method mismatches
 3. Sync 0 enum value differences
 
 ### 🟡 Important (May Cause Issues)
 1. Review 2871 frontend-only interfaces
-2. Document 2351 unused backend endpoints
+2. Document 2385 unused backend endpoints
 
 ### 📝 Housekeeping
 1. Remove dead code or add tests for unused endpoints
