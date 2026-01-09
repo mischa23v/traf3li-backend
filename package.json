@@ -63,7 +63,12 @@
     "type-check": "tsc --noEmit",
     "type-check:watch": "tsc --noEmit --watch",
     "build:types": "tsc --declaration --emitDeclarationOnly",
-    "docs:api": "node scripts/extractEndpoints.js"
+    "docs:api": "node scripts/extractEndpoints.js",
+    "contracts:generate": "node scripts/generateContracts.js",
+    "contracts:models": "node scripts/generateContracts.js models",
+    "contracts:stubs": "node scripts/generateContracts.js stubs",
+    "contracts:coverage": "node scripts/generateContracts.js coverage",
+    "contracts:sync": "node scripts/generateContracts.js sync"
   },
   "keywords": [],
   "author": "",
