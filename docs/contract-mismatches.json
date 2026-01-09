@@ -2,170 +2,8 @@
   "endpoints": {
     "frontendOnly": [
       {
-        "method": "POST",
-        "endpoint": "/crm/lead-sources",
-        "responseType": null,
-        "source": "features/crm/components/crm-setup-wizard.tsx"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/crm/sales-stages",
-        "responseType": null,
-        "source": "features/crm/components/crm-setup-wizard.tsx"
-      },
-      {
-        "method": "PUT",
-        "endpoint": "/settings/crm",
-        "responseType": null,
-        "source": "features/crm/components/crm-setup-wizard.tsx"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/crm/leads",
-        "responseType": null,
-        "source": "features/crm/components/crm-setup-wizard.tsx"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm-reports/pipeline/overview",
-        "responseType": null,
-        "source": "hooks/use-crm-reports.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm-reports/pipeline/velocity",
-        "responseType": null,
-        "source": "hooks/use-crm-reports.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm-reports/pipeline/stage-duration",
-        "responseType": null,
-        "source": "hooks/use-crm-reports.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm-reports/pipeline/deal-aging",
-        "responseType": null,
-        "source": "hooks/use-crm-reports.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm-reports/pipeline/movement",
-        "responseType": null,
-        "source": "hooks/use-crm-reports.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm-reports/leads/by-source",
-        "responseType": null,
-        "source": "hooks/use-crm-reports.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm-reports/leads/conversion-funnel",
-        "responseType": null,
-        "source": "hooks/use-crm-reports.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm-reports/leads/response-time",
-        "responseType": null,
-        "source": "hooks/use-crm-reports.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm-reports/leads/velocity-rate",
-        "responseType": null,
-        "source": "hooks/use-crm-reports.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm-reports/leads/distribution",
-        "responseType": null,
-        "source": "hooks/use-crm-reports.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm-reports/activities/summary",
-        "responseType": null,
-        "source": "hooks/use-crm-reports.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm-reports/activities/calls",
-        "responseType": null,
-        "source": "hooks/use-crm-reports.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm-reports/activities/emails",
-        "responseType": null,
-        "source": "hooks/use-crm-reports.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm-reports/activities/meetings",
-        "responseType": null,
-        "source": "hooks/use-crm-reports.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm-reports/activities/tasks",
-        "responseType": null,
-        "source": "hooks/use-crm-reports.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm-reports/revenue/forecast",
-        "responseType": null,
-        "source": "hooks/use-crm-reports.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm-reports/revenue/analysis",
-        "responseType": null,
-        "source": "hooks/use-crm-reports.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm-reports/revenue/quota-attainment",
-        "responseType": null,
-        "source": "hooks/use-crm-reports.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm-reports/revenue/win-rate",
-        "responseType": null,
-        "source": "hooks/use-crm-reports.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm-reports/revenue/deal-size",
-        "responseType": null,
-        "source": "hooks/use-crm-reports.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm-reports/performance/leaderboard",
-        "responseType": null,
-        "source": "hooks/use-crm-reports.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm-reports/performance/team",
-        "responseType": null,
-        "source": "hooks/use-crm-reports.ts"
-      },
-      {
         "method": "GET",
         "endpoint": "/crm-reports/performance/rep-scorecard",
-        "responseType": null,
-        "source": "hooks/use-crm-reports.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm-reports/performance/activity-metrics",
         "responseType": null,
         "source": "hooks/use-crm-reports.ts"
       },
@@ -261,12 +99,6 @@
       },
       {
         "method": "GET",
-        "endpoint": "/hr/analytics/dashboard",
-        "responseType": null,
-        "source": "hooks/useHrAnalytics.ts"
-      },
-      {
-        "method": "GET",
         "endpoint": "/saudi-banking/lean/customers/${customerId}",
         "responseType": null,
         "source": "hooks/useSaudiBanking.ts"
@@ -336,18 +168,6 @@
         "endpoint": "/admin/dashboard",
         "responseType": null,
         "source": "hooks/useUIAccess.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm/appointments",
-        "responseType": null,
-        "source": "routes/_authenticated/dashboard.crm.appointments.tsx"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/crm/appointments",
-        "responseType": null,
-        "source": "routes/_authenticated/dashboard.crm.appointments.tsx"
       },
       {
         "method": "GET",
@@ -808,78 +628,6 @@
       {
         "method": "POST",
         "endpoint": "/firms/${cachedFirmId}/logo",
-        "responseType": null,
-        "source": "services/billingSettingsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/settings/taxes",
-        "responseType": null,
-        "source": "services/billingSettingsService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/settings/taxes",
-        "responseType": null,
-        "source": "services/billingSettingsService.ts"
-      },
-      {
-        "method": "PUT",
-        "endpoint": "/settings/taxes/${id}",
-        "responseType": null,
-        "source": "services/billingSettingsService.ts"
-      },
-      {
-        "method": "DELETE",
-        "endpoint": "/settings/taxes/${id}",
-        "responseType": null,
-        "source": "services/billingSettingsService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/settings/taxes/${id}/default",
-        "responseType": null,
-        "source": "services/billingSettingsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/settings/payment-modes",
-        "responseType": null,
-        "source": "services/billingSettingsService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/settings/payment-modes",
-        "responseType": null,
-        "source": "services/billingSettingsService.ts"
-      },
-      {
-        "method": "PUT",
-        "endpoint": "/settings/payment-modes/${id}",
-        "responseType": null,
-        "source": "services/billingSettingsService.ts"
-      },
-      {
-        "method": "DELETE",
-        "endpoint": "/settings/payment-modes/${id}",
-        "responseType": null,
-        "source": "services/billingSettingsService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/settings/payment-modes/${id}/default",
-        "responseType": null,
-        "source": "services/billingSettingsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/settings/finance",
-        "responseType": null,
-        "source": "services/billingSettingsService.ts"
-      },
-      {
-        "method": "PUT",
-        "endpoint": "/settings/finance",
         "responseType": null,
         "source": "services/billingSettingsService.ts"
       },
@@ -1683,210 +1431,6 @@
       },
       {
         "method": "GET",
-        "endpoint": "/crm/reports/pipeline/overview",
-        "responseType": null,
-        "source": "services/crmReportsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm/reports/pipeline/velocity",
-        "responseType": null,
-        "source": "services/crmReportsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm/reports/pipeline/stage-duration",
-        "responseType": null,
-        "source": "services/crmReportsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm/reports/pipeline/deal-aging",
-        "responseType": null,
-        "source": "services/crmReportsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm/reports/pipeline/movement",
-        "responseType": null,
-        "source": "services/crmReportsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm/reports/leads/by-source",
-        "responseType": null,
-        "source": "services/crmReportsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm/reports/leads/conversion-funnel",
-        "responseType": null,
-        "source": "services/crmReportsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm/reports/leads/response-time",
-        "responseType": null,
-        "source": "services/crmReportsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm/reports/leads/velocity",
-        "responseType": null,
-        "source": "services/crmReportsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm/reports/leads/distribution",
-        "responseType": null,
-        "source": "services/crmReportsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm/reports/activity/summary",
-        "responseType": null,
-        "source": "services/crmReportsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm/reports/activity/calls",
-        "responseType": null,
-        "source": "services/crmReportsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm/reports/activity/emails",
-        "responseType": null,
-        "source": "services/crmReportsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm/reports/activity/meetings",
-        "responseType": null,
-        "source": "services/crmReportsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm/reports/activity/tasks",
-        "responseType": null,
-        "source": "services/crmReportsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm/reports/revenue/forecast",
-        "responseType": null,
-        "source": "services/crmReportsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm/reports/revenue/analysis",
-        "responseType": null,
-        "source": "services/crmReportsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm/reports/revenue/quota-attainment",
-        "responseType": null,
-        "source": "services/crmReportsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm/reports/revenue/win-rate",
-        "responseType": null,
-        "source": "services/crmReportsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm/reports/revenue/deal-size",
-        "responseType": null,
-        "source": "services/crmReportsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm/reports/performance/leaderboard",
-        "responseType": null,
-        "source": "services/crmReportsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm/reports/performance/team",
-        "responseType": null,
-        "source": "services/crmReportsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm/reports/performance/rep-scorecard/${userId}",
-        "responseType": null,
-        "source": "services/crmReportsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm/reports/performance/activity-metrics",
-        "responseType": null,
-        "source": "services/crmReportsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm/reports/customer/lifetime-value",
-        "responseType": null,
-        "source": "services/crmReportsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm/reports/customer/churn",
-        "responseType": null,
-        "source": "services/crmReportsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm/reports/customer/health-score",
-        "responseType": null,
-        "source": "services/crmReportsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm/reports/customer/engagement",
-        "responseType": null,
-        "source": "services/crmReportsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm/reports/win-loss/analysis",
-        "responseType": null,
-        "source": "services/crmReportsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm/reports/win-loss/lost-deals",
-        "responseType": null,
-        "source": "services/crmReportsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm/reports/win-loss/competitors",
-        "responseType": null,
-        "source": "services/crmReportsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm/reports/territory/performance",
-        "responseType": null,
-        "source": "services/crmReportsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm/reports/territory/regional-sales",
-        "responseType": null,
-        "source": "services/crmReportsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm/reports/territory/geographic-pipeline",
-        "responseType": null,
-        "source": "services/crmReportsService.ts"
-      },
-      {
-        "method": "GET",
         "endpoint": "/crm/reports/transactions",
         "responseType": null,
         "source": "services/crmReportsService.ts"
@@ -2312,120 +1856,6 @@
         "source": "services/employeeSkillMapService.ts"
       },
       {
-        "method": "GET",
-        "endpoint": "/hr/transfers?${params.toString()}",
-        "responseType": null,
-        "source": "services/employeeTransferService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/transfers/${id}",
-        "responseType": null,
-        "source": "services/employeeTransferService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/transfers",
-        "responseType": null,
-        "source": "services/employeeTransferService.ts"
-      },
-      {
-        "method": "PUT",
-        "endpoint": "/hr/transfers/${id}",
-        "responseType": null,
-        "source": "services/employeeTransferService.ts"
-      },
-      {
-        "method": "DELETE",
-        "endpoint": "/hr/transfers/${id}",
-        "responseType": null,
-        "source": "services/employeeTransferService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/transfers/bulk-delete",
-        "responseType": null,
-        "source": "services/employeeTransferService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/transfers/${id}/apply",
-        "responseType": null,
-        "source": "services/employeeTransferService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/transfers/${id}/approve",
-        "responseType": null,
-        "source": "services/employeeTransferService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/transfers/${id}/reject",
-        "responseType": null,
-        "source": "services/employeeTransferService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/hr/transfers/${id}/status",
-        "responseType": null,
-        "source": "services/employeeTransferService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/hr/transfers/${id}/handover/${itemIndex}",
-        "responseType": null,
-        "source": "services/employeeTransferService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/transfers/${id}/handover",
-        "responseType": null,
-        "source": "services/employeeTransferService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/transfers/pending-handovers",
-        "responseType": null,
-        "source": "services/employeeTransferService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/transfers/history/${employeeId}",
-        "responseType": null,
-        "source": "services/employeeTransferService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/transfers/stats",
-        "responseType": null,
-        "source": "services/employeeTransferService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/transfers/${id}/approvals",
-        "responseType": null,
-        "source": "services/employeeTransferService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/hr/transfers/${id}/approvals/${stepIndex}",
-        "responseType": null,
-        "source": "services/employeeTransferService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/transfers/pending-approvals?${params.toString()}",
-        "responseType": null,
-        "source": "services/employeeTransferService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/transfers/${id}/notify",
-        "responseType": null,
-        "source": "services/employeeTransferService.ts"
-      },
-      {
         "method": "POST",
         "endpoint": "/events/${id}/start",
         "responseType": null,
@@ -2624,60 +2054,6 @@
         "source": "services/exchangeRateRevaluationService.ts"
       },
       {
-        "method": "GET",
-        "endpoint": "/hr/expense-policies",
-        "responseType": null,
-        "source": "services/expensePoliciesService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/expense-policies/${id}",
-        "responseType": null,
-        "source": "services/expensePoliciesService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/expense-policies/default",
-        "responseType": null,
-        "source": "services/expensePoliciesService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/expense-policies",
-        "responseType": null,
-        "source": "services/expensePoliciesService.ts"
-      },
-      {
-        "method": "PUT",
-        "endpoint": "/hr/expense-policies/${id}",
-        "responseType": null,
-        "source": "services/expensePoliciesService.ts"
-      },
-      {
-        "method": "DELETE",
-        "endpoint": "/hr/expense-policies/${id}",
-        "responseType": null,
-        "source": "services/expensePoliciesService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/hr/expense-policies/${id}/default",
-        "responseType": null,
-        "source": "services/expensePoliciesService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/hr/expense-policies/${id}/toggle-status",
-        "responseType": null,
-        "source": "services/expensePoliciesService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/expense-policies/${id}/duplicate",
-        "responseType": null,
-        "source": "services/expensePoliciesService.ts"
-      },
-      {
         "method": "POST",
         "endpoint": "/bank-reconciliation/feeds/${id}/fetch",
         "responseType": null,
@@ -2834,48 +2210,6 @@
         "source": "services/financeService.ts"
       },
       {
-        "method": "GET",
-        "endpoint": "/settings/hr",
-        "responseType": null,
-        "source": "services/hrSettingsService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/settings/hr",
-        "responseType": null,
-        "source": "services/hrSettingsService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/settings/hr/employee",
-        "responseType": null,
-        "source": "services/hrSettingsService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/settings/hr/leave",
-        "responseType": null,
-        "source": "services/hrSettingsService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/settings/hr/attendance",
-        "responseType": null,
-        "source": "services/hrSettingsService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/settings/hr/payroll",
-        "responseType": null,
-        "source": "services/hrSettingsService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/settings/hr/expense",
-        "responseType": null,
-        "source": "services/hrSettingsService.ts"
-      },
-      {
         "method": "PUT",
         "endpoint": "/hr/settings/company",
         "responseType": null,
@@ -2884,90 +2218,6 @@
       {
         "method": "POST",
         "endpoint": "/hr/settings/company/logo",
-        "responseType": null,
-        "source": "services/hrSetupWizardService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/departments/bulk",
-        "responseType": null,
-        "source": "services/hrSetupWizardService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/departments",
-        "responseType": null,
-        "source": "services/hrSetupWizardService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/designations/bulk",
-        "responseType": null,
-        "source": "services/hrSetupWizardService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/designations",
-        "responseType": null,
-        "source": "services/hrSetupWizardService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/leave-types/bulk",
-        "responseType": null,
-        "source": "services/hrSetupWizardService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/leave-types",
-        "responseType": null,
-        "source": "services/hrSetupWizardService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/leave-policies/bulk",
-        "responseType": null,
-        "source": "services/hrSetupWizardService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/leave-policies",
-        "responseType": null,
-        "source": "services/hrSetupWizardService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/shift-types/bulk",
-        "responseType": null,
-        "source": "services/hrSetupWizardService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/shift-types",
-        "responseType": null,
-        "source": "services/hrSetupWizardService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/attendance-rules/bulk",
-        "responseType": null,
-        "source": "services/hrSetupWizardService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/attendance-rules",
-        "responseType": null,
-        "source": "services/hrSetupWizardService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/salary-components/bulk",
-        "responseType": null,
-        "source": "services/hrSetupWizardService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/salary-components",
         "responseType": null,
         "source": "services/hrSetupWizardService.ts"
       },
@@ -3647,138 +2897,6 @@
         "method": "GET",
         "endpoint": "/leave-periods/:param/allocate",
         "source": "services/leavePeriodService.ts",
-        "dynamic": true
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/leave-policies/${policyId}",
-        "responseType": null,
-        "source": "services/leavePolicyService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/leave-policies",
-        "responseType": null,
-        "source": "services/leavePolicyService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/hr/leave-policies/${policyId}",
-        "responseType": null,
-        "source": "services/leavePolicyService.ts"
-      },
-      {
-        "method": "DELETE",
-        "endpoint": "/hr/leave-policies/${policyId}",
-        "responseType": null,
-        "source": "services/leavePolicyService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/leave-policies/${policyId}/set-default",
-        "responseType": null,
-        "source": "services/leavePolicyService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/hr/leave-policies/${policyId}/status",
-        "responseType": null,
-        "source": "services/leavePolicyService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/leave-policies/${policyId}/duplicate",
-        "responseType": null,
-        "source": "services/leavePolicyService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/leave-policy-assignments?${params.toString()}",
-        "responseType": null,
-        "source": "services/leavePolicyService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/leave-policy-assignments/${assignmentId}",
-        "responseType": null,
-        "source": "services/leavePolicyService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/leave-policy-assignments",
-        "responseType": null,
-        "source": "services/leavePolicyService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/leave-policy-assignments/bulk",
-        "responseType": null,
-        "source": "services/leavePolicyService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/leave-policy-assignments/employee/${employeeId}/current",
-        "responseType": null,
-        "source": "services/leavePolicyService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/leave-policy-assignments/employee/${employeeId}/history",
-        "responseType": null,
-        "source": "services/leavePolicyService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/leave-policy-assignments/${assignmentId}/cancel",
-        "responseType": null,
-        "source": "services/leavePolicyService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/hr/leave-policy-assignments/${assignmentId}/dates",
-        "responseType": null,
-        "source": "services/leavePolicyService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/leave-policies/stats",
-        "responseType": null,
-        "source": "services/leavePolicyService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/leave-policy-assignments/unassigned-employees",
-        "responseType": null,
-        "source": "services/leavePolicyService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/leave-policy-assignments/employee/${employeeId}/allocation-summary?${params.toString()}",
-        "responseType": null,
-        "source": "services/leavePolicyService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/leave-policy-assignments/preview",
-        "responseType": null,
-        "source": "services/leavePolicyService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/leave-policies/compare",
-        "responseType": null,
-        "source": "services/leavePolicyService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/leave-policies/:param",
-        "source": "services/leavePolicyService.ts",
-        "dynamic": true
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/leave-policy-assignments/employee/:param/current",
-        "source": "services/leavePolicyService.ts",
         "dynamic": true
       },
       {
@@ -4874,30 +3992,6 @@
         "dynamic": true
       },
       {
-        "method": "GET",
-        "endpoint": "/hr/salary-components/${id}",
-        "responseType": null,
-        "source": "services/salaryComponentService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/salary-components",
-        "responseType": null,
-        "source": "services/salaryComponentService.ts"
-      },
-      {
-        "method": "PUT",
-        "endpoint": "/hr/salary-components/${id}",
-        "responseType": null,
-        "source": "services/salaryComponentService.ts"
-      },
-      {
-        "method": "DELETE",
-        "endpoint": "/hr/salary-components/${id}",
-        "responseType": null,
-        "source": "services/salaryComponentService.ts"
-      },
-      {
         "method": "POST",
         "endpoint": "/hr/salary-components/bulk-delete",
         "responseType": null,
@@ -4930,12 +4024,6 @@
       {
         "method": "GET",
         "endpoint": "/hr/salary-components/${id}/usage",
-        "responseType": null,
-        "source": "services/salaryComponentService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/hr/salary-components/${id}/toggle-status",
         "responseType": null,
         "source": "services/salaryComponentService.ts"
       },
@@ -5010,36 +4098,6 @@
         "endpoint": "/auth/sessions/:param/report",
         "source": "services/sessionService.ts",
         "dynamic": true
-      },
-      {
-        "method": "GET",
-        "endpoint": "/settings",
-        "responseType": null,
-        "source": "services/settingsService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/settings/account",
-        "responseType": null,
-        "source": "services/settingsService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/settings/appearance",
-        "responseType": null,
-        "source": "services/settingsService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/settings/display",
-        "responseType": null,
-        "source": "services/settingsService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/settings/notifications",
-        "responseType": null,
-        "source": "services/settingsService.ts"
       },
       {
         "method": "POST",
@@ -5235,12 +4293,6 @@
       },
       {
         "method": "GET",
-        "endpoint": "/hr/shift-types/${shiftTypeId}",
-        "responseType": "ShiftType",
-        "source": "services/shiftTypeService.ts"
-      },
-      {
-        "method": "GET",
         "endpoint": "/hr/shift-types/stats",
         "responseType": "ShiftTypeStats",
         "source": "services/shiftTypeService.ts"
@@ -5248,18 +4300,6 @@
       {
         "method": "GET",
         "endpoint": "/hr/shift-types/default",
-        "responseType": "ShiftType",
-        "source": "services/shiftTypeService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/shift-types",
-        "responseType": "ShiftType",
-        "source": "services/shiftTypeService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/hr/shift-types/${shiftTypeId}",
         "responseType": "ShiftType",
         "source": "services/shiftTypeService.ts"
       },
@@ -5315,12 +4355,6 @@
         "method": "POST",
         "endpoint": "/hr/shift-types/validate-times",
         "responseType": "{\n    valid: boolean\n    errors?: string[]\n    warnings?: string[]\n    calculatedDuration?: number\n  }",
-        "source": "services/shiftTypeService.ts"
-      },
-      {
-        "method": "DELETE",
-        "endpoint": "/hr/shift-types/${shiftTypeId}",
-        "responseType": null,
         "source": "services/shiftTypeService.ts"
       },
       {
@@ -10625,6 +9659,30 @@
       },
       {
         "method": "GET",
+        "path": "/revenue/by-month",
+        "controller": "unknown",
+        "file": "crmReportsAlias.route.js",
+        "fullPath": "/api/crm/reports/revenue/by-month",
+        "module": "crmReportsAlias"
+      },
+      {
+        "method": "GET",
+        "path": "/revenue/by-rep",
+        "controller": "unknown",
+        "file": "crmReportsAlias.route.js",
+        "fullPath": "/api/crm/reports/revenue/by-rep",
+        "module": "crmReportsAlias"
+      },
+      {
+        "method": "GET",
+        "path": "/performance/rep-scorecard/:userId",
+        "controller": "unknown",
+        "file": "crmReportsExtended.route.js",
+        "fullPath": "/api/crm-reports/performance/rep-scorecard/:userId",
+        "module": "crmReportsExtended"
+      },
+      {
+        "method": "GET",
         "path": "/",
         "controller": "unknown",
         "file": "crmSettings.route.js",
@@ -13521,6 +12579,62 @@
       },
       {
         "method": "GET",
+        "path": "/default",
+        "controller": "unknown",
+        "file": "hrAttendanceRules.route.js",
+        "fullPath": "/api/hr/attendance-rules/default",
+        "module": "hrAttendanceRules"
+      },
+      {
+        "method": "GET",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "hrAttendanceRules.route.js",
+        "fullPath": "/api/hr/attendance-rules/:id",
+        "module": "hrAttendanceRules"
+      },
+      {
+        "method": "PUT",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "hrAttendanceRules.route.js",
+        "fullPath": "/api/hr/attendance-rules/:id",
+        "module": "hrAttendanceRules"
+      },
+      {
+        "method": "DELETE",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "hrAttendanceRules.route.js",
+        "fullPath": "/api/hr/attendance-rules/:id",
+        "module": "hrAttendanceRules"
+      },
+      {
+        "method": "PATCH",
+        "path": "/:id/default",
+        "controller": "unknown",
+        "file": "hrAttendanceRules.route.js",
+        "fullPath": "/api/hr/attendance-rules/:id/default",
+        "module": "hrAttendanceRules"
+      },
+      {
+        "method": "PATCH",
+        "path": "/:id/toggle-status",
+        "controller": "unknown",
+        "file": "hrAttendanceRules.route.js",
+        "fullPath": "/api/hr/attendance-rules/:id/toggle-status",
+        "module": "hrAttendanceRules"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/duplicate",
+        "controller": "unknown",
+        "file": "hrAttendanceRules.route.js",
+        "fullPath": "/api/hr/attendance-rules/:id/duplicate",
+        "module": "hrAttendanceRules"
+      },
+      {
+        "method": "GET",
         "path": "/leave-encashment",
         "controller": "unknown",
         "file": "hrExtended.route.js",
@@ -13910,6 +13024,126 @@
         "file": "hrExtended.route.js",
         "fullPath": "/api/hr/extended/setup-wizard/skip",
         "module": "hrExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/earnings",
+        "controller": "unknown",
+        "file": "hrSalaryComponents.route.js",
+        "fullPath": "/api/hr/salary-components/earnings",
+        "module": "hrSalaryComponents"
+      },
+      {
+        "method": "GET",
+        "path": "/deductions",
+        "controller": "unknown",
+        "file": "hrSalaryComponents.route.js",
+        "fullPath": "/api/hr/salary-components/deductions",
+        "module": "hrSalaryComponents"
+      },
+      {
+        "method": "POST",
+        "path": "/initialize-defaults",
+        "controller": "unknown",
+        "file": "hrSalaryComponents.route.js",
+        "fullPath": "/api/hr/salary-components/initialize-defaults",
+        "module": "hrSalaryComponents"
+      },
+      {
+        "method": "PATCH",
+        "path": "/reorder",
+        "controller": "unknown",
+        "file": "hrSalaryComponents.route.js",
+        "fullPath": "/api/hr/salary-components/reorder",
+        "module": "hrSalaryComponents"
+      },
+      {
+        "method": "GET",
+        "path": "/departments/:id",
+        "controller": "unknown",
+        "file": "hrSetup.route.js",
+        "fullPath": "/api/hr/departments/:id",
+        "module": "hrSetup"
+      },
+      {
+        "method": "PUT",
+        "path": "/departments/:id",
+        "controller": "unknown",
+        "file": "hrSetup.route.js",
+        "fullPath": "/api/hr/departments/:id",
+        "module": "hrSetup"
+      },
+      {
+        "method": "DELETE",
+        "path": "/departments/:id",
+        "controller": "unknown",
+        "file": "hrSetup.route.js",
+        "fullPath": "/api/hr/departments/:id",
+        "module": "hrSetup"
+      },
+      {
+        "method": "GET",
+        "path": "/designations/:id",
+        "controller": "unknown",
+        "file": "hrSetup.route.js",
+        "fullPath": "/api/hr/designations/:id",
+        "module": "hrSetup"
+      },
+      {
+        "method": "PUT",
+        "path": "/designations/:id",
+        "controller": "unknown",
+        "file": "hrSetup.route.js",
+        "fullPath": "/api/hr/designations/:id",
+        "module": "hrSetup"
+      },
+      {
+        "method": "DELETE",
+        "path": "/designations/:id",
+        "controller": "unknown",
+        "file": "hrSetup.route.js",
+        "fullPath": "/api/hr/designations/:id",
+        "module": "hrSetup"
+      },
+      {
+        "method": "GET",
+        "path": "/leave-types/:id",
+        "controller": "unknown",
+        "file": "hrSetup.route.js",
+        "fullPath": "/api/hr/leave-types/:id",
+        "module": "hrSetup"
+      },
+      {
+        "method": "POST",
+        "path": "/leave-types/initialize",
+        "controller": "unknown",
+        "file": "hrSetup.route.js",
+        "fullPath": "/api/hr/leave-types/initialize",
+        "module": "hrSetup"
+      },
+      {
+        "method": "PUT",
+        "path": "/leave-types/:id",
+        "controller": "unknown",
+        "file": "hrSetup.route.js",
+        "fullPath": "/api/hr/leave-types/:id",
+        "module": "hrSetup"
+      },
+      {
+        "method": "DELETE",
+        "path": "/leave-types/:id",
+        "controller": "unknown",
+        "file": "hrSetup.route.js",
+        "fullPath": "/api/hr/leave-types/:id",
+        "module": "hrSetup"
+      },
+      {
+        "method": "PATCH",
+        "path": "/shift-types/:id/default",
+        "controller": "unknown",
+        "file": "hrSetup.route.js",
+        "fullPath": "/api/hr/shift-types/:id/default",
+        "module": "hrSetup"
       },
       {
         "method": "GET",
@@ -24721,6 +23955,16 @@
         "backendMethod": "GET"
       },
       {
+        "path": "/hr/leave-policies/:param",
+        "frontendMethod": "POST",
+        "backendMethod": "GET"
+      },
+      {
+        "path": "/hr/leave-policy-assignments/employee/:param/current",
+        "frontendMethod": "POST",
+        "backendMethod": "GET"
+      },
+      {
         "path": "/leave-requests/:param",
         "frontendMethod": "POST",
         "backendMethod": "GET"
@@ -24949,6 +24193,11 @@
         "path": "/auth/sessions/:param",
         "frontendMethod": "GET",
         "backendMethod": "DELETE"
+      },
+      {
+        "path": "/hr/shift-types/${shiftTypeId}",
+        "frontendMethod": "PATCH",
+        "backendMethod": "GET"
       },
       {
         "path": "/hr/skills/:param",

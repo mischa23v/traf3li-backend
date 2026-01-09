@@ -1,7 +1,7 @@
 {
-  "generated": "2026-01-09T09:53:08.519Z",
-  "totalEndpoints": 4261,
-  "totalModules": 270,
+  "generated": "2026-01-09T10:02:42.873Z",
+  "totalEndpoints": 4339,
+  "totalModules": 276,
   "modules": {
     "account": [
       {
@@ -7889,6 +7889,216 @@
         "module": "crmActivity"
       }
     ],
+    "crmAlias": [
+      {
+        "method": "GET",
+        "path": "/lead-sources",
+        "controller": "unknown",
+        "file": "crmAlias.route.js",
+        "fullPath": "/api/crm/lead-sources",
+        "module": "crmAlias"
+      },
+      {
+        "method": "POST",
+        "path": "/lead-sources",
+        "controller": "unknown",
+        "file": "crmAlias.route.js",
+        "fullPath": "/api/crm/lead-sources",
+        "module": "crmAlias"
+      },
+      {
+        "method": "GET",
+        "path": "/sales-stages",
+        "controller": "unknown",
+        "file": "crmAlias.route.js",
+        "fullPath": "/api/crm/sales-stages",
+        "module": "crmAlias"
+      },
+      {
+        "method": "POST",
+        "path": "/sales-stages",
+        "controller": "unknown",
+        "file": "crmAlias.route.js",
+        "fullPath": "/api/crm/sales-stages",
+        "module": "crmAlias"
+      },
+      {
+        "method": "GET",
+        "path": "/leads",
+        "controller": "unknown",
+        "file": "crmAlias.route.js",
+        "fullPath": "/api/crm/leads",
+        "module": "crmAlias"
+      },
+      {
+        "method": "POST",
+        "path": "/leads",
+        "controller": "unknown",
+        "file": "crmAlias.route.js",
+        "fullPath": "/api/crm/leads",
+        "module": "crmAlias"
+      },
+      {
+        "method": "GET",
+        "path": "/appointments",
+        "controller": "unknown",
+        "file": "crmAlias.route.js",
+        "fullPath": "/api/crm/appointments",
+        "module": "crmAlias"
+      },
+      {
+        "method": "POST",
+        "path": "/appointments",
+        "controller": "unknown",
+        "file": "crmAlias.route.js",
+        "fullPath": "/api/crm/appointments",
+        "module": "crmAlias"
+      },
+      {
+        "method": "GET",
+        "path": "/reports/revenue/analysis",
+        "controller": "unknown",
+        "file": "crmAlias.route.js",
+        "fullPath": "/api/crm/reports/revenue/analysis",
+        "module": "crmAlias"
+      },
+      {
+        "method": "GET",
+        "path": "/reports/revenue/quota-attainment",
+        "controller": "unknown",
+        "file": "crmAlias.route.js",
+        "fullPath": "/api/crm/reports/revenue/quota-attainment",
+        "module": "crmAlias"
+      },
+      {
+        "method": "GET",
+        "path": "/reports/revenue/win-rate",
+        "controller": "unknown",
+        "file": "crmAlias.route.js",
+        "fullPath": "/api/crm/reports/revenue/win-rate",
+        "module": "crmAlias"
+      },
+      {
+        "method": "GET",
+        "path": "/reports/revenue/deal-size",
+        "controller": "unknown",
+        "file": "crmAlias.route.js",
+        "fullPath": "/api/crm/reports/revenue/deal-size",
+        "module": "crmAlias"
+      },
+      {
+        "method": "GET",
+        "path": "/reports/performance/leaderboard",
+        "controller": "unknown",
+        "file": "crmAlias.route.js",
+        "fullPath": "/api/crm/reports/performance/leaderboard",
+        "module": "crmAlias"
+      },
+      {
+        "method": "GET",
+        "path": "/reports/performance/team",
+        "controller": "unknown",
+        "file": "crmAlias.route.js",
+        "fullPath": "/api/crm/reports/performance/team",
+        "module": "crmAlias"
+      },
+      {
+        "method": "GET",
+        "path": "/reports/performance/rep-scorecard/:userId",
+        "controller": "unknown",
+        "file": "crmAlias.route.js",
+        "fullPath": "/api/crm/reports/performance/rep-scorecard/:userId",
+        "module": "crmAlias"
+      },
+      {
+        "method": "GET",
+        "path": "/reports/performance/activity-metrics",
+        "controller": "unknown",
+        "file": "crmAlias.route.js",
+        "fullPath": "/api/crm/reports/performance/activity-metrics",
+        "module": "crmAlias"
+      },
+      {
+        "method": "GET",
+        "path": "/reports/customer/lifetime-value",
+        "controller": "unknown",
+        "file": "crmAlias.route.js",
+        "fullPath": "/api/crm/reports/customer/lifetime-value",
+        "module": "crmAlias"
+      },
+      {
+        "method": "GET",
+        "path": "/reports/customer/churn",
+        "controller": "unknown",
+        "file": "crmAlias.route.js",
+        "fullPath": "/api/crm/reports/customer/churn",
+        "module": "crmAlias"
+      },
+      {
+        "method": "GET",
+        "path": "/reports/customer/health-score",
+        "controller": "unknown",
+        "file": "crmAlias.route.js",
+        "fullPath": "/api/crm/reports/customer/health-score",
+        "module": "crmAlias"
+      },
+      {
+        "method": "GET",
+        "path": "/reports/customer/engagement",
+        "controller": "unknown",
+        "file": "crmAlias.route.js",
+        "fullPath": "/api/crm/reports/customer/engagement",
+        "module": "crmAlias"
+      },
+      {
+        "method": "GET",
+        "path": "/reports/win-loss/analysis",
+        "controller": "unknown",
+        "file": "crmAlias.route.js",
+        "fullPath": "/api/crm/reports/win-loss/analysis",
+        "module": "crmAlias"
+      },
+      {
+        "method": "GET",
+        "path": "/reports/win-loss/lost-deals",
+        "controller": "unknown",
+        "file": "crmAlias.route.js",
+        "fullPath": "/api/crm/reports/win-loss/lost-deals",
+        "module": "crmAlias"
+      },
+      {
+        "method": "GET",
+        "path": "/reports/win-loss/competitors",
+        "controller": "unknown",
+        "file": "crmAlias.route.js",
+        "fullPath": "/api/crm/reports/win-loss/competitors",
+        "module": "crmAlias"
+      },
+      {
+        "method": "GET",
+        "path": "/reports/territory/performance",
+        "controller": "unknown",
+        "file": "crmAlias.route.js",
+        "fullPath": "/api/crm/reports/territory/performance",
+        "module": "crmAlias"
+      },
+      {
+        "method": "GET",
+        "path": "/reports/territory/regional-sales",
+        "controller": "unknown",
+        "file": "crmAlias.route.js",
+        "fullPath": "/api/crm/reports/territory/regional-sales",
+        "module": "crmAlias"
+      },
+      {
+        "method": "GET",
+        "path": "/reports/territory/geographic-pipeline",
+        "controller": "unknown",
+        "file": "crmAlias.route.js",
+        "fullPath": "/api/crm/reports/territory/geographic-pipeline",
+        "module": "crmAlias"
+      }
+    ],
     "crmPipeline": [
       {
         "method": "POST",
@@ -15275,6 +15485,162 @@
         "module": "hrAnalytics"
       }
     ],
+    "hrAttendanceRules": [
+      {
+        "method": "GET",
+        "path": "/",
+        "controller": "unknown",
+        "file": "hrAttendanceRules.route.js",
+        "fullPath": "/api/hr/attendance-rules",
+        "module": "hrAttendanceRules"
+      },
+      {
+        "method": "GET",
+        "path": "/default",
+        "controller": "unknown",
+        "file": "hrAttendanceRules.route.js",
+        "fullPath": "/api/hr/attendance-rules/default",
+        "module": "hrAttendanceRules"
+      },
+      {
+        "method": "GET",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "hrAttendanceRules.route.js",
+        "fullPath": "/api/hr/attendance-rules/:id",
+        "module": "hrAttendanceRules"
+      },
+      {
+        "method": "POST",
+        "path": "/",
+        "controller": "unknown",
+        "file": "hrAttendanceRules.route.js",
+        "fullPath": "/api/hr/attendance-rules",
+        "module": "hrAttendanceRules"
+      },
+      {
+        "method": "POST",
+        "path": "/bulk",
+        "controller": "unknown",
+        "file": "hrAttendanceRules.route.js",
+        "fullPath": "/api/hr/attendance-rules/bulk",
+        "module": "hrAttendanceRules"
+      },
+      {
+        "method": "PUT",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "hrAttendanceRules.route.js",
+        "fullPath": "/api/hr/attendance-rules/:id",
+        "module": "hrAttendanceRules"
+      },
+      {
+        "method": "DELETE",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "hrAttendanceRules.route.js",
+        "fullPath": "/api/hr/attendance-rules/:id",
+        "module": "hrAttendanceRules"
+      },
+      {
+        "method": "PATCH",
+        "path": "/:id/default",
+        "controller": "unknown",
+        "file": "hrAttendanceRules.route.js",
+        "fullPath": "/api/hr/attendance-rules/:id/default",
+        "module": "hrAttendanceRules"
+      },
+      {
+        "method": "PATCH",
+        "path": "/:id/toggle-status",
+        "controller": "unknown",
+        "file": "hrAttendanceRules.route.js",
+        "fullPath": "/api/hr/attendance-rules/:id/toggle-status",
+        "module": "hrAttendanceRules"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/duplicate",
+        "controller": "unknown",
+        "file": "hrAttendanceRules.route.js",
+        "fullPath": "/api/hr/attendance-rules/:id/duplicate",
+        "module": "hrAttendanceRules"
+      }
+    ],
+    "hrExpensePolicy": [
+      {
+        "method": "GET",
+        "path": "/",
+        "controller": "unknown",
+        "file": "hrExpensePolicy.route.js",
+        "fullPath": "/api/hr/expense-policies",
+        "module": "hrExpensePolicy"
+      },
+      {
+        "method": "GET",
+        "path": "/default",
+        "controller": "unknown",
+        "file": "hrExpensePolicy.route.js",
+        "fullPath": "/api/hr/expense-policies/default",
+        "module": "hrExpensePolicy"
+      },
+      {
+        "method": "GET",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "hrExpensePolicy.route.js",
+        "fullPath": "/api/hr/expense-policies/:id",
+        "module": "hrExpensePolicy"
+      },
+      {
+        "method": "POST",
+        "path": "/",
+        "controller": "unknown",
+        "file": "hrExpensePolicy.route.js",
+        "fullPath": "/api/hr/expense-policies",
+        "module": "hrExpensePolicy"
+      },
+      {
+        "method": "PUT",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "hrExpensePolicy.route.js",
+        "fullPath": "/api/hr/expense-policies/:id",
+        "module": "hrExpensePolicy"
+      },
+      {
+        "method": "DELETE",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "hrExpensePolicy.route.js",
+        "fullPath": "/api/hr/expense-policies/:id",
+        "module": "hrExpensePolicy"
+      },
+      {
+        "method": "PATCH",
+        "path": "/:id/default",
+        "controller": "unknown",
+        "file": "hrExpensePolicy.route.js",
+        "fullPath": "/api/hr/expense-policies/:id/default",
+        "module": "hrExpensePolicy"
+      },
+      {
+        "method": "PATCH",
+        "path": "/:id/toggle-status",
+        "controller": "unknown",
+        "file": "hrExpensePolicy.route.js",
+        "fullPath": "/api/hr/expense-policies/:id/toggle-status",
+        "module": "hrExpensePolicy"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/duplicate",
+        "controller": "unknown",
+        "file": "hrExpensePolicy.route.js",
+        "fullPath": "/api/hr/expense-policies/:id/duplicate",
+        "module": "hrExpensePolicy"
+      }
+    ],
     "hrExtended": [
       {
         "method": "GET",
@@ -15667,6 +16033,276 @@
         "file": "hrExtended.route.js",
         "fullPath": "/api/hr/extended/setup-wizard/skip",
         "module": "hrExtended"
+      }
+    ],
+    "hrLeavePolicy": [
+      {
+        "method": "GET",
+        "path": "/",
+        "controller": "unknown",
+        "file": "hrLeavePolicy.route.js",
+        "fullPath": "/api/hr/leave-policies",
+        "module": "hrLeavePolicy"
+      },
+      {
+        "method": "GET",
+        "path": "/stats",
+        "controller": "unknown",
+        "file": "hrLeavePolicy.route.js",
+        "fullPath": "/api/hr/leave-policies/stats",
+        "module": "hrLeavePolicy"
+      },
+      {
+        "method": "GET",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "hrLeavePolicy.route.js",
+        "fullPath": "/api/hr/leave-policies/:id",
+        "module": "hrLeavePolicy"
+      },
+      {
+        "method": "POST",
+        "path": "/",
+        "controller": "unknown",
+        "file": "hrLeavePolicy.route.js",
+        "fullPath": "/api/hr/leave-policies",
+        "module": "hrLeavePolicy"
+      },
+      {
+        "method": "POST",
+        "path": "/bulk",
+        "controller": "unknown",
+        "file": "hrLeavePolicy.route.js",
+        "fullPath": "/api/hr/leave-policies/bulk",
+        "module": "hrLeavePolicy"
+      },
+      {
+        "method": "PATCH",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "hrLeavePolicy.route.js",
+        "fullPath": "/api/hr/leave-policies/:id",
+        "module": "hrLeavePolicy"
+      },
+      {
+        "method": "DELETE",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "hrLeavePolicy.route.js",
+        "fullPath": "/api/hr/leave-policies/:id",
+        "module": "hrLeavePolicy"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/set-default",
+        "controller": "unknown",
+        "file": "hrLeavePolicy.route.js",
+        "fullPath": "/api/hr/leave-policies/:id/set-default",
+        "module": "hrLeavePolicy"
+      },
+      {
+        "method": "PATCH",
+        "path": "/:id/status",
+        "controller": "unknown",
+        "file": "hrLeavePolicy.route.js",
+        "fullPath": "/api/hr/leave-policies/:id/status",
+        "module": "hrLeavePolicy"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/duplicate",
+        "controller": "unknown",
+        "file": "hrLeavePolicy.route.js",
+        "fullPath": "/api/hr/leave-policies/:id/duplicate",
+        "module": "hrLeavePolicy"
+      },
+      {
+        "method": "POST",
+        "path": "/compare",
+        "controller": "unknown",
+        "file": "hrLeavePolicy.route.js",
+        "fullPath": "/api/hr/leave-policies/compare",
+        "module": "hrLeavePolicy"
+      }
+    ],
+    "hrLeavePolicyAssignment": [
+      {
+        "method": "GET",
+        "path": "/",
+        "controller": "unknown",
+        "file": "hrLeavePolicyAssignment.route.js",
+        "fullPath": "/api/hr/leave-policy-assignments",
+        "module": "hrLeavePolicyAssignment"
+      },
+      {
+        "method": "GET",
+        "path": "/unassigned-employees",
+        "controller": "unknown",
+        "file": "hrLeavePolicyAssignment.route.js",
+        "fullPath": "/api/hr/leave-policy-assignments/unassigned-employees",
+        "module": "hrLeavePolicyAssignment"
+      },
+      {
+        "method": "GET",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "hrLeavePolicyAssignment.route.js",
+        "fullPath": "/api/hr/leave-policy-assignments/:id",
+        "module": "hrLeavePolicyAssignment"
+      },
+      {
+        "method": "GET",
+        "path": "/employee/:employeeId/current",
+        "controller": "unknown",
+        "file": "hrLeavePolicyAssignment.route.js",
+        "fullPath": "/api/hr/leave-policy-assignments/employee/:employeeId/current",
+        "module": "hrLeavePolicyAssignment"
+      },
+      {
+        "method": "GET",
+        "path": "/employee/:employeeId/history",
+        "controller": "unknown",
+        "file": "hrLeavePolicyAssignment.route.js",
+        "fullPath": "/api/hr/leave-policy-assignments/employee/:employeeId/history",
+        "module": "hrLeavePolicyAssignment"
+      },
+      {
+        "method": "GET",
+        "path": "/employee/:employeeId/allocation-summary",
+        "controller": "unknown",
+        "file": "hrLeavePolicyAssignment.route.js",
+        "fullPath": "/api/hr/leave-policy-assignments/employee/:employeeId/allocation-summary",
+        "module": "hrLeavePolicyAssignment"
+      },
+      {
+        "method": "POST",
+        "path": "/",
+        "controller": "unknown",
+        "file": "hrLeavePolicyAssignment.route.js",
+        "fullPath": "/api/hr/leave-policy-assignments",
+        "module": "hrLeavePolicyAssignment"
+      },
+      {
+        "method": "POST",
+        "path": "/bulk",
+        "controller": "unknown",
+        "file": "hrLeavePolicyAssignment.route.js",
+        "fullPath": "/api/hr/leave-policy-assignments/bulk",
+        "module": "hrLeavePolicyAssignment"
+      },
+      {
+        "method": "POST",
+        "path": "/preview",
+        "controller": "unknown",
+        "file": "hrLeavePolicyAssignment.route.js",
+        "fullPath": "/api/hr/leave-policy-assignments/preview",
+        "module": "hrLeavePolicyAssignment"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/cancel",
+        "controller": "unknown",
+        "file": "hrLeavePolicyAssignment.route.js",
+        "fullPath": "/api/hr/leave-policy-assignments/:id/cancel",
+        "module": "hrLeavePolicyAssignment"
+      },
+      {
+        "method": "PATCH",
+        "path": "/:id/dates",
+        "controller": "unknown",
+        "file": "hrLeavePolicyAssignment.route.js",
+        "fullPath": "/api/hr/leave-policy-assignments/:id/dates",
+        "module": "hrLeavePolicyAssignment"
+      }
+    ],
+    "hrSalaryComponents": [
+      {
+        "method": "GET",
+        "path": "/",
+        "controller": "unknown",
+        "file": "hrSalaryComponents.route.js",
+        "fullPath": "/api/hr/salary-components",
+        "module": "hrSalaryComponents"
+      },
+      {
+        "method": "GET",
+        "path": "/earnings",
+        "controller": "unknown",
+        "file": "hrSalaryComponents.route.js",
+        "fullPath": "/api/hr/salary-components/earnings",
+        "module": "hrSalaryComponents"
+      },
+      {
+        "method": "GET",
+        "path": "/deductions",
+        "controller": "unknown",
+        "file": "hrSalaryComponents.route.js",
+        "fullPath": "/api/hr/salary-components/deductions",
+        "module": "hrSalaryComponents"
+      },
+      {
+        "method": "GET",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "hrSalaryComponents.route.js",
+        "fullPath": "/api/hr/salary-components/:id",
+        "module": "hrSalaryComponents"
+      },
+      {
+        "method": "POST",
+        "path": "/",
+        "controller": "unknown",
+        "file": "hrSalaryComponents.route.js",
+        "fullPath": "/api/hr/salary-components",
+        "module": "hrSalaryComponents"
+      },
+      {
+        "method": "POST",
+        "path": "/bulk",
+        "controller": "unknown",
+        "file": "hrSalaryComponents.route.js",
+        "fullPath": "/api/hr/salary-components/bulk",
+        "module": "hrSalaryComponents"
+      },
+      {
+        "method": "POST",
+        "path": "/initialize-defaults",
+        "controller": "unknown",
+        "file": "hrSalaryComponents.route.js",
+        "fullPath": "/api/hr/salary-components/initialize-defaults",
+        "module": "hrSalaryComponents"
+      },
+      {
+        "method": "PUT",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "hrSalaryComponents.route.js",
+        "fullPath": "/api/hr/salary-components/:id",
+        "module": "hrSalaryComponents"
+      },
+      {
+        "method": "DELETE",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "hrSalaryComponents.route.js",
+        "fullPath": "/api/hr/salary-components/:id",
+        "module": "hrSalaryComponents"
+      },
+      {
+        "method": "PATCH",
+        "path": "/:id/toggle-status",
+        "controller": "unknown",
+        "file": "hrSalaryComponents.route.js",
+        "fullPath": "/api/hr/salary-components/:id/toggle-status",
+        "module": "hrSalaryComponents"
+      },
+      {
+        "method": "PATCH",
+        "path": "/reorder",
+        "controller": "unknown",
+        "file": "hrSalaryComponents.route.js",
+        "fullPath": "/api/hr/salary-components/reorder",
+        "module": "hrSalaryComponents"
       }
     ],
     "hrSetup": [

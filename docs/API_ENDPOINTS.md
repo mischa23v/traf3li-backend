@@ -69,6 +69,7 @@
 - [corporateCard](#corporatecard) (15 endpoints)
 - [creditNote](#creditnote) (10 endpoints)
 - [crmActivity](#crmactivity) (14 endpoints)
+- [crmAlias](#crmalias) (26 endpoints)
 - [crmPipeline](#crmpipeline) (12 endpoints)
 - [crmReports](#crmreports) (27 endpoints)
 - [crmReportsAlias](#crmreportsalias) (18 endpoints)
@@ -122,7 +123,12 @@
 - [health](#health) (9 endpoints)
 - [hr](#hr) (14 endpoints)
 - [hrAnalytics](#hranalytics) (21 endpoints)
+- [hrAttendanceRules](#hrattendancerules) (10 endpoints)
+- [hrExpensePolicy](#hrexpensepolicy) (9 endpoints)
 - [hrExtended](#hrextended) (49 endpoints)
+- [hrLeavePolicy](#hrleavepolicy) (11 endpoints)
+- [hrLeavePolicyAssignment](#hrleavepolicyassignment) (11 endpoints)
+- [hrSalaryComponents](#hrsalarycomponents) (11 endpoints)
 - [hrSetup](#hrsetup) (27 endpoints)
 - [incomeTaxSlab](#incometaxslab) (9 endpoints)
 - [integrations](#integrations) (45 endpoints)
@@ -283,8 +289,8 @@
 
 | Metric | Count |
 |--------|-------|
-| Total Endpoints | 4261 |
-| Total Modules | 270 |
+| Total Endpoints | 4339 |
+| Total Modules | 276 |
 
 ---
 
@@ -1573,6 +1579,37 @@
 | `DELETE` | `/api/crm-activities/:id` | unknown | crmActivity.route.js |
 | `POST` | `/api/crm-activities/:id/complete` | unknown | crmActivity.route.js |
 
+## crmAlias
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/crm/lead-sources` | unknown | crmAlias.route.js |
+| `POST` | `/api/crm/lead-sources` | unknown | crmAlias.route.js |
+| `GET` | `/api/crm/sales-stages` | unknown | crmAlias.route.js |
+| `POST` | `/api/crm/sales-stages` | unknown | crmAlias.route.js |
+| `GET` | `/api/crm/leads` | unknown | crmAlias.route.js |
+| `POST` | `/api/crm/leads` | unknown | crmAlias.route.js |
+| `GET` | `/api/crm/appointments` | unknown | crmAlias.route.js |
+| `POST` | `/api/crm/appointments` | unknown | crmAlias.route.js |
+| `GET` | `/api/crm/reports/revenue/analysis` | unknown | crmAlias.route.js |
+| `GET` | `/api/crm/reports/revenue/quota-attainment` | unknown | crmAlias.route.js |
+| `GET` | `/api/crm/reports/revenue/win-rate` | unknown | crmAlias.route.js |
+| `GET` | `/api/crm/reports/revenue/deal-size` | unknown | crmAlias.route.js |
+| `GET` | `/api/crm/reports/performance/leaderboard` | unknown | crmAlias.route.js |
+| `GET` | `/api/crm/reports/performance/team` | unknown | crmAlias.route.js |
+| `GET` | `/api/crm/reports/performance/rep-scorecard/:userId` | unknown | crmAlias.route.js |
+| `GET` | `/api/crm/reports/performance/activity-metrics` | unknown | crmAlias.route.js |
+| `GET` | `/api/crm/reports/customer/lifetime-value` | unknown | crmAlias.route.js |
+| `GET` | `/api/crm/reports/customer/churn` | unknown | crmAlias.route.js |
+| `GET` | `/api/crm/reports/customer/health-score` | unknown | crmAlias.route.js |
+| `GET` | `/api/crm/reports/customer/engagement` | unknown | crmAlias.route.js |
+| `GET` | `/api/crm/reports/win-loss/analysis` | unknown | crmAlias.route.js |
+| `GET` | `/api/crm/reports/win-loss/lost-deals` | unknown | crmAlias.route.js |
+| `GET` | `/api/crm/reports/win-loss/competitors` | unknown | crmAlias.route.js |
+| `GET` | `/api/crm/reports/territory/performance` | unknown | crmAlias.route.js |
+| `GET` | `/api/crm/reports/territory/regional-sales` | unknown | crmAlias.route.js |
+| `GET` | `/api/crm/reports/territory/geographic-pipeline` | unknown | crmAlias.route.js |
+
 ## crmPipeline
 
 | Method | Path | Controller | File |
@@ -2748,6 +2785,35 @@
 | `GET` | `/api/hr-analytics/predictions/absence` | unknown | hrAnalytics.route.js |
 | `GET` | `/api/hr-analytics/predictions/engagement` | unknown | hrAnalytics.route.js |
 
+## hrAttendanceRules
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/hr/attendance-rules` | unknown | hrAttendanceRules.route.js |
+| `GET` | `/api/hr/attendance-rules/default` | unknown | hrAttendanceRules.route.js |
+| `GET` | `/api/hr/attendance-rules/:id` | unknown | hrAttendanceRules.route.js |
+| `POST` | `/api/hr/attendance-rules` | unknown | hrAttendanceRules.route.js |
+| `POST` | `/api/hr/attendance-rules/bulk` | unknown | hrAttendanceRules.route.js |
+| `PUT` | `/api/hr/attendance-rules/:id` | unknown | hrAttendanceRules.route.js |
+| `DELETE` | `/api/hr/attendance-rules/:id` | unknown | hrAttendanceRules.route.js |
+| `PATCH` | `/api/hr/attendance-rules/:id/default` | unknown | hrAttendanceRules.route.js |
+| `PATCH` | `/api/hr/attendance-rules/:id/toggle-status` | unknown | hrAttendanceRules.route.js |
+| `POST` | `/api/hr/attendance-rules/:id/duplicate` | unknown | hrAttendanceRules.route.js |
+
+## hrExpensePolicy
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/hr/expense-policies` | unknown | hrExpensePolicy.route.js |
+| `GET` | `/api/hr/expense-policies/default` | unknown | hrExpensePolicy.route.js |
+| `GET` | `/api/hr/expense-policies/:id` | unknown | hrExpensePolicy.route.js |
+| `POST` | `/api/hr/expense-policies` | unknown | hrExpensePolicy.route.js |
+| `PUT` | `/api/hr/expense-policies/:id` | unknown | hrExpensePolicy.route.js |
+| `DELETE` | `/api/hr/expense-policies/:id` | unknown | hrExpensePolicy.route.js |
+| `PATCH` | `/api/hr/expense-policies/:id/default` | unknown | hrExpensePolicy.route.js |
+| `PATCH` | `/api/hr/expense-policies/:id/toggle-status` | unknown | hrExpensePolicy.route.js |
+| `POST` | `/api/hr/expense-policies/:id/duplicate` | unknown | hrExpensePolicy.route.js |
+
 ## hrExtended
 
 | Method | Path | Controller | File |
@@ -2801,6 +2867,54 @@
 | `POST` | `/api/hr/extended/setup-wizard/complete-step/:stepId` | unknown | hrExtended.route.js |
 | `POST` | `/api/hr/extended/setup-wizard/skip-step/:stepId` | unknown | hrExtended.route.js |
 | `POST` | `/api/hr/extended/setup-wizard/skip` | unknown | hrExtended.route.js |
+
+## hrLeavePolicy
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/hr/leave-policies` | unknown | hrLeavePolicy.route.js |
+| `GET` | `/api/hr/leave-policies/stats` | unknown | hrLeavePolicy.route.js |
+| `GET` | `/api/hr/leave-policies/:id` | unknown | hrLeavePolicy.route.js |
+| `POST` | `/api/hr/leave-policies` | unknown | hrLeavePolicy.route.js |
+| `POST` | `/api/hr/leave-policies/bulk` | unknown | hrLeavePolicy.route.js |
+| `PATCH` | `/api/hr/leave-policies/:id` | unknown | hrLeavePolicy.route.js |
+| `DELETE` | `/api/hr/leave-policies/:id` | unknown | hrLeavePolicy.route.js |
+| `POST` | `/api/hr/leave-policies/:id/set-default` | unknown | hrLeavePolicy.route.js |
+| `PATCH` | `/api/hr/leave-policies/:id/status` | unknown | hrLeavePolicy.route.js |
+| `POST` | `/api/hr/leave-policies/:id/duplicate` | unknown | hrLeavePolicy.route.js |
+| `POST` | `/api/hr/leave-policies/compare` | unknown | hrLeavePolicy.route.js |
+
+## hrLeavePolicyAssignment
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/hr/leave-policy-assignments` | unknown | hrLeavePolicyAssignment.route.js |
+| `GET` | `/api/hr/leave-policy-assignments/unassigned-employees` | unknown | hrLeavePolicyAssignment.route.js |
+| `GET` | `/api/hr/leave-policy-assignments/:id` | unknown | hrLeavePolicyAssignment.route.js |
+| `GET` | `/api/hr/leave-policy-assignments/employee/:employeeId/current` | unknown | hrLeavePolicyAssignment.route.js |
+| `GET` | `/api/hr/leave-policy-assignments/employee/:employeeId/history` | unknown | hrLeavePolicyAssignment.route.js |
+| `GET` | `/api/hr/leave-policy-assignments/employee/:employeeId/allocation-summary` | unknown | hrLeavePolicyAssignment.route.js |
+| `POST` | `/api/hr/leave-policy-assignments` | unknown | hrLeavePolicyAssignment.route.js |
+| `POST` | `/api/hr/leave-policy-assignments/bulk` | unknown | hrLeavePolicyAssignment.route.js |
+| `POST` | `/api/hr/leave-policy-assignments/preview` | unknown | hrLeavePolicyAssignment.route.js |
+| `POST` | `/api/hr/leave-policy-assignments/:id/cancel` | unknown | hrLeavePolicyAssignment.route.js |
+| `PATCH` | `/api/hr/leave-policy-assignments/:id/dates` | unknown | hrLeavePolicyAssignment.route.js |
+
+## hrSalaryComponents
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/hr/salary-components` | unknown | hrSalaryComponents.route.js |
+| `GET` | `/api/hr/salary-components/earnings` | unknown | hrSalaryComponents.route.js |
+| `GET` | `/api/hr/salary-components/deductions` | unknown | hrSalaryComponents.route.js |
+| `GET` | `/api/hr/salary-components/:id` | unknown | hrSalaryComponents.route.js |
+| `POST` | `/api/hr/salary-components` | unknown | hrSalaryComponents.route.js |
+| `POST` | `/api/hr/salary-components/bulk` | unknown | hrSalaryComponents.route.js |
+| `POST` | `/api/hr/salary-components/initialize-defaults` | unknown | hrSalaryComponents.route.js |
+| `PUT` | `/api/hr/salary-components/:id` | unknown | hrSalaryComponents.route.js |
+| `DELETE` | `/api/hr/salary-components/:id` | unknown | hrSalaryComponents.route.js |
+| `PATCH` | `/api/hr/salary-components/:id/toggle-status` | unknown | hrSalaryComponents.route.js |
+| `PATCH` | `/api/hr/salary-components/reorder` | unknown | hrSalaryComponents.route.js |
 
 ## hrSetup
 
@@ -5903,7 +6017,7 @@
 
 ## Quick Reference by Method
 
-### GET (1827)
+### GET (1868)
 
 <details>
 <summary>Click to expand</summary>
@@ -6403,24 +6517,46 @@ GET    /api/crm-transactions/stale-leads/by-stage
 GET    /api/crm-transactions/stale-leads/summary
 GET    /api/crm-transactions/summary
 GET    /api/crm-transactions/user-activity/:userId
+GET    /api/crm/appointments
+GET    /api/crm/lead-sources
+GET    /api/crm/leads
 GET    /api/crm/reports/activity/calls
 GET    /api/crm/reports/activity/emails
 GET    /api/crm/reports/activity/meetings
 GET    /api/crm/reports/activity/summary
 GET    /api/crm/reports/activity/tasks
+GET    /api/crm/reports/customer/churn
+GET    /api/crm/reports/customer/engagement
+GET    /api/crm/reports/customer/health-score
+GET    /api/crm/reports/customer/lifetime-value
 GET    /api/crm/reports/leads/by-source
 GET    /api/crm/reports/leads/conversion-funnel
 GET    /api/crm/reports/leads/distribution
 GET    /api/crm/reports/leads/response-time
 GET    /api/crm/reports/leads/velocity
+GET    /api/crm/reports/performance/activity-metrics
+GET    /api/crm/reports/performance/leaderboard
+GET    /api/crm/reports/performance/rep-scorecard/:userId
+GET    /api/crm/reports/performance/team
 GET    /api/crm/reports/pipeline/deal-aging
 GET    /api/crm/reports/pipeline/movement
 GET    /api/crm/reports/pipeline/overview
 GET    /api/crm/reports/pipeline/stage-duration
 GET    /api/crm/reports/pipeline/velocity
+GET    /api/crm/reports/revenue/analysis
 GET    /api/crm/reports/revenue/by-month
 GET    /api/crm/reports/revenue/by-rep
+GET    /api/crm/reports/revenue/deal-size
 GET    /api/crm/reports/revenue/forecast
+GET    /api/crm/reports/revenue/quota-attainment
+GET    /api/crm/reports/revenue/win-rate
+GET    /api/crm/reports/territory/geographic-pipeline
+GET    /api/crm/reports/territory/performance
+GET    /api/crm/reports/territory/regional-sales
+GET    /api/crm/reports/win-loss/analysis
+GET    /api/crm/reports/win-loss/competitors
+GET    /api/crm/reports/win-loss/lost-deals
+GET    /api/crm/sales-stages
 GET    /api/crmSettings
 GET    /api/currency/rates
 GET    /api/currency/settings
@@ -6710,6 +6846,9 @@ GET    /api/hr/asset-assignments/overdue
 GET    /api/hr/asset-assignments/policies
 GET    /api/hr/asset-assignments/stats
 GET    /api/hr/asset-assignments/warranty-expiring
+GET    /api/hr/attendance-rules
+GET    /api/hr/attendance-rules/:id
+GET    /api/hr/attendance-rules/default
 GET    /api/hr/compensation-rewards
 GET    /api/hr/compensation-rewards/:id
 GET    /api/hr/compensation-rewards/department-summary
@@ -6772,6 +6911,9 @@ GET    /api/hr/expense-claims/pending-approvals
 GET    /api/hr/expense-claims/pending-payments
 GET    /api/hr/expense-claims/policies
 GET    /api/hr/expense-claims/stats
+GET    /api/hr/expense-policies
+GET    /api/hr/expense-policies/:id
+GET    /api/hr/expense-policies/default
 GET    /api/hr/extended/compensatory-leave
 GET    /api/hr/extended/compensatory-leave/balance/:employeeId
 GET    /api/hr/extended/employee-skills/:employeeId
@@ -6835,6 +6977,15 @@ GET    /api/hr/leave-management/leave-periods/current
 GET    /api/hr/leave-management/leave-policies
 GET    /api/hr/leave-management/leave-policies/:id
 GET    /api/hr/leave-management/leave-policies/default
+GET    /api/hr/leave-policies
+GET    /api/hr/leave-policies/:id
+GET    /api/hr/leave-policies/stats
+GET    /api/hr/leave-policy-assignments
+GET    /api/hr/leave-policy-assignments/:id
+GET    /api/hr/leave-policy-assignments/employee/:employeeId/allocation-summary
+GET    /api/hr/leave-policy-assignments/employee/:employeeId/current
+GET    /api/hr/leave-policy-assignments/employee/:employeeId/history
+GET    /api/hr/leave-policy-assignments/unassigned-employees
 GET    /api/hr/leave-types
 GET    /api/hr/leave-types/:id
 GET    /api/hr/offboarding
@@ -6885,6 +7036,10 @@ GET    /api/hr/recruitment/jobs/nearing-deadline
 GET    /api/hr/recruitment/jobs/stats
 GET    /api/hr/recruitment/stats
 GET    /api/hr/recruitment/talent-pool
+GET    /api/hr/salary-components
+GET    /api/hr/salary-components/:id
+GET    /api/hr/salary-components/deductions
+GET    /api/hr/salary-components/earnings
 GET    /api/hr/self-service/advances
 GET    /api/hr/self-service/approvals/pending
 GET    /api/hr/self-service/dashboard
@@ -7740,7 +7895,7 @@ GET    /api/zoom/status
 
 </details>
 
-### POST (1703)
+### POST (1724)
 
 <details>
 <summary>Click to expand</summary>
@@ -8148,6 +8303,10 @@ POST   /api/crm-pipelines/:id/duplicate
 POST   /api/crm-pipelines/:id/stages
 POST   /api/crm-pipelines/:id/stages/reorder
 POST   /api/crm-reports/export
+POST   /api/crm/appointments
+POST   /api/crm/lead-sources
+POST   /api/crm/leads
+POST   /api/crm/sales-stages
 POST   /api/crmSettings/reset
 POST   /api/currency/convert
 POST   /api/currency/rates
@@ -8384,6 +8543,9 @@ POST   /api/hr/asset-assignments/:id/return/complete
 POST   /api/hr/asset-assignments/:id/return/initiate
 POST   /api/hr/asset-assignments/:id/transfer
 POST   /api/hr/asset-assignments/bulk-delete
+POST   /api/hr/attendance-rules
+POST   /api/hr/attendance-rules/:id/duplicate
+POST   /api/hr/attendance-rules/bulk
 POST   /api/hr/compensation-rewards
 POST   /api/hr/compensation-rewards/:id/allowances
 POST   /api/hr/compensation-rewards/:id/approve-review
@@ -8462,6 +8624,8 @@ POST   /api/hr/expense-claims/:id/reject
 POST   /api/hr/expense-claims/:id/request-changes
 POST   /api/hr/expense-claims/:id/submit
 POST   /api/hr/expense-claims/bulk-delete
+POST   /api/hr/expense-policies
+POST   /api/hr/expense-policies/:id/duplicate
 POST   /api/hr/extended/compensatory-leave
 POST   /api/hr/extended/compensatory-leave/:id/approve
 POST   /api/hr/extended/employee-skills
@@ -8533,6 +8697,15 @@ POST   /api/hr/leave-management/leave-periods/:id/activate
 POST   /api/hr/leave-management/leave-periods/:id/close
 POST   /api/hr/leave-management/leave-policies
 POST   /api/hr/leave-management/leave-policies/:id/clone
+POST   /api/hr/leave-policies
+POST   /api/hr/leave-policies/:id/duplicate
+POST   /api/hr/leave-policies/:id/set-default
+POST   /api/hr/leave-policies/bulk
+POST   /api/hr/leave-policies/compare
+POST   /api/hr/leave-policy-assignments
+POST   /api/hr/leave-policy-assignments/:id/cancel
+POST   /api/hr/leave-policy-assignments/bulk
+POST   /api/hr/leave-policy-assignments/preview
 POST   /api/hr/leave-types
 POST   /api/hr/leave-types/bulk
 POST   /api/hr/leave-types/initialize
@@ -8616,6 +8789,9 @@ POST   /api/hr/recruitment/jobs
 POST   /api/hr/recruitment/jobs/:id/clone
 POST   /api/hr/recruitment/jobs/:id/publish
 POST   /api/hr/recruitment/jobs/:id/status
+POST   /api/hr/salary-components
+POST   /api/hr/salary-components/bulk
+POST   /api/hr/salary-components/initialize-defaults
 POST   /api/hr/self-service/leave/request
 POST   /api/hr/self-service/leave/request/:requestId/cancel
 POST   /api/hr/shift-types
@@ -9453,7 +9629,7 @@ POST   /api/zoom/webhook
 
 </details>
 
-### PUT (236)
+### PUT (239)
 
 <details>
 <summary>Click to expand</summary>
@@ -9547,11 +9723,13 @@ PUT    /api/google-calendar/settings/show-external-events
 PUT    /api/gosi/config
 PUT    /api/hr/asset-assignments/:id/repair/:repairId
 PUT    /api/hr/asset-assignments/:id/status
+PUT    /api/hr/attendance-rules/:id
 PUT    /api/hr/compensation-rewards/:id
 PUT    /api/hr/compensation-rewards/:id/allowances/:allowanceId
 PUT    /api/hr/departments/:id
 PUT    /api/hr/designations/:id
 PUT    /api/hr/employees/:id
+PUT    /api/hr/expense-policies/:id
 PUT    /api/hr/extended/salary-components/:id
 PUT    /api/hr/extended/settings
 PUT    /api/hr/fleet/vehicles/:id/location
@@ -9565,6 +9743,7 @@ PUT    /api/hr/leave-management/leave-periods/:id
 PUT    /api/hr/leave-management/leave-policies/:id
 PUT    /api/hr/leave-types/:id
 PUT    /api/hr/payroll/:id
+PUT    /api/hr/salary-components/:id
 PUT    /api/hr/shift-types/:id
 PUT    /api/hr/skill-maps/:employeeId/skills
 PUT    /api/hr/transfers/:id
@@ -9699,7 +9878,7 @@ PUT    /api/zoom/settings
 
 </details>
 
-### PATCH (199)
+### PATCH (208)
 
 <details>
 <summary>Click to expand</summary>
@@ -9767,6 +9946,8 @@ PATCH  /api/firms/:id/billing
 PATCH  /api/followups/:id
 PATCH  /api/hr/advances/:advanceId
 PATCH  /api/hr/asset-assignments/:id
+PATCH  /api/hr/attendance-rules/:id/default
+PATCH  /api/hr/attendance-rules/:id/toggle-status
 PATCH  /api/hr/compensation-rewards/:id
 PATCH  /api/hr/compensation-rewards/:id/allowances/:allowanceId
 PATCH  /api/hr/employee-benefits/:id
@@ -9777,12 +9958,17 @@ PATCH  /api/hr/employee-loans/:loanId
 PATCH  /api/hr/employee-promotions/:id
 PATCH  /api/hr/expense-claims/:id
 PATCH  /api/hr/expense-claims/:id/line-items/:lineItemId
+PATCH  /api/hr/expense-policies/:id/default
+PATCH  /api/hr/expense-policies/:id/toggle-status
 PATCH  /api/hr/fleet/drivers/:id
 PATCH  /api/hr/fleet/incidents/:id
 PATCH  /api/hr/fleet/maintenance/:id
 PATCH  /api/hr/fleet/vehicles/:id
 PATCH  /api/hr/grievances/:id
 PATCH  /api/hr/job-positions/:id
+PATCH  /api/hr/leave-policies/:id
+PATCH  /api/hr/leave-policies/:id/status
+PATCH  /api/hr/leave-policy-assignments/:id/dates
 PATCH  /api/hr/offboarding/:offboardingId
 PATCH  /api/hr/offboarding/:offboardingId/clearance/items/:itemId
 PATCH  /api/hr/offboarding/:offboardingId/rehire-eligibility
@@ -9807,6 +9993,8 @@ PATCH  /api/hr/recruitment/applicants/:id/offers/:offerId
 PATCH  /api/hr/recruitment/applicants/:id/references/:referenceId
 PATCH  /api/hr/recruitment/applicants/:id/talent-pool
 PATCH  /api/hr/recruitment/jobs/:id
+PATCH  /api/hr/salary-components/:id/toggle-status
+PATCH  /api/hr/salary-components/reorder
 PATCH  /api/hr/self-service/profile
 PATCH  /api/hr/shift-types/:id/default
 PATCH  /api/hr/shifts/shift-assignments/:id
@@ -9908,7 +10096,7 @@ PATCH  /api/webhooks/:id
 
 </details>
 
-### DELETE (296)
+### DELETE (300)
 
 <details>
 <summary>Click to expand</summary>
@@ -10037,6 +10225,7 @@ DELETE /api/google-calendar/calendars/:calendarId/events/:eventId
 DELETE /api/google-calendar/watch/:channelId
 DELETE /api/hr/advances/:advanceId
 DELETE /api/hr/asset-assignments/:id
+DELETE /api/hr/attendance-rules/:id
 DELETE /api/hr/compensation-rewards/:id
 DELETE /api/hr/compensation-rewards/:id/allowances/:allowanceId
 DELETE /api/hr/departments/:id
@@ -10053,12 +10242,14 @@ DELETE /api/hr/employees/:id/documents/:docId
 DELETE /api/hr/expense-claims/:id
 DELETE /api/hr/expense-claims/:id/line-items/:lineItemId
 DELETE /api/hr/expense-claims/:id/receipts/:receiptId
+DELETE /api/hr/expense-policies/:id
 DELETE /api/hr/fleet/vehicles/:id
 DELETE /api/hr/grievances/:id
 DELETE /api/hr/job-positions/:id
 DELETE /api/hr/leave-management/leave-allocations/:id
 DELETE /api/hr/leave-management/leave-periods/:id
 DELETE /api/hr/leave-management/leave-policies/:id
+DELETE /api/hr/leave-policies/:id
 DELETE /api/hr/leave-types/:id
 DELETE /api/hr/offboarding/:offboardingId
 DELETE /api/hr/okrs/:id
@@ -10070,6 +10261,7 @@ DELETE /api/hr/payroll/:id
 DELETE /api/hr/performance-reviews/:id
 DELETE /api/hr/recruitment/applicants/:id
 DELETE /api/hr/recruitment/jobs/:id
+DELETE /api/hr/salary-components/:id
 DELETE /api/hr/shift-types/:id
 DELETE /api/hr/shifts/shift-assignments/:id
 DELETE /api/hr/shifts/shift-types/:id

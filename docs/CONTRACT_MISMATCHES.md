@@ -1,12 +1,12 @@
 # Frontend vs Backend Contract Mismatch Report
 
-> Generated: 2026-01-09T09:29:40.441Z
+> Generated: 2026-01-09T10:02:54.108Z
 
 ## Summary
 
 | Category | Frontend Only | Backend Only | Mismatches |
 |----------|--------------|--------------|------------|
-| API Endpoints | 1050 | 2265 | 119 |
+| API Endpoints | 889 | 2290 | 122 |
 | Interfaces/Entities | 2871 | 154 | 0 |
 | Enums | 88 | 2138 | 0 |
 | Type Aliases | 167 | 0 | - |
@@ -17,201 +17,61 @@
 
 These endpoints are called by frontend but don't exist in backend - **will cause 404 errors**.
 
-### hr (199 missing)
+### hr (125 missing)
 
 | Method | Endpoint | Source File |
 |--------|----------|-------------|
-| GET | `/hr/analytics/dashboard` | hooks/useHrAnalytics.ts |
 | POST | `/hr/asset-assignments/${assignmentId}/incidents/${incidentId}/resolve` | services/assetAssignmentService.ts |
 | GET | `/hr/skill-maps/matrix${params}` | services/employeeSkillMapService.ts |
 | GET | `/hr/skill-maps/find-by-skill/${skillId}${params}` | services/employeeSkillMapService.ts |
 | GET | `/hr/skill-maps/matrix/export${params}` | services/employeeSkillMapService.ts |
 | GET | `/hr/skill-maps/skill-gaps/export${params}` | services/employeeSkillMapService.ts |
-| GET | `/hr/transfers?${params.toString()}` | services/employeeTransferService.ts |
-| GET | `/hr/transfers/${id}` | services/employeeTransferService.ts |
-| POST | `/hr/transfers` | services/employeeTransferService.ts |
-| PUT | `/hr/transfers/${id}` | services/employeeTransferService.ts |
-| DELETE | `/hr/transfers/${id}` | services/employeeTransferService.ts |
-| POST | `/hr/transfers/bulk-delete` | services/employeeTransferService.ts |
-| POST | `/hr/transfers/${id}/apply` | services/employeeTransferService.ts |
-| POST | `/hr/transfers/${id}/approve` | services/employeeTransferService.ts |
-| POST | `/hr/transfers/${id}/reject` | services/employeeTransferService.ts |
-| PATCH | `/hr/transfers/${id}/status` | services/employeeTransferService.ts |
-| PATCH | `/hr/transfers/${id}/handover/${itemIndex}` | services/employeeTransferService.ts |
-| POST | `/hr/transfers/${id}/handover` | services/employeeTransferService.ts |
-| GET | `/hr/transfers/pending-handovers` | services/employeeTransferService.ts |
-| GET | `/hr/transfers/history/${employeeId}` | services/employeeTransferService.ts |
-| GET | `/hr/transfers/stats` | services/employeeTransferService.ts |
-| POST | `/hr/transfers/${id}/approvals` | services/employeeTransferService.ts |
-| PATCH | `/hr/transfers/${id}/approvals/${stepIndex}` | services/employeeTransferService.ts |
-| GET | `/hr/transfers/pending-approvals?${params.toString()}` | services/employeeTransferService.ts |
-| POST | `/hr/transfers/${id}/notify` | services/employeeTransferService.ts |
-| GET | `/hr/expense-policies` | services/expensePoliciesService.ts |
-| GET | `/hr/expense-policies/${id}` | services/expensePoliciesService.ts |
-| GET | `/hr/expense-policies/default` | services/expensePoliciesService.ts |
-| POST | `/hr/expense-policies` | services/expensePoliciesService.ts |
-| PUT | `/hr/expense-policies/${id}` | services/expensePoliciesService.ts |
-| DELETE | `/hr/expense-policies/${id}` | services/expensePoliciesService.ts |
-| PATCH | `/hr/expense-policies/${id}/default` | services/expensePoliciesService.ts |
-| PATCH | `/hr/expense-policies/${id}/toggle-status` | services/expensePoliciesService.ts |
-| POST | `/hr/expense-policies/${id}/duplicate` | services/expensePoliciesService.ts |
 | PUT | `/hr/settings/company` | services/hrSetupWizardService.ts |
 | POST | `/hr/settings/company/logo` | services/hrSetupWizardService.ts |
-| POST | `/hr/departments/bulk` | services/hrSetupWizardService.ts |
-| GET | `/hr/departments` | services/hrSetupWizardService.ts |
-| POST | `/hr/designations/bulk` | services/hrSetupWizardService.ts |
-| GET | `/hr/designations` | services/hrSetupWizardService.ts |
-| POST | `/hr/leave-types/bulk` | services/hrSetupWizardService.ts |
-| GET | `/hr/leave-types` | services/hrSetupWizardService.ts |
-| POST | `/hr/leave-policies/bulk` | services/hrSetupWizardService.ts |
-| GET | `/hr/leave-policies` | services/hrSetupWizardService.ts |
-| POST | `/hr/shift-types/bulk` | services/hrSetupWizardService.ts |
-| GET | `/hr/shift-types` | services/hrSetupWizardService.ts |
-| POST | `/hr/attendance-rules/bulk` | services/hrSetupWizardService.ts |
-| GET | `/hr/attendance-rules` | services/hrSetupWizardService.ts |
-| POST | `/hr/salary-components/bulk` | services/hrSetupWizardService.ts |
-| GET | `/hr/salary-components` | services/hrSetupWizardService.ts |
-| ... | *149 more* | - |
-
-### crm (45 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| POST | `/crm/lead-sources` | features/crm/components/crm-setup-wizard.tsx |
-| POST | `/crm/sales-stages` | features/crm/components/crm-setup-wizard.tsx |
-| POST | `/crm/leads` | features/crm/components/crm-setup-wizard.tsx |
-| GET | `/crm/appointments` | routes/_authenticated/dashboard.crm.appointments.tsx |
-| POST | `/crm/appointments` | routes/_authenticated/dashboard.crm.appointments.tsx |
-| GET | `/crm/reports/pipeline/overview` | services/crmReportsService.ts |
-| GET | `/crm/reports/pipeline/velocity` | services/crmReportsService.ts |
-| GET | `/crm/reports/pipeline/stage-duration` | services/crmReportsService.ts |
-| GET | `/crm/reports/pipeline/deal-aging` | services/crmReportsService.ts |
-| GET | `/crm/reports/pipeline/movement` | services/crmReportsService.ts |
-| GET | `/crm/reports/leads/by-source` | services/crmReportsService.ts |
-| GET | `/crm/reports/leads/conversion-funnel` | services/crmReportsService.ts |
-| GET | `/crm/reports/leads/response-time` | services/crmReportsService.ts |
-| GET | `/crm/reports/leads/velocity` | services/crmReportsService.ts |
-| GET | `/crm/reports/leads/distribution` | services/crmReportsService.ts |
-| GET | `/crm/reports/activity/summary` | services/crmReportsService.ts |
-| GET | `/crm/reports/activity/calls` | services/crmReportsService.ts |
-| GET | `/crm/reports/activity/emails` | services/crmReportsService.ts |
-| GET | `/crm/reports/activity/meetings` | services/crmReportsService.ts |
-| GET | `/crm/reports/activity/tasks` | services/crmReportsService.ts |
-| GET | `/crm/reports/revenue/forecast` | services/crmReportsService.ts |
-| GET | `/crm/reports/revenue/analysis` | services/crmReportsService.ts |
-| GET | `/crm/reports/revenue/quota-attainment` | services/crmReportsService.ts |
-| GET | `/crm/reports/revenue/win-rate` | services/crmReportsService.ts |
-| GET | `/crm/reports/revenue/deal-size` | services/crmReportsService.ts |
-| GET | `/crm/reports/performance/leaderboard` | services/crmReportsService.ts |
-| GET | `/crm/reports/performance/team` | services/crmReportsService.ts |
-| GET | `/crm/reports/performance/rep-scorecard/${userId}` | services/crmReportsService.ts |
-| GET | `/crm/reports/performance/activity-metrics` | services/crmReportsService.ts |
-| GET | `/crm/reports/customer/lifetime-value` | services/crmReportsService.ts |
-| GET | `/crm/reports/customer/churn` | services/crmReportsService.ts |
-| GET | `/crm/reports/customer/health-score` | services/crmReportsService.ts |
-| GET | `/crm/reports/customer/engagement` | services/crmReportsService.ts |
-| GET | `/crm/reports/win-loss/analysis` | services/crmReportsService.ts |
-| GET | `/crm/reports/win-loss/lost-deals` | services/crmReportsService.ts |
-| GET | `/crm/reports/win-loss/competitors` | services/crmReportsService.ts |
-| GET | `/crm/reports/territory/performance` | services/crmReportsService.ts |
-| GET | `/crm/reports/territory/regional-sales` | services/crmReportsService.ts |
-| GET | `/crm/reports/territory/geographic-pipeline` | services/crmReportsService.ts |
-| GET | `/crm/reports/transactions` | services/crmReportsService.ts |
-| GET | `/crm/reports/transactions/summary` | services/crmReportsService.ts |
-| GET | `/crm/reports/transactions/export` | services/crmReportsService.ts |
-| GET | `/crm/reports/${reportType}/export` | services/crmReportsService.ts |
-| POST | `/crm/reports/schedule` | services/crmReportsService.ts |
-| GET | `/crm/reports/${reportType}/metadata` | services/crmReportsService.ts |
-
-### settings (43 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| PUT | `/settings/crm` | features/crm/components/crm-setup-wizard.tsx |
-| GET | `/settings/taxes` | services/billingSettingsService.ts |
-| POST | `/settings/taxes` | services/billingSettingsService.ts |
-| PUT | `/settings/taxes/${id}` | services/billingSettingsService.ts |
-| DELETE | `/settings/taxes/${id}` | services/billingSettingsService.ts |
-| PATCH | `/settings/taxes/${id}/default` | services/billingSettingsService.ts |
-| GET | `/settings/payment-modes` | services/billingSettingsService.ts |
-| POST | `/settings/payment-modes` | services/billingSettingsService.ts |
-| PUT | `/settings/payment-modes/${id}` | services/billingSettingsService.ts |
-| DELETE | `/settings/payment-modes/${id}` | services/billingSettingsService.ts |
-| PATCH | `/settings/payment-modes/${id}/default` | services/billingSettingsService.ts |
-| GET | `/settings/finance` | services/billingSettingsService.ts |
-| PUT | `/settings/finance` | services/billingSettingsService.ts |
-| POST | `/settings/email/smtp/test-connection` | services/emailSettingsService.ts |
-| POST | `/settings/email/smtp/send-test` | services/emailSettingsService.ts |
-| PATCH | `/settings/email/templates/${id}/toggle` | services/emailSettingsService.ts |
-| GET | `/settings/hr` | services/hrSettingsService.ts |
-| PATCH | `/settings/hr` | services/hrSettingsService.ts |
-| PATCH | `/settings/hr/employee` | services/hrSettingsService.ts |
-| PATCH | `/settings/hr/leave` | services/hrSettingsService.ts |
-| PATCH | `/settings/hr/attendance` | services/hrSettingsService.ts |
-| PATCH | `/settings/hr/payroll` | services/hrSettingsService.ts |
-| PATCH | `/settings/hr/expense` | services/hrSettingsService.ts |
-| GET | `/settings/payment-terms` | services/paymentTermsService.ts |
-| GET | `/settings/payment-terms/${id}` | services/paymentTermsService.ts |
-| POST | `/settings/payment-terms` | services/paymentTermsService.ts |
-| PUT | `/settings/payment-terms/${id}` | services/paymentTermsService.ts |
-| DELETE | `/settings/payment-terms/${id}` | services/paymentTermsService.ts |
-| PATCH | `/settings/payment-terms/${id}/default` | services/paymentTermsService.ts |
-| POST | `/settings/payment-terms/initialize` | services/paymentTermsService.ts |
-| GET | `/settings` | services/settingsService.ts |
-| PATCH | `/settings/account` | services/settingsService.ts |
-| PATCH | `/settings/appearance` | services/settingsService.ts |
-| PATCH | `/settings/display` | services/settingsService.ts |
-| PATCH | `/settings/notifications` | services/settingsService.ts |
-| GET | `/settings/sso` | services/ssoService.ts |
-| PATCH | `/settings/sso` | services/ssoService.ts |
-| GET | `/settings/sso/providers/available` | services/ssoService.ts |
-| GET | `/settings/sso/providers/${providerId}` | services/ssoService.ts |
-| POST | `/settings/sso/providers` | services/ssoService.ts |
-| PATCH | `/settings/sso/providers/${providerId}` | services/ssoService.ts |
-| DELETE | `/settings/sso/providers/${providerId}` | services/ssoService.ts |
-| POST | `/settings/sso/test-connection` | services/ssoService.ts |
-
-### crm-reports (37 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/crm-reports/pipeline/overview` | hooks/use-crm-reports.ts |
-| GET | `/crm-reports/pipeline/velocity` | hooks/use-crm-reports.ts |
-| GET | `/crm-reports/pipeline/stage-duration` | hooks/use-crm-reports.ts |
-| GET | `/crm-reports/pipeline/deal-aging` | hooks/use-crm-reports.ts |
-| GET | `/crm-reports/pipeline/movement` | hooks/use-crm-reports.ts |
-| GET | `/crm-reports/leads/by-source` | hooks/use-crm-reports.ts |
-| GET | `/crm-reports/leads/conversion-funnel` | hooks/use-crm-reports.ts |
-| GET | `/crm-reports/leads/response-time` | hooks/use-crm-reports.ts |
-| GET | `/crm-reports/leads/velocity-rate` | hooks/use-crm-reports.ts |
-| GET | `/crm-reports/leads/distribution` | hooks/use-crm-reports.ts |
-| GET | `/crm-reports/activities/summary` | hooks/use-crm-reports.ts |
-| GET | `/crm-reports/activities/calls` | hooks/use-crm-reports.ts |
-| GET | `/crm-reports/activities/emails` | hooks/use-crm-reports.ts |
-| GET | `/crm-reports/activities/meetings` | hooks/use-crm-reports.ts |
-| GET | `/crm-reports/activities/tasks` | hooks/use-crm-reports.ts |
-| GET | `/crm-reports/revenue/forecast` | hooks/use-crm-reports.ts |
-| GET | `/crm-reports/revenue/analysis` | hooks/use-crm-reports.ts |
-| GET | `/crm-reports/revenue/quota-attainment` | hooks/use-crm-reports.ts |
-| GET | `/crm-reports/revenue/win-rate` | hooks/use-crm-reports.ts |
-| GET | `/crm-reports/revenue/deal-size` | hooks/use-crm-reports.ts |
-| GET | `/crm-reports/performance/leaderboard` | hooks/use-crm-reports.ts |
-| GET | `/crm-reports/performance/team` | hooks/use-crm-reports.ts |
-| GET | `/crm-reports/performance/rep-scorecard` | hooks/use-crm-reports.ts |
-| GET | `/crm-reports/performance/activity-metrics` | hooks/use-crm-reports.ts |
-| GET | `/crm-reports/customers/ltv` | hooks/use-crm-reports.ts |
-| GET | `/crm-reports/customers/churn` | hooks/use-crm-reports.ts |
-| GET | `/crm-reports/customers/health-score` | hooks/use-crm-reports.ts |
-| GET | `/crm-reports/customers/engagement` | hooks/use-crm-reports.ts |
-| GET | `/crm-reports/win-loss/analysis` | hooks/use-crm-reports.ts |
-| GET | `/crm-reports/win-loss/lost-deals` | hooks/use-crm-reports.ts |
-| GET | `/crm-reports/win-loss/competitors` | hooks/use-crm-reports.ts |
-| GET | `/crm-reports/territory/performance` | hooks/use-crm-reports.ts |
-| GET | `/crm-reports/territory/regional-sales` | hooks/use-crm-reports.ts |
-| GET | `/crm-reports/territory/geographic-pipeline` | hooks/use-crm-reports.ts |
-| GET | `/crm-reports/transactions` | hooks/use-crm-reports.ts |
-| GET | `/crm-reports/transactions/summary` | hooks/use-crm-reports.ts |
-| GET | `/crm-reports/transactions/export` | hooks/use-crm-reports.ts |
+| PUT | `/hr/settings/gosi` | services/hrSetupWizardService.ts |
+| PUT | `/hr/settings/wps` | services/hrSetupWizardService.ts |
+| POST | `/hr/email-templates/bulk` | services/hrSetupWizardService.ts |
+| GET | `/hr/email-templates` | services/hrSetupWizardService.ts |
+| POST | `/hr/setup/complete` | services/hrSetupWizardService.ts |
+| POST | `/hr/organizational-structure/merge` | services/organizationalStructureService.ts |
+| POST | `/hr/payroll-runs/${runId}/employees/${employeeId}/exclude` | services/payrollService.ts |
+| POST | `/hr/payroll-runs/${runId}/employees/${employeeId}/include` | services/payrollService.ts |
+| POST | `/hr/payroll-runs/${runId}/employees/${employeeId}/recalculate` | services/payrollService.ts |
+| GET | `/hr/payroll-runs/${runId}/export` | services/payrollService.ts |
+| POST | `/hr/recruitment/jobs/${jobId}/close` | services/recruitmentService.ts |
+| POST | `/hr/recruitment/jobs/${jobId}/hold` | services/recruitmentService.ts |
+| POST | `/hr/recruitment/jobs/${jobId}/duplicate` | services/recruitmentService.ts |
+| GET | `/hr/recruitment/jobs/${jobId}/applicants` | services/recruitmentService.ts |
+| POST | `/hr/recruitment/applicants/${applicantId}/status` | services/recruitmentService.ts |
+| POST | `/hr/recruitment/applicants/${applicantId}/screen` | services/recruitmentService.ts |
+| POST | `/hr/recruitment/applicants/${applicantId}/interviews/${interviewId}/complete` | services/recruitmentService.ts |
+| POST | `/hr/recruitment/applicants/${applicantId}/assessments/${assessmentId}/complete` | services/recruitmentService.ts |
+| POST | `/hr/recruitment/applicants/${applicantId}/offer` | services/recruitmentService.ts |
+| PATCH | `/hr/recruitment/applicants/${applicantId}/offer` | services/recruitmentService.ts |
+| POST | `/hr/recruitment/applicants/${applicantId}/offer/accept` | services/recruitmentService.ts |
+| POST | `/hr/recruitment/applicants/${applicantId}/offer/reject` | services/recruitmentService.ts |
+| POST | `/hr/recruitment/applicants/${applicantId}/flag` | services/recruitmentService.ts |
+| POST | `/hr/recruitment/applicants/${applicantId}/unflag` | services/recruitmentService.ts |
+| POST | `/hr/recruitment/applicants/bulk-update` | services/recruitmentService.ts |
+| POST | `/hr/recruitment/parse-resume` | services/recruitmentService.ts |
+| GET | `/hr/recruitment/applicants/export` | services/recruitmentService.ts |
+| GET | `/hr/retention-bonuses/${id}` | services/retentionBonusService.ts |
+| POST | `/hr/retention-bonuses` | services/retentionBonusService.ts |
+| PATCH | `/hr/retention-bonuses/${id}` | services/retentionBonusService.ts |
+| DELETE | `/hr/retention-bonuses/${id}` | services/retentionBonusService.ts |
+| POST | `/hr/retention-bonuses/bulk-delete` | services/retentionBonusService.ts |
+| POST | `/hr/retention-bonuses/${id}/approve` | services/retentionBonusService.ts |
+| POST | `/hr/retention-bonuses/${id}/reject` | services/retentionBonusService.ts |
+| POST | `/hr/retention-bonuses/${id}/mark-paid` | services/retentionBonusService.ts |
+| POST | `/hr/retention-bonuses/${id}/clawback` | services/retentionBonusService.ts |
+| GET | `/hr/retention-bonuses/employee/${employeeId}/history` | services/retentionBonusService.ts |
+| GET | `/hr/retention-bonuses/${id}/vesting-status` | services/retentionBonusService.ts |
+| GET | `/hr/retention-bonuses/pending-approvals` | services/retentionBonusService.ts |
+| POST | `/hr/retention-bonuses/${id}/cancel` | services/retentionBonusService.ts |
+| POST | `/hr/retention-bonuses/${id}/submit` | services/retentionBonusService.ts |
+| POST | `/hr/retention-bonuses/:param` | services/retentionBonusService.ts |
+| GET | `/hr/retention-bonuses/department-summary?departmentId=:param` | services/retentionBonusService.ts |
+| ... | *75 more* | - |
 
 ### events (25 missing)
 
@@ -479,6 +339,29 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | POST | `/workflows/cases/${caseId}/move` | services/workflowService.ts |
 | POST | `/workflows/cases/${caseId}/requirements/${requirementId}/complete` | services/workflowService.ts |
 
+### settings (18 missing)
+
+| Method | Endpoint | Source File |
+|--------|----------|-------------|
+| POST | `/settings/email/smtp/test-connection` | services/emailSettingsService.ts |
+| POST | `/settings/email/smtp/send-test` | services/emailSettingsService.ts |
+| PATCH | `/settings/email/templates/${id}/toggle` | services/emailSettingsService.ts |
+| GET | `/settings/payment-terms` | services/paymentTermsService.ts |
+| GET | `/settings/payment-terms/${id}` | services/paymentTermsService.ts |
+| POST | `/settings/payment-terms` | services/paymentTermsService.ts |
+| PUT | `/settings/payment-terms/${id}` | services/paymentTermsService.ts |
+| DELETE | `/settings/payment-terms/${id}` | services/paymentTermsService.ts |
+| PATCH | `/settings/payment-terms/${id}/default` | services/paymentTermsService.ts |
+| POST | `/settings/payment-terms/initialize` | services/paymentTermsService.ts |
+| GET | `/settings/sso` | services/ssoService.ts |
+| PATCH | `/settings/sso` | services/ssoService.ts |
+| GET | `/settings/sso/providers/available` | services/ssoService.ts |
+| GET | `/settings/sso/providers/${providerId}` | services/ssoService.ts |
+| POST | `/settings/sso/providers` | services/ssoService.ts |
+| PATCH | `/settings/sso/providers/${providerId}` | services/ssoService.ts |
+| DELETE | `/settings/sso/providers/${providerId}` | services/ssoService.ts |
+| POST | `/settings/sso/test-connection` | services/ssoService.ts |
+
 ### activities (17 missing)
 
 | Method | Endpoint | Source File |
@@ -647,6 +530,25 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | POST | `/tasks/${taskId}/recurring/stop` | services/tasksService.ts |
 | GET | `/tasks/${taskId}/recurring/history` | services/tasksService.ts |
 | DELETE | `/tasks/${taskId}/voice-memos/${memoId}` | services/tasksService.ts |
+
+### crm-reports (14 missing)
+
+| Method | Endpoint | Source File |
+|--------|----------|-------------|
+| GET | `/crm-reports/performance/rep-scorecard` | hooks/use-crm-reports.ts |
+| GET | `/crm-reports/customers/ltv` | hooks/use-crm-reports.ts |
+| GET | `/crm-reports/customers/churn` | hooks/use-crm-reports.ts |
+| GET | `/crm-reports/customers/health-score` | hooks/use-crm-reports.ts |
+| GET | `/crm-reports/customers/engagement` | hooks/use-crm-reports.ts |
+| GET | `/crm-reports/win-loss/analysis` | hooks/use-crm-reports.ts |
+| GET | `/crm-reports/win-loss/lost-deals` | hooks/use-crm-reports.ts |
+| GET | `/crm-reports/win-loss/competitors` | hooks/use-crm-reports.ts |
+| GET | `/crm-reports/territory/performance` | hooks/use-crm-reports.ts |
+| GET | `/crm-reports/territory/regional-sales` | hooks/use-crm-reports.ts |
+| GET | `/crm-reports/territory/geographic-pipeline` | hooks/use-crm-reports.ts |
+| GET | `/crm-reports/transactions` | hooks/use-crm-reports.ts |
+| GET | `/crm-reports/transactions/summary` | hooks/use-crm-reports.ts |
+| GET | `/crm-reports/transactions/export` | hooks/use-crm-reports.ts |
 
 ### assets (14 missing)
 
@@ -1050,6 +952,17 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | POST | `/contacts/${primaryId}/merge` | services/contactService.ts |
 | GET | `/contacts/${contactId}/stakeholder/${leadId}` | services/contactService.ts |
 
+### crm (6 missing)
+
+| Method | Endpoint | Source File |
+|--------|----------|-------------|
+| GET | `/crm/reports/transactions` | services/crmReportsService.ts |
+| GET | `/crm/reports/transactions/summary` | services/crmReportsService.ts |
+| GET | `/crm/reports/transactions/export` | services/crmReportsService.ts |
+| GET | `/crm/reports/${reportType}/export` | services/crmReportsService.ts |
+| POST | `/crm/reports/schedule` | services/crmReportsService.ts |
+| GET | `/crm/reports/${reportType}/metadata` | services/crmReportsService.ts |
+
 ### messages (6 missing)
 
 | Method | Endpoint | Source File |
@@ -1435,7 +1348,7 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 
 These endpoints exist in backend but frontend doesn't call them - potentially dead code or undocumented features.
 
-### hr (239 unused)
+### hr (261 unused)
 
 | Method | Endpoint |
 |--------|----------|
@@ -1469,7 +1382,7 @@ These endpoints exist in backend but frontend doesn't call them - potentially de
 | GET | `/api/hr/fleet/vehicles` |
 | GET | `/api/hr/fleet/vehicles/:id` |
 | POST | `/api/hr/fleet/vehicles` |
-| ... | *209 more* |
+| ... | *231 more* |
 
 ### workflows (154 unused)
 
@@ -1795,6 +1708,39 @@ These endpoints exist in backend but frontend doesn't call them - potentially de
 | GET | `/api/contracts/:contractId/reminders` |
 | ... | *3 more* |
 
+### crm-reports (28 unused)
+
+| Method | Endpoint |
+|--------|----------|
+| GET | `/api/crm-reports/quick-stats` |
+| GET | `/api/crm-reports/recent-activity` |
+| GET | `/api/crm-reports/funnel/overview` |
+| GET | `/api/crm-reports/funnel/velocity` |
+| GET | `/api/crm-reports/funnel/bottlenecks` |
+| GET | `/api/crm-reports/aging/overview` |
+| GET | `/api/crm-reports/aging/by-stage` |
+| GET | `/api/crm-reports/leads-source/overview` |
+| GET | `/api/crm-reports/leads-source/trend` |
+| GET | `/api/crm-reports/win-loss/overview` |
+| GET | `/api/crm-reports/win-loss/reasons` |
+| GET | `/api/crm-reports/win-loss/trend` |
+| GET | `/api/crm-reports/activity/overview` |
+| GET | `/api/crm-reports/activity/by-day-of-week` |
+| GET | `/api/crm-reports/activity/by-hour` |
+| GET | `/api/crm-reports/activity/leaderboard` |
+| GET | `/api/crm-reports/forecast/overview` |
+| GET | `/api/crm-reports/forecast/by-month` |
+| GET | `/api/crm-reports/forecast/by-rep` |
+| POST | `/api/crm-reports/export` |
+| GET | `/api/crm-reports/campaign-efficiency` |
+| GET | `/api/crm-reports/lead-owner-efficiency` |
+| GET | `/api/crm-reports/first-response-time` |
+| GET | `/api/crm-reports/lost-opportunity` |
+| GET | `/api/crm-reports/sales-pipeline` |
+| GET | `/api/crm-reports/prospects-engaged` |
+| GET | `/api/crm-reports/lead-conversion-time` |
+| GET | `/api/crm-reports/performance/rep-scorecard/:userId` |
+
 ### manufacturing (28 unused)
 
 | Method | Endpoint |
@@ -1859,38 +1805,6 @@ These endpoints exist in backend but frontend doesn't call them - potentially de
 | PUT | `/api/appointments/:id/no-show` |
 | POST | `/api/appointments/:id/reschedule` |
 | DELETE | `/api/appointments/:id` |
-
-### crm-reports (27 unused)
-
-| Method | Endpoint |
-|--------|----------|
-| GET | `/api/crm-reports/quick-stats` |
-| GET | `/api/crm-reports/recent-activity` |
-| GET | `/api/crm-reports/funnel/overview` |
-| GET | `/api/crm-reports/funnel/velocity` |
-| GET | `/api/crm-reports/funnel/bottlenecks` |
-| GET | `/api/crm-reports/aging/overview` |
-| GET | `/api/crm-reports/aging/by-stage` |
-| GET | `/api/crm-reports/leads-source/overview` |
-| GET | `/api/crm-reports/leads-source/trend` |
-| GET | `/api/crm-reports/win-loss/overview` |
-| GET | `/api/crm-reports/win-loss/reasons` |
-| GET | `/api/crm-reports/win-loss/trend` |
-| GET | `/api/crm-reports/activity/overview` |
-| GET | `/api/crm-reports/activity/by-day-of-week` |
-| GET | `/api/crm-reports/activity/by-hour` |
-| GET | `/api/crm-reports/activity/leaderboard` |
-| GET | `/api/crm-reports/forecast/overview` |
-| GET | `/api/crm-reports/forecast/by-month` |
-| GET | `/api/crm-reports/forecast/by-rep` |
-| POST | `/api/crm-reports/export` |
-| GET | `/api/crm-reports/campaign-efficiency` |
-| GET | `/api/crm-reports/lead-owner-efficiency` |
-| GET | `/api/crm-reports/first-response-time` |
-| GET | `/api/crm-reports/lost-opportunity` |
-| GET | `/api/crm-reports/sales-pipeline` |
-| GET | `/api/crm-reports/prospects-engaged` |
-| GET | `/api/crm-reports/lead-conversion-time` |
 
 ### analyticss (26 unused)
 
@@ -2159,6 +2073,8 @@ Frontend calls with different HTTP method than backend expects.
 | `/hr/grievances/:param` | POST | GET |
 | `/hr/grievances/:param/acknowledge` | GET | POST |
 | `/api/inter-company/transactions/${id}` | DELETE | GET |
+| `/hr/leave-policies/:param` | POST | GET |
+| `/hr/leave-policy-assignments/employee/:param/current` | POST | GET |
 | `/leave-requests/:param` | POST | GET |
 | `/hr/employee-loans/:param` | POST | GET |
 | `/hr/employee-loans/:param/submit` | GET | POST |
@@ -2205,6 +2121,7 @@ Frontend calls with different HTTP method than backend expects.
 | `/saudi-banking/lean/entities/:param` | POST | DELETE |
 | `/saudi-banking/sadad/payments/:param/status` | POST | GET |
 | `/auth/sessions/:param` | GET | DELETE |
+| `/hr/shift-types/${shiftTypeId}` | PATCH | GET |
 | `/hr/skills/:param` | POST | GET |
 | `/succession-plans/:param` | POST | GET |
 | `/succession-plans/by-position/:param` | POST | GET |
@@ -2620,13 +2537,13 @@ Enums in backend models not exposed to frontend.
 ## Action Items
 
 ### 🔴 Critical (Will Break App)
-1. Add 1050 missing backend endpoints
-2. Fix 119 HTTP method mismatches
+1. Add 889 missing backend endpoints
+2. Fix 122 HTTP method mismatches
 3. Sync 0 enum value differences
 
 ### 🟡 Important (May Cause Issues)
 1. Review 2871 frontend-only interfaces
-2. Document 2265 unused backend endpoints
+2. Document 2290 unused backend endpoints
 
 ### 📝 Housekeeping
 1. Remove dead code or add tests for unused endpoints

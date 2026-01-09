@@ -406,8 +406,18 @@ const {
     // HR Setup Wizard Routes
     hrSetupRoute,
 
+    // HR Policy Routes
+    hrExpensePolicyRoute,
+    hrLeavePolicyRoute,
+    hrLeavePolicyAssignmentRoute,
+    hrAttendanceRulesRoute,
+    hrSalaryComponentsRoute,
+
     // Settings Alias Routes
     settingsAliasRoute,
+
+    // CRM Alias Routes
+    crmAliasRoute,
 
     // Unified Data Flow
     unifiedDataRoute,
@@ -1102,6 +1112,7 @@ app.use('/api/crm-transactions', noCache, crmTransactionRoute);  // CRM transact
 app.use('/api/crm-reports', noCache, crmReportsRoute);  // CRM reports & analytics dashboard
 app.use('/api/crm/reports', noCache, crmReportsAliasRoute);  // CRM reports alias for frontend expected paths
 app.use('/api/crm-reports', noCache, crmReportsExtendedRoute);  // CRM reports extended (revenue, performance, customer analytics)
+app.use('/api/crm', noCache, crmAliasRoute);  // CRM alias (leads, appointments, lead-sources, sales-stages, reports)
 app.use('/api/appointments', appointmentRoute);  // Appointments, availability, and scheduling
 app.use('/api/sales', noCache, salesRoute);  // Sales module (orders, deliveries, returns, commissions)
 app.use('/api/whatsapp', whatsappRoute);
@@ -1140,6 +1151,11 @@ app.use('/api/deals/health', dealHealthRoutes);
 // ============================================
 app.use('/api/hr', noCache, hrRoute); // No cache for HR data
 app.use('/api/hr', noCache, hrSetupRoute); // HR setup wizard (departments, designations, leave-types, shift-types)
+app.use('/api/hr/expense-policies', noCache, hrExpensePolicyRoute); // HR expense policies
+app.use('/api/hr/leave-policies', noCache, hrLeavePolicyRoute); // HR leave policies
+app.use('/api/hr/leave-policy-assignments', noCache, hrLeavePolicyAssignmentRoute); // HR leave policy assignments
+app.use('/api/hr/attendance-rules', noCache, hrAttendanceRulesRoute); // HR attendance rules
+app.use('/api/hr/salary-components', noCache, hrSalaryComponentsRoute); // HR salary components
 app.use('/api/hr/payroll', noCache, payrollRoute); // Critical: No cache for payroll
 app.use('/api/hr/payroll-runs', noCache, payrollRunRoute);
 app.use('/api/leave-requests', leaveRequestRoute);

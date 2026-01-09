@@ -293,8 +293,18 @@ const employeeTransferRoute = require('./employeeTransfer.route');
 // HR Setup Wizard Routes (departments, designations, leave-types, shift-types)
 const hrSetupRoute = require('./hrSetup.route');
 
+// HR Policy Routes (expense policies, leave policies, attendance rules, salary components)
+const hrExpensePolicyRoute = require('./hrExpensePolicy.route');
+const hrLeavePolicyRoute = require('./hrLeavePolicy.route');
+const hrLeavePolicyAssignmentRoute = require('./hrLeavePolicyAssignment.route');
+const hrAttendanceRulesRoute = require('./hrAttendanceRules.route');
+const hrSalaryComponentsRoute = require('./hrSalaryComponents.route');
+
 // Settings Alias Routes (general settings, HR settings, taxes, payment-modes)
 const settingsAliasRoute = require('./settingsAlias.route');
+
+// CRM Alias Routes (lead sources, sales stages, CRM reports)
+const crmAliasRoute = require('./crmAlias.route');
 
 // Who's Out Calendar & Compliance Dashboard Routes
 const whosOutRoute = require('./whosOut.route');
@@ -705,8 +715,18 @@ module.exports = {
     // HR Setup Wizard Routes
     hrSetupRoute,
 
+    // HR Policy Routes
+    hrExpensePolicyRoute,
+    hrLeavePolicyRoute,
+    hrLeavePolicyAssignmentRoute,
+    hrAttendanceRulesRoute,
+    hrSalaryComponentsRoute,
+
     // Settings Alias Routes
     settingsAliasRoute,
+
+    // CRM Alias Routes
+    crmAliasRoute,
 
     // Who's Out Calendar & Compliance Dashboard
     whosOutRoute,
