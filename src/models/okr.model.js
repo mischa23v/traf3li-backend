@@ -466,7 +466,7 @@ const okrSchema = new mongoose.Schema({
         employeeName: String,
         role: { type: String, enum: ['owner', 'contributor', 'supporter', 'informed'] },
         addedAt: { type: Date, default: Date.now }
-    }]
+    }],
 
     // Multi-tenant
     firmId: {
