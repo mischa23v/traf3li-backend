@@ -2289,295 +2289,13 @@
       },
       {
         "method": "GET",
-        "endpoint": "/hr/employee-incentives/${id}",
-        "responseType": null,
-        "source": "services/employeeIncentiveService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/employee-incentives",
-        "responseType": null,
-        "source": "services/employeeIncentiveService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/hr/employee-incentives/${id}",
-        "responseType": null,
-        "source": "services/employeeIncentiveService.ts"
-      },
-      {
-        "method": "DELETE",
-        "endpoint": "/hr/employee-incentives/${id}",
-        "responseType": null,
-        "source": "services/employeeIncentiveService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/employee-incentives/bulk-delete",
-        "responseType": null,
-        "source": "services/employeeIncentiveService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/employee-incentives/${id}/submit",
-        "responseType": null,
-        "source": "services/employeeIncentiveService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/employee-incentives/${id}/approve",
-        "responseType": null,
-        "source": "services/employeeIncentiveService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/employee-incentives/${id}/reject",
-        "responseType": null,
-        "source": "services/employeeIncentiveService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/employee-incentives/payroll/${payrollDate}",
-        "responseType": null,
-        "source": "services/employeeIncentiveService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/employee-incentives/${id}/process",
-        "responseType": null,
-        "source": "services/employeeIncentiveService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/employee-incentives/employee/${employeeId}/history",
-        "responseType": null,
-        "source": "services/employeeIncentiveService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/employee-incentives/bulk-create",
-        "responseType": null,
-        "source": "services/employeeIncentiveService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/employee-incentives/bulk-approve",
-        "responseType": null,
-        "source": "services/employeeIncentiveService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/employee-incentives/pending",
-        "responseType": null,
-        "source": "services/employeeIncentiveService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/employee-incentives/awaiting-processing",
-        "responseType": null,
-        "source": "services/employeeIncentiveService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/employee-promotions/${id}",
-        "responseType": null,
-        "source": "services/employeePromotionService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/employee-promotions",
-        "responseType": null,
-        "source": "services/employeePromotionService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/hr/employee-promotions/${id}",
-        "responseType": null,
-        "source": "services/employeePromotionService.ts"
-      },
-      {
-        "method": "DELETE",
-        "endpoint": "/hr/employee-promotions/${id}",
-        "responseType": null,
-        "source": "services/employeePromotionService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/employee-promotions/bulk-delete",
-        "responseType": null,
-        "source": "services/employeePromotionService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/employee-promotions/${id}/submit",
-        "responseType": null,
-        "source": "services/employeePromotionService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/employee-promotions/${id}/approve",
-        "responseType": null,
-        "source": "services/employeePromotionService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/employee-promotions/${id}/reject",
-        "responseType": null,
-        "source": "services/employeePromotionService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/employee-promotions/${id}/cancel",
-        "responseType": null,
-        "source": "services/employeePromotionService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/employee-promotions/${id}/apply",
-        "responseType": null,
-        "source": "services/employeePromotionService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/employee-promotions/employee/${employeeId}/history",
-        "responseType": null,
-        "source": "services/employeePromotionService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/employee-promotions/pending",
-        "responseType": null,
-        "source": "services/employeePromotionService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/employee-promotions/awaiting-application",
-        "responseType": null,
-        "source": "services/employeePromotionService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/employee-promotions/${id}/notify",
-        "responseType": null,
-        "source": "services/employeePromotionService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/employee-promotions/${id}/acknowledge",
-        "responseType": null,
-        "source": "services/employeePromotionService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/employee-promotions/:param",
-        "source": "services/employeePromotionService.ts",
-        "dynamic": true
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/employee-promotions/stats?:param",
-        "source": "services/employeePromotionService.ts",
-        "dynamic": true
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/employee-promotions/:param/notify",
-        "source": "services/employeePromotionService.ts",
-        "dynamic": true
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/skill-maps?${params.toString()}",
-        "responseType": null,
-        "source": "services/employeeSkillMapService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/skill-maps/${employeeId}",
-        "responseType": null,
-        "source": "services/employeeSkillMapService.ts"
-      },
-      {
-        "method": "PUT",
-        "endpoint": "/hr/skill-maps/${employeeId}/skills",
-        "responseType": null,
-        "source": "services/employeeSkillMapService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/skill-maps/${employeeId}/skills",
-        "responseType": null,
-        "source": "services/employeeSkillMapService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/hr/skill-maps/${employeeId}/skills/${skillId}",
-        "responseType": null,
-        "source": "services/employeeSkillMapService.ts"
-      },
-      {
-        "method": "DELETE",
-        "endpoint": "/hr/skill-maps/${employeeId}/skills/${skillId}",
-        "responseType": null,
-        "source": "services/employeeSkillMapService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/skill-maps/${employeeId}/skills/${skillId}/evaluate",
-        "responseType": null,
-        "source": "services/employeeSkillMapService.ts"
-      },
-      {
-        "method": "GET",
         "endpoint": "/hr/skill-maps/matrix${params}",
-        "responseType": null,
-        "source": "services/employeeSkillMapService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/skill-maps/${employeeId}/skill-gaps",
-        "responseType": null,
-        "source": "services/employeeSkillMapService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/skill-maps/department/${departmentId}/skill-gaps",
         "responseType": null,
         "source": "services/employeeSkillMapService.ts"
       },
       {
         "method": "GET",
         "endpoint": "/hr/skill-maps/find-by-skill/${skillId}${params}",
-        "responseType": null,
-        "source": "services/employeeSkillMapService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/skill-maps/distribution/${skillId}",
-        "responseType": null,
-        "source": "services/employeeSkillMapService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/skill-maps/${employeeId}/training-recommendations",
-        "responseType": null,
-        "source": "services/employeeSkillMapService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/skill-maps/department/${departmentId}/summary",
-        "responseType": null,
-        "source": "services/employeeSkillMapService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/skill-maps/compare",
-        "responseType": null,
-        "source": "services/employeeSkillMapService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/skill-maps/${employeeId}/trainings",
         "responseType": null,
         "source": "services/employeeSkillMapService.ts"
       },
@@ -2590,18 +2308,6 @@
       {
         "method": "GET",
         "endpoint": "/hr/skill-maps/skill-gaps/export${params}",
-        "responseType": null,
-        "source": "services/employeeSkillMapService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/skill-maps/${employeeId}/skills/${skillId}/trends",
-        "responseType": null,
-        "source": "services/employeeSkillMapService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/skill-maps/bulk-update",
         "responseType": null,
         "source": "services/employeeSkillMapService.ts"
       },
@@ -12255,6 +11961,22 @@
       },
       {
         "method": "GET",
+        "path": "/stats",
+        "controller": "unknown",
+        "file": "employeeIncentive.route.js",
+        "fullPath": "/api/hr/employee-incentives/stats",
+        "module": "employeeIncentive"
+      },
+      {
+        "method": "GET",
+        "path": "/upcoming",
+        "controller": "unknown",
+        "file": "employeePromotion.route.js",
+        "fullPath": "/api/hr/employee-promotions/upcoming",
+        "module": "employeePromotion"
+      },
+      {
+        "method": "GET",
         "path": "/dashboard",
         "controller": "unknown",
         "file": "employeeSelfService.route.js",
@@ -20407,6 +20129,86 @@
       },
       {
         "method": "GET",
+        "path": "/matrix",
+        "controller": "unknown",
+        "file": "skillMap.route.js",
+        "fullPath": "/api/hr/skill-maps/matrix",
+        "module": "skillMap"
+      },
+      {
+        "method": "GET",
+        "path": "/find-by-skill/:skillId",
+        "controller": "unknown",
+        "file": "skillMap.route.js",
+        "fullPath": "/api/hr/skill-maps/find-by-skill/:skillId",
+        "module": "skillMap"
+      },
+      {
+        "method": "GET",
+        "path": "/expiring-certifications",
+        "controller": "unknown",
+        "file": "skillMap.route.js",
+        "fullPath": "/api/hr/skill-maps/expiring-certifications",
+        "module": "skillMap"
+      },
+      {
+        "method": "GET",
+        "path": "/cpd-non-compliant",
+        "controller": "unknown",
+        "file": "skillMap.route.js",
+        "fullPath": "/api/hr/skill-maps/cpd-non-compliant",
+        "module": "skillMap"
+      },
+      {
+        "method": "GET",
+        "path": "/needs-review",
+        "controller": "unknown",
+        "file": "skillMap.route.js",
+        "fullPath": "/api/hr/skill-maps/needs-review",
+        "module": "skillMap"
+      },
+      {
+        "method": "POST",
+        "path": "/:employeeId/skills/:skillId/verify",
+        "controller": "unknown",
+        "file": "skillMap.route.js",
+        "fullPath": "/api/hr/skill-maps/:employeeId/skills/:skillId/verify",
+        "module": "skillMap"
+      },
+      {
+        "method": "POST",
+        "path": "/:employeeId/skills/:skillId/cpd",
+        "controller": "unknown",
+        "file": "skillMap.route.js",
+        "fullPath": "/api/hr/skill-maps/:employeeId/skills/:skillId/cpd",
+        "module": "skillMap"
+      },
+      {
+        "method": "POST",
+        "path": "/:employeeId/skills/:skillId/endorse",
+        "controller": "unknown",
+        "file": "skillMap.route.js",
+        "fullPath": "/api/hr/skill-maps/:employeeId/skills/:skillId/endorse",
+        "module": "skillMap"
+      },
+      {
+        "method": "GET",
+        "path": "/matrix/export",
+        "controller": "unknown",
+        "file": "skillMap.route.js",
+        "fullPath": "/api/hr/skill-maps/matrix/export",
+        "module": "skillMap"
+      },
+      {
+        "method": "GET",
+        "path": "/skill-gaps/export",
+        "controller": "unknown",
+        "file": "skillMap.route.js",
+        "fullPath": "/api/hr/skill-maps/skill-gaps/export",
+        "module": "skillMap"
+      },
+      {
+        "method": "GET",
         "path": "/sfia-levels",
         "controller": "unknown",
         "file": "skillMatrix.route.js",
@@ -24837,6 +24639,16 @@
         "path": "/settings/email/signatures/${id}/default",
         "frontendMethod": "PATCH",
         "backendMethod": "PUT"
+      },
+      {
+        "path": "/hr/employee-promotions/:param",
+        "frontendMethod": "POST",
+        "backendMethod": "GET"
+      },
+      {
+        "path": "/hr/employee-promotions/:param/notify",
+        "frontendMethod": "GET",
+        "backendMethod": "POST"
       },
       {
         "path": "/events/${eventId}/attendees/${attendeeId}",

@@ -1,7 +1,7 @@
 {
-  "generated": "2026-01-09T09:13:23.048Z",
-  "totalEndpoints": 4086,
-  "totalModules": 262,
+  "generated": "2026-01-09T09:29:15.432Z",
+  "totalEndpoints": 4147,
+  "totalModules": 265,
   "modules": {
     "account": [
       {
@@ -10793,6 +10793,144 @@
         "module": "employeeBenefit"
       }
     ],
+    "employeeIncentive": [
+      {
+        "method": "GET",
+        "path": "/",
+        "controller": "unknown",
+        "file": "employeeIncentive.route.js",
+        "fullPath": "/api/hr/employee-incentives",
+        "module": "employeeIncentive"
+      },
+      {
+        "method": "GET",
+        "path": "/pending",
+        "controller": "unknown",
+        "file": "employeeIncentive.route.js",
+        "fullPath": "/api/hr/employee-incentives/pending",
+        "module": "employeeIncentive"
+      },
+      {
+        "method": "GET",
+        "path": "/awaiting-processing",
+        "controller": "unknown",
+        "file": "employeeIncentive.route.js",
+        "fullPath": "/api/hr/employee-incentives/awaiting-processing",
+        "module": "employeeIncentive"
+      },
+      {
+        "method": "GET",
+        "path": "/payroll/:payrollDate",
+        "controller": "unknown",
+        "file": "employeeIncentive.route.js",
+        "fullPath": "/api/hr/employee-incentives/payroll/:payrollDate",
+        "module": "employeeIncentive"
+      },
+      {
+        "method": "GET",
+        "path": "/employee/:employeeId/history",
+        "controller": "unknown",
+        "file": "employeeIncentive.route.js",
+        "fullPath": "/api/hr/employee-incentives/employee/:employeeId/history",
+        "module": "employeeIncentive"
+      },
+      {
+        "method": "GET",
+        "path": "/stats",
+        "controller": "unknown",
+        "file": "employeeIncentive.route.js",
+        "fullPath": "/api/hr/employee-incentives/stats",
+        "module": "employeeIncentive"
+      },
+      {
+        "method": "GET",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "employeeIncentive.route.js",
+        "fullPath": "/api/hr/employee-incentives/:id",
+        "module": "employeeIncentive"
+      },
+      {
+        "method": "POST",
+        "path": "/",
+        "controller": "unknown",
+        "file": "employeeIncentive.route.js",
+        "fullPath": "/api/hr/employee-incentives",
+        "module": "employeeIncentive"
+      },
+      {
+        "method": "POST",
+        "path": "/bulk-create",
+        "controller": "unknown",
+        "file": "employeeIncentive.route.js",
+        "fullPath": "/api/hr/employee-incentives/bulk-create",
+        "module": "employeeIncentive"
+      },
+      {
+        "method": "PATCH",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "employeeIncentive.route.js",
+        "fullPath": "/api/hr/employee-incentives/:id",
+        "module": "employeeIncentive"
+      },
+      {
+        "method": "DELETE",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "employeeIncentive.route.js",
+        "fullPath": "/api/hr/employee-incentives/:id",
+        "module": "employeeIncentive"
+      },
+      {
+        "method": "POST",
+        "path": "/bulk-delete",
+        "controller": "unknown",
+        "file": "employeeIncentive.route.js",
+        "fullPath": "/api/hr/employee-incentives/bulk-delete",
+        "module": "employeeIncentive"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/submit",
+        "controller": "unknown",
+        "file": "employeeIncentive.route.js",
+        "fullPath": "/api/hr/employee-incentives/:id/submit",
+        "module": "employeeIncentive"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/approve",
+        "controller": "unknown",
+        "file": "employeeIncentive.route.js",
+        "fullPath": "/api/hr/employee-incentives/:id/approve",
+        "module": "employeeIncentive"
+      },
+      {
+        "method": "POST",
+        "path": "/bulk-approve",
+        "controller": "unknown",
+        "file": "employeeIncentive.route.js",
+        "fullPath": "/api/hr/employee-incentives/bulk-approve",
+        "module": "employeeIncentive"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/reject",
+        "controller": "unknown",
+        "file": "employeeIncentive.route.js",
+        "fullPath": "/api/hr/employee-incentives/:id/reject",
+        "module": "employeeIncentive"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/process",
+        "controller": "unknown",
+        "file": "employeeIncentive.route.js",
+        "fullPath": "/api/hr/employee-incentives/:id/process",
+        "module": "employeeIncentive"
+      }
+    ],
     "employeeLoan": [
       {
         "method": "GET",
@@ -10985,6 +11123,152 @@
         "file": "employeeLoan.route.js",
         "fullPath": "/api/hr/employee-loans/:loanId/communications",
         "module": "employeeLoan"
+      }
+    ],
+    "employeePromotion": [
+      {
+        "method": "GET",
+        "path": "/",
+        "controller": "unknown",
+        "file": "employeePromotion.route.js",
+        "fullPath": "/api/hr/employee-promotions",
+        "module": "employeePromotion"
+      },
+      {
+        "method": "GET",
+        "path": "/pending",
+        "controller": "unknown",
+        "file": "employeePromotion.route.js",
+        "fullPath": "/api/hr/employee-promotions/pending",
+        "module": "employeePromotion"
+      },
+      {
+        "method": "GET",
+        "path": "/awaiting-application",
+        "controller": "unknown",
+        "file": "employeePromotion.route.js",
+        "fullPath": "/api/hr/employee-promotions/awaiting-application",
+        "module": "employeePromotion"
+      },
+      {
+        "method": "GET",
+        "path": "/stats",
+        "controller": "unknown",
+        "file": "employeePromotion.route.js",
+        "fullPath": "/api/hr/employee-promotions/stats",
+        "module": "employeePromotion"
+      },
+      {
+        "method": "GET",
+        "path": "/employee/:employeeId/history",
+        "controller": "unknown",
+        "file": "employeePromotion.route.js",
+        "fullPath": "/api/hr/employee-promotions/employee/:employeeId/history",
+        "module": "employeePromotion"
+      },
+      {
+        "method": "GET",
+        "path": "/upcoming",
+        "controller": "unknown",
+        "file": "employeePromotion.route.js",
+        "fullPath": "/api/hr/employee-promotions/upcoming",
+        "module": "employeePromotion"
+      },
+      {
+        "method": "GET",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "employeePromotion.route.js",
+        "fullPath": "/api/hr/employee-promotions/:id",
+        "module": "employeePromotion"
+      },
+      {
+        "method": "POST",
+        "path": "/",
+        "controller": "unknown",
+        "file": "employeePromotion.route.js",
+        "fullPath": "/api/hr/employee-promotions",
+        "module": "employeePromotion"
+      },
+      {
+        "method": "PATCH",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "employeePromotion.route.js",
+        "fullPath": "/api/hr/employee-promotions/:id",
+        "module": "employeePromotion"
+      },
+      {
+        "method": "DELETE",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "employeePromotion.route.js",
+        "fullPath": "/api/hr/employee-promotions/:id",
+        "module": "employeePromotion"
+      },
+      {
+        "method": "POST",
+        "path": "/bulk-delete",
+        "controller": "unknown",
+        "file": "employeePromotion.route.js",
+        "fullPath": "/api/hr/employee-promotions/bulk-delete",
+        "module": "employeePromotion"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/submit",
+        "controller": "unknown",
+        "file": "employeePromotion.route.js",
+        "fullPath": "/api/hr/employee-promotions/:id/submit",
+        "module": "employeePromotion"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/approve",
+        "controller": "unknown",
+        "file": "employeePromotion.route.js",
+        "fullPath": "/api/hr/employee-promotions/:id/approve",
+        "module": "employeePromotion"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/reject",
+        "controller": "unknown",
+        "file": "employeePromotion.route.js",
+        "fullPath": "/api/hr/employee-promotions/:id/reject",
+        "module": "employeePromotion"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/cancel",
+        "controller": "unknown",
+        "file": "employeePromotion.route.js",
+        "fullPath": "/api/hr/employee-promotions/:id/cancel",
+        "module": "employeePromotion"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/apply",
+        "controller": "unknown",
+        "file": "employeePromotion.route.js",
+        "fullPath": "/api/hr/employee-promotions/:id/apply",
+        "module": "employeePromotion"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/notify",
+        "controller": "unknown",
+        "file": "employeePromotion.route.js",
+        "fullPath": "/api/hr/employee-promotions/:id/notify",
+        "module": "employeePromotion"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/acknowledge",
+        "controller": "unknown",
+        "file": "employeePromotion.route.js",
+        "fullPath": "/api/hr/employee-promotions/:id/acknowledge",
+        "module": "employeePromotion"
       }
     ],
     "employeeSelfService": [
@@ -26605,6 +26889,216 @@
         "file": "shift.route.js",
         "fullPath": "/api/hr/shifts/shift-assignments/employee/:employeeId/current",
         "module": "shift"
+      }
+    ],
+    "skillMap": [
+      {
+        "method": "GET",
+        "path": "/",
+        "controller": "unknown",
+        "file": "skillMap.route.js",
+        "fullPath": "/api/hr/skill-maps",
+        "module": "skillMap"
+      },
+      {
+        "method": "GET",
+        "path": "/matrix",
+        "controller": "unknown",
+        "file": "skillMap.route.js",
+        "fullPath": "/api/hr/skill-maps/matrix",
+        "module": "skillMap"
+      },
+      {
+        "method": "GET",
+        "path": "/find-by-skill/:skillId",
+        "controller": "unknown",
+        "file": "skillMap.route.js",
+        "fullPath": "/api/hr/skill-maps/find-by-skill/:skillId",
+        "module": "skillMap"
+      },
+      {
+        "method": "GET",
+        "path": "/distribution/:skillId",
+        "controller": "unknown",
+        "file": "skillMap.route.js",
+        "fullPath": "/api/hr/skill-maps/distribution/:skillId",
+        "module": "skillMap"
+      },
+      {
+        "method": "GET",
+        "path": "/expiring-certifications",
+        "controller": "unknown",
+        "file": "skillMap.route.js",
+        "fullPath": "/api/hr/skill-maps/expiring-certifications",
+        "module": "skillMap"
+      },
+      {
+        "method": "GET",
+        "path": "/cpd-non-compliant",
+        "controller": "unknown",
+        "file": "skillMap.route.js",
+        "fullPath": "/api/hr/skill-maps/cpd-non-compliant",
+        "module": "skillMap"
+      },
+      {
+        "method": "GET",
+        "path": "/needs-review",
+        "controller": "unknown",
+        "file": "skillMap.route.js",
+        "fullPath": "/api/hr/skill-maps/needs-review",
+        "module": "skillMap"
+      },
+      {
+        "method": "GET",
+        "path": "/department/:departmentId/summary",
+        "controller": "unknown",
+        "file": "skillMap.route.js",
+        "fullPath": "/api/hr/skill-maps/department/:departmentId/summary",
+        "module": "skillMap"
+      },
+      {
+        "method": "POST",
+        "path": "/department/:departmentId/skill-gaps",
+        "controller": "unknown",
+        "file": "skillMap.route.js",
+        "fullPath": "/api/hr/skill-maps/department/:departmentId/skill-gaps",
+        "module": "skillMap"
+      },
+      {
+        "method": "POST",
+        "path": "/compare",
+        "controller": "unknown",
+        "file": "skillMap.route.js",
+        "fullPath": "/api/hr/skill-maps/compare",
+        "module": "skillMap"
+      },
+      {
+        "method": "GET",
+        "path": "/:employeeId",
+        "controller": "unknown",
+        "file": "skillMap.route.js",
+        "fullPath": "/api/hr/skill-maps/:employeeId",
+        "module": "skillMap"
+      },
+      {
+        "method": "GET",
+        "path": "/:employeeId/training-recommendations",
+        "controller": "unknown",
+        "file": "skillMap.route.js",
+        "fullPath": "/api/hr/skill-maps/:employeeId/training-recommendations",
+        "module": "skillMap"
+      },
+      {
+        "method": "POST",
+        "path": "/:employeeId/skill-gaps",
+        "controller": "unknown",
+        "file": "skillMap.route.js",
+        "fullPath": "/api/hr/skill-maps/:employeeId/skill-gaps",
+        "module": "skillMap"
+      },
+      {
+        "method": "PUT",
+        "path": "/:employeeId/skills",
+        "controller": "unknown",
+        "file": "skillMap.route.js",
+        "fullPath": "/api/hr/skill-maps/:employeeId/skills",
+        "module": "skillMap"
+      },
+      {
+        "method": "POST",
+        "path": "/:employeeId/skills",
+        "controller": "unknown",
+        "file": "skillMap.route.js",
+        "fullPath": "/api/hr/skill-maps/:employeeId/skills",
+        "module": "skillMap"
+      },
+      {
+        "method": "PATCH",
+        "path": "/:employeeId/skills/:skillId",
+        "controller": "unknown",
+        "file": "skillMap.route.js",
+        "fullPath": "/api/hr/skill-maps/:employeeId/skills/:skillId",
+        "module": "skillMap"
+      },
+      {
+        "method": "DELETE",
+        "path": "/:employeeId/skills/:skillId",
+        "controller": "unknown",
+        "file": "skillMap.route.js",
+        "fullPath": "/api/hr/skill-maps/:employeeId/skills/:skillId",
+        "module": "skillMap"
+      },
+      {
+        "method": "POST",
+        "path": "/:employeeId/skills/:skillId/evaluate",
+        "controller": "unknown",
+        "file": "skillMap.route.js",
+        "fullPath": "/api/hr/skill-maps/:employeeId/skills/:skillId/evaluate",
+        "module": "skillMap"
+      },
+      {
+        "method": "POST",
+        "path": "/:employeeId/skills/:skillId/verify",
+        "controller": "unknown",
+        "file": "skillMap.route.js",
+        "fullPath": "/api/hr/skill-maps/:employeeId/skills/:skillId/verify",
+        "module": "skillMap"
+      },
+      {
+        "method": "POST",
+        "path": "/:employeeId/skills/:skillId/cpd",
+        "controller": "unknown",
+        "file": "skillMap.route.js",
+        "fullPath": "/api/hr/skill-maps/:employeeId/skills/:skillId/cpd",
+        "module": "skillMap"
+      },
+      {
+        "method": "POST",
+        "path": "/:employeeId/skills/:skillId/endorse",
+        "controller": "unknown",
+        "file": "skillMap.route.js",
+        "fullPath": "/api/hr/skill-maps/:employeeId/skills/:skillId/endorse",
+        "module": "skillMap"
+      },
+      {
+        "method": "POST",
+        "path": "/:employeeId/trainings",
+        "controller": "unknown",
+        "file": "skillMap.route.js",
+        "fullPath": "/api/hr/skill-maps/:employeeId/trainings",
+        "module": "skillMap"
+      },
+      {
+        "method": "GET",
+        "path": "/:employeeId/skills/:skillId/trends",
+        "controller": "unknown",
+        "file": "skillMap.route.js",
+        "fullPath": "/api/hr/skill-maps/:employeeId/skills/:skillId/trends",
+        "module": "skillMap"
+      },
+      {
+        "method": "GET",
+        "path": "/matrix/export",
+        "controller": "unknown",
+        "file": "skillMap.route.js",
+        "fullPath": "/api/hr/skill-maps/matrix/export",
+        "module": "skillMap"
+      },
+      {
+        "method": "GET",
+        "path": "/skill-gaps/export",
+        "controller": "unknown",
+        "file": "skillMap.route.js",
+        "fullPath": "/api/hr/skill-maps/skill-gaps/export",
+        "module": "skillMap"
+      },
+      {
+        "method": "POST",
+        "path": "/bulk-update",
+        "controller": "unknown",
+        "file": "skillMap.route.js",
+        "fullPath": "/api/hr/skill-maps/bulk-update",
+        "module": "skillMap"
       }
     ],
     "skillMatrix": [

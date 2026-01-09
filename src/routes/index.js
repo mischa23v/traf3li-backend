@@ -282,6 +282,11 @@ const shiftRoute = require('./shift.route');
 const leaveManagementRoute = require('./leaveManagement.route');
 const hrExtendedRoute = require('./hrExtended.route');
 
+// HR Frontend-Expected Routes (employee-incentives, employee-promotions, skill-maps)
+const employeeIncentiveRoute = require('./employeeIncentive.route');
+const employeePromotionRoute = require('./employeePromotion.route');
+const skillMapRoute = require('./skillMap.route');
+
 // Who's Out Calendar & Compliance Dashboard Routes
 const whosOutRoute = require('./whosOut.route');
 const complianceDashboardRoute = require('./complianceDashboard.route');
@@ -679,6 +684,11 @@ module.exports = {
     shiftRoute,
     leaveManagementRoute,
     hrExtendedRoute,
+
+    // HR Frontend-Expected Routes
+    employeeIncentiveRoute,
+    employeePromotionRoute,
+    skillMapRoute,
 
     // Who's Out Calendar & Compliance Dashboard
     whosOutRoute,

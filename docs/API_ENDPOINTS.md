@@ -93,7 +93,9 @@
 - [emailTemplates](#emailtemplates) (10 endpoints)
 - [employeeAdvance](#employeeadvance) (23 endpoints)
 - [employeeBenefit](#employeebenefit) (23 endpoints)
+- [employeeIncentive](#employeeincentive) (17 endpoints)
 - [employeeLoan](#employeeloan) (24 endpoints)
+- [employeePromotion](#employeepromotion) (18 endpoints)
 - [employeeSelfService](#employeeselfservice) (11 endpoints)
 - [event](#event) (51 endpoints)
 - [exchangeRateRevaluation](#exchangeraterevaluation) (9 endpoints)
@@ -220,6 +222,7 @@
 - [securityIncident](#securityincident) (8 endpoints)
 - [setupWizard](#setupwizard) (13 endpoints)
 - [shift](#shift) (17 endpoints)
+- [skillMap](#skillmap) (26 endpoints)
 - [skillMatrix](#skillmatrix) (32 endpoints)
 - [slack](#slack) (12 endpoints)
 - [slas](#slas) (10 endpoints)
@@ -275,8 +278,8 @@
 
 | Metric | Count |
 |--------|-------|
-| Total Endpoints | 4086 |
-| Total Modules | 262 |
+| Total Endpoints | 4147 |
+| Total Modules | 265 |
 
 ---
 
@@ -2042,6 +2045,28 @@
 | `POST` | `/api/hr/employee-benefits/:id/pre-auth` | unknown | employeeBenefit.route.js |
 | `POST` | `/api/hr/employee-benefits/:id/qualifying-events` | unknown | employeeBenefit.route.js |
 
+## employeeIncentive
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/hr/employee-incentives` | unknown | employeeIncentive.route.js |
+| `GET` | `/api/hr/employee-incentives/pending` | unknown | employeeIncentive.route.js |
+| `GET` | `/api/hr/employee-incentives/awaiting-processing` | unknown | employeeIncentive.route.js |
+| `GET` | `/api/hr/employee-incentives/payroll/:payrollDate` | unknown | employeeIncentive.route.js |
+| `GET` | `/api/hr/employee-incentives/employee/:employeeId/history` | unknown | employeeIncentive.route.js |
+| `GET` | `/api/hr/employee-incentives/stats` | unknown | employeeIncentive.route.js |
+| `GET` | `/api/hr/employee-incentives/:id` | unknown | employeeIncentive.route.js |
+| `POST` | `/api/hr/employee-incentives` | unknown | employeeIncentive.route.js |
+| `POST` | `/api/hr/employee-incentives/bulk-create` | unknown | employeeIncentive.route.js |
+| `PATCH` | `/api/hr/employee-incentives/:id` | unknown | employeeIncentive.route.js |
+| `DELETE` | `/api/hr/employee-incentives/:id` | unknown | employeeIncentive.route.js |
+| `POST` | `/api/hr/employee-incentives/bulk-delete` | unknown | employeeIncentive.route.js |
+| `POST` | `/api/hr/employee-incentives/:id/submit` | unknown | employeeIncentive.route.js |
+| `POST` | `/api/hr/employee-incentives/:id/approve` | unknown | employeeIncentive.route.js |
+| `POST` | `/api/hr/employee-incentives/bulk-approve` | unknown | employeeIncentive.route.js |
+| `POST` | `/api/hr/employee-incentives/:id/reject` | unknown | employeeIncentive.route.js |
+| `POST` | `/api/hr/employee-incentives/:id/process` | unknown | employeeIncentive.route.js |
+
 ## employeeLoan
 
 | Method | Path | Controller | File |
@@ -2070,6 +2095,29 @@
 | `POST` | `/api/hr/employee-loans/:loanId/issue-clearance` | unknown | employeeLoan.route.js |
 | `POST` | `/api/hr/employee-loans/:loanId/documents` | unknown | employeeLoan.route.js |
 | `POST` | `/api/hr/employee-loans/:loanId/communications` | unknown | employeeLoan.route.js |
+
+## employeePromotion
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/hr/employee-promotions` | unknown | employeePromotion.route.js |
+| `GET` | `/api/hr/employee-promotions/pending` | unknown | employeePromotion.route.js |
+| `GET` | `/api/hr/employee-promotions/awaiting-application` | unknown | employeePromotion.route.js |
+| `GET` | `/api/hr/employee-promotions/stats` | unknown | employeePromotion.route.js |
+| `GET` | `/api/hr/employee-promotions/employee/:employeeId/history` | unknown | employeePromotion.route.js |
+| `GET` | `/api/hr/employee-promotions/upcoming` | unknown | employeePromotion.route.js |
+| `GET` | `/api/hr/employee-promotions/:id` | unknown | employeePromotion.route.js |
+| `POST` | `/api/hr/employee-promotions` | unknown | employeePromotion.route.js |
+| `PATCH` | `/api/hr/employee-promotions/:id` | unknown | employeePromotion.route.js |
+| `DELETE` | `/api/hr/employee-promotions/:id` | unknown | employeePromotion.route.js |
+| `POST` | `/api/hr/employee-promotions/bulk-delete` | unknown | employeePromotion.route.js |
+| `POST` | `/api/hr/employee-promotions/:id/submit` | unknown | employeePromotion.route.js |
+| `POST` | `/api/hr/employee-promotions/:id/approve` | unknown | employeePromotion.route.js |
+| `POST` | `/api/hr/employee-promotions/:id/reject` | unknown | employeePromotion.route.js |
+| `POST` | `/api/hr/employee-promotions/:id/cancel` | unknown | employeePromotion.route.js |
+| `POST` | `/api/hr/employee-promotions/:id/apply` | unknown | employeePromotion.route.js |
+| `POST` | `/api/hr/employee-promotions/:id/notify` | unknown | employeePromotion.route.js |
+| `POST` | `/api/hr/employee-promotions/:id/acknowledge` | unknown | employeePromotion.route.js |
 
 ## employeeSelfService
 
@@ -4622,6 +4670,37 @@
 | `GET` | `/api/hr/shifts/shift-assignments/employee/:employeeId` | unknown | shift.route.js |
 | `GET` | `/api/hr/shifts/shift-assignments/employee/:employeeId/current` | unknown | shift.route.js |
 
+## skillMap
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/hr/skill-maps` | unknown | skillMap.route.js |
+| `GET` | `/api/hr/skill-maps/matrix` | unknown | skillMap.route.js |
+| `GET` | `/api/hr/skill-maps/find-by-skill/:skillId` | unknown | skillMap.route.js |
+| `GET` | `/api/hr/skill-maps/distribution/:skillId` | unknown | skillMap.route.js |
+| `GET` | `/api/hr/skill-maps/expiring-certifications` | unknown | skillMap.route.js |
+| `GET` | `/api/hr/skill-maps/cpd-non-compliant` | unknown | skillMap.route.js |
+| `GET` | `/api/hr/skill-maps/needs-review` | unknown | skillMap.route.js |
+| `GET` | `/api/hr/skill-maps/department/:departmentId/summary` | unknown | skillMap.route.js |
+| `POST` | `/api/hr/skill-maps/department/:departmentId/skill-gaps` | unknown | skillMap.route.js |
+| `POST` | `/api/hr/skill-maps/compare` | unknown | skillMap.route.js |
+| `GET` | `/api/hr/skill-maps/:employeeId` | unknown | skillMap.route.js |
+| `GET` | `/api/hr/skill-maps/:employeeId/training-recommendations` | unknown | skillMap.route.js |
+| `POST` | `/api/hr/skill-maps/:employeeId/skill-gaps` | unknown | skillMap.route.js |
+| `PUT` | `/api/hr/skill-maps/:employeeId/skills` | unknown | skillMap.route.js |
+| `POST` | `/api/hr/skill-maps/:employeeId/skills` | unknown | skillMap.route.js |
+| `PATCH` | `/api/hr/skill-maps/:employeeId/skills/:skillId` | unknown | skillMap.route.js |
+| `DELETE` | `/api/hr/skill-maps/:employeeId/skills/:skillId` | unknown | skillMap.route.js |
+| `POST` | `/api/hr/skill-maps/:employeeId/skills/:skillId/evaluate` | unknown | skillMap.route.js |
+| `POST` | `/api/hr/skill-maps/:employeeId/skills/:skillId/verify` | unknown | skillMap.route.js |
+| `POST` | `/api/hr/skill-maps/:employeeId/skills/:skillId/cpd` | unknown | skillMap.route.js |
+| `POST` | `/api/hr/skill-maps/:employeeId/skills/:skillId/endorse` | unknown | skillMap.route.js |
+| `POST` | `/api/hr/skill-maps/:employeeId/trainings` | unknown | skillMap.route.js |
+| `GET` | `/api/hr/skill-maps/:employeeId/skills/:skillId/trends` | unknown | skillMap.route.js |
+| `GET` | `/api/hr/skill-maps/matrix/export` | unknown | skillMap.route.js |
+| `GET` | `/api/hr/skill-maps/skill-gaps/export` | unknown | skillMap.route.js |
+| `POST` | `/api/hr/skill-maps/bulk-update` | unknown | skillMap.route.js |
+
 ## skillMatrix
 
 | Method | Path | Controller | File |
@@ -5680,7 +5759,7 @@
 
 ## Quick Reference by Method
 
-### GET (1737)
+### GET (1764)
 
 <details>
 <summary>Click to expand</summary>
@@ -6467,6 +6546,13 @@ GET    /api/hr/employee-benefits/employee/:employeeId
 GET    /api/hr/employee-benefits/expiring
 GET    /api/hr/employee-benefits/export
 GET    /api/hr/employee-benefits/stats
+GET    /api/hr/employee-incentives
+GET    /api/hr/employee-incentives/:id
+GET    /api/hr/employee-incentives/awaiting-processing
+GET    /api/hr/employee-incentives/employee/:employeeId/history
+GET    /api/hr/employee-incentives/payroll/:payrollDate
+GET    /api/hr/employee-incentives/pending
+GET    /api/hr/employee-incentives/stats
 GET    /api/hr/employee-loans
 GET    /api/hr/employee-loans/:loanId
 GET    /api/hr/employee-loans/:loanId/early-settlement-calculation
@@ -6474,6 +6560,13 @@ GET    /api/hr/employee-loans/by-employee/:employeeId
 GET    /api/hr/employee-loans/overdue-installments
 GET    /api/hr/employee-loans/pending-approvals
 GET    /api/hr/employee-loans/stats
+GET    /api/hr/employee-promotions
+GET    /api/hr/employee-promotions/:id
+GET    /api/hr/employee-promotions/awaiting-application
+GET    /api/hr/employee-promotions/employee/:employeeId/history
+GET    /api/hr/employee-promotions/pending
+GET    /api/hr/employee-promotions/stats
+GET    /api/hr/employee-promotions/upcoming
 GET    /api/hr/employees
 GET    /api/hr/employees/:id
 GET    /api/hr/employees/:id/documents
@@ -6615,6 +6708,19 @@ GET    /api/hr/shifts/shift-types
 GET    /api/hr/shifts/shift-types-ramadan
 GET    /api/hr/shifts/shift-types-stats
 GET    /api/hr/shifts/shift-types/:id
+GET    /api/hr/skill-maps
+GET    /api/hr/skill-maps/:employeeId
+GET    /api/hr/skill-maps/:employeeId/skills/:skillId/trends
+GET    /api/hr/skill-maps/:employeeId/training-recommendations
+GET    /api/hr/skill-maps/cpd-non-compliant
+GET    /api/hr/skill-maps/department/:departmentId/summary
+GET    /api/hr/skill-maps/distribution/:skillId
+GET    /api/hr/skill-maps/expiring-certifications
+GET    /api/hr/skill-maps/find-by-skill/:skillId
+GET    /api/hr/skill-maps/matrix
+GET    /api/hr/skill-maps/matrix/export
+GET    /api/hr/skill-maps/needs-review
+GET    /api/hr/skill-maps/skill-gaps/export
 GET    /api/hr/skills
 GET    /api/hr/skills/:id
 GET    /api/hr/skills/:skillId/employees
@@ -7427,7 +7533,7 @@ GET    /api/zoom/status
 
 </details>
 
-### POST (1657)
+### POST (1684)
 
 <details>
 <summary>Click to expand</summary>
@@ -8091,6 +8197,14 @@ POST   /api/hr/employee-benefits/:id/qualifying-events
 POST   /api/hr/employee-benefits/:id/suspend
 POST   /api/hr/employee-benefits/:id/terminate
 POST   /api/hr/employee-benefits/bulk-delete
+POST   /api/hr/employee-incentives
+POST   /api/hr/employee-incentives/:id/approve
+POST   /api/hr/employee-incentives/:id/process
+POST   /api/hr/employee-incentives/:id/reject
+POST   /api/hr/employee-incentives/:id/submit
+POST   /api/hr/employee-incentives/bulk-approve
+POST   /api/hr/employee-incentives/bulk-create
+POST   /api/hr/employee-incentives/bulk-delete
 POST   /api/hr/employee-loans
 POST   /api/hr/employee-loans/:loanId/approve
 POST   /api/hr/employee-loans/:loanId/communications
@@ -8106,6 +8220,15 @@ POST   /api/hr/employee-loans/:loanId/restructure
 POST   /api/hr/employee-loans/:loanId/submit
 POST   /api/hr/employee-loans/bulk-delete
 POST   /api/hr/employee-loans/check-eligibility
+POST   /api/hr/employee-promotions
+POST   /api/hr/employee-promotions/:id/acknowledge
+POST   /api/hr/employee-promotions/:id/apply
+POST   /api/hr/employee-promotions/:id/approve
+POST   /api/hr/employee-promotions/:id/cancel
+POST   /api/hr/employee-promotions/:id/notify
+POST   /api/hr/employee-promotions/:id/reject
+POST   /api/hr/employee-promotions/:id/submit
+POST   /api/hr/employee-promotions/bulk-delete
 POST   /api/hr/employees
 POST   /api/hr/employees/:id/allowances
 POST   /api/hr/employees/:id/documents
@@ -8286,6 +8409,16 @@ POST   /api/hr/shifts/shift-assignments/bulk
 POST   /api/hr/shifts/shift-types
 POST   /api/hr/shifts/shift-types/:id/clone
 POST   /api/hr/shifts/shift-types/:id/set-default
+POST   /api/hr/skill-maps/:employeeId/skill-gaps
+POST   /api/hr/skill-maps/:employeeId/skills
+POST   /api/hr/skill-maps/:employeeId/skills/:skillId/cpd
+POST   /api/hr/skill-maps/:employeeId/skills/:skillId/endorse
+POST   /api/hr/skill-maps/:employeeId/skills/:skillId/evaluate
+POST   /api/hr/skill-maps/:employeeId/skills/:skillId/verify
+POST   /api/hr/skill-maps/:employeeId/trainings
+POST   /api/hr/skill-maps/bulk-update
+POST   /api/hr/skill-maps/compare
+POST   /api/hr/skill-maps/department/:departmentId/skill-gaps
 POST   /api/hr/skills
 POST   /api/hr/skills/assessments
 POST   /api/hr/skills/assessments/:id/self-assessment
@@ -9094,7 +9227,7 @@ POST   /api/zoom/webhook
 
 </details>
 
-### PUT (226)
+### PUT (227)
 
 <details>
 <summary>Click to expand</summary>
@@ -9203,6 +9336,7 @@ PUT    /api/hr/leave-management/leave-allocations/:id
 PUT    /api/hr/leave-management/leave-periods/:id
 PUT    /api/hr/leave-management/leave-policies/:id
 PUT    /api/hr/payroll/:id
+PUT    /api/hr/skill-maps/:employeeId/skills
 PUT    /api/incomeTaxSlab/:id
 PUT    /api/integrations/discord/settings
 PUT    /api/integrations/quickbooks/mappings/accounts
@@ -9330,7 +9464,7 @@ PUT    /api/zoom/settings
 
 </details>
 
-### PATCH (180)
+### PATCH (183)
 
 <details>
 <summary>Click to expand</summary>
@@ -9403,7 +9537,9 @@ PATCH  /api/hr/compensation-rewards/:id/allowances/:allowanceId
 PATCH  /api/hr/employee-benefits/:id
 PATCH  /api/hr/employee-benefits/:id/beneficiaries/:beneficiaryId
 PATCH  /api/hr/employee-benefits/:id/claims/:claimId
+PATCH  /api/hr/employee-incentives/:id
 PATCH  /api/hr/employee-loans/:loanId
+PATCH  /api/hr/employee-promotions/:id
 PATCH  /api/hr/expense-claims/:id
 PATCH  /api/hr/expense-claims/:id/line-items/:lineItemId
 PATCH  /api/hr/fleet/drivers/:id
@@ -9439,6 +9575,7 @@ PATCH  /api/hr/recruitment/jobs/:id
 PATCH  /api/hr/self-service/profile
 PATCH  /api/hr/shifts/shift-assignments/:id
 PATCH  /api/hr/shifts/shift-types/:id
+PATCH  /api/hr/skill-maps/:employeeId/skills/:skillId
 PATCH  /api/hr/skills/:id
 PATCH  /api/hr/skills/assessments/:id
 PATCH  /api/hr/skills/competencies/:id
@@ -9520,7 +9657,7 @@ PATCH  /api/webhooks/:id
 
 </details>
 
-### DELETE (286)
+### DELETE (289)
 
 <details>
 <summary>Click to expand</summary>
@@ -9654,7 +9791,9 @@ DELETE /api/hr/compensation-rewards/:id/allowances/:allowanceId
 DELETE /api/hr/employee-benefits/:id
 DELETE /api/hr/employee-benefits/:id/beneficiaries/:beneficiaryId
 DELETE /api/hr/employee-benefits/:id/dependents/:memberId
+DELETE /api/hr/employee-incentives/:id
 DELETE /api/hr/employee-loans/:loanId
+DELETE /api/hr/employee-promotions/:id
 DELETE /api/hr/employees/:id
 DELETE /api/hr/employees/:id/allowances/:allowanceId
 DELETE /api/hr/employees/:id/documents/:docId
@@ -9679,6 +9818,7 @@ DELETE /api/hr/recruitment/applicants/:id
 DELETE /api/hr/recruitment/jobs/:id
 DELETE /api/hr/shifts/shift-assignments/:id
 DELETE /api/hr/shifts/shift-types/:id
+DELETE /api/hr/skill-maps/:employeeId/skills/:skillId
 DELETE /api/hr/skills/:id
 DELETE /api/hr/skills/assign/:employeeId/:skillId
 DELETE /api/hr/skills/competencies/:id

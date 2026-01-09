@@ -395,6 +395,11 @@ const {
     leaveManagementRoute,
     hrExtendedRoute,
 
+    // HR Frontend-Expected Routes
+    employeeIncentiveRoute,
+    employeePromotionRoute,
+    skillMapRoute,
+
     // Unified Data Flow
     unifiedDataRoute,
 
@@ -1284,6 +1289,11 @@ app.use('/api/hr/leave-management', noCache, leaveManagementRoute);
 
 // Extended HR features (encashment, compensatory, promotions, transfers, etc.)
 app.use('/api/hr/extended', noCache, hrExtendedRoute);
+
+// HR Frontend-Expected Routes (employee-incentives, employee-promotions, skill-maps)
+app.use('/api/hr/employee-incentives', noCache, employeeIncentiveRoute);
+app.use('/api/hr/employee-promotions', noCache, employeePromotionRoute);
+app.use('/api/hr/skill-maps', noCache, skillMapRoute);
 
 // ============================================
 // UNIFIED DATA FLOW ROUTES

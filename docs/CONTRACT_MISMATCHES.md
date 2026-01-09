@@ -1,12 +1,12 @@
 # Frontend vs Backend Contract Mismatch Report
 
-> Generated: 2026-01-09T09:13:26.123Z
+> Generated: 2026-01-09T09:29:40.441Z
 
 ## Summary
 
 | Category | Frontend Only | Backend Only | Mismatches |
 |----------|--------------|--------------|------------|
-| API Endpoints | 1099 | 2253 | 117 |
+| API Endpoints | 1050 | 2265 | 119 |
 | Interfaces/Entities | 2871 | 154 | 0 |
 | Enums | 88 | 2138 | 0 |
 | Type Aliases | 167 | 0 | - |
@@ -17,61 +17,61 @@
 
 These endpoints are called by frontend but don't exist in backend - **will cause 404 errors**.
 
-### hr (248 missing)
+### hr (199 missing)
 
 | Method | Endpoint | Source File |
 |--------|----------|-------------|
 | GET | `/hr/analytics/dashboard` | hooks/useHrAnalytics.ts |
 | POST | `/hr/asset-assignments/${assignmentId}/incidents/${incidentId}/resolve` | services/assetAssignmentService.ts |
-| GET | `/hr/employee-incentives/${id}` | services/employeeIncentiveService.ts |
-| POST | `/hr/employee-incentives` | services/employeeIncentiveService.ts |
-| PATCH | `/hr/employee-incentives/${id}` | services/employeeIncentiveService.ts |
-| DELETE | `/hr/employee-incentives/${id}` | services/employeeIncentiveService.ts |
-| POST | `/hr/employee-incentives/bulk-delete` | services/employeeIncentiveService.ts |
-| POST | `/hr/employee-incentives/${id}/submit` | services/employeeIncentiveService.ts |
-| POST | `/hr/employee-incentives/${id}/approve` | services/employeeIncentiveService.ts |
-| POST | `/hr/employee-incentives/${id}/reject` | services/employeeIncentiveService.ts |
-| GET | `/hr/employee-incentives/payroll/${payrollDate}` | services/employeeIncentiveService.ts |
-| POST | `/hr/employee-incentives/${id}/process` | services/employeeIncentiveService.ts |
-| GET | `/hr/employee-incentives/employee/${employeeId}/history` | services/employeeIncentiveService.ts |
-| POST | `/hr/employee-incentives/bulk-create` | services/employeeIncentiveService.ts |
-| POST | `/hr/employee-incentives/bulk-approve` | services/employeeIncentiveService.ts |
-| GET | `/hr/employee-incentives/pending` | services/employeeIncentiveService.ts |
-| GET | `/hr/employee-incentives/awaiting-processing` | services/employeeIncentiveService.ts |
-| GET | `/hr/employee-promotions/${id}` | services/employeePromotionService.ts |
-| POST | `/hr/employee-promotions` | services/employeePromotionService.ts |
-| PATCH | `/hr/employee-promotions/${id}` | services/employeePromotionService.ts |
-| DELETE | `/hr/employee-promotions/${id}` | services/employeePromotionService.ts |
-| POST | `/hr/employee-promotions/bulk-delete` | services/employeePromotionService.ts |
-| POST | `/hr/employee-promotions/${id}/submit` | services/employeePromotionService.ts |
-| POST | `/hr/employee-promotions/${id}/approve` | services/employeePromotionService.ts |
-| POST | `/hr/employee-promotions/${id}/reject` | services/employeePromotionService.ts |
-| POST | `/hr/employee-promotions/${id}/cancel` | services/employeePromotionService.ts |
-| POST | `/hr/employee-promotions/${id}/apply` | services/employeePromotionService.ts |
-| GET | `/hr/employee-promotions/employee/${employeeId}/history` | services/employeePromotionService.ts |
-| GET | `/hr/employee-promotions/pending` | services/employeePromotionService.ts |
-| GET | `/hr/employee-promotions/awaiting-application` | services/employeePromotionService.ts |
-| POST | `/hr/employee-promotions/${id}/notify` | services/employeePromotionService.ts |
-| POST | `/hr/employee-promotions/${id}/acknowledge` | services/employeePromotionService.ts |
-| POST | `/hr/employee-promotions/:param` | services/employeePromotionService.ts |
-| GET | `/hr/employee-promotions/stats?:param` | services/employeePromotionService.ts |
-| GET | `/hr/employee-promotions/:param/notify` | services/employeePromotionService.ts |
-| GET | `/hr/skill-maps?${params.toString()}` | services/employeeSkillMapService.ts |
-| GET | `/hr/skill-maps/${employeeId}` | services/employeeSkillMapService.ts |
-| PUT | `/hr/skill-maps/${employeeId}/skills` | services/employeeSkillMapService.ts |
-| POST | `/hr/skill-maps/${employeeId}/skills` | services/employeeSkillMapService.ts |
-| PATCH | `/hr/skill-maps/${employeeId}/skills/${skillId}` | services/employeeSkillMapService.ts |
-| DELETE | `/hr/skill-maps/${employeeId}/skills/${skillId}` | services/employeeSkillMapService.ts |
-| POST | `/hr/skill-maps/${employeeId}/skills/${skillId}/evaluate` | services/employeeSkillMapService.ts |
 | GET | `/hr/skill-maps/matrix${params}` | services/employeeSkillMapService.ts |
-| POST | `/hr/skill-maps/${employeeId}/skill-gaps` | services/employeeSkillMapService.ts |
-| POST | `/hr/skill-maps/department/${departmentId}/skill-gaps` | services/employeeSkillMapService.ts |
 | GET | `/hr/skill-maps/find-by-skill/${skillId}${params}` | services/employeeSkillMapService.ts |
-| GET | `/hr/skill-maps/distribution/${skillId}` | services/employeeSkillMapService.ts |
-| GET | `/hr/skill-maps/${employeeId}/training-recommendations` | services/employeeSkillMapService.ts |
-| GET | `/hr/skill-maps/department/${departmentId}/summary` | services/employeeSkillMapService.ts |
-| POST | `/hr/skill-maps/compare` | services/employeeSkillMapService.ts |
-| ... | *198 more* | - |
+| GET | `/hr/skill-maps/matrix/export${params}` | services/employeeSkillMapService.ts |
+| GET | `/hr/skill-maps/skill-gaps/export${params}` | services/employeeSkillMapService.ts |
+| GET | `/hr/transfers?${params.toString()}` | services/employeeTransferService.ts |
+| GET | `/hr/transfers/${id}` | services/employeeTransferService.ts |
+| POST | `/hr/transfers` | services/employeeTransferService.ts |
+| PUT | `/hr/transfers/${id}` | services/employeeTransferService.ts |
+| DELETE | `/hr/transfers/${id}` | services/employeeTransferService.ts |
+| POST | `/hr/transfers/bulk-delete` | services/employeeTransferService.ts |
+| POST | `/hr/transfers/${id}/apply` | services/employeeTransferService.ts |
+| POST | `/hr/transfers/${id}/approve` | services/employeeTransferService.ts |
+| POST | `/hr/transfers/${id}/reject` | services/employeeTransferService.ts |
+| PATCH | `/hr/transfers/${id}/status` | services/employeeTransferService.ts |
+| PATCH | `/hr/transfers/${id}/handover/${itemIndex}` | services/employeeTransferService.ts |
+| POST | `/hr/transfers/${id}/handover` | services/employeeTransferService.ts |
+| GET | `/hr/transfers/pending-handovers` | services/employeeTransferService.ts |
+| GET | `/hr/transfers/history/${employeeId}` | services/employeeTransferService.ts |
+| GET | `/hr/transfers/stats` | services/employeeTransferService.ts |
+| POST | `/hr/transfers/${id}/approvals` | services/employeeTransferService.ts |
+| PATCH | `/hr/transfers/${id}/approvals/${stepIndex}` | services/employeeTransferService.ts |
+| GET | `/hr/transfers/pending-approvals?${params.toString()}` | services/employeeTransferService.ts |
+| POST | `/hr/transfers/${id}/notify` | services/employeeTransferService.ts |
+| GET | `/hr/expense-policies` | services/expensePoliciesService.ts |
+| GET | `/hr/expense-policies/${id}` | services/expensePoliciesService.ts |
+| GET | `/hr/expense-policies/default` | services/expensePoliciesService.ts |
+| POST | `/hr/expense-policies` | services/expensePoliciesService.ts |
+| PUT | `/hr/expense-policies/${id}` | services/expensePoliciesService.ts |
+| DELETE | `/hr/expense-policies/${id}` | services/expensePoliciesService.ts |
+| PATCH | `/hr/expense-policies/${id}/default` | services/expensePoliciesService.ts |
+| PATCH | `/hr/expense-policies/${id}/toggle-status` | services/expensePoliciesService.ts |
+| POST | `/hr/expense-policies/${id}/duplicate` | services/expensePoliciesService.ts |
+| PUT | `/hr/settings/company` | services/hrSetupWizardService.ts |
+| POST | `/hr/settings/company/logo` | services/hrSetupWizardService.ts |
+| POST | `/hr/departments/bulk` | services/hrSetupWizardService.ts |
+| GET | `/hr/departments` | services/hrSetupWizardService.ts |
+| POST | `/hr/designations/bulk` | services/hrSetupWizardService.ts |
+| GET | `/hr/designations` | services/hrSetupWizardService.ts |
+| POST | `/hr/leave-types/bulk` | services/hrSetupWizardService.ts |
+| GET | `/hr/leave-types` | services/hrSetupWizardService.ts |
+| POST | `/hr/leave-policies/bulk` | services/hrSetupWizardService.ts |
+| GET | `/hr/leave-policies` | services/hrSetupWizardService.ts |
+| POST | `/hr/shift-types/bulk` | services/hrSetupWizardService.ts |
+| GET | `/hr/shift-types` | services/hrSetupWizardService.ts |
+| POST | `/hr/attendance-rules/bulk` | services/hrSetupWizardService.ts |
+| GET | `/hr/attendance-rules` | services/hrSetupWizardService.ts |
+| POST | `/hr/salary-components/bulk` | services/hrSetupWizardService.ts |
+| GET | `/hr/salary-components` | services/hrSetupWizardService.ts |
+| ... | *149 more* | - |
 
 ### crm (45 missing)
 
@@ -1435,7 +1435,7 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 
 These endpoints exist in backend but frontend doesn't call them - potentially dead code or undocumented features.
 
-### hr (227 unused)
+### hr (239 unused)
 
 | Method | Endpoint |
 |--------|----------|
@@ -1449,6 +1449,8 @@ These endpoints exist in backend but frontend doesn't call them - potentially de
 | GET | `/api/hr/compliance/probation/ending` |
 | GET | `/api/hr/compliance/contracts/expiring` |
 | GET | `/api/hr/compliance/labor-law` |
+| GET | `/api/hr/employee-incentives/stats` |
+| GET | `/api/hr/employee-promotions/upcoming` |
 | GET | `/api/hr/self-service/dashboard` |
 | GET | `/api/hr/self-service/profile` |
 | PATCH | `/api/hr/self-service/profile` |
@@ -1467,9 +1469,7 @@ These endpoints exist in backend but frontend doesn't call them - potentially de
 | GET | `/api/hr/fleet/vehicles` |
 | GET | `/api/hr/fleet/vehicles/:id` |
 | POST | `/api/hr/fleet/vehicles` |
-| PATCH | `/api/hr/fleet/vehicles/:id` |
-| DELETE | `/api/hr/fleet/vehicles/:id` |
-| ... | *197 more* |
+| ... | *209 more* |
 
 ### workflows (154 unused)
 
@@ -2143,6 +2143,8 @@ Frontend calls with different HTTP method than backend expects.
 | `/document-analysis/:param/similar` | POST | GET |
 | `/documents/:param` | POST | GET |
 | `/settings/email/signatures/${id}/default` | PATCH | PUT |
+| `/hr/employee-promotions/:param` | POST | GET |
+| `/hr/employee-promotions/:param/notify` | GET | POST |
 | `/events/${eventId}/attendees/${attendeeId}` | PATCH | DELETE |
 | `/hr/expense-claims/:param` | POST | GET |
 | `/hr/expense-claims/:param/submit` | GET | POST |
@@ -2618,13 +2620,13 @@ Enums in backend models not exposed to frontend.
 ## Action Items
 
 ### 🔴 Critical (Will Break App)
-1. Add 1099 missing backend endpoints
-2. Fix 117 HTTP method mismatches
+1. Add 1050 missing backend endpoints
+2. Fix 119 HTTP method mismatches
 3. Sync 0 enum value differences
 
 ### 🟡 Important (May Cause Issues)
 1. Review 2871 frontend-only interfaces
-2. Document 2253 unused backend endpoints
+2. Document 2265 unused backend endpoints
 
 ### 📝 Housekeeping
 1. Remove dead code or add tests for unused endpoints
