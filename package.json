@@ -62,7 +62,8 @@
     "prepare": "husky install || true",
     "type-check": "tsc --noEmit",
     "type-check:watch": "tsc --noEmit --watch",
-    "build:types": "tsc --declaration --emitDeclarationOnly"
+    "build:types": "tsc --declaration --emitDeclarationOnly",
+    "docs:api": "node scripts/extractEndpoints.js"
   },
   "keywords": [],
   "author": "",
@@ -167,6 +168,7 @@
     "@types/nodemailer": "^6.4.14",
     "@types/uuid": "^9.0.8",
     "eslint": "^8.57.0",
+    "express-list-endpoints": "7.1.1",
     "husky": "9.1.7",
     "jest": "^29.7.0",
     "lint-staged": "15.5.2",
