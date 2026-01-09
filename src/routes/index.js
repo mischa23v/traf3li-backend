@@ -319,6 +319,18 @@ const productsEnhancedRoute = require('./productsEnhanced.route');
 const subscriptionsRoute = require('./subscriptions.route');
 const corporateCardsRoute = require('./corporateCards.route');
 
+// Batch 5 Routes (HR recruitment extended, retention bonuses, payroll extended)
+const hrRecruitmentExtendedRoute = require('./hrRecruitmentExtended.route');
+const hrRetentionBonusRoute = require('./hrRetentionBonus.route');
+const hrPayrollExtendedRoute = require('./hrPayrollExtended.route');
+
+// Batch 6 Routes (activities, shifts, transactions, workflows extended)
+const activitiesExtendedRoute = require('./activitiesExtended.route');
+const shiftAssignmentsRoute = require('./shiftAssignments.route');
+const shiftRequestsRoute = require('./shiftRequests.route');
+const transactionsExtendedRoute = require('./transactionsExtended.route');
+const workflowExtendedRoute = require('./workflowExtended.route');
+
 // Who's Out Calendar & Compliance Dashboard Routes
 const whosOutRoute = require('./whosOut.route');
 const complianceDashboardRoute = require('./complianceDashboard.route');
@@ -753,6 +765,18 @@ module.exports = {
     productsEnhancedRoute,
     subscriptionsRoute,
     corporateCardsRoute,
+
+    // Batch 5 Routes (HR recruitment extended, retention bonuses, payroll extended)
+    hrRecruitmentExtendedRoute,
+    hrRetentionBonusRoute,
+    hrPayrollExtendedRoute,
+
+    // Batch 6 Routes (activities, shifts, transactions, workflows extended)
+    activitiesExtendedRoute,
+    shiftAssignmentsRoute,
+    shiftRequestsRoute,
+    transactionsExtendedRoute,
+    workflowExtendedRoute,
 
     // Who's Out Calendar & Compliance Dashboard
     whosOutRoute,

@@ -7,6 +7,7 @@
 ## Table of Contents
 
 - [account](#account) (7 endpoints)
+- [activitiesExtended](#activitiesextended) (19 endpoints)
 - [activity](#activity) (5 endpoints)
 - [activityPlans](#activityplans) (6 endpoints)
 - [activitys](#activitys) (13 endpoints)
@@ -132,6 +133,9 @@
 - [hrExtended](#hrextended) (49 endpoints)
 - [hrLeavePolicy](#hrleavepolicy) (11 endpoints)
 - [hrLeavePolicyAssignment](#hrleavepolicyassignment) (11 endpoints)
+- [hrPayrollExtended](#hrpayrollextended) (13 endpoints)
+- [hrRecruitmentExtended](#hrrecruitmentextended) (17 endpoints)
+- [hrRetentionBonus](#hrretentionbonus) (16 endpoints)
 - [hrSalaryComponents](#hrsalarycomponents) (11 endpoints)
 - [hrSetup](#hrsetup) (27 endpoints)
 - [incomeTaxSlab](#incometaxslab) (9 endpoints)
@@ -241,6 +245,8 @@
 - [settingsAlias](#settingsalias) (26 endpoints)
 - [setupWizard](#setupwizard) (13 endpoints)
 - [shift](#shift) (17 endpoints)
+- [shiftAssignments](#shiftassignments) (15 endpoints)
+- [shiftRequests](#shiftrequests) (10 endpoints)
 - [skillMap](#skillmap) (26 endpoints)
 - [skillMatrix](#skillmatrix) (32 endpoints)
 - [slack](#slack) (12 endpoints)
@@ -274,6 +280,7 @@
 - [tradingAccounts](#tradingaccounts) (8 endpoints)
 - [training](#training) (29 endpoints)
 - [transaction](#transaction) (10 endpoints)
+- [transactionsExtended](#transactionsextended) (14 endpoints)
 - [trello](#trello) (16 endpoints)
 - [trustAccount](#trustaccount) (17 endpoints)
 - [unifiedData](#unifieddata) (6 endpoints)
@@ -288,6 +295,7 @@
 - [whatsapp](#whatsapp) (24 endpoints)
 - [whosOut](#whosout) (6 endpoints)
 - [workflow](#workflow) (13 endpoints)
+- [workflowExtended](#workflowextended) (17 endpoints)
 - [workflows](#workflows) (154 endpoints)
 - [zatca](#zatca) (12 endpoints)
 - [zoom](#zoom) (14 endpoints)
@@ -298,8 +306,8 @@
 
 | Metric | Count |
 |--------|-------|
-| Total Endpoints | 4523 |
-| Total Modules | 285 |
+| Total Endpoints | 4644 |
+| Total Modules | 293 |
 
 ---
 
@@ -314,6 +322,30 @@
 | `POST` | `/api/accounts` | createAccount | account.route.js |
 | `PATCH` | `/api/accounts/:id` | updateAccount | account.route.js |
 | `DELETE` | `/api/accounts/:id` | deleteAccount | account.route.js |
+
+## activitiesExtended
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `POST` | `/api/activities` | unknown | activitiesExtended.route.js |
+| `GET` | `/api/activities` | unknown | activitiesExtended.route.js |
+| `GET` | `/api/activities/summary` | unknown | activitiesExtended.route.js |
+| `GET` | `/api/activities/overview` | unknown | activitiesExtended.route.js |
+| `GET` | `/api/activities/stats` | unknown | activitiesExtended.route.js |
+| `GET` | `/api/activities/my` | unknown | activitiesExtended.route.js |
+| `GET` | `/api/activities/types` | unknown | activitiesExtended.route.js |
+| `POST` | `/api/activities/types` | unknown | activitiesExtended.route.js |
+| `GET` | `/api/activities/types/:id` | unknown | activitiesExtended.route.js |
+| `PUT` | `/api/activities/types/:id` | unknown | activitiesExtended.route.js |
+| `DELETE` | `/api/activities/types/:id` | unknown | activitiesExtended.route.js |
+| `GET` | `/api/activities/entity/:entityType/:entityId` | unknown | activitiesExtended.route.js |
+| `GET` | `/api/activities/:id` | unknown | activitiesExtended.route.js |
+| `PUT` | `/api/activities/:id` | unknown | activitiesExtended.route.js |
+| `DELETE` | `/api/activities/:id` | unknown | activitiesExtended.route.js |
+| `POST` | `/api/activities/:id/done` | unknown | activitiesExtended.route.js |
+| `POST` | `/api/activities/:id/cancel` | unknown | activitiesExtended.route.js |
+| `POST` | `/api/activities/:id/reschedule` | unknown | activitiesExtended.route.js |
+| `POST` | `/api/activities/:id/reassign` | unknown | activitiesExtended.route.js |
 
 ## activity
 
@@ -3018,6 +3050,67 @@
 | `POST` | `/api/hr/leave-policy-assignments/:id/cancel` | unknown | hrLeavePolicyAssignment.route.js |
 | `PATCH` | `/api/hr/leave-policy-assignments/:id/dates` | unknown | hrLeavePolicyAssignment.route.js |
 
+## hrPayrollExtended
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `POST` | `/api/hr/payroll-runs/:runId/employees/:employeeId/exclude` | unknown | hrPayrollExtended.route.js |
+| `POST` | `/api/hr/payroll-runs/:runId/employees/:employeeId/include` | unknown | hrPayrollExtended.route.js |
+| `POST` | `/api/hr/payroll-runs/:runId/employees/:employeeId/recalculate` | unknown | hrPayrollExtended.route.js |
+| `GET` | `/api/hr/payroll-runs/:runId/export` | unknown | hrPayrollExtended.route.js |
+| `POST` | `/api/hr/payroll-runs/:runId/approve` | unknown | hrPayrollExtended.route.js |
+| `POST` | `/api/hr/payroll-runs/:runId/reject` | unknown | hrPayrollExtended.route.js |
+| `POST` | `/api/hr/payroll-runs/:runId/process` | unknown | hrPayrollExtended.route.js |
+| `POST` | `/api/hr/payroll-runs/:runId/finalize` | unknown | hrPayrollExtended.route.js |
+| `GET` | `/api/hr/payroll-runs/:runId/summary` | unknown | hrPayrollExtended.route.js |
+| `GET` | `/api/hr/payroll-runs/:runId/employees/:employeeId/payslip` | unknown | hrPayrollExtended.route.js |
+| `POST` | `/api/hr/payroll-runs/:runId/employees/:employeeId/adjust` | unknown | hrPayrollExtended.route.js |
+| `GET` | `/api/hr/payroll-runs/history` | unknown | hrPayrollExtended.route.js |
+| `GET` | `/api/hr/payroll-runs/stats` | unknown | hrPayrollExtended.route.js |
+
+## hrRecruitmentExtended
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `POST` | `/api/hr/recruitment/jobs/:jobId/close` | unknown | hrRecruitmentExtended.route.js |
+| `POST` | `/api/hr/recruitment/jobs/:jobId/hold` | unknown | hrRecruitmentExtended.route.js |
+| `POST` | `/api/hr/recruitment/jobs/:jobId/duplicate` | unknown | hrRecruitmentExtended.route.js |
+| `GET` | `/api/hr/recruitment/jobs/:jobId/applicants` | unknown | hrRecruitmentExtended.route.js |
+| `POST` | `/api/hr/recruitment/applicants/:applicantId/status` | unknown | hrRecruitmentExtended.route.js |
+| `POST` | `/api/hr/recruitment/applicants/:applicantId/screen` | unknown | hrRecruitmentExtended.route.js |
+| `POST` | `/api/hr/recruitment/applicants/:applicantId/interviews/:interviewId/complete` | unknown | hrRecruitmentExtended.route.js |
+| `POST` | `/api/hr/recruitment/applicants/:applicantId/assessments/:assessmentId/complete` | unknown | hrRecruitmentExtended.route.js |
+| `POST` | `/api/hr/recruitment/applicants/:applicantId/offer` | unknown | hrRecruitmentExtended.route.js |
+| `PATCH` | `/api/hr/recruitment/applicants/:applicantId/offer` | unknown | hrRecruitmentExtended.route.js |
+| `POST` | `/api/hr/recruitment/applicants/:applicantId/offer/accept` | unknown | hrRecruitmentExtended.route.js |
+| `POST` | `/api/hr/recruitment/applicants/:applicantId/offer/reject` | unknown | hrRecruitmentExtended.route.js |
+| `POST` | `/api/hr/recruitment/applicants/:applicantId/flag` | unknown | hrRecruitmentExtended.route.js |
+| `POST` | `/api/hr/recruitment/applicants/:applicantId/unflag` | unknown | hrRecruitmentExtended.route.js |
+| `POST` | `/api/hr/recruitment/applicants/bulk-update` | unknown | hrRecruitmentExtended.route.js |
+| `POST` | `/api/hr/recruitment/parse-resume` | unknown | hrRecruitmentExtended.route.js |
+| `GET` | `/api/hr/recruitment/applicants/export` | unknown | hrRecruitmentExtended.route.js |
+
+## hrRetentionBonus
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/hr/retention-bonuses` | unknown | hrRetentionBonus.route.js |
+| `GET` | `/api/hr/retention-bonuses/:id` | unknown | hrRetentionBonus.route.js |
+| `POST` | `/api/hr/retention-bonuses` | unknown | hrRetentionBonus.route.js |
+| `PATCH` | `/api/hr/retention-bonuses/:id` | unknown | hrRetentionBonus.route.js |
+| `DELETE` | `/api/hr/retention-bonuses/:id` | unknown | hrRetentionBonus.route.js |
+| `POST` | `/api/hr/retention-bonuses/bulk-delete` | unknown | hrRetentionBonus.route.js |
+| `POST` | `/api/hr/retention-bonuses/:id/submit` | unknown | hrRetentionBonus.route.js |
+| `POST` | `/api/hr/retention-bonuses/:id/approve` | unknown | hrRetentionBonus.route.js |
+| `POST` | `/api/hr/retention-bonuses/:id/reject` | unknown | hrRetentionBonus.route.js |
+| `POST` | `/api/hr/retention-bonuses/:id/mark-paid` | unknown | hrRetentionBonus.route.js |
+| `POST` | `/api/hr/retention-bonuses/:id/clawback` | unknown | hrRetentionBonus.route.js |
+| `POST` | `/api/hr/retention-bonuses/:id/cancel` | unknown | hrRetentionBonus.route.js |
+| `GET` | `/api/hr/retention-bonuses/employee/:employeeId/history` | unknown | hrRetentionBonus.route.js |
+| `GET` | `/api/hr/retention-bonuses/:id/vesting-status` | unknown | hrRetentionBonus.route.js |
+| `GET` | `/api/hr/retention-bonuses/pending-approvals` | unknown | hrRetentionBonus.route.js |
+| `GET` | `/api/hr/retention-bonuses/department-summary` | unknown | hrRetentionBonus.route.js |
+
 ## hrSalaryComponents
 
 | Method | Path | Controller | File |
@@ -5140,6 +5233,41 @@
 | `GET` | `/api/hr/shifts/shift-assignments/employee/:employeeId` | unknown | shift.route.js |
 | `GET` | `/api/hr/shifts/shift-assignments/employee/:employeeId/current` | unknown | shift.route.js |
 
+## shiftAssignments
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `POST` | `/api/shift-assignments` | unknown | shiftAssignments.route.js |
+| `GET` | `/api/shift-assignments` | unknown | shiftAssignments.route.js |
+| `GET` | `/api/shift-assignments/coverage-report` | unknown | shiftAssignments.route.js |
+| `GET` | `/api/shift-assignments/stats` | unknown | shiftAssignments.route.js |
+| `GET` | `/api/shift-assignments/employee/:employeeId/active` | unknown | shiftAssignments.route.js |
+| `GET` | `/api/shift-assignments/employee/:employeeId/current` | unknown | shiftAssignments.route.js |
+| `POST` | `/api/shift-assignments/bulk` | unknown | shiftAssignments.route.js |
+| `DELETE` | `/api/shift-assignments/bulk` | unknown | shiftAssignments.route.js |
+| `POST` | `/api/shift-assignments/import` | unknown | shiftAssignments.route.js |
+| `GET` | `/api/shift-assignments/export` | unknown | shiftAssignments.route.js |
+| `GET` | `/api/shift-assignments/:assignmentId` | unknown | shiftAssignments.route.js |
+| `PUT` | `/api/shift-assignments/:assignmentId` | unknown | shiftAssignments.route.js |
+| `DELETE` | `/api/shift-assignments/:assignmentId` | unknown | shiftAssignments.route.js |
+| `POST` | `/api/shift-assignments/:assignmentId/activate` | unknown | shiftAssignments.route.js |
+| `POST` | `/api/shift-assignments/:assignmentId/deactivate` | unknown | shiftAssignments.route.js |
+
+## shiftRequests
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `POST` | `/api/shift-requests` | unknown | shiftRequests.route.js |
+| `GET` | `/api/shift-requests` | unknown | shiftRequests.route.js |
+| `POST` | `/api/shift-requests/check-conflicts` | unknown | shiftRequests.route.js |
+| `GET` | `/api/shift-requests/pending-approvals` | unknown | shiftRequests.route.js |
+| `GET` | `/api/shift-requests/stats` | unknown | shiftRequests.route.js |
+| `GET` | `/api/shift-requests/:requestId` | unknown | shiftRequests.route.js |
+| `PUT` | `/api/shift-requests/:requestId` | unknown | shiftRequests.route.js |
+| `DELETE` | `/api/shift-requests/:requestId` | unknown | shiftRequests.route.js |
+| `POST` | `/api/shift-requests/:requestId/approve` | unknown | shiftRequests.route.js |
+| `POST` | `/api/shift-requests/:requestId/reject` | unknown | shiftRequests.route.js |
+
 ## skillMap
 
 | Method | Path | Controller | File |
@@ -5812,6 +5940,25 @@
 | `POST` | `/api/transactions/:id/cancel` | cancelTransaction | transaction.route.js |
 | `DELETE` | `/api/transactions/bulk` | bulkDeleteTransactions | transaction.route.js |
 
+## transactionsExtended
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/transactions/categories` | unknown | transactionsExtended.route.js |
+| `POST` | `/api/transactions/categories` | unknown | transactionsExtended.route.js |
+| `PUT` | `/api/transactions/categories/:id` | unknown | transactionsExtended.route.js |
+| `DELETE` | `/api/transactions/categories/:id` | unknown | transactionsExtended.route.js |
+| `GET` | `/api/transactions/pending` | unknown | transactionsExtended.route.js |
+| `GET` | `/api/transactions/unreconciled` | unknown | transactionsExtended.route.js |
+| `GET` | `/api/transactions/stats` | unknown | transactionsExtended.route.js |
+| `GET` | `/api/transactions/search` | unknown | transactionsExtended.route.js |
+| `GET` | `/api/transactions/export` | unknown | transactionsExtended.route.js |
+| `POST` | `/api/transactions/:id/reconcile` | unknown | transactionsExtended.route.js |
+| `POST` | `/api/transactions/:id/unreconcile` | unknown | transactionsExtended.route.js |
+| `GET` | `/api/transactions/:id/attachments` | unknown | transactionsExtended.route.js |
+| `POST` | `/api/transactions/:id/attachments` | unknown | transactionsExtended.route.js |
+| `DELETE` | `/api/transactions/:id/attachments/:attachmentId` | unknown | transactionsExtended.route.js |
+
 ## trello
 
 | Method | Path | Controller | File |
@@ -6056,6 +6203,28 @@
 | `POST` | `/api/case-workflows/instances/:id/advance` | advanceStep | workflow.route.js |
 | `GET` | `/api/case-workflows/entity/:entityType/:entityId` | getActiveWorkflows | workflow.route.js |
 
+## workflowExtended
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/workflow/instances` | unknown | workflowExtended.route.js |
+| `GET` | `/api/workflow/instances/:id` | unknown | workflowExtended.route.js |
+| `POST` | `/api/workflow/instances/:id/advance` | unknown | workflowExtended.route.js |
+| `POST` | `/api/workflow/instances/:id/cancel` | unknown | workflowExtended.route.js |
+| `POST` | `/api/workflow/instances/:id/pause` | unknown | workflowExtended.route.js |
+| `POST` | `/api/workflow/instances/:id/resume` | unknown | workflowExtended.route.js |
+| `GET` | `/api/workflow/templates` | unknown | workflowExtended.route.js |
+| `GET` | `/api/workflow/templates/:id` | unknown | workflowExtended.route.js |
+| `GET` | `/api/workflow/entity/:entityType/:entityId` | unknown | workflowExtended.route.js |
+| `GET` | `/api/workflow/presets` | unknown | workflowExtended.route.js |
+| `GET` | `/api/workflow/presets/:presetType` | unknown | workflowExtended.route.js |
+| `GET` | `/api/workflow/stats` | unknown | workflowExtended.route.js |
+| `GET` | `/api/workflow/category/:category` | unknown | workflowExtended.route.js |
+| `POST` | `/api/workflow/cases/:caseId/initialize` | unknown | workflowExtended.route.js |
+| `POST` | `/api/workflow/cases/:caseId/move` | unknown | workflowExtended.route.js |
+| `GET` | `/api/workflow/cases/:caseId/progress` | unknown | workflowExtended.route.js |
+| `POST` | `/api/workflow/cases/:caseId/requirements/:requirementId/complete` | unknown | workflowExtended.route.js |
+
 ## workflows
 
 | Method | Path | Controller | File |
@@ -6255,7 +6424,7 @@
 
 ## Quick Reference by Method
 
-### GET (1937)
+### GET (1987)
 
 <details>
 <summary>Click to expand</summary>
@@ -6265,6 +6434,15 @@ GET    /api/accounts
 GET    /api/accounts/:id
 GET    /api/accounts/:id/balance
 GET    /api/accounts/types
+GET    /api/activities
+GET    /api/activities/:id
+GET    /api/activities/entity/:entityType/:entityId
+GET    /api/activities/my
+GET    /api/activities/overview
+GET    /api/activities/stats
+GET    /api/activities/summary
+GET    /api/activities/types
+GET    /api/activities/types/:id
 GET    /api/activityPlans
 GET    /api/activityPlans/:id
 GET    /api/activitys
@@ -7282,6 +7460,11 @@ GET    /api/hr/organizational-structure/export
 GET    /api/hr/organizational-structure/stats
 GET    /api/hr/organizational-structure/tree
 GET    /api/hr/payroll
+GET    /api/hr/payroll-runs/:runId/employees/:employeeId/payslip
+GET    /api/hr/payroll-runs/:runId/export
+GET    /api/hr/payroll-runs/:runId/summary
+GET    /api/hr/payroll-runs/history
+GET    /api/hr/payroll-runs/stats
 GET    /api/hr/payroll/:id
 GET    /api/hr/payroll/stats
 GET    /api/hr/performance-reviews
@@ -7294,14 +7477,22 @@ GET    /api/hr/performance-reviews/team/:managerId/summary
 GET    /api/hr/performance-reviews/templates
 GET    /api/hr/recruitment/applicants
 GET    /api/hr/recruitment/applicants/:id
+GET    /api/hr/recruitment/applicants/export
 GET    /api/hr/recruitment/applicants/stats
 GET    /api/hr/recruitment/jobs
 GET    /api/hr/recruitment/jobs/:id
 GET    /api/hr/recruitment/jobs/:id/pipeline
+GET    /api/hr/recruitment/jobs/:jobId/applicants
 GET    /api/hr/recruitment/jobs/nearing-deadline
 GET    /api/hr/recruitment/jobs/stats
 GET    /api/hr/recruitment/stats
 GET    /api/hr/recruitment/talent-pool
+GET    /api/hr/retention-bonuses
+GET    /api/hr/retention-bonuses/:id
+GET    /api/hr/retention-bonuses/:id/vesting-status
+GET    /api/hr/retention-bonuses/department-summary
+GET    /api/hr/retention-bonuses/employee/:employeeId/history
+GET    /api/hr/retention-bonuses/pending-approvals
 GET    /api/hr/salary-components
 GET    /api/hr/salary-components/:id
 GET    /api/hr/salary-components/deductions
@@ -7911,6 +8102,17 @@ GET    /api/setup/next-task
 GET    /api/setup/progress-percentage
 GET    /api/setup/sections
 GET    /api/setup/status
+GET    /api/shift-assignments
+GET    /api/shift-assignments/:assignmentId
+GET    /api/shift-assignments/coverage-report
+GET    /api/shift-assignments/employee/:employeeId/active
+GET    /api/shift-assignments/employee/:employeeId/current
+GET    /api/shift-assignments/export
+GET    /api/shift-assignments/stats
+GET    /api/shift-requests
+GET    /api/shift-requests/:requestId
+GET    /api/shift-requests/pending-approvals
+GET    /api/shift-requests/stats
 GET    /api/slack/auth-url
 GET    /api/slack/callback
 GET    /api/slack/channels
@@ -8060,9 +8262,16 @@ GET    /api/timelines/:entityType/:entityId
 GET    /api/timelines/:entityType/:entityId/summary
 GET    /api/transactions
 GET    /api/transactions/:id
+GET    /api/transactions/:id/attachments
 GET    /api/transactions/balance
 GET    /api/transactions/by-category
+GET    /api/transactions/categories
+GET    /api/transactions/export
+GET    /api/transactions/pending
+GET    /api/transactions/search
+GET    /api/transactions/stats
 GET    /api/transactions/summary
+GET    /api/transactions/unreconciled
 GET    /api/trello/auth-url
 GET    /api/trello/boards
 GET    /api/trello/boards/:boardId
@@ -8142,6 +8351,16 @@ GET    /api/whatsapp/broadcasts/:id/analytics
 GET    /api/whatsapp/broadcasts/stats
 GET    /api/whatsapp/conversations/:id/messages
 GET    /api/whatsapp/stats
+GET    /api/workflow/cases/:caseId/progress
+GET    /api/workflow/category/:category
+GET    /api/workflow/entity/:entityType/:entityId
+GET    /api/workflow/instances
+GET    /api/workflow/instances/:id
+GET    /api/workflow/presets
+GET    /api/workflow/presets/:presetType
+GET    /api/workflow/stats
+GET    /api/workflow/templates
+GET    /api/workflow/templates/:id
 GET    /api/workflows/activities/chain/:chainId/status
 GET    /api/workflows/activities/completion-rate
 GET    /api/workflows/activities/due-reminders
@@ -8202,13 +8421,19 @@ GET    /api/zoom/status
 
 </details>
 
-### POST (1815)
+### POST (1871)
 
 <details>
 <summary>Click to expand</summary>
 
 ```
 POST   /api/accounts
+POST   /api/activities
+POST   /api/activities/:id/cancel
+POST   /api/activities/:id/done
+POST   /api/activities/:id/reassign
+POST   /api/activities/:id/reschedule
+POST   /api/activities/types
 POST   /api/activityPlans
 POST   /api/activityPlans/:id/duplicate
 POST   /api/activitys
@@ -9104,6 +9329,14 @@ POST   /api/hr/organizational-structure/:id/leadership
 POST   /api/hr/organizational-structure/:id/move
 POST   /api/hr/organizational-structure/bulk-delete
 POST   /api/hr/payroll
+POST   /api/hr/payroll-runs/:runId/approve
+POST   /api/hr/payroll-runs/:runId/employees/:employeeId/adjust
+POST   /api/hr/payroll-runs/:runId/employees/:employeeId/exclude
+POST   /api/hr/payroll-runs/:runId/employees/:employeeId/include
+POST   /api/hr/payroll-runs/:runId/employees/:employeeId/recalculate
+POST   /api/hr/payroll-runs/:runId/finalize
+POST   /api/hr/payroll-runs/:runId/process
+POST   /api/hr/payroll-runs/:runId/reject
 POST   /api/hr/payroll/:id/approve
 POST   /api/hr/payroll/:id/pay
 POST   /api/hr/payroll/approve
@@ -9128,6 +9361,15 @@ POST   /api/hr/performance-reviews/calibration-sessions
 POST   /api/hr/performance-reviews/calibration-sessions/:id/complete
 POST   /api/hr/performance-reviews/templates
 POST   /api/hr/recruitment/applicants
+POST   /api/hr/recruitment/applicants/:applicantId/assessments/:assessmentId/complete
+POST   /api/hr/recruitment/applicants/:applicantId/flag
+POST   /api/hr/recruitment/applicants/:applicantId/interviews/:interviewId/complete
+POST   /api/hr/recruitment/applicants/:applicantId/offer
+POST   /api/hr/recruitment/applicants/:applicantId/offer/accept
+POST   /api/hr/recruitment/applicants/:applicantId/offer/reject
+POST   /api/hr/recruitment/applicants/:applicantId/screen
+POST   /api/hr/recruitment/applicants/:applicantId/status
+POST   /api/hr/recruitment/applicants/:applicantId/unflag
 POST   /api/hr/recruitment/applicants/:id/assessments
 POST   /api/hr/recruitment/applicants/:id/background-check
 POST   /api/hr/recruitment/applicants/:id/communications
@@ -9142,10 +9384,23 @@ POST   /api/hr/recruitment/applicants/:id/stage
 POST   /api/hr/recruitment/applicants/bulk-delete
 POST   /api/hr/recruitment/applicants/bulk-reject
 POST   /api/hr/recruitment/applicants/bulk-stage-update
+POST   /api/hr/recruitment/applicants/bulk-update
 POST   /api/hr/recruitment/jobs
 POST   /api/hr/recruitment/jobs/:id/clone
 POST   /api/hr/recruitment/jobs/:id/publish
 POST   /api/hr/recruitment/jobs/:id/status
+POST   /api/hr/recruitment/jobs/:jobId/close
+POST   /api/hr/recruitment/jobs/:jobId/duplicate
+POST   /api/hr/recruitment/jobs/:jobId/hold
+POST   /api/hr/recruitment/parse-resume
+POST   /api/hr/retention-bonuses
+POST   /api/hr/retention-bonuses/:id/approve
+POST   /api/hr/retention-bonuses/:id/cancel
+POST   /api/hr/retention-bonuses/:id/clawback
+POST   /api/hr/retention-bonuses/:id/mark-paid
+POST   /api/hr/retention-bonuses/:id/reject
+POST   /api/hr/retention-bonuses/:id/submit
+POST   /api/hr/retention-bonuses/bulk-delete
 POST   /api/hr/salary-components
 POST   /api/hr/salary-components/bulk
 POST   /api/hr/salary-components/initialize-defaults
@@ -9690,6 +9945,15 @@ POST   /api/setup/admin/tasks
 POST   /api/setup/reset
 POST   /api/setup/tasks/:taskId/complete
 POST   /api/setup/tasks/:taskId/skip
+POST   /api/shift-assignments
+POST   /api/shift-assignments/:assignmentId/activate
+POST   /api/shift-assignments/:assignmentId/deactivate
+POST   /api/shift-assignments/bulk
+POST   /api/shift-assignments/import
+POST   /api/shift-requests
+POST   /api/shift-requests/:requestId/approve
+POST   /api/shift-requests/:requestId/reject
+POST   /api/shift-requests/check-conflicts
 POST   /api/slack/channels
 POST   /api/slack/disconnect
 POST   /api/slack/message
@@ -9841,7 +10105,11 @@ POST   /api/time-tracking/timer/resume
 POST   /api/time-tracking/timer/start
 POST   /api/time-tracking/timer/stop
 POST   /api/transactions
+POST   /api/transactions/:id/attachments
 POST   /api/transactions/:id/cancel
+POST   /api/transactions/:id/reconcile
+POST   /api/transactions/:id/unreconcile
+POST   /api/transactions/categories
 POST   /api/trello/cards
 POST   /api/trello/cards/:cardId/comments
 POST   /api/trello/cards/:cardId/move
@@ -9905,6 +10173,13 @@ POST   /api/whatsapp/send/media
 POST   /api/whatsapp/send/template
 POST   /api/whatsapp/send/text
 POST   /api/whatsapp/templates/:id/submit
+POST   /api/workflow/cases/:caseId/initialize
+POST   /api/workflow/cases/:caseId/move
+POST   /api/workflow/cases/:caseId/requirements/:requirementId/complete
+POST   /api/workflow/instances/:id/advance
+POST   /api/workflow/instances/:id/cancel
+POST   /api/workflow/instances/:id/pause
+POST   /api/workflow/instances/:id/resume
 POST   /api/workflows/activities/:id/cancel
 POST   /api/workflows/activities/:id/complete
 POST   /api/workflows/activities/:id/end-recurrence
@@ -10027,12 +10302,14 @@ POST   /api/zoom/webhook
 
 </details>
 
-### PUT (243)
+### PUT (248)
 
 <details>
 <summary>Click to expand</summary>
 
 ```
+PUT    /api/activities/:id
+PUT    /api/activities/types/:id
 PUT    /api/activityPlans/:id
 PUT    /api/admin/users/:id/claims
 PUT    /api/analytics-reports/:id
@@ -10235,6 +10512,8 @@ PUT    /api/settings/email/templates/:id
 PUT    /api/settings/finance
 PUT    /api/settings/payment-modes/:id
 PUT    /api/settings/taxes/:id
+PUT    /api/shift-assignments/:assignmentId
+PUT    /api/shift-requests/:requestId
 PUT    /api/slack/settings
 PUT    /api/slas/:id
 PUT    /api/sloMonitorings/:id
@@ -10260,6 +10539,7 @@ PUT    /api/territorys/:id
 PUT    /api/territorys/:id/move
 PUT    /api/time-tracking/entries/:id
 PUT    /api/transactions/:id
+PUT    /api/transactions/categories/:id
 PUT    /api/trello/cards/:cardId
 PUT    /api/trello/settings
 PUT    /api/user-settings/global-view-mode
@@ -10280,7 +10560,7 @@ PUT    /api/zoom/settings
 
 </details>
 
-### PATCH (217)
+### PATCH (219)
 
 <details>
 <summary>Click to expand</summary>
@@ -10391,6 +10671,7 @@ PATCH  /api/hr/organizational-structure/:id/leadership/:positionId
 PATCH  /api/hr/performance-reviews/:id
 PATCH  /api/hr/performance-reviews/:id/development-plan/:itemId
 PATCH  /api/hr/performance-reviews/templates/:id
+PATCH  /api/hr/recruitment/applicants/:applicantId/offer
 PATCH  /api/hr/recruitment/applicants/:id
 PATCH  /api/hr/recruitment/applicants/:id/assessments/:assessmentId
 PATCH  /api/hr/recruitment/applicants/:id/background-check
@@ -10399,6 +10680,7 @@ PATCH  /api/hr/recruitment/applicants/:id/offers/:offerId
 PATCH  /api/hr/recruitment/applicants/:id/references/:referenceId
 PATCH  /api/hr/recruitment/applicants/:id/talent-pool
 PATCH  /api/hr/recruitment/jobs/:id
+PATCH  /api/hr/retention-bonuses/:id
 PATCH  /api/hr/salary-components/:id/toggle-status
 PATCH  /api/hr/salary-components/reorder
 PATCH  /api/hr/self-service/profile
@@ -10507,13 +10789,15 @@ PATCH  /api/webhooks/:id
 
 </details>
 
-### DELETE (311)
+### DELETE (319)
 
 <details>
 <summary>Click to expand</summary>
 
 ```
 DELETE /api/accounts/:id
+DELETE /api/activities/:id
+DELETE /api/activities/types/:id
 DELETE /api/activityPlans/:id
 DELETE /api/activitys/types/:id
 DELETE /api/admin/tools/users/:id/data
@@ -10677,6 +10961,7 @@ DELETE /api/hr/payroll/:id
 DELETE /api/hr/performance-reviews/:id
 DELETE /api/hr/recruitment/applicants/:id
 DELETE /api/hr/recruitment/jobs/:id
+DELETE /api/hr/retention-bonuses/:id
 DELETE /api/hr/salary-components/:id
 DELETE /api/hr/shift-types/:id
 DELETE /api/hr/shifts/shift-assignments/:id
@@ -10780,6 +11065,9 @@ DELETE /api/settings/payment-modes/:id
 DELETE /api/settings/taxes/:id
 DELETE /api/setup/admin/sections/:sectionId
 DELETE /api/setup/admin/tasks/:taskId
+DELETE /api/shift-assignments/:assignmentId
+DELETE /api/shift-assignments/bulk
+DELETE /api/shift-requests/:requestId
 DELETE /api/slas/:id
 DELETE /api/sloMonitorings/:id
 DELETE /api/staff/:id
@@ -10810,7 +11098,9 @@ DELETE /api/threadMessages/:id
 DELETE /api/time-tracking/entries/:id
 DELETE /api/time-tracking/entries/bulk
 DELETE /api/transactions/:id
+DELETE /api/transactions/:id/attachments/:attachmentId
 DELETE /api/transactions/bulk
+DELETE /api/transactions/categories/:id
 DELETE /api/trust-accounts/:id
 DELETE /api/users/:_id
 DELETE /api/users/push-subscription

@@ -194,42 +194,6 @@
         "source": "services/accountingService.ts"
       },
       {
-        "method": "POST",
-        "endpoint": "/activities",
-        "responseType": null,
-        "source": "services/activityService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/activities?${params.toString()}",
-        "responseType": null,
-        "source": "services/activityService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/activities/${id}",
-        "responseType": null,
-        "source": "services/activityService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/activities/summary",
-        "responseType": null,
-        "source": "services/activityService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/activities/overview",
-        "responseType": null,
-        "source": "services/activityService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/activities/entity/${entityType}/${entityId}?limit=${limit}",
-        "responseType": null,
-        "source": "services/activityService.ts"
-      },
-      {
         "method": "GET",
         "endpoint": "/api-keys",
         "responseType": null,
@@ -1694,18 +1658,6 @@
         "source": "services/financeService.ts"
       },
       {
-        "method": "PATCH",
-        "endpoint": "/activities/${id}",
-        "responseType": null,
-        "source": "services/financeService.ts"
-      },
-      {
-        "method": "DELETE",
-        "endpoint": "/activities/${id}",
-        "responseType": null,
-        "source": "services/financeService.ts"
-      },
-      {
         "method": "GET",
         "endpoint": "/reports/accounts-aging",
         "responseType": null,
@@ -2228,66 +2180,6 @@
         "source": "services/notificationService.ts"
       },
       {
-        "method": "GET",
-        "endpoint": "/activities/types",
-        "responseType": null,
-        "source": "services/odooActivityService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/activities/types",
-        "responseType": null,
-        "source": "services/odooActivityService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/activities/types/${id}",
-        "responseType": null,
-        "source": "services/odooActivityService.ts"
-      },
-      {
-        "method": "DELETE",
-        "endpoint": "/activities/types/${id}",
-        "responseType": null,
-        "source": "services/odooActivityService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/activities/my?${params.toString()}",
-        "responseType": null,
-        "source": "services/odooActivityService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/activities/stats",
-        "responseType": null,
-        "source": "services/odooActivityService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/activities/${id}/done",
-        "responseType": null,
-        "source": "services/odooActivityService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/activities/${id}/cancel",
-        "responseType": null,
-        "source": "services/odooActivityService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/activities/${id}/reschedule",
-        "responseType": null,
-        "source": "services/odooActivityService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/activities/${id}/reassign",
-        "responseType": null,
-        "source": "services/odooActivityService.ts"
-      },
-      {
         "method": "POST",
         "endpoint": "/employees/${employeeId}/offboarding/cancel",
         "responseType": null,
@@ -2416,30 +2308,6 @@
       {
         "method": "POST",
         "endpoint": "/payroll/wps/submit",
-        "responseType": null,
-        "source": "services/payrollService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/payroll-runs/${runId}/employees/${employeeId}/exclude",
-        "responseType": null,
-        "source": "services/payrollService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/payroll-runs/${runId}/employees/${employeeId}/include",
-        "responseType": null,
-        "source": "services/payrollService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/payroll-runs/${runId}/employees/${employeeId}/recalculate",
-        "responseType": null,
-        "source": "services/payrollService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/payroll-runs/${runId}/export",
         "responseType": null,
         "source": "services/payrollService.ts"
       },
@@ -2691,108 +2559,6 @@
       },
       {
         "method": "POST",
-        "endpoint": "/hr/recruitment/jobs/${jobId}/close",
-        "responseType": "JobPosting",
-        "source": "services/recruitmentService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/recruitment/jobs/${jobId}/hold",
-        "responseType": "JobPosting",
-        "source": "services/recruitmentService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/recruitment/jobs/${jobId}/duplicate",
-        "responseType": "JobPosting",
-        "source": "services/recruitmentService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/recruitment/jobs/${jobId}/applicants",
-        "responseType": "{ data: Applicant[]; total: number; page: number; limit: number }",
-        "source": "services/recruitmentService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/recruitment/applicants/${applicantId}/status",
-        "responseType": "Applicant",
-        "source": "services/recruitmentService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/recruitment/applicants/${applicantId}/screen",
-        "responseType": "Applicant",
-        "source": "services/recruitmentService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/recruitment/applicants/${applicantId}/interviews/${interviewId}/complete",
-        "responseType": "Applicant",
-        "source": "services/recruitmentService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/recruitment/applicants/${applicantId}/assessments/${assessmentId}/complete",
-        "responseType": "Applicant",
-        "source": "services/recruitmentService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/recruitment/applicants/${applicantId}/offer",
-        "responseType": "Applicant",
-        "source": "services/recruitmentService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/hr/recruitment/applicants/${applicantId}/offer",
-        "responseType": "Applicant",
-        "source": "services/recruitmentService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/recruitment/applicants/${applicantId}/offer/accept",
-        "responseType": "Applicant",
-        "source": "services/recruitmentService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/recruitment/applicants/${applicantId}/offer/reject",
-        "responseType": "Applicant",
-        "source": "services/recruitmentService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/recruitment/applicants/${applicantId}/flag",
-        "responseType": "Applicant",
-        "source": "services/recruitmentService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/recruitment/applicants/${applicantId}/unflag",
-        "responseType": "Applicant",
-        "source": "services/recruitmentService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/recruitment/applicants/bulk-update",
-        "responseType": "{ updated: number }",
-        "source": "services/recruitmentService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/recruitment/parse-resume",
-        "responseType": "{\n      name?: string\n      email?: string\n      phone?: string\n      education?: Education[]\n      workHistory?: WorkHistory[]\n      skills?: string[]\n      languages?: string[]\n    }",
-        "source": "services/recruitmentService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/recruitment/applicants/export",
-        "responseType": null,
-        "source": "services/recruitmentService.ts"
-      },
-      {
-        "method": "POST",
         "endpoint": "/reminders/${id}/reopen",
         "responseType": null,
         "source": "services/remindersService.ts"
@@ -2901,109 +2667,7 @@
       },
       {
         "method": "GET",
-        "endpoint": "/hr/retention-bonuses/${id}",
-        "responseType": null,
-        "source": "services/retentionBonusService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/retention-bonuses",
-        "responseType": null,
-        "source": "services/retentionBonusService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/hr/retention-bonuses/${id}",
-        "responseType": null,
-        "source": "services/retentionBonusService.ts"
-      },
-      {
-        "method": "DELETE",
-        "endpoint": "/hr/retention-bonuses/${id}",
-        "responseType": null,
-        "source": "services/retentionBonusService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/retention-bonuses/bulk-delete",
-        "responseType": null,
-        "source": "services/retentionBonusService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/retention-bonuses/${id}/approve",
-        "responseType": null,
-        "source": "services/retentionBonusService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/retention-bonuses/${id}/reject",
-        "responseType": null,
-        "source": "services/retentionBonusService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/retention-bonuses/${id}/mark-paid",
-        "responseType": null,
-        "source": "services/retentionBonusService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/retention-bonuses/${id}/clawback",
-        "responseType": null,
-        "source": "services/retentionBonusService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/retention-bonuses/employee/${employeeId}/history",
-        "responseType": null,
-        "source": "services/retentionBonusService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/retention-bonuses/${id}/vesting-status",
-        "responseType": null,
-        "source": "services/retentionBonusService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/retention-bonuses/pending-approvals",
-        "responseType": null,
-        "source": "services/retentionBonusService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/retention-bonuses/${id}/cancel",
-        "responseType": null,
-        "source": "services/retentionBonusService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/retention-bonuses/${id}/submit",
-        "responseType": null,
-        "source": "services/retentionBonusService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/retention-bonuses/:param",
-        "source": "services/retentionBonusService.ts",
-        "dynamic": true
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/retention-bonuses/department-summary?departmentId=:param",
-        "source": "services/retentionBonusService.ts",
-        "dynamic": true
-      },
-      {
-        "method": "GET",
         "endpoint": "/hr/retention-bonuses/export?:param",
-        "source": "services/retentionBonusService.ts",
-        "dynamic": true
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/retention-bonuses/:param/cancel",
         "source": "services/retentionBonusService.ts",
         "dynamic": true
       },
@@ -3120,174 +2784,6 @@
         "endpoint": "/setup-orchestration/reset",
         "responseType": null,
         "source": "services/setupOrchestrationService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/shift-assignments?${params.toString()}",
-        "responseType": null,
-        "source": "services/shiftAssignmentService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/shift-assignments/${assignmentId}",
-        "responseType": null,
-        "source": "services/shiftAssignmentService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/shift-assignments/employee/${employeeId}/current?${params.toString()}",
-        "responseType": null,
-        "source": "services/shiftAssignmentService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/shift-assignments/employee/${employeeId}/active",
-        "responseType": null,
-        "source": "services/shiftAssignmentService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/shift-assignments",
-        "responseType": null,
-        "source": "services/shiftAssignmentService.ts"
-      },
-      {
-        "method": "PUT",
-        "endpoint": "/shift-assignments/${assignmentId}",
-        "responseType": null,
-        "source": "services/shiftAssignmentService.ts"
-      },
-      {
-        "method": "DELETE",
-        "endpoint": "/shift-assignments/${assignmentId}",
-        "responseType": null,
-        "source": "services/shiftAssignmentService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/shift-assignments/bulk",
-        "responseType": null,
-        "source": "services/shiftAssignmentService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/shift-assignments/${assignmentId}/activate",
-        "responseType": null,
-        "source": "services/shiftAssignmentService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/shift-assignments/${assignmentId}/deactivate",
-        "responseType": null,
-        "source": "services/shiftAssignmentService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/shift-assignments/stats?${params.toString()}",
-        "responseType": null,
-        "source": "services/shiftAssignmentService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/shift-requests?${params.toString()}",
-        "responseType": null,
-        "source": "services/shiftAssignmentService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/shift-requests/${requestId}",
-        "responseType": null,
-        "source": "services/shiftAssignmentService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/shift-requests",
-        "responseType": null,
-        "source": "services/shiftAssignmentService.ts"
-      },
-      {
-        "method": "PUT",
-        "endpoint": "/shift-requests/${requestId}",
-        "responseType": null,
-        "source": "services/shiftAssignmentService.ts"
-      },
-      {
-        "method": "DELETE",
-        "endpoint": "/shift-requests/${requestId}",
-        "responseType": null,
-        "source": "services/shiftAssignmentService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/shift-requests/${requestId}/approve",
-        "responseType": null,
-        "source": "services/shiftAssignmentService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/shift-requests/${requestId}/reject",
-        "responseType": null,
-        "source": "services/shiftAssignmentService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/shift-requests/pending-approvals",
-        "responseType": null,
-        "source": "services/shiftAssignmentService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/shift-requests/stats?${params.toString()}",
-        "responseType": null,
-        "source": "services/shiftAssignmentService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/shift-requests/check-conflicts",
-        "responseType": null,
-        "source": "services/shiftAssignmentService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/shift-assignments/coverage-report?${params.toString()}",
-        "responseType": null,
-        "source": "services/shiftAssignmentService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/shift-assignments/import",
-        "responseType": null,
-        "source": "services/shiftAssignmentService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/shift-assignments/export?${params.toString()}",
-        "responseType": null,
-        "source": "services/shiftAssignmentService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/shift-assignments/:param",
-        "source": "services/shiftAssignmentService.ts",
-        "dynamic": true
-      },
-      {
-        "method": "POST",
-        "endpoint": "/shift-requests/:param",
-        "source": "services/shiftAssignmentService.ts",
-        "dynamic": true
-      },
-      {
-        "method": "POST",
-        "endpoint": "/shift-assignments/coverage-report?:param",
-        "source": "services/shiftAssignmentService.ts",
-        "dynamic": true
-      },
-      {
-        "method": "POST",
-        "endpoint": "/shift-assignments/export?:param",
-        "source": "services/shiftAssignmentService.ts",
-        "dynamic": true
       },
       {
         "method": "GET",
@@ -3788,66 +3284,6 @@
         "source": "services/tasksService.ts"
       },
       {
-        "method": "POST",
-        "endpoint": "/transactions/${id}/reconcile",
-        "responseType": null,
-        "source": "services/transactionService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/transactions/${id}/unreconcile",
-        "responseType": null,
-        "source": "services/transactionService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/transactions/${id}/attachments",
-        "responseType": null,
-        "source": "services/transactionService.ts"
-      },
-      {
-        "method": "DELETE",
-        "endpoint": "/transactions/${id}/attachments/${attachmentId}",
-        "responseType": null,
-        "source": "services/transactionService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/transactions/categories",
-        "responseType": null,
-        "source": "services/transactionService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/transactions/export",
-        "responseType": null,
-        "source": "services/transactionService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/transactions/pending",
-        "responseType": null,
-        "source": "services/transactionService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/transactions/unreconciled",
-        "responseType": null,
-        "source": "services/transactionService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/transactions/search",
-        "responseType": null,
-        "source": "services/transactionService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/transactions/stats",
-        "responseType": null,
-        "source": "services/transactionService.ts"
-      },
-      {
         "method": "GET",
         "endpoint": "/hr/vehicles?${params.toString()}",
         "responseType": null,
@@ -3978,84 +3414,6 @@
         "endpoint": "/hr/vehicles/export?:param",
         "source": "services/vehicleService.ts",
         "dynamic": true
-      },
-      {
-        "method": "GET",
-        "endpoint": "/workflow/templates",
-        "responseType": null,
-        "source": "services/workflowService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/workflow/templates",
-        "responseType": null,
-        "source": "services/workflowService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/workflow/templates/${id}",
-        "responseType": null,
-        "source": "services/workflowService.ts"
-      },
-      {
-        "method": "PUT",
-        "endpoint": "/workflow/templates/${id}",
-        "responseType": null,
-        "source": "services/workflowService.ts"
-      },
-      {
-        "method": "DELETE",
-        "endpoint": "/workflow/templates/${id}",
-        "responseType": null,
-        "source": "services/workflowService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/workflow/instances",
-        "responseType": null,
-        "source": "services/workflowService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/workflow/instances",
-        "responseType": null,
-        "source": "services/workflowService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/workflow/instances/${id}",
-        "responseType": null,
-        "source": "services/workflowService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/workflow/instances/${id}/pause",
-        "responseType": null,
-        "source": "services/workflowService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/workflow/instances/${id}/resume",
-        "responseType": null,
-        "source": "services/workflowService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/workflow/instances/${id}/cancel",
-        "responseType": null,
-        "source": "services/workflowService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/workflow/instances/${id}/advance",
-        "responseType": null,
-        "source": "services/workflowService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/workflow/entity/${entityType}/${entityId}",
-        "responseType": null,
-        "source": "services/workflowService.ts"
       },
       {
         "method": "GET",
@@ -11884,6 +11242,78 @@
         "file": "hrExtended.route.js",
         "fullPath": "/api/hr/extended/setup-wizard/skip",
         "module": "hrExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:runId/approve",
+        "controller": "unknown",
+        "file": "hrPayrollExtended.route.js",
+        "fullPath": "/api/hr/payroll-runs/:runId/approve",
+        "module": "hrPayrollExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:runId/reject",
+        "controller": "unknown",
+        "file": "hrPayrollExtended.route.js",
+        "fullPath": "/api/hr/payroll-runs/:runId/reject",
+        "module": "hrPayrollExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:runId/process",
+        "controller": "unknown",
+        "file": "hrPayrollExtended.route.js",
+        "fullPath": "/api/hr/payroll-runs/:runId/process",
+        "module": "hrPayrollExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:runId/finalize",
+        "controller": "unknown",
+        "file": "hrPayrollExtended.route.js",
+        "fullPath": "/api/hr/payroll-runs/:runId/finalize",
+        "module": "hrPayrollExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/:runId/summary",
+        "controller": "unknown",
+        "file": "hrPayrollExtended.route.js",
+        "fullPath": "/api/hr/payroll-runs/:runId/summary",
+        "module": "hrPayrollExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/:runId/employees/:employeeId/payslip",
+        "controller": "unknown",
+        "file": "hrPayrollExtended.route.js",
+        "fullPath": "/api/hr/payroll-runs/:runId/employees/:employeeId/payslip",
+        "module": "hrPayrollExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:runId/employees/:employeeId/adjust",
+        "controller": "unknown",
+        "file": "hrPayrollExtended.route.js",
+        "fullPath": "/api/hr/payroll-runs/:runId/employees/:employeeId/adjust",
+        "module": "hrPayrollExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/history",
+        "controller": "unknown",
+        "file": "hrPayrollExtended.route.js",
+        "fullPath": "/api/hr/payroll-runs/history",
+        "module": "hrPayrollExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/stats",
+        "controller": "unknown",
+        "file": "hrPayrollExtended.route.js",
+        "fullPath": "/api/hr/payroll-runs/stats",
+        "module": "hrPayrollExtended"
       },
       {
         "method": "GET",
@@ -20214,6 +19644,22 @@
         "module": "timelines"
       },
       {
+        "method": "PUT",
+        "path": "/categories/:id",
+        "controller": "unknown",
+        "file": "transactionsExtended.route.js",
+        "fullPath": "/api/transactions/categories/:id",
+        "module": "transactionsExtended"
+      },
+      {
+        "method": "DELETE",
+        "path": "/categories/:id",
+        "controller": "unknown",
+        "file": "transactionsExtended.route.js",
+        "fullPath": "/api/transactions/categories/:id",
+        "module": "transactionsExtended"
+      },
+      {
         "method": "GET",
         "path": "/auth-url",
         "controller": "getAuthUrl",
@@ -21076,6 +20522,70 @@
         "file": "workflow.route.js",
         "fullPath": "/api/case-workflows/entity/:entityType/:entityId",
         "module": "workflow"
+      },
+      {
+        "method": "GET",
+        "path": "/presets",
+        "controller": "unknown",
+        "file": "workflowExtended.route.js",
+        "fullPath": "/api/workflow/presets",
+        "module": "workflowExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/presets/:presetType",
+        "controller": "unknown",
+        "file": "workflowExtended.route.js",
+        "fullPath": "/api/workflow/presets/:presetType",
+        "module": "workflowExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/stats",
+        "controller": "unknown",
+        "file": "workflowExtended.route.js",
+        "fullPath": "/api/workflow/stats",
+        "module": "workflowExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/category/:category",
+        "controller": "unknown",
+        "file": "workflowExtended.route.js",
+        "fullPath": "/api/workflow/category/:category",
+        "module": "workflowExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/cases/:caseId/initialize",
+        "controller": "unknown",
+        "file": "workflowExtended.route.js",
+        "fullPath": "/api/workflow/cases/:caseId/initialize",
+        "module": "workflowExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/cases/:caseId/move",
+        "controller": "unknown",
+        "file": "workflowExtended.route.js",
+        "fullPath": "/api/workflow/cases/:caseId/move",
+        "module": "workflowExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/cases/:caseId/progress",
+        "controller": "unknown",
+        "file": "workflowExtended.route.js",
+        "fullPath": "/api/workflow/cases/:caseId/progress",
+        "module": "workflowExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/cases/:caseId/requirements/:requirementId/complete",
+        "controller": "unknown",
+        "file": "workflowExtended.route.js",
+        "fullPath": "/api/workflow/cases/:caseId/requirements/:requirementId/complete",
+        "module": "workflowExtended"
       },
       {
         "method": "POST",
@@ -22795,6 +22305,11 @@
         "backendMethod": "GET"
       },
       {
+        "path": "/activities/${id}",
+        "frontendMethod": "PATCH",
+        "backendMethod": "GET"
+      },
+      {
         "path": "/followups/:param",
         "frontendMethod": "POST",
         "backendMethod": "GET"
@@ -22913,6 +22428,21 @@
         "path": "/auth/sso/unlink/:param",
         "frontendMethod": "GET",
         "backendMethod": "DELETE"
+      },
+      {
+        "path": "/activities/types/${id}",
+        "frontendMethod": "PATCH",
+        "backendMethod": "GET"
+      },
+      {
+        "path": "/activities/${id}/reschedule",
+        "frontendMethod": "PATCH",
+        "backendMethod": "POST"
+      },
+      {
+        "path": "/activities/${id}/reassign",
+        "frontendMethod": "PATCH",
+        "backendMethod": "POST"
       },
       {
         "path": "/hr/offboarding/:param",
@@ -23065,6 +22595,16 @@
         "backendMethod": "GET"
       },
       {
+        "path": "/hr/retention-bonuses/:param",
+        "frontendMethod": "POST",
+        "backendMethod": "GET"
+      },
+      {
+        "path": "/hr/retention-bonuses/:param/cancel",
+        "frontendMethod": "GET",
+        "backendMethod": "POST"
+      },
+      {
         "path": "/saudi-banking/lean/entities/:param",
         "frontendMethod": "POST",
         "backendMethod": "DELETE"
@@ -23078,6 +22618,26 @@
         "path": "/auth/sessions/:param",
         "frontendMethod": "GET",
         "backendMethod": "DELETE"
+      },
+      {
+        "path": "/shift-assignments/:param",
+        "frontendMethod": "POST",
+        "backendMethod": "GET"
+      },
+      {
+        "path": "/shift-requests/:param",
+        "frontendMethod": "POST",
+        "backendMethod": "GET"
+      },
+      {
+        "path": "/shift-assignments/coverage-report?:param",
+        "frontendMethod": "POST",
+        "backendMethod": "GET"
+      },
+      {
+        "path": "/shift-assignments/export?:param",
+        "frontendMethod": "POST",
+        "backendMethod": "GET"
       },
       {
         "path": "/hr/shift-types/${shiftTypeId}",
@@ -23158,6 +22718,26 @@
         "path": "/permissions/ui/overrides",
         "frontendMethod": "GET",
         "backendMethod": "POST"
+      },
+      {
+        "path": "/workflow/templates",
+        "frontendMethod": "POST",
+        "backendMethod": "GET"
+      },
+      {
+        "path": "/workflow/templates/${id}",
+        "frontendMethod": "PUT",
+        "backendMethod": "GET"
+      },
+      {
+        "path": "/workflow/templates/${id}",
+        "frontendMethod": "DELETE",
+        "backendMethod": "GET"
+      },
+      {
+        "path": "/workflow/instances",
+        "frontendMethod": "POST",
+        "backendMethod": "GET"
       }
     ]
   },

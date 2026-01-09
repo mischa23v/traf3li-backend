@@ -1,7 +1,7 @@
 {
-  "generated": "2026-01-09T10:31:27.359Z",
-  "totalEndpoints": 4523,
-  "totalModules": 285,
+  "generated": "2026-01-09T10:49:41.399Z",
+  "totalEndpoints": 4644,
+  "totalModules": 293,
   "modules": {
     "account": [
       {
@@ -59,6 +59,160 @@
         "file": "account.route.js",
         "fullPath": "/api/accounts/:id",
         "module": "account"
+      }
+    ],
+    "activitiesExtended": [
+      {
+        "method": "POST",
+        "path": "/",
+        "controller": "unknown",
+        "file": "activitiesExtended.route.js",
+        "fullPath": "/api/activities",
+        "module": "activitiesExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/",
+        "controller": "unknown",
+        "file": "activitiesExtended.route.js",
+        "fullPath": "/api/activities",
+        "module": "activitiesExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/summary",
+        "controller": "unknown",
+        "file": "activitiesExtended.route.js",
+        "fullPath": "/api/activities/summary",
+        "module": "activitiesExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/overview",
+        "controller": "unknown",
+        "file": "activitiesExtended.route.js",
+        "fullPath": "/api/activities/overview",
+        "module": "activitiesExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/stats",
+        "controller": "unknown",
+        "file": "activitiesExtended.route.js",
+        "fullPath": "/api/activities/stats",
+        "module": "activitiesExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/my",
+        "controller": "unknown",
+        "file": "activitiesExtended.route.js",
+        "fullPath": "/api/activities/my",
+        "module": "activitiesExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/types",
+        "controller": "unknown",
+        "file": "activitiesExtended.route.js",
+        "fullPath": "/api/activities/types",
+        "module": "activitiesExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/types",
+        "controller": "unknown",
+        "file": "activitiesExtended.route.js",
+        "fullPath": "/api/activities/types",
+        "module": "activitiesExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/types/:id",
+        "controller": "unknown",
+        "file": "activitiesExtended.route.js",
+        "fullPath": "/api/activities/types/:id",
+        "module": "activitiesExtended"
+      },
+      {
+        "method": "PUT",
+        "path": "/types/:id",
+        "controller": "unknown",
+        "file": "activitiesExtended.route.js",
+        "fullPath": "/api/activities/types/:id",
+        "module": "activitiesExtended"
+      },
+      {
+        "method": "DELETE",
+        "path": "/types/:id",
+        "controller": "unknown",
+        "file": "activitiesExtended.route.js",
+        "fullPath": "/api/activities/types/:id",
+        "module": "activitiesExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/entity/:entityType/:entityId",
+        "controller": "unknown",
+        "file": "activitiesExtended.route.js",
+        "fullPath": "/api/activities/entity/:entityType/:entityId",
+        "module": "activitiesExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "activitiesExtended.route.js",
+        "fullPath": "/api/activities/:id",
+        "module": "activitiesExtended"
+      },
+      {
+        "method": "PUT",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "activitiesExtended.route.js",
+        "fullPath": "/api/activities/:id",
+        "module": "activitiesExtended"
+      },
+      {
+        "method": "DELETE",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "activitiesExtended.route.js",
+        "fullPath": "/api/activities/:id",
+        "module": "activitiesExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/done",
+        "controller": "unknown",
+        "file": "activitiesExtended.route.js",
+        "fullPath": "/api/activities/:id/done",
+        "module": "activitiesExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/cancel",
+        "controller": "unknown",
+        "file": "activitiesExtended.route.js",
+        "fullPath": "/api/activities/:id/cancel",
+        "module": "activitiesExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/reschedule",
+        "controller": "unknown",
+        "file": "activitiesExtended.route.js",
+        "fullPath": "/api/activities/:id/reschedule",
+        "module": "activitiesExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/reassign",
+        "controller": "unknown",
+        "file": "activitiesExtended.route.js",
+        "fullPath": "/api/activities/:id/reassign",
+        "module": "activitiesExtended"
       }
     ],
     "activity": [
@@ -16935,6 +17089,380 @@
         "module": "hrLeavePolicyAssignment"
       }
     ],
+    "hrPayrollExtended": [
+      {
+        "method": "POST",
+        "path": "/:runId/employees/:employeeId/exclude",
+        "controller": "unknown",
+        "file": "hrPayrollExtended.route.js",
+        "fullPath": "/api/hr/payroll-runs/:runId/employees/:employeeId/exclude",
+        "module": "hrPayrollExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:runId/employees/:employeeId/include",
+        "controller": "unknown",
+        "file": "hrPayrollExtended.route.js",
+        "fullPath": "/api/hr/payroll-runs/:runId/employees/:employeeId/include",
+        "module": "hrPayrollExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:runId/employees/:employeeId/recalculate",
+        "controller": "unknown",
+        "file": "hrPayrollExtended.route.js",
+        "fullPath": "/api/hr/payroll-runs/:runId/employees/:employeeId/recalculate",
+        "module": "hrPayrollExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/:runId/export",
+        "controller": "unknown",
+        "file": "hrPayrollExtended.route.js",
+        "fullPath": "/api/hr/payroll-runs/:runId/export",
+        "module": "hrPayrollExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:runId/approve",
+        "controller": "unknown",
+        "file": "hrPayrollExtended.route.js",
+        "fullPath": "/api/hr/payroll-runs/:runId/approve",
+        "module": "hrPayrollExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:runId/reject",
+        "controller": "unknown",
+        "file": "hrPayrollExtended.route.js",
+        "fullPath": "/api/hr/payroll-runs/:runId/reject",
+        "module": "hrPayrollExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:runId/process",
+        "controller": "unknown",
+        "file": "hrPayrollExtended.route.js",
+        "fullPath": "/api/hr/payroll-runs/:runId/process",
+        "module": "hrPayrollExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:runId/finalize",
+        "controller": "unknown",
+        "file": "hrPayrollExtended.route.js",
+        "fullPath": "/api/hr/payroll-runs/:runId/finalize",
+        "module": "hrPayrollExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/:runId/summary",
+        "controller": "unknown",
+        "file": "hrPayrollExtended.route.js",
+        "fullPath": "/api/hr/payroll-runs/:runId/summary",
+        "module": "hrPayrollExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/:runId/employees/:employeeId/payslip",
+        "controller": "unknown",
+        "file": "hrPayrollExtended.route.js",
+        "fullPath": "/api/hr/payroll-runs/:runId/employees/:employeeId/payslip",
+        "module": "hrPayrollExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:runId/employees/:employeeId/adjust",
+        "controller": "unknown",
+        "file": "hrPayrollExtended.route.js",
+        "fullPath": "/api/hr/payroll-runs/:runId/employees/:employeeId/adjust",
+        "module": "hrPayrollExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/history",
+        "controller": "unknown",
+        "file": "hrPayrollExtended.route.js",
+        "fullPath": "/api/hr/payroll-runs/history",
+        "module": "hrPayrollExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/stats",
+        "controller": "unknown",
+        "file": "hrPayrollExtended.route.js",
+        "fullPath": "/api/hr/payroll-runs/stats",
+        "module": "hrPayrollExtended"
+      }
+    ],
+    "hrRecruitmentExtended": [
+      {
+        "method": "POST",
+        "path": "/jobs/:jobId/close",
+        "controller": "unknown",
+        "file": "hrRecruitmentExtended.route.js",
+        "fullPath": "/api/hr/recruitment/jobs/:jobId/close",
+        "module": "hrRecruitmentExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/jobs/:jobId/hold",
+        "controller": "unknown",
+        "file": "hrRecruitmentExtended.route.js",
+        "fullPath": "/api/hr/recruitment/jobs/:jobId/hold",
+        "module": "hrRecruitmentExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/jobs/:jobId/duplicate",
+        "controller": "unknown",
+        "file": "hrRecruitmentExtended.route.js",
+        "fullPath": "/api/hr/recruitment/jobs/:jobId/duplicate",
+        "module": "hrRecruitmentExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/jobs/:jobId/applicants",
+        "controller": "unknown",
+        "file": "hrRecruitmentExtended.route.js",
+        "fullPath": "/api/hr/recruitment/jobs/:jobId/applicants",
+        "module": "hrRecruitmentExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/applicants/:applicantId/status",
+        "controller": "unknown",
+        "file": "hrRecruitmentExtended.route.js",
+        "fullPath": "/api/hr/recruitment/applicants/:applicantId/status",
+        "module": "hrRecruitmentExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/applicants/:applicantId/screen",
+        "controller": "unknown",
+        "file": "hrRecruitmentExtended.route.js",
+        "fullPath": "/api/hr/recruitment/applicants/:applicantId/screen",
+        "module": "hrRecruitmentExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/applicants/:applicantId/interviews/:interviewId/complete",
+        "controller": "unknown",
+        "file": "hrRecruitmentExtended.route.js",
+        "fullPath": "/api/hr/recruitment/applicants/:applicantId/interviews/:interviewId/complete",
+        "module": "hrRecruitmentExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/applicants/:applicantId/assessments/:assessmentId/complete",
+        "controller": "unknown",
+        "file": "hrRecruitmentExtended.route.js",
+        "fullPath": "/api/hr/recruitment/applicants/:applicantId/assessments/:assessmentId/complete",
+        "module": "hrRecruitmentExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/applicants/:applicantId/offer",
+        "controller": "unknown",
+        "file": "hrRecruitmentExtended.route.js",
+        "fullPath": "/api/hr/recruitment/applicants/:applicantId/offer",
+        "module": "hrRecruitmentExtended"
+      },
+      {
+        "method": "PATCH",
+        "path": "/applicants/:applicantId/offer",
+        "controller": "unknown",
+        "file": "hrRecruitmentExtended.route.js",
+        "fullPath": "/api/hr/recruitment/applicants/:applicantId/offer",
+        "module": "hrRecruitmentExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/applicants/:applicantId/offer/accept",
+        "controller": "unknown",
+        "file": "hrRecruitmentExtended.route.js",
+        "fullPath": "/api/hr/recruitment/applicants/:applicantId/offer/accept",
+        "module": "hrRecruitmentExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/applicants/:applicantId/offer/reject",
+        "controller": "unknown",
+        "file": "hrRecruitmentExtended.route.js",
+        "fullPath": "/api/hr/recruitment/applicants/:applicantId/offer/reject",
+        "module": "hrRecruitmentExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/applicants/:applicantId/flag",
+        "controller": "unknown",
+        "file": "hrRecruitmentExtended.route.js",
+        "fullPath": "/api/hr/recruitment/applicants/:applicantId/flag",
+        "module": "hrRecruitmentExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/applicants/:applicantId/unflag",
+        "controller": "unknown",
+        "file": "hrRecruitmentExtended.route.js",
+        "fullPath": "/api/hr/recruitment/applicants/:applicantId/unflag",
+        "module": "hrRecruitmentExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/applicants/bulk-update",
+        "controller": "unknown",
+        "file": "hrRecruitmentExtended.route.js",
+        "fullPath": "/api/hr/recruitment/applicants/bulk-update",
+        "module": "hrRecruitmentExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/parse-resume",
+        "controller": "unknown",
+        "file": "hrRecruitmentExtended.route.js",
+        "fullPath": "/api/hr/recruitment/parse-resume",
+        "module": "hrRecruitmentExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/applicants/export",
+        "controller": "unknown",
+        "file": "hrRecruitmentExtended.route.js",
+        "fullPath": "/api/hr/recruitment/applicants/export",
+        "module": "hrRecruitmentExtended"
+      }
+    ],
+    "hrRetentionBonus": [
+      {
+        "method": "GET",
+        "path": "/",
+        "controller": "unknown",
+        "file": "hrRetentionBonus.route.js",
+        "fullPath": "/api/hr/retention-bonuses",
+        "module": "hrRetentionBonus"
+      },
+      {
+        "method": "GET",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "hrRetentionBonus.route.js",
+        "fullPath": "/api/hr/retention-bonuses/:id",
+        "module": "hrRetentionBonus"
+      },
+      {
+        "method": "POST",
+        "path": "/",
+        "controller": "unknown",
+        "file": "hrRetentionBonus.route.js",
+        "fullPath": "/api/hr/retention-bonuses",
+        "module": "hrRetentionBonus"
+      },
+      {
+        "method": "PATCH",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "hrRetentionBonus.route.js",
+        "fullPath": "/api/hr/retention-bonuses/:id",
+        "module": "hrRetentionBonus"
+      },
+      {
+        "method": "DELETE",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "hrRetentionBonus.route.js",
+        "fullPath": "/api/hr/retention-bonuses/:id",
+        "module": "hrRetentionBonus"
+      },
+      {
+        "method": "POST",
+        "path": "/bulk-delete",
+        "controller": "unknown",
+        "file": "hrRetentionBonus.route.js",
+        "fullPath": "/api/hr/retention-bonuses/bulk-delete",
+        "module": "hrRetentionBonus"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/submit",
+        "controller": "unknown",
+        "file": "hrRetentionBonus.route.js",
+        "fullPath": "/api/hr/retention-bonuses/:id/submit",
+        "module": "hrRetentionBonus"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/approve",
+        "controller": "unknown",
+        "file": "hrRetentionBonus.route.js",
+        "fullPath": "/api/hr/retention-bonuses/:id/approve",
+        "module": "hrRetentionBonus"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/reject",
+        "controller": "unknown",
+        "file": "hrRetentionBonus.route.js",
+        "fullPath": "/api/hr/retention-bonuses/:id/reject",
+        "module": "hrRetentionBonus"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/mark-paid",
+        "controller": "unknown",
+        "file": "hrRetentionBonus.route.js",
+        "fullPath": "/api/hr/retention-bonuses/:id/mark-paid",
+        "module": "hrRetentionBonus"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/clawback",
+        "controller": "unknown",
+        "file": "hrRetentionBonus.route.js",
+        "fullPath": "/api/hr/retention-bonuses/:id/clawback",
+        "module": "hrRetentionBonus"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/cancel",
+        "controller": "unknown",
+        "file": "hrRetentionBonus.route.js",
+        "fullPath": "/api/hr/retention-bonuses/:id/cancel",
+        "module": "hrRetentionBonus"
+      },
+      {
+        "method": "GET",
+        "path": "/employee/:employeeId/history",
+        "controller": "unknown",
+        "file": "hrRetentionBonus.route.js",
+        "fullPath": "/api/hr/retention-bonuses/employee/:employeeId/history",
+        "module": "hrRetentionBonus"
+      },
+      {
+        "method": "GET",
+        "path": "/:id/vesting-status",
+        "controller": "unknown",
+        "file": "hrRetentionBonus.route.js",
+        "fullPath": "/api/hr/retention-bonuses/:id/vesting-status",
+        "module": "hrRetentionBonus"
+      },
+      {
+        "method": "GET",
+        "path": "/pending-approvals",
+        "controller": "unknown",
+        "file": "hrRetentionBonus.route.js",
+        "fullPath": "/api/hr/retention-bonuses/pending-approvals",
+        "module": "hrRetentionBonus"
+      },
+      {
+        "method": "GET",
+        "path": "/department-summary",
+        "controller": "unknown",
+        "file": "hrRetentionBonus.route.js",
+        "fullPath": "/api/hr/retention-bonuses/department-summary",
+        "module": "hrRetentionBonus"
+      }
+    ],
     "hrSalaryComponents": [
       {
         "method": "GET",
@@ -29769,6 +30297,210 @@
         "module": "shift"
       }
     ],
+    "shiftAssignments": [
+      {
+        "method": "POST",
+        "path": "/",
+        "controller": "unknown",
+        "file": "shiftAssignments.route.js",
+        "fullPath": "/api/shift-assignments",
+        "module": "shiftAssignments"
+      },
+      {
+        "method": "GET",
+        "path": "/",
+        "controller": "unknown",
+        "file": "shiftAssignments.route.js",
+        "fullPath": "/api/shift-assignments",
+        "module": "shiftAssignments"
+      },
+      {
+        "method": "GET",
+        "path": "/coverage-report",
+        "controller": "unknown",
+        "file": "shiftAssignments.route.js",
+        "fullPath": "/api/shift-assignments/coverage-report",
+        "module": "shiftAssignments"
+      },
+      {
+        "method": "GET",
+        "path": "/stats",
+        "controller": "unknown",
+        "file": "shiftAssignments.route.js",
+        "fullPath": "/api/shift-assignments/stats",
+        "module": "shiftAssignments"
+      },
+      {
+        "method": "GET",
+        "path": "/employee/:employeeId/active",
+        "controller": "unknown",
+        "file": "shiftAssignments.route.js",
+        "fullPath": "/api/shift-assignments/employee/:employeeId/active",
+        "module": "shiftAssignments"
+      },
+      {
+        "method": "GET",
+        "path": "/employee/:employeeId/current",
+        "controller": "unknown",
+        "file": "shiftAssignments.route.js",
+        "fullPath": "/api/shift-assignments/employee/:employeeId/current",
+        "module": "shiftAssignments"
+      },
+      {
+        "method": "POST",
+        "path": "/bulk",
+        "controller": "unknown",
+        "file": "shiftAssignments.route.js",
+        "fullPath": "/api/shift-assignments/bulk",
+        "module": "shiftAssignments"
+      },
+      {
+        "method": "DELETE",
+        "path": "/bulk",
+        "controller": "unknown",
+        "file": "shiftAssignments.route.js",
+        "fullPath": "/api/shift-assignments/bulk",
+        "module": "shiftAssignments"
+      },
+      {
+        "method": "POST",
+        "path": "/import",
+        "controller": "unknown",
+        "file": "shiftAssignments.route.js",
+        "fullPath": "/api/shift-assignments/import",
+        "module": "shiftAssignments"
+      },
+      {
+        "method": "GET",
+        "path": "/export",
+        "controller": "unknown",
+        "file": "shiftAssignments.route.js",
+        "fullPath": "/api/shift-assignments/export",
+        "module": "shiftAssignments"
+      },
+      {
+        "method": "GET",
+        "path": "/:assignmentId",
+        "controller": "unknown",
+        "file": "shiftAssignments.route.js",
+        "fullPath": "/api/shift-assignments/:assignmentId",
+        "module": "shiftAssignments"
+      },
+      {
+        "method": "PUT",
+        "path": "/:assignmentId",
+        "controller": "unknown",
+        "file": "shiftAssignments.route.js",
+        "fullPath": "/api/shift-assignments/:assignmentId",
+        "module": "shiftAssignments"
+      },
+      {
+        "method": "DELETE",
+        "path": "/:assignmentId",
+        "controller": "unknown",
+        "file": "shiftAssignments.route.js",
+        "fullPath": "/api/shift-assignments/:assignmentId",
+        "module": "shiftAssignments"
+      },
+      {
+        "method": "POST",
+        "path": "/:assignmentId/activate",
+        "controller": "unknown",
+        "file": "shiftAssignments.route.js",
+        "fullPath": "/api/shift-assignments/:assignmentId/activate",
+        "module": "shiftAssignments"
+      },
+      {
+        "method": "POST",
+        "path": "/:assignmentId/deactivate",
+        "controller": "unknown",
+        "file": "shiftAssignments.route.js",
+        "fullPath": "/api/shift-assignments/:assignmentId/deactivate",
+        "module": "shiftAssignments"
+      }
+    ],
+    "shiftRequests": [
+      {
+        "method": "POST",
+        "path": "/",
+        "controller": "unknown",
+        "file": "shiftRequests.route.js",
+        "fullPath": "/api/shift-requests",
+        "module": "shiftRequests"
+      },
+      {
+        "method": "GET",
+        "path": "/",
+        "controller": "unknown",
+        "file": "shiftRequests.route.js",
+        "fullPath": "/api/shift-requests",
+        "module": "shiftRequests"
+      },
+      {
+        "method": "POST",
+        "path": "/check-conflicts",
+        "controller": "unknown",
+        "file": "shiftRequests.route.js",
+        "fullPath": "/api/shift-requests/check-conflicts",
+        "module": "shiftRequests"
+      },
+      {
+        "method": "GET",
+        "path": "/pending-approvals",
+        "controller": "unknown",
+        "file": "shiftRequests.route.js",
+        "fullPath": "/api/shift-requests/pending-approvals",
+        "module": "shiftRequests"
+      },
+      {
+        "method": "GET",
+        "path": "/stats",
+        "controller": "unknown",
+        "file": "shiftRequests.route.js",
+        "fullPath": "/api/shift-requests/stats",
+        "module": "shiftRequests"
+      },
+      {
+        "method": "GET",
+        "path": "/:requestId",
+        "controller": "unknown",
+        "file": "shiftRequests.route.js",
+        "fullPath": "/api/shift-requests/:requestId",
+        "module": "shiftRequests"
+      },
+      {
+        "method": "PUT",
+        "path": "/:requestId",
+        "controller": "unknown",
+        "file": "shiftRequests.route.js",
+        "fullPath": "/api/shift-requests/:requestId",
+        "module": "shiftRequests"
+      },
+      {
+        "method": "DELETE",
+        "path": "/:requestId",
+        "controller": "unknown",
+        "file": "shiftRequests.route.js",
+        "fullPath": "/api/shift-requests/:requestId",
+        "module": "shiftRequests"
+      },
+      {
+        "method": "POST",
+        "path": "/:requestId/approve",
+        "controller": "unknown",
+        "file": "shiftRequests.route.js",
+        "fullPath": "/api/shift-requests/:requestId/approve",
+        "module": "shiftRequests"
+      },
+      {
+        "method": "POST",
+        "path": "/:requestId/reject",
+        "controller": "unknown",
+        "file": "shiftRequests.route.js",
+        "fullPath": "/api/shift-requests/:requestId/reject",
+        "module": "shiftRequests"
+      }
+    ],
     "skillMap": [
       {
         "method": "GET",
@@ -33891,6 +34623,120 @@
         "module": "transaction"
       }
     ],
+    "transactionsExtended": [
+      {
+        "method": "GET",
+        "path": "/categories",
+        "controller": "unknown",
+        "file": "transactionsExtended.route.js",
+        "fullPath": "/api/transactions/categories",
+        "module": "transactionsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/categories",
+        "controller": "unknown",
+        "file": "transactionsExtended.route.js",
+        "fullPath": "/api/transactions/categories",
+        "module": "transactionsExtended"
+      },
+      {
+        "method": "PUT",
+        "path": "/categories/:id",
+        "controller": "unknown",
+        "file": "transactionsExtended.route.js",
+        "fullPath": "/api/transactions/categories/:id",
+        "module": "transactionsExtended"
+      },
+      {
+        "method": "DELETE",
+        "path": "/categories/:id",
+        "controller": "unknown",
+        "file": "transactionsExtended.route.js",
+        "fullPath": "/api/transactions/categories/:id",
+        "module": "transactionsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/pending",
+        "controller": "unknown",
+        "file": "transactionsExtended.route.js",
+        "fullPath": "/api/transactions/pending",
+        "module": "transactionsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/unreconciled",
+        "controller": "unknown",
+        "file": "transactionsExtended.route.js",
+        "fullPath": "/api/transactions/unreconciled",
+        "module": "transactionsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/stats",
+        "controller": "unknown",
+        "file": "transactionsExtended.route.js",
+        "fullPath": "/api/transactions/stats",
+        "module": "transactionsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/search",
+        "controller": "unknown",
+        "file": "transactionsExtended.route.js",
+        "fullPath": "/api/transactions/search",
+        "module": "transactionsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/export",
+        "controller": "unknown",
+        "file": "transactionsExtended.route.js",
+        "fullPath": "/api/transactions/export",
+        "module": "transactionsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/reconcile",
+        "controller": "unknown",
+        "file": "transactionsExtended.route.js",
+        "fullPath": "/api/transactions/:id/reconcile",
+        "module": "transactionsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/unreconcile",
+        "controller": "unknown",
+        "file": "transactionsExtended.route.js",
+        "fullPath": "/api/transactions/:id/unreconcile",
+        "module": "transactionsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/:id/attachments",
+        "controller": "unknown",
+        "file": "transactionsExtended.route.js",
+        "fullPath": "/api/transactions/:id/attachments",
+        "module": "transactionsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/attachments",
+        "controller": "unknown",
+        "file": "transactionsExtended.route.js",
+        "fullPath": "/api/transactions/:id/attachments",
+        "module": "transactionsExtended"
+      },
+      {
+        "method": "DELETE",
+        "path": "/:id/attachments/:attachmentId",
+        "controller": "unknown",
+        "file": "transactionsExtended.route.js",
+        "fullPath": "/api/transactions/:id/attachments/:attachmentId",
+        "module": "transactionsExtended"
+      }
+    ],
     "trello": [
       {
         "method": "GET",
@@ -35309,6 +36155,144 @@
         "file": "workflow.route.js",
         "fullPath": "/api/case-workflows/entity/:entityType/:entityId",
         "module": "workflow"
+      }
+    ],
+    "workflowExtended": [
+      {
+        "method": "GET",
+        "path": "/instances",
+        "controller": "unknown",
+        "file": "workflowExtended.route.js",
+        "fullPath": "/api/workflow/instances",
+        "module": "workflowExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/instances/:id",
+        "controller": "unknown",
+        "file": "workflowExtended.route.js",
+        "fullPath": "/api/workflow/instances/:id",
+        "module": "workflowExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/instances/:id/advance",
+        "controller": "unknown",
+        "file": "workflowExtended.route.js",
+        "fullPath": "/api/workflow/instances/:id/advance",
+        "module": "workflowExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/instances/:id/cancel",
+        "controller": "unknown",
+        "file": "workflowExtended.route.js",
+        "fullPath": "/api/workflow/instances/:id/cancel",
+        "module": "workflowExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/instances/:id/pause",
+        "controller": "unknown",
+        "file": "workflowExtended.route.js",
+        "fullPath": "/api/workflow/instances/:id/pause",
+        "module": "workflowExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/instances/:id/resume",
+        "controller": "unknown",
+        "file": "workflowExtended.route.js",
+        "fullPath": "/api/workflow/instances/:id/resume",
+        "module": "workflowExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/templates",
+        "controller": "unknown",
+        "file": "workflowExtended.route.js",
+        "fullPath": "/api/workflow/templates",
+        "module": "workflowExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/templates/:id",
+        "controller": "unknown",
+        "file": "workflowExtended.route.js",
+        "fullPath": "/api/workflow/templates/:id",
+        "module": "workflowExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/entity/:entityType/:entityId",
+        "controller": "unknown",
+        "file": "workflowExtended.route.js",
+        "fullPath": "/api/workflow/entity/:entityType/:entityId",
+        "module": "workflowExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/presets",
+        "controller": "unknown",
+        "file": "workflowExtended.route.js",
+        "fullPath": "/api/workflow/presets",
+        "module": "workflowExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/presets/:presetType",
+        "controller": "unknown",
+        "file": "workflowExtended.route.js",
+        "fullPath": "/api/workflow/presets/:presetType",
+        "module": "workflowExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/stats",
+        "controller": "unknown",
+        "file": "workflowExtended.route.js",
+        "fullPath": "/api/workflow/stats",
+        "module": "workflowExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/category/:category",
+        "controller": "unknown",
+        "file": "workflowExtended.route.js",
+        "fullPath": "/api/workflow/category/:category",
+        "module": "workflowExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/cases/:caseId/initialize",
+        "controller": "unknown",
+        "file": "workflowExtended.route.js",
+        "fullPath": "/api/workflow/cases/:caseId/initialize",
+        "module": "workflowExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/cases/:caseId/move",
+        "controller": "unknown",
+        "file": "workflowExtended.route.js",
+        "fullPath": "/api/workflow/cases/:caseId/move",
+        "module": "workflowExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/cases/:caseId/progress",
+        "controller": "unknown",
+        "file": "workflowExtended.route.js",
+        "fullPath": "/api/workflow/cases/:caseId/progress",
+        "module": "workflowExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/cases/:caseId/requirements/:requirementId/complete",
+        "controller": "unknown",
+        "file": "workflowExtended.route.js",
+        "fullPath": "/api/workflow/cases/:caseId/requirements/:requirementId/complete",
+        "module": "workflowExtended"
       }
     ],
     "workflows": [

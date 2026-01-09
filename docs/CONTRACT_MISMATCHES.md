@@ -1,12 +1,12 @@
 # Frontend vs Backend Contract Mismatch Report
 
-> Generated: 2026-01-09T10:31:33.372Z
+> Generated: 2026-01-09T10:49:51.821Z
 
 ## Summary
 
 | Category | Frontend Only | Backend Only | Mismatches |
 |----------|--------------|--------------|------------|
-| API Endpoints | 699 | 2290 | 128 |
+| API Endpoints | 592 | 2309 | 142 |
 | Interfaces/Entities | 2871 | 154 | 0 |
 | Enums | 88 | 2138 | 0 |
 | Type Aliases | 167 | 0 | - |
@@ -17,7 +17,7 @@
 
 These endpoints are called by frontend but don't exist in backend - **will cause 404 errors**.
 
-### hr (125 missing)
+### hr (87 missing)
 
 | Method | Endpoint | Source File |
 |--------|----------|-------------|
@@ -34,44 +34,44 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | GET | `/hr/email-templates` | services/hrSetupWizardService.ts |
 | POST | `/hr/setup/complete` | services/hrSetupWizardService.ts |
 | POST | `/hr/organizational-structure/merge` | services/organizationalStructureService.ts |
-| POST | `/hr/payroll-runs/${runId}/employees/${employeeId}/exclude` | services/payrollService.ts |
-| POST | `/hr/payroll-runs/${runId}/employees/${employeeId}/include` | services/payrollService.ts |
-| POST | `/hr/payroll-runs/${runId}/employees/${employeeId}/recalculate` | services/payrollService.ts |
-| GET | `/hr/payroll-runs/${runId}/export` | services/payrollService.ts |
-| POST | `/hr/recruitment/jobs/${jobId}/close` | services/recruitmentService.ts |
-| POST | `/hr/recruitment/jobs/${jobId}/hold` | services/recruitmentService.ts |
-| POST | `/hr/recruitment/jobs/${jobId}/duplicate` | services/recruitmentService.ts |
-| GET | `/hr/recruitment/jobs/${jobId}/applicants` | services/recruitmentService.ts |
-| POST | `/hr/recruitment/applicants/${applicantId}/status` | services/recruitmentService.ts |
-| POST | `/hr/recruitment/applicants/${applicantId}/screen` | services/recruitmentService.ts |
-| POST | `/hr/recruitment/applicants/${applicantId}/interviews/${interviewId}/complete` | services/recruitmentService.ts |
-| POST | `/hr/recruitment/applicants/${applicantId}/assessments/${assessmentId}/complete` | services/recruitmentService.ts |
-| POST | `/hr/recruitment/applicants/${applicantId}/offer` | services/recruitmentService.ts |
-| PATCH | `/hr/recruitment/applicants/${applicantId}/offer` | services/recruitmentService.ts |
-| POST | `/hr/recruitment/applicants/${applicantId}/offer/accept` | services/recruitmentService.ts |
-| POST | `/hr/recruitment/applicants/${applicantId}/offer/reject` | services/recruitmentService.ts |
-| POST | `/hr/recruitment/applicants/${applicantId}/flag` | services/recruitmentService.ts |
-| POST | `/hr/recruitment/applicants/${applicantId}/unflag` | services/recruitmentService.ts |
-| POST | `/hr/recruitment/applicants/bulk-update` | services/recruitmentService.ts |
-| POST | `/hr/recruitment/parse-resume` | services/recruitmentService.ts |
-| GET | `/hr/recruitment/applicants/export` | services/recruitmentService.ts |
-| GET | `/hr/retention-bonuses/${id}` | services/retentionBonusService.ts |
-| POST | `/hr/retention-bonuses` | services/retentionBonusService.ts |
-| PATCH | `/hr/retention-bonuses/${id}` | services/retentionBonusService.ts |
-| DELETE | `/hr/retention-bonuses/${id}` | services/retentionBonusService.ts |
-| POST | `/hr/retention-bonuses/bulk-delete` | services/retentionBonusService.ts |
-| POST | `/hr/retention-bonuses/${id}/approve` | services/retentionBonusService.ts |
-| POST | `/hr/retention-bonuses/${id}/reject` | services/retentionBonusService.ts |
-| POST | `/hr/retention-bonuses/${id}/mark-paid` | services/retentionBonusService.ts |
-| POST | `/hr/retention-bonuses/${id}/clawback` | services/retentionBonusService.ts |
-| GET | `/hr/retention-bonuses/employee/${employeeId}/history` | services/retentionBonusService.ts |
-| GET | `/hr/retention-bonuses/${id}/vesting-status` | services/retentionBonusService.ts |
-| GET | `/hr/retention-bonuses/pending-approvals` | services/retentionBonusService.ts |
-| POST | `/hr/retention-bonuses/${id}/cancel` | services/retentionBonusService.ts |
-| POST | `/hr/retention-bonuses/${id}/submit` | services/retentionBonusService.ts |
-| POST | `/hr/retention-bonuses/:param` | services/retentionBonusService.ts |
-| GET | `/hr/retention-bonuses/department-summary?departmentId=:param` | services/retentionBonusService.ts |
-| ... | *75 more* | - |
+| GET | `/hr/retention-bonuses/export?:param` | services/retentionBonusService.ts |
+| POST | `/hr/salary-components/bulk-delete` | services/salaryComponentService.ts |
+| POST | `/hr/salary-components/calculate` | services/salaryComponentService.ts |
+| POST | `/hr/salary-components/seed-defaults` | services/salaryComponentService.ts |
+| POST | `/hr/salary-components/${id}/duplicate` | services/salaryComponentService.ts |
+| POST | `/hr/salary-components/validate-formula` | services/salaryComponentService.ts |
+| GET | `/hr/salary-components/${id}/usage` | services/salaryComponentService.ts |
+| GET | `/hr/salary-components/stats` | services/salaryComponentService.ts |
+| GET | `/hr/shift-types/stats` | services/shiftTypeService.ts |
+| GET | `/hr/shift-types/default` | services/shiftTypeService.ts |
+| POST | `/hr/shift-types/${shiftTypeId}/set-default` | services/shiftTypeService.ts |
+| POST | `/hr/shift-types/${shiftTypeId}/activate` | services/shiftTypeService.ts |
+| POST | `/hr/shift-types/${shiftTypeId}/deactivate` | services/shiftTypeService.ts |
+| POST | `/hr/shift-types/${shiftTypeId}/clone` | services/shiftTypeService.ts |
+| POST | `/hr/shift-types/${shiftTypeId}/calculate-hours` | services/shiftTypeService.ts |
+| GET | `/hr/shift-types/by-day/${day}` | services/shiftTypeService.ts |
+| GET | `/hr/shift-types/active` | services/shiftTypeService.ts |
+| GET | `/hr/shift-types/ramadan` | services/shiftTypeService.ts |
+| POST | `/hr/shift-types/validate-times` | services/shiftTypeService.ts |
+| POST | `/hr/shift-types/bulk-delete` | services/shiftTypeService.ts |
+| GET | `/hr/shift-types/export` | services/shiftTypeService.ts |
+| GET | `/hr/skills/by-category/${category}` | services/skillService.ts |
+| POST | `/hr/skills/bulk-delete` | services/skillService.ts |
+| GET | `/hr/skills/export?${params.toString()}` | services/skillService.ts |
+| GET | `/hr/staffing-plans` | services/staffingPlanService.ts |
+| GET | `/hr/staffing-plans/${planId}` | services/staffingPlanService.ts |
+| POST | `/hr/staffing-plans` | services/staffingPlanService.ts |
+| PATCH | `/hr/staffing-plans/${planId}` | services/staffingPlanService.ts |
+| POST | `/hr/staffing-plans/${planId}/details` | services/staffingPlanService.ts |
+| PATCH | `/hr/staffing-plans/${planId}/details/${detailId}` | services/staffingPlanService.ts |
+| DELETE | `/hr/staffing-plans/${planId}/details/${detailId}` | services/staffingPlanService.ts |
+| GET | `/hr/staffing-plans/headcount` | services/staffingPlanService.ts |
+| POST | `/hr/staffing-plans/${planId}/calculate-vacancies` | services/staffingPlanService.ts |
+| GET | `/hr/staffing-plans/vacancies-summary` | services/staffingPlanService.ts |
+| GET | `/hr/staffing-plans/${planId}/progress` | services/staffingPlanService.ts |
+| POST | `/hr/staffing-plans/${planId}/details/${detailId}/create-job-opening` | services/staffingPlanService.ts |
+| POST | `/hr/staffing-plans/${planId}/details/${detailId}/link-job-opening` | services/staffingPlanService.ts |
+| ... | *37 more* | - |
 
 ### workflows (19 missing)
 
@@ -119,28 +119,6 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | PATCH | `/settings/sso/providers/${providerId}` | services/ssoService.ts |
 | DELETE | `/settings/sso/providers/${providerId}` | services/ssoService.ts |
 | POST | `/settings/sso/test-connection` | services/ssoService.ts |
-
-### activities (17 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| POST | `/activities` | services/activityService.ts |
-| GET | `/activities/${id}` | services/activityService.ts |
-| GET | `/activities/summary` | services/activityService.ts |
-| GET | `/activities/overview` | services/activityService.ts |
-| GET | `/activities/entity/${entityType}/${entityId}?limit=${limit}` | services/activityService.ts |
-| PATCH | `/activities/${id}` | services/financeService.ts |
-| DELETE | `/activities/${id}` | services/financeService.ts |
-| GET | `/activities/types` | services/odooActivityService.ts |
-| POST | `/activities/types` | services/odooActivityService.ts |
-| PATCH | `/activities/types/${id}` | services/odooActivityService.ts |
-| DELETE | `/activities/types/${id}` | services/odooActivityService.ts |
-| GET | `/activities/my?${params.toString()}` | services/odooActivityService.ts |
-| GET | `/activities/stats` | services/odooActivityService.ts |
-| POST | `/activities/${id}/done` | services/odooActivityService.ts |
-| POST | `/activities/${id}/cancel` | services/odooActivityService.ts |
-| PATCH | `/activities/${id}/reschedule` | services/odooActivityService.ts |
-| PATCH | `/activities/${id}/reassign` | services/odooActivityService.ts |
 
 ### chatter (17 missing)
 
@@ -227,27 +205,6 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | POST | `/email-marketing/subscribers/${id}/tags` | services/crmAdvancedService.ts |
 | DELETE | `/email-marketing/subscribers/${id}/tags` | services/crmAdvancedService.ts |
 | GET | `/email-marketing/segments/${id}/preview` | services/crmAdvancedService.ts |
-
-### shift-assignments (16 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/shift-assignments/${assignmentId}` | services/shiftAssignmentService.ts |
-| GET | `/shift-assignments/employee/${employeeId}/current?${params.toString()}` | services/shiftAssignmentService.ts |
-| GET | `/shift-assignments/employee/${employeeId}/active` | services/shiftAssignmentService.ts |
-| POST | `/shift-assignments` | services/shiftAssignmentService.ts |
-| PUT | `/shift-assignments/${assignmentId}` | services/shiftAssignmentService.ts |
-| DELETE | `/shift-assignments/${assignmentId}` | services/shiftAssignmentService.ts |
-| POST | `/shift-assignments/bulk` | services/shiftAssignmentService.ts |
-| POST | `/shift-assignments/${assignmentId}/activate` | services/shiftAssignmentService.ts |
-| POST | `/shift-assignments/${assignmentId}/deactivate` | services/shiftAssignmentService.ts |
-| GET | `/shift-assignments/stats?${params.toString()}` | services/shiftAssignmentService.ts |
-| GET | `/shift-assignments/coverage-report?${params.toString()}` | services/shiftAssignmentService.ts |
-| POST | `/shift-assignments/import` | services/shiftAssignmentService.ts |
-| GET | `/shift-assignments/export?${params.toString()}` | services/shiftAssignmentService.ts |
-| POST | `/shift-assignments/:param` | services/shiftAssignmentService.ts |
-| POST | `/shift-assignments/coverage-report?:param` | services/shiftAssignmentService.ts |
-| POST | `/shift-assignments/export?:param` | services/shiftAssignmentService.ts |
 
 ### documents (15 missing)
 
@@ -383,24 +340,6 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | POST | `/attendance/${recordId}/violations/${violationId}/dismiss` | services/attendanceService.ts |
 | GET | `/attendance/compliance-report?${params.toString()}` | services/attendanceService.ts |
 
-### workflow (13 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/workflow/templates` | services/workflowService.ts |
-| POST | `/workflow/templates` | services/workflowService.ts |
-| GET | `/workflow/templates/${id}` | services/workflowService.ts |
-| PUT | `/workflow/templates/${id}` | services/workflowService.ts |
-| DELETE | `/workflow/templates/${id}` | services/workflowService.ts |
-| GET | `/workflow/instances` | services/workflowService.ts |
-| POST | `/workflow/instances` | services/workflowService.ts |
-| GET | `/workflow/instances/${id}` | services/workflowService.ts |
-| POST | `/workflow/instances/${id}/pause` | services/workflowService.ts |
-| POST | `/workflow/instances/${id}/resume` | services/workflowService.ts |
-| POST | `/workflow/instances/${id}/cancel` | services/workflowService.ts |
-| POST | `/workflow/instances/${id}/advance` | services/workflowService.ts |
-| GET | `/workflow/entity/${entityType}/${entityId}` | services/workflowService.ts |
-
 ### legal-documents (12 missing)
 
 | Method | Endpoint | Source File |
@@ -448,36 +387,6 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | POST | `/permissions/resources/${resourceType}/${resourceId}/access` | services/permissionService.ts |
 | DELETE | `/permissions/resources/${resourceType}/${resourceId}/access/${userId}` | services/permissionService.ts |
 | GET | `/permissions/users/${userId}/resources` | services/permissionService.ts |
-
-### shift-requests (10 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/shift-requests/${requestId}` | services/shiftAssignmentService.ts |
-| POST | `/shift-requests` | services/shiftAssignmentService.ts |
-| PUT | `/shift-requests/${requestId}` | services/shiftAssignmentService.ts |
-| DELETE | `/shift-requests/${requestId}` | services/shiftAssignmentService.ts |
-| POST | `/shift-requests/${requestId}/approve` | services/shiftAssignmentService.ts |
-| POST | `/shift-requests/${requestId}/reject` | services/shiftAssignmentService.ts |
-| GET | `/shift-requests/pending-approvals` | services/shiftAssignmentService.ts |
-| GET | `/shift-requests/stats?${params.toString()}` | services/shiftAssignmentService.ts |
-| POST | `/shift-requests/check-conflicts` | services/shiftAssignmentService.ts |
-| POST | `/shift-requests/:param` | services/shiftAssignmentService.ts |
-
-### transactions (10 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| POST | `/transactions/${id}/reconcile` | services/transactionService.ts |
-| POST | `/transactions/${id}/unreconcile` | services/transactionService.ts |
-| POST | `/transactions/${id}/attachments` | services/transactionService.ts |
-| DELETE | `/transactions/${id}/attachments/${attachmentId}` | services/transactionService.ts |
-| GET | `/transactions/categories` | services/transactionService.ts |
-| GET | `/transactions/export` | services/transactionService.ts |
-| GET | `/transactions/pending` | services/transactionService.ts |
-| GET | `/transactions/unreconciled` | services/transactionService.ts |
-| GET | `/transactions/search` | services/transactionService.ts |
-| GET | `/transactions/stats` | services/transactionService.ts |
 
 ### saudi-banking (9 missing)
 
@@ -1000,12 +909,6 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 |--------|----------|-------------|
 | GET | `/debit-notes/export` | services/accountingService.ts |
 
-### activities?${params.toString()} (1 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/activities?${params.toString()}` | services/activityService.ts |
-
 ### automated-actions?${params.toString()} (1 missing)
 
 | Method | Endpoint | Source File |
@@ -1072,18 +975,6 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 |--------|----------|-------------|
 | GET | `/prepared-reports?${params.toString()}` | services/preparedReportsService.ts |
 
-### shift-assignments?${params.toString()} (1 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/shift-assignments?${params.toString()}` | services/shiftAssignmentService.ts |
-
-### shift-requests?${params.toString()} (1 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/shift-requests?${params.toString()}` | services/shiftAssignmentService.ts |
-
 ### storage (1 missing)
 
 | Method | Endpoint | Source File |
@@ -1108,7 +999,7 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 
 These endpoints exist in backend but frontend doesn't call them - potentially dead code or undocumented features.
 
-### hr (261 unused)
+### hr (270 unused)
 
 | Method | Endpoint |
 |--------|----------|
@@ -1142,7 +1033,7 @@ These endpoints exist in backend but frontend doesn't call them - potentially de
 | GET | `/api/hr/fleet/vehicles` |
 | GET | `/api/hr/fleet/vehicles/:id` |
 | POST | `/api/hr/fleet/vehicles` |
-| ... | *231 more* |
+| ... | *240 more* |
 
 ### workflows (154 unused)
 
@@ -1829,6 +1720,7 @@ Frontend calls with different HTTP method than backend expects.
 | `/payments/${id}/receipt` | GET | POST |
 | `/transactions/${id}` | PATCH | GET |
 | `/statements/${id}` | PUT | GET |
+| `/activities/${id}` | PATCH | GET |
 | `/followups/:param` | POST | GET |
 | `/followups/:param/complete` | GET | POST |
 | `/hr/grievances/:param` | POST | GET |
@@ -1853,6 +1745,9 @@ Frontend calls with different HTTP method than backend expects.
 | `/ml/scores/:param/explanation` | POST | GET |
 | `/ml/priority/:param/contact` | GET | POST |
 | `/auth/sso/unlink/:param` | GET | DELETE |
+| `/activities/types/${id}` | PATCH | GET |
+| `/activities/${id}/reschedule` | PATCH | POST |
+| `/activities/${id}/reassign` | PATCH | POST |
 | `/hr/offboarding/:param` | POST | GET |
 | `/hr/offboarding/:param/status` | GET | PATCH |
 | `/hr/offboarding/by-employee/:param` | POST | GET |
@@ -1883,9 +1778,15 @@ Frontend calls with different HTTP method than backend expects.
 | `/reports/${id}/schedule` | DELETE | PUT |
 | `/analytics-reports/:param` | POST | GET |
 | `/saved-reports/reports/:param` | POST | GET |
+| `/hr/retention-bonuses/:param` | POST | GET |
+| `/hr/retention-bonuses/:param/cancel` | GET | POST |
 | `/saudi-banking/lean/entities/:param` | POST | DELETE |
 | `/saudi-banking/sadad/payments/:param/status` | POST | GET |
 | `/auth/sessions/:param` | GET | DELETE |
+| `/shift-assignments/:param` | POST | GET |
+| `/shift-requests/:param` | POST | GET |
+| `/shift-assignments/coverage-report?:param` | POST | GET |
+| `/shift-assignments/export?:param` | POST | GET |
 | `/hr/shift-types/${shiftTypeId}` | PATCH | GET |
 | `/hr/skills/:param` | POST | GET |
 | `/subscriptions/:param` | POST | GET |
@@ -1902,6 +1803,10 @@ Frontend calls with different HTTP method than backend expects.
 | `/hr/trainings/by-employee/:param` | POST | GET |
 | `/trust-accounts/:param` | POST | GET |
 | `/permissions/ui/overrides` | GET | POST |
+| `/workflow/templates` | POST | GET |
+| `/workflow/templates/${id}` | PUT | GET |
+| `/workflow/templates/${id}` | DELETE | GET |
+| `/workflow/instances` | POST | GET |
 
 
 ---
@@ -2303,13 +2208,13 @@ Enums in backend models not exposed to frontend.
 ## Action Items
 
 ### 🔴 Critical (Will Break App)
-1. Add 699 missing backend endpoints
-2. Fix 128 HTTP method mismatches
+1. Add 592 missing backend endpoints
+2. Fix 142 HTTP method mismatches
 3. Sync 0 enum value differences
 
 ### 🟡 Important (May Cause Issues)
 1. Review 2871 frontend-only interfaces
-2. Document 2290 unused backend endpoints
+2. Document 2309 unused backend endpoints
 
 ### 📝 Housekeeping
 1. Remove dead code or add tests for unused endpoints

@@ -432,6 +432,18 @@ const {
     subscriptionsRoute,
     corporateCardsRoute,
 
+    // Batch 5 Routes (HR recruitment extended, retention bonuses, payroll extended)
+    hrRecruitmentExtendedRoute,
+    hrRetentionBonusRoute,
+    hrPayrollExtendedRoute,
+
+    // Batch 6 Routes (activities, shifts, transactions, workflows extended)
+    activitiesExtendedRoute,
+    shiftAssignmentsRoute,
+    shiftRequestsRoute,
+    transactionsExtendedRoute,
+    workflowExtendedRoute,
+
     // Unified Data Flow
     unifiedDataRoute,
 
@@ -1348,6 +1360,18 @@ app.use('/api/hr/employee-incentives', noCache, employeeIncentiveRoute);
 app.use('/api/hr/employee-promotions', noCache, employeePromotionRoute);
 app.use('/api/hr/skill-maps', noCache, skillMapRoute);
 app.use('/api/hr/transfers', noCache, employeeTransferRoute);
+
+// Batch 5 Routes (HR recruitment extended, retention bonuses, payroll extended)
+app.use('/api/hr/recruitment', noCache, hrRecruitmentExtendedRoute); // Extended recruitment endpoints
+app.use('/api/hr/retention-bonuses', noCache, hrRetentionBonusRoute); // Retention bonus management
+app.use('/api/hr/payroll-runs', noCache, hrPayrollExtendedRoute); // Extended payroll run operations
+
+// Batch 6 Routes (activities, shifts, transactions, workflows extended)
+app.use('/api/activities', noCache, activitiesExtendedRoute); // Extended activities management
+app.use('/api/shift-assignments', noCache, shiftAssignmentsRoute); // Shift assignment management
+app.use('/api/shift-requests', noCache, shiftRequestsRoute); // Shift request management
+app.use('/api/transactions', noCache, transactionsExtendedRoute); // Extended transaction operations
+app.use('/api/workflow', noCache, workflowExtendedRoute); // Extended workflow operations
 
 // ============================================
 // UNIFIED DATA FLOW ROUTES
