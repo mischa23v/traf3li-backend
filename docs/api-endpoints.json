@@ -1,7 +1,7 @@
 {
-  "generated": "2026-01-09T12:16:24.468Z",
-  "totalEndpoints": 4915,
-  "totalModules": 317,
+  "generated": "2026-01-09T12:24:46.050Z",
+  "totalEndpoints": 4953,
+  "totalModules": 322,
   "modules": {
     "account": [
       {
@@ -10171,6 +10171,56 @@
         "module": "crmReportsExtended"
       }
     ],
+    "crmReportsTransactions": [
+      {
+        "method": "GET",
+        "path": "/transactions",
+        "controller": "unknown",
+        "file": "crmReportsTransactions.route.js",
+        "fullPath": "/api/crm/reports/transactions",
+        "module": "crmReportsTransactions"
+      },
+      {
+        "method": "GET",
+        "path": "/transactions/summary",
+        "controller": "unknown",
+        "file": "crmReportsTransactions.route.js",
+        "fullPath": "/api/crm/reports/transactions/summary",
+        "module": "crmReportsTransactions"
+      },
+      {
+        "method": "GET",
+        "path": "/transactions/export",
+        "controller": "unknown",
+        "file": "crmReportsTransactions.route.js",
+        "fullPath": "/api/crm/reports/transactions/export",
+        "module": "crmReportsTransactions"
+      },
+      {
+        "method": "GET",
+        "path": "/:reportType/export",
+        "controller": "unknown",
+        "file": "crmReportsTransactions.route.js",
+        "fullPath": "/api/crm/reports/:reportType/export",
+        "module": "crmReportsTransactions"
+      },
+      {
+        "method": "GET",
+        "path": "/transactions/by-period",
+        "controller": "unknown",
+        "file": "crmReportsTransactions.route.js",
+        "fullPath": "/api/crm/reports/transactions/by-period",
+        "module": "crmReportsTransactions"
+      },
+      {
+        "method": "GET",
+        "path": "/transactions/trends",
+        "controller": "unknown",
+        "file": "crmReportsTransactions.route.js",
+        "fullPath": "/api/crm/reports/transactions/trends",
+        "module": "crmReportsTransactions"
+      }
+    ],
     "crmSettings": [
       {
         "method": "GET",
@@ -18843,6 +18893,56 @@
         "module": "hrShiftTypesExtended"
       }
     ],
+    "hrShiftTypesMore": [
+      {
+        "method": "POST",
+        "path": "/:shiftTypeId/clone",
+        "controller": "unknown",
+        "file": "hrShiftTypesMore.route.js",
+        "fullPath": "/api/hr/shift-types/:shiftTypeId/clone",
+        "module": "hrShiftTypesMore"
+      },
+      {
+        "method": "POST",
+        "path": "/:shiftTypeId/calculate-hours",
+        "controller": "unknown",
+        "file": "hrShiftTypesMore.route.js",
+        "fullPath": "/api/hr/shift-types/:shiftTypeId/calculate-hours",
+        "module": "hrShiftTypesMore"
+      },
+      {
+        "method": "GET",
+        "path": "/by-day/:day",
+        "controller": "unknown",
+        "file": "hrShiftTypesMore.route.js",
+        "fullPath": "/api/hr/shift-types/by-day/:day",
+        "module": "hrShiftTypesMore"
+      },
+      {
+        "method": "GET",
+        "path": "/active",
+        "controller": "unknown",
+        "file": "hrShiftTypesMore.route.js",
+        "fullPath": "/api/hr/shift-types/active",
+        "module": "hrShiftTypesMore"
+      },
+      {
+        "method": "GET",
+        "path": "/:shiftTypeId/coverage",
+        "controller": "unknown",
+        "file": "hrShiftTypesMore.route.js",
+        "fullPath": "/api/hr/shift-types/:shiftTypeId/coverage",
+        "module": "hrShiftTypesMore"
+      },
+      {
+        "method": "POST",
+        "path": "/:shiftTypeId/validate",
+        "controller": "unknown",
+        "file": "hrShiftTypesMore.route.js",
+        "fullPath": "/api/hr/shift-types/:shiftTypeId/validate",
+        "module": "hrShiftTypesMore"
+      }
+    ],
     "hrStaffingPlanDetails": [
       {
         "method": "GET",
@@ -19295,6 +19395,64 @@
         "file": "hrStaffingPlansExtended.route.js",
         "fullPath": "/api/hr/staffing-plans/:planId/approve",
         "module": "hrStaffingPlansExtended"
+      }
+    ],
+    "hrStaffingPlansMore": [
+      {
+        "method": "POST",
+        "path": "/:planId/close",
+        "controller": "unknown",
+        "file": "hrStaffingPlansMore.route.js",
+        "fullPath": "/api/hr/staffing-plans/:planId/close",
+        "module": "hrStaffingPlansMore"
+      },
+      {
+        "method": "GET",
+        "path": "/active",
+        "controller": "unknown",
+        "file": "hrStaffingPlansMore.route.js",
+        "fullPath": "/api/hr/staffing-plans/active",
+        "module": "hrStaffingPlansMore"
+      },
+      {
+        "method": "GET",
+        "path": "/department/:departmentId",
+        "controller": "unknown",
+        "file": "hrStaffingPlansMore.route.js",
+        "fullPath": "/api/hr/staffing-plans/department/:departmentId",
+        "module": "hrStaffingPlansMore"
+      },
+      {
+        "method": "POST",
+        "path": "/:planId/bulk-update-details",
+        "controller": "unknown",
+        "file": "hrStaffingPlansMore.route.js",
+        "fullPath": "/api/hr/staffing-plans/:planId/bulk-update-details",
+        "module": "hrStaffingPlansMore"
+      },
+      {
+        "method": "POST",
+        "path": "/:planId/export",
+        "controller": "unknown",
+        "file": "hrStaffingPlansMore.route.js",
+        "fullPath": "/api/hr/staffing-plans/:planId/export",
+        "module": "hrStaffingPlansMore"
+      },
+      {
+        "method": "GET",
+        "path": "/templates",
+        "controller": "unknown",
+        "file": "hrStaffingPlansMore.route.js",
+        "fullPath": "/api/hr/staffing-plans/templates",
+        "module": "hrStaffingPlansMore"
+      },
+      {
+        "method": "POST",
+        "path": "/from-template/:templateId",
+        "controller": "unknown",
+        "file": "hrStaffingPlansMore.route.js",
+        "fullPath": "/api/hr/staffing-plans/from-template/:templateId",
+        "module": "hrStaffingPlansMore"
       }
     ],
     "hrVehicles": [
@@ -27443,6 +27601,56 @@
         "module": "priceLevel"
       }
     ],
+    "priceLevelsExtended": [
+      {
+        "method": "POST",
+        "path": "/:id/calculate",
+        "controller": "unknown",
+        "file": "priceLevelsExtended.route.js",
+        "fullPath": "/api/price-levels/:id/calculate",
+        "module": "priceLevelsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/assign",
+        "controller": "unknown",
+        "file": "priceLevelsExtended.route.js",
+        "fullPath": "/api/price-levels/:id/assign",
+        "module": "priceLevelsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/:id/clients",
+        "controller": "unknown",
+        "file": "priceLevelsExtended.route.js",
+        "fullPath": "/api/price-levels/:id/clients",
+        "module": "priceLevelsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/duplicate",
+        "controller": "unknown",
+        "file": "priceLevelsExtended.route.js",
+        "fullPath": "/api/price-levels/:id/duplicate",
+        "module": "priceLevelsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/apply-discount",
+        "controller": "unknown",
+        "file": "priceLevelsExtended.route.js",
+        "fullPath": "/api/price-levels/:id/apply-discount",
+        "module": "priceLevelsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/:id/usage-stats",
+        "controller": "unknown",
+        "file": "priceLevelsExtended.route.js",
+        "fullPath": "/api/price-levels/:id/usage-stats",
+        "module": "priceLevelsExtended"
+      }
+    ],
     "products": [
       {
         "method": "GET",
@@ -30277,7 +30485,7 @@
         "path": "/",
         "controller": "unknown",
         "file": "salesTeam.routes.js",
-        "fullPath": "/api/salesTeams",
+        "fullPath": "/api/crm/sales-teams",
         "module": "salesTeams"
       },
       {
@@ -30285,7 +30493,7 @@
         "path": "/",
         "controller": "unknown",
         "file": "salesTeam.routes.js",
-        "fullPath": "/api/salesTeams",
+        "fullPath": "/api/crm/sales-teams",
         "module": "salesTeams"
       },
       {
@@ -30293,7 +30501,7 @@
         "path": "/:id",
         "controller": "unknown",
         "file": "salesTeam.routes.js",
-        "fullPath": "/api/salesTeams/:id",
+        "fullPath": "/api/crm/sales-teams/:id",
         "module": "salesTeams"
       },
       {
@@ -30301,7 +30509,7 @@
         "path": "/:id",
         "controller": "unknown",
         "file": "salesTeam.routes.js",
-        "fullPath": "/api/salesTeams/:id",
+        "fullPath": "/api/crm/sales-teams/:id",
         "module": "salesTeams"
       },
       {
@@ -30309,7 +30517,7 @@
         "path": "/:id",
         "controller": "unknown",
         "file": "salesTeam.routes.js",
-        "fullPath": "/api/salesTeams/:id",
+        "fullPath": "/api/crm/sales-teams/:id",
         "module": "salesTeams"
       },
       {
@@ -30317,7 +30525,7 @@
         "path": "/:id/members",
         "controller": "unknown",
         "file": "salesTeam.routes.js",
-        "fullPath": "/api/salesTeams/:id/members",
+        "fullPath": "/api/crm/sales-teams/:id/members",
         "module": "salesTeams"
       },
       {
@@ -30325,7 +30533,7 @@
         "path": "/:id/members/:userId",
         "controller": "unknown",
         "file": "salesTeam.routes.js",
-        "fullPath": "/api/salesTeams/:id/members/:userId",
+        "fullPath": "/api/crm/sales-teams/:id/members/:userId",
         "module": "salesTeams"
       },
       {
@@ -30333,7 +30541,7 @@
         "path": "/:id/stats",
         "controller": "unknown",
         "file": "salesTeam.routes.js",
-        "fullPath": "/api/salesTeams/:id/stats",
+        "fullPath": "/api/crm/sales-teams/:id/stats",
         "module": "salesTeams"
       },
       {
@@ -30341,7 +30549,7 @@
         "path": "/:id/leaderboard",
         "controller": "unknown",
         "file": "salesTeam.routes.js",
-        "fullPath": "/api/salesTeams/:id/leaderboard",
+        "fullPath": "/api/crm/sales-teams/:id/leaderboard",
         "module": "salesTeams"
       },
       {
@@ -30349,7 +30557,63 @@
         "path": "/:id/default",
         "controller": "unknown",
         "file": "salesTeam.routes.js",
-        "fullPath": "/api/salesTeams/:id/default",
+        "fullPath": "/api/crm/sales-teams/:id/default",
+        "module": "salesTeams"
+      },
+      {
+        "method": "GET",
+        "path": "/",
+        "controller": "unknown",
+        "file": "salesTeams.route.js",
+        "fullPath": "/api/crm/sales-teams",
+        "module": "salesTeams"
+      },
+      {
+        "method": "GET",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "salesTeams.route.js",
+        "fullPath": "/api/crm/sales-teams/:id",
+        "module": "salesTeams"
+      },
+      {
+        "method": "POST",
+        "path": "/",
+        "controller": "unknown",
+        "file": "salesTeams.route.js",
+        "fullPath": "/api/crm/sales-teams",
+        "module": "salesTeams"
+      },
+      {
+        "method": "PUT",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "salesTeams.route.js",
+        "fullPath": "/api/crm/sales-teams/:id",
+        "module": "salesTeams"
+      },
+      {
+        "method": "DELETE",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "salesTeams.route.js",
+        "fullPath": "/api/crm/sales-teams/:id",
+        "module": "salesTeams"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/members",
+        "controller": "unknown",
+        "file": "salesTeams.route.js",
+        "fullPath": "/api/crm/sales-teams/:id/members",
+        "module": "salesTeams"
+      },
+      {
+        "method": "DELETE",
+        "path": "/:id/members/:userId",
+        "controller": "unknown",
+        "file": "salesTeams.route.js",
+        "fullPath": "/api/crm/sales-teams/:id/members/:userId",
         "module": "salesTeams"
       }
     ],
@@ -31955,6 +32219,56 @@
         "file": "settingsAlias.route.js",
         "fullPath": "/api/settings/payment-modes/:id/default",
         "module": "settingsAlias"
+      }
+    ],
+    "settingsSales": [
+      {
+        "method": "GET",
+        "path": "/",
+        "controller": "unknown",
+        "file": "settingsSales.route.js",
+        "fullPath": "/api/settings/sales",
+        "module": "settingsSales"
+      },
+      {
+        "method": "PUT",
+        "path": "/",
+        "controller": "unknown",
+        "file": "settingsSales.route.js",
+        "fullPath": "/api/settings/sales",
+        "module": "settingsSales"
+      },
+      {
+        "method": "GET",
+        "path": "/reset/:section",
+        "controller": "unknown",
+        "file": "settingsSales.route.js",
+        "fullPath": "/api/settings/sales/reset/:section",
+        "module": "settingsSales"
+      },
+      {
+        "method": "GET",
+        "path": "/history",
+        "controller": "unknown",
+        "file": "settingsSales.route.js",
+        "fullPath": "/api/settings/sales/history",
+        "module": "settingsSales"
+      },
+      {
+        "method": "GET",
+        "path": "/export",
+        "controller": "unknown",
+        "file": "settingsSales.route.js",
+        "fullPath": "/api/settings/sales/export",
+        "module": "settingsSales"
+      },
+      {
+        "method": "POST",
+        "path": "/import",
+        "controller": "unknown",
+        "file": "settingsSales.route.js",
+        "fullPath": "/api/settings/sales/import",
+        "module": "settingsSales"
       }
     ],
     "setupWizard": [

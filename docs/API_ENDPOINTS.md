@@ -86,6 +86,7 @@
 - [crmReports](#crmreports) (27 endpoints)
 - [crmReportsAlias](#crmreportsalias) (18 endpoints)
 - [crmReportsExtended](#crmreportsextended) (24 endpoints)
+- [crmReportsTransactions](#crmreportstransactions) (6 endpoints)
 - [crmSettings](#crmsettings) (3 endpoints)
 - [crmTransaction](#crmtransaction) (15 endpoints)
 - [currency](#currency) (6 endpoints)
@@ -150,9 +151,11 @@
 - [hrSalaryComponentsExtended](#hrsalarycomponentsextended) (7 endpoints)
 - [hrSetup](#hrsetup) (27 endpoints)
 - [hrShiftTypesExtended](#hrshifttypesextended) (13 endpoints)
+- [hrShiftTypesMore](#hrshifttypesmore) (6 endpoints)
 - [hrStaffingPlanDetails](#hrstaffingplandetails) (17 endpoints)
 - [hrStaffingPlans](#hrstaffingplans) (26 endpoints)
 - [hrStaffingPlansExtended](#hrstaffingplansextended) (13 endpoints)
+- [hrStaffingPlansMore](#hrstaffingplansmore) (7 endpoints)
 - [hrVehicles](#hrvehicles) (16 endpoints)
 - [incomeTaxSlab](#incometaxslab) (9 endpoints)
 - [integrations](#integrations) (45 endpoints)
@@ -226,6 +229,7 @@
 - [plugins](#plugins) (16 endpoints)
 - [preparedReport](#preparedreport) (7 endpoints)
 - [priceLevel](#pricelevel) (7 endpoints)
+- [priceLevelsExtended](#pricelevelsextended) (6 endpoints)
 - [products](#products) (9 endpoints)
 - [productsEnhanced](#productsenhanced) (18 endpoints)
 - [proposal](#proposal) (6 endpoints)
@@ -252,7 +256,7 @@
 - [salesPerson](#salesperson) (7 endpoints)
 - [salesQuota](#salesquota) (11 endpoints)
 - [salesStage](#salesstage) (7 endpoints)
-- [salesTeams](#salesteams) (10 endpoints)
+- [salesTeams](#salesteams) (17 endpoints)
 - [saless](#saless) (75 endpoints)
 - [saml](#saml) (8 endpoints)
 - [sandboxs](#sandboxs) (9 endpoints)
@@ -263,6 +267,7 @@
 - [security](#security) (11 endpoints)
 - [securityIncident](#securityincident) (8 endpoints)
 - [settingsAlias](#settingsalias) (26 endpoints)
+- [settingsSales](#settingssales) (6 endpoints)
 - [setupWizard](#setupwizard) (13 endpoints)
 - [shift](#shift) (17 endpoints)
 - [shiftAssignments](#shiftassignments) (15 endpoints)
@@ -330,8 +335,8 @@
 
 | Metric | Count |
 |--------|-------|
-| Total Endpoints | 4915 |
-| Total Modules | 317 |
+| Total Endpoints | 4953 |
+| Total Modules | 322 |
 
 ---
 
@@ -1986,6 +1991,17 @@
 | `GET` | `/api/crm-reports/performance/rep-scorecard/:userId` | unknown | crmReportsExtended.route.js |
 | `GET` | `/api/crm-reports/performance/activity-metrics` | unknown | crmReportsExtended.route.js |
 
+## crmReportsTransactions
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/crm/reports/transactions` | unknown | crmReportsTransactions.route.js |
+| `GET` | `/api/crm/reports/transactions/summary` | unknown | crmReportsTransactions.route.js |
+| `GET` | `/api/crm/reports/transactions/export` | unknown | crmReportsTransactions.route.js |
+| `GET` | `/api/crm/reports/:reportType/export` | unknown | crmReportsTransactions.route.js |
+| `GET` | `/api/crm/reports/transactions/by-period` | unknown | crmReportsTransactions.route.js |
+| `GET` | `/api/crm/reports/transactions/trends` | unknown | crmReportsTransactions.route.js |
+
 ## crmSettings
 
 | Method | Path | Controller | File |
@@ -3374,6 +3390,17 @@
 | `POST` | `/api/hr/shift-types/bulk-delete` | unknown | hrShiftTypesExtended.route.js |
 | `POST` | `/api/hr/shift-types/import` | unknown | hrShiftTypesExtended.route.js |
 
+## hrShiftTypesMore
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `POST` | `/api/hr/shift-types/:shiftTypeId/clone` | unknown | hrShiftTypesMore.route.js |
+| `POST` | `/api/hr/shift-types/:shiftTypeId/calculate-hours` | unknown | hrShiftTypesMore.route.js |
+| `GET` | `/api/hr/shift-types/by-day/:day` | unknown | hrShiftTypesMore.route.js |
+| `GET` | `/api/hr/shift-types/active` | unknown | hrShiftTypesMore.route.js |
+| `GET` | `/api/hr/shift-types/:shiftTypeId/coverage` | unknown | hrShiftTypesMore.route.js |
+| `POST` | `/api/hr/shift-types/:shiftTypeId/validate` | unknown | hrShiftTypesMore.route.js |
+
 ## hrStaffingPlanDetails
 
 | Method | Path | Controller | File |
@@ -3444,6 +3471,18 @@
 | `POST` | `/api/hr/staffing-plans/:planId/rollover` | unknown | hrStaffingPlansExtended.route.js |
 | `GET` | `/api/hr/staffing-plans/:planId/timeline` | unknown | hrStaffingPlansExtended.route.js |
 | `POST` | `/api/hr/staffing-plans/:planId/approve` | unknown | hrStaffingPlansExtended.route.js |
+
+## hrStaffingPlansMore
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `POST` | `/api/hr/staffing-plans/:planId/close` | unknown | hrStaffingPlansMore.route.js |
+| `GET` | `/api/hr/staffing-plans/active` | unknown | hrStaffingPlansMore.route.js |
+| `GET` | `/api/hr/staffing-plans/department/:departmentId` | unknown | hrStaffingPlansMore.route.js |
+| `POST` | `/api/hr/staffing-plans/:planId/bulk-update-details` | unknown | hrStaffingPlansMore.route.js |
+| `POST` | `/api/hr/staffing-plans/:planId/export` | unknown | hrStaffingPlansMore.route.js |
+| `GET` | `/api/hr/staffing-plans/templates` | unknown | hrStaffingPlansMore.route.js |
+| `POST` | `/api/hr/staffing-plans/from-template/:templateId` | unknown | hrStaffingPlansMore.route.js |
 
 ## hrVehicles
 
@@ -4810,6 +4849,17 @@
 | `DELETE` | `/api/price-levels/:id` | deletePriceLevel | priceLevel.route.js |
 | `POST` | `/api/price-levels/:id/set-default` | setDefault | priceLevel.route.js |
 
+## priceLevelsExtended
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `POST` | `/api/price-levels/:id/calculate` | unknown | priceLevelsExtended.route.js |
+| `POST` | `/api/price-levels/:id/assign` | unknown | priceLevelsExtended.route.js |
+| `GET` | `/api/price-levels/:id/clients` | unknown | priceLevelsExtended.route.js |
+| `POST` | `/api/price-levels/:id/duplicate` | unknown | priceLevelsExtended.route.js |
+| `POST` | `/api/price-levels/:id/apply-discount` | unknown | priceLevelsExtended.route.js |
+| `GET` | `/api/price-levels/:id/usage-stats` | unknown | priceLevelsExtended.route.js |
+
 ## products
 
 | Method | Path | Controller | File |
@@ -5291,16 +5341,23 @@
 
 | Method | Path | Controller | File |
 |--------|------|------------|------|
-| `POST` | `/api/salesTeams` | unknown | salesTeam.routes.js |
-| `GET` | `/api/salesTeams` | unknown | salesTeam.routes.js |
-| `GET` | `/api/salesTeams/:id` | unknown | salesTeam.routes.js |
-| `PUT` | `/api/salesTeams/:id` | unknown | salesTeam.routes.js |
-| `DELETE` | `/api/salesTeams/:id` | unknown | salesTeam.routes.js |
-| `POST` | `/api/salesTeams/:id/members` | unknown | salesTeam.routes.js |
-| `DELETE` | `/api/salesTeams/:id/members/:userId` | unknown | salesTeam.routes.js |
-| `GET` | `/api/salesTeams/:id/stats` | unknown | salesTeam.routes.js |
-| `GET` | `/api/salesTeams/:id/leaderboard` | unknown | salesTeam.routes.js |
-| `POST` | `/api/salesTeams/:id/default` | unknown | salesTeam.routes.js |
+| `POST` | `/api/crm/sales-teams` | unknown | salesTeam.routes.js |
+| `GET` | `/api/crm/sales-teams` | unknown | salesTeam.routes.js |
+| `GET` | `/api/crm/sales-teams/:id` | unknown | salesTeam.routes.js |
+| `PUT` | `/api/crm/sales-teams/:id` | unknown | salesTeam.routes.js |
+| `DELETE` | `/api/crm/sales-teams/:id` | unknown | salesTeam.routes.js |
+| `POST` | `/api/crm/sales-teams/:id/members` | unknown | salesTeam.routes.js |
+| `DELETE` | `/api/crm/sales-teams/:id/members/:userId` | unknown | salesTeam.routes.js |
+| `GET` | `/api/crm/sales-teams/:id/stats` | unknown | salesTeam.routes.js |
+| `GET` | `/api/crm/sales-teams/:id/leaderboard` | unknown | salesTeam.routes.js |
+| `POST` | `/api/crm/sales-teams/:id/default` | unknown | salesTeam.routes.js |
+| `GET` | `/api/crm/sales-teams` | unknown | salesTeams.route.js |
+| `GET` | `/api/crm/sales-teams/:id` | unknown | salesTeams.route.js |
+| `POST` | `/api/crm/sales-teams` | unknown | salesTeams.route.js |
+| `PUT` | `/api/crm/sales-teams/:id` | unknown | salesTeams.route.js |
+| `DELETE` | `/api/crm/sales-teams/:id` | unknown | salesTeams.route.js |
+| `POST` | `/api/crm/sales-teams/:id/members` | unknown | salesTeams.route.js |
+| `DELETE` | `/api/crm/sales-teams/:id/members/:userId` | unknown | salesTeams.route.js |
 
 ## saless
 
@@ -5549,6 +5606,17 @@
 | `PUT` | `/api/settings/payment-modes/:id` | unknown | settingsAlias.route.js |
 | `DELETE` | `/api/settings/payment-modes/:id` | unknown | settingsAlias.route.js |
 | `PATCH` | `/api/settings/payment-modes/:id/default` | unknown | settingsAlias.route.js |
+
+## settingsSales
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/settings/sales` | unknown | settingsSales.route.js |
+| `PUT` | `/api/settings/sales` | unknown | settingsSales.route.js |
+| `GET` | `/api/settings/sales/reset/:section` | unknown | settingsSales.route.js |
+| `GET` | `/api/settings/sales/history` | unknown | settingsSales.route.js |
+| `GET` | `/api/settings/sales/export` | unknown | settingsSales.route.js |
+| `POST` | `/api/settings/sales/import` | unknown | settingsSales.route.js |
 
 ## setupWizard
 
@@ -6839,7 +6907,7 @@
 
 ## Quick Reference by Method
 
-### GET (2093)
+### GET (2113)
 
 <details>
 <summary>Click to expand</summary>
@@ -7410,6 +7478,7 @@ GET    /api/crm-transactions/user-activity/:userId
 GET    /api/crm/appointments
 GET    /api/crm/lead-sources
 GET    /api/crm/leads
+GET    /api/crm/reports/:reportType/export
 GET    /api/crm/reports/activity/calls
 GET    /api/crm/reports/activity/emails
 GET    /api/crm/reports/activity/meetings
@@ -7443,10 +7512,21 @@ GET    /api/crm/reports/revenue/win-rate
 GET    /api/crm/reports/territory/geographic-pipeline
 GET    /api/crm/reports/territory/performance
 GET    /api/crm/reports/territory/regional-sales
+GET    /api/crm/reports/transactions
+GET    /api/crm/reports/transactions/by-period
+GET    /api/crm/reports/transactions/export
+GET    /api/crm/reports/transactions/summary
+GET    /api/crm/reports/transactions/trends
 GET    /api/crm/reports/win-loss/analysis
 GET    /api/crm/reports/win-loss/competitors
 GET    /api/crm/reports/win-loss/lost-deals
 GET    /api/crm/sales-stages
+GET    /api/crm/sales-teams
+GET    /api/crm/sales-teams
+GET    /api/crm/sales-teams/:id
+GET    /api/crm/sales-teams/:id
+GET    /api/crm/sales-teams/:id/leaderboard
+GET    /api/crm/sales-teams/:id/stats
 GET    /api/crmSettings
 GET    /api/currency/rates
 GET    /api/currency/settings
@@ -7970,7 +8050,10 @@ GET    /api/hr/self-service/profile
 GET    /api/hr/shift-types
 GET    /api/hr/shift-types/:id
 GET    /api/hr/shift-types/:shiftTypeId/assignments
+GET    /api/hr/shift-types/:shiftTypeId/coverage
 GET    /api/hr/shift-types/:shiftTypeId/schedule
+GET    /api/hr/shift-types/active
+GET    /api/hr/shift-types/by-day/:day
 GET    /api/hr/shift-types/default
 GET    /api/hr/shift-types/export
 GET    /api/hr/shift-types/stats
@@ -8022,10 +8105,12 @@ GET    /api/hr/staffing-plans/:planId/positions/open
 GET    /api/hr/staffing-plans/:planId/progress
 GET    /api/hr/staffing-plans/:planId/timeline
 GET    /api/hr/staffing-plans/:planId/timeline
+GET    /api/hr/staffing-plans/active
 GET    /api/hr/staffing-plans/analytics
 GET    /api/hr/staffing-plans/attrition-forecast
 GET    /api/hr/staffing-plans/comparison
 GET    /api/hr/staffing-plans/cost-analysis
+GET    /api/hr/staffing-plans/department/:departmentId
 GET    /api/hr/staffing-plans/export
 GET    /api/hr/staffing-plans/forecast
 GET    /api/hr/staffing-plans/gaps
@@ -8035,6 +8120,7 @@ GET    /api/hr/staffing-plans/headcount/by-job-family
 GET    /api/hr/staffing-plans/headcount/by-location
 GET    /api/hr/staffing-plans/headcount/trends
 GET    /api/hr/staffing-plans/scenarios
+GET    /api/hr/staffing-plans/templates
 GET    /api/hr/staffing-plans/vacancies-summary
 GET    /api/hr/staffing-plans/variance
 GET    /api/hr/surveys
@@ -8379,6 +8465,8 @@ GET    /api/preparedReport/:id
 GET    /api/preparedReport/stats
 GET    /api/price-levels
 GET    /api/price-levels/:id
+GET    /api/price-levels/:id/clients
+GET    /api/price-levels/:id/usage-stats
 GET    /api/price-levels/client-rate
 GET    /api/products
 GET    /api/products/:id
@@ -8549,10 +8637,6 @@ GET    /api/saless/returns/requiring-inspection
 GET    /api/saless/returns/statistics
 GET    /api/salesStage
 GET    /api/salesStage/:id
-GET    /api/salesTeams
-GET    /api/salesTeams/:id
-GET    /api/salesTeams/:id/leaderboard
-GET    /api/salesTeams/:id/stats
 GET    /api/sandboxs
 GET    /api/sandboxs/:id/check-limit
 GET    /api/sandboxs/stats
@@ -8607,6 +8691,10 @@ GET    /api/settings/payment-modes
 GET    /api/settings/payment-terms
 GET    /api/settings/payment-terms/:id
 GET    /api/settings/payment-terms/templates
+GET    /api/settings/sales
+GET    /api/settings/sales/export
+GET    /api/settings/sales/history
+GET    /api/settings/sales/reset/:section
 GET    /api/settings/sso
 GET    /api/settings/sso/domains
 GET    /api/settings/sso/providers/:providerId
@@ -8942,7 +9030,7 @@ GET    /api/zoom/status
 
 </details>
 
-### POST (1989)
+### POST (2003)
 
 <details>
 <summary>Click to expand</summary>
@@ -9433,6 +9521,11 @@ POST   /api/crm/appointments
 POST   /api/crm/lead-sources
 POST   /api/crm/leads
 POST   /api/crm/sales-stages
+POST   /api/crm/sales-teams
+POST   /api/crm/sales-teams
+POST   /api/crm/sales-teams/:id/default
+POST   /api/crm/sales-teams/:id/members
+POST   /api/crm/sales-teams/:id/members
 POST   /api/crmSettings/reset
 POST   /api/currency/convert
 POST   /api/currency/rates
@@ -9980,9 +10073,12 @@ POST   /api/hr/self-service/leave/request
 POST   /api/hr/self-service/leave/request/:requestId/cancel
 POST   /api/hr/shift-types
 POST   /api/hr/shift-types/:shiftTypeId/activate
+POST   /api/hr/shift-types/:shiftTypeId/calculate-hours
+POST   /api/hr/shift-types/:shiftTypeId/clone
 POST   /api/hr/shift-types/:shiftTypeId/deactivate
 POST   /api/hr/shift-types/:shiftTypeId/duplicate
 POST   /api/hr/shift-types/:shiftTypeId/set-default
+POST   /api/hr/shift-types/:shiftTypeId/validate
 POST   /api/hr/shift-types/bulk
 POST   /api/hr/shift-types/bulk-activate
 POST   /api/hr/shift-types/bulk-deactivate
@@ -10016,11 +10112,14 @@ POST   /api/hr/staffing-plans/:planId/activate
 POST   /api/hr/staffing-plans/:planId/approve
 POST   /api/hr/staffing-plans/:planId/approve
 POST   /api/hr/staffing-plans/:planId/archive
+POST   /api/hr/staffing-plans/:planId/bulk-update-details
 POST   /api/hr/staffing-plans/:planId/calculate-vacancies
+POST   /api/hr/staffing-plans/:planId/close
 POST   /api/hr/staffing-plans/:planId/details
 POST   /api/hr/staffing-plans/:planId/details/:detailId/create-job-opening
 POST   /api/hr/staffing-plans/:planId/details/:detailId/link-job-opening
 POST   /api/hr/staffing-plans/:planId/duplicate
+POST   /api/hr/staffing-plans/:planId/export
 POST   /api/hr/staffing-plans/:planId/fill/:posId
 POST   /api/hr/staffing-plans/:planId/generate-requisitions
 POST   /api/hr/staffing-plans/:planId/positions
@@ -10031,6 +10130,7 @@ POST   /api/hr/staffing-plans/:planId/sync-headcount
 POST   /api/hr/staffing-plans/bulk-archive
 POST   /api/hr/staffing-plans/bulk-delete
 POST   /api/hr/staffing-plans/bulk-update
+POST   /api/hr/staffing-plans/from-template/:templateId
 POST   /api/hr/staffing-plans/scenarios
 POST   /api/hr/staffing-plans/scenarios/:scenarioId/apply
 POST   /api/hr/surveys
@@ -10360,6 +10460,10 @@ POST   /api/preparedReport/:id/refresh
 POST   /api/preparedReport/cleanup
 POST   /api/preparedReport/request
 POST   /api/price-levels
+POST   /api/price-levels/:id/apply-discount
+POST   /api/price-levels/:id/assign
+POST   /api/price-levels/:id/calculate
+POST   /api/price-levels/:id/duplicate
 POST   /api/price-levels/:id/set-default
 POST   /api/products
 POST   /api/products/enhanced
@@ -10515,9 +10619,6 @@ POST   /api/saless/returns/from-delivery
 POST   /api/saless/returns/from-order
 POST   /api/salesStage
 POST   /api/salesStage/defaults
-POST   /api/salesTeams
-POST   /api/salesTeams/:id/default
-POST   /api/salesTeams/:id/members
 POST   /api/sandboxs
 POST   /api/sandboxs/:id/clone
 POST   /api/sandboxs/:id/extend
@@ -10563,6 +10664,7 @@ POST   /api/settings/email/templates/:id/preview
 POST   /api/settings/payment-modes
 POST   /api/settings/payment-terms
 POST   /api/settings/payment-terms/:id/set-default
+POST   /api/settings/sales/import
 POST   /api/settings/sso/providers/:providerId/test
 POST   /api/settings/taxes
 POST   /api/setup/admin/sections
@@ -10941,7 +11043,7 @@ POST   /api/zoom/webhook
 
 </details>
 
-### PUT (257)
+### PUT (259)
 
 <details>
 <summary>Click to expand</summary>
@@ -11007,6 +11109,8 @@ PUT    /api/credit-notes/:id
 PUT    /api/crm-activities/:id
 PUT    /api/crm-pipelines/:id
 PUT    /api/crm-pipelines/:id/stages/:stageId
+PUT    /api/crm/sales-teams/:id
+PUT    /api/crm/sales-teams/:id
 PUT    /api/crmSettings
 PUT    /api/dealRooms/:id/pages/:pageId
 PUT    /api/debit-notes/:id
@@ -11147,7 +11251,6 @@ PUT    /api/saless/deliveries/:id
 PUT    /api/saless/orders/:id/items/:itemId
 PUT    /api/salesStage/:id
 PUT    /api/salesStage/reorder
-PUT    /api/salesTeams/:id
 PUT    /api/savedFilters/:id
 PUT    /api/security/incidents/:id
 PUT    /api/settings/crm
@@ -11158,6 +11261,7 @@ PUT    /api/settings/email/templates/:id
 PUT    /api/settings/finance
 PUT    /api/settings/payment-modes/:id
 PUT    /api/settings/payment-terms/:id
+PUT    /api/settings/sales
 PUT    /api/settings/sso/providers/:providerId
 PUT    /api/settings/taxes/:id
 PUT    /api/shift-assignments/:assignmentId
@@ -11449,7 +11553,7 @@ PATCH  /api/workflows/:id
 
 </details>
 
-### DELETE (345)
+### DELETE (347)
 
 <details>
 <summary>Click to expand</summary>
@@ -11551,6 +11655,10 @@ DELETE /api/credit-notes/:id
 DELETE /api/crm-activities/:id
 DELETE /api/crm-pipelines/:id
 DELETE /api/crm-pipelines/:id/stages/:stageId
+DELETE /api/crm/sales-teams/:id
+DELETE /api/crm/sales-teams/:id
+DELETE /api/crm/sales-teams/:id/members/:userId
+DELETE /api/crm/sales-teams/:id/members/:userId
 DELETE /api/customFields/:id
 DELETE /api/customFields/values/:entityType/:entityId
 DELETE /api/customFields/values/:entityType/:entityId/:fieldId
@@ -11727,8 +11835,6 @@ DELETE /api/salesForecasts/:id
 DELETE /api/salesPerson/:id
 DELETE /api/saless/orders/:id/items/:itemId
 DELETE /api/salesStage/:id
-DELETE /api/salesTeams/:id
-DELETE /api/salesTeams/:id/members/:userId
 DELETE /api/sandboxs/:id
 DELETE /api/saudi-banking/lean/entities/:entityId
 DELETE /api/saved-reports/reports/:id

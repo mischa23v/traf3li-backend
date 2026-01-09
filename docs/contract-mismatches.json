@@ -626,30 +626,6 @@
         "source": "services/crmAnalyticsService.ts"
       },
       {
-        "method": "GET",
-        "endpoint": "/crm/reports/transactions",
-        "responseType": null,
-        "source": "services/crmReportsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm/reports/transactions/summary",
-        "responseType": null,
-        "source": "services/crmReportsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm/reports/transactions/export",
-        "responseType": null,
-        "source": "services/crmReportsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/crm/reports/${reportType}/export",
-        "responseType": null,
-        "source": "services/crmReportsService.ts"
-      },
-      {
         "method": "POST",
         "endpoint": "/crm/reports/schedule",
         "responseType": null,
@@ -1815,30 +1791,6 @@
       },
       {
         "method": "POST",
-        "endpoint": "/price-levels/${id}/calculate",
-        "responseType": null,
-        "source": "services/priceLevelService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/price-levels/${id}/assign",
-        "responseType": null,
-        "source": "services/priceLevelService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/price-levels/${id}/clients",
-        "responseType": null,
-        "source": "services/priceLevelService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/price-levels/${id}/duplicate",
-        "responseType": null,
-        "source": "services/priceLevelService.ts"
-      },
-      {
-        "method": "POST",
         "endpoint": "/price-levels/${id}/archive",
         "responseType": null,
         "source": "services/priceLevelService.ts"
@@ -2067,36 +2019,6 @@
       },
       {
         "method": "GET",
-        "endpoint": "/api/settings/sales",
-        "responseType": null,
-        "source": "services/salesSettingsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/api/settings/sales/reset/${section}",
-        "responseType": null,
-        "source": "services/salesSettingsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/api/settings/sales/history?limit=${limit}",
-        "responseType": null,
-        "source": "services/salesSettingsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/api/settings/sales/export",
-        "responseType": null,
-        "source": "services/salesSettingsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/api/settings/sales/import",
-        "responseType": null,
-        "source": "services/salesSettingsService.ts"
-      },
-      {
-        "method": "GET",
         "endpoint": "/api/settings/sales/validate",
         "responseType": null,
         "source": "services/salesSettingsService.ts"
@@ -2136,30 +2058,6 @@
         "endpoint": "/setup-orchestration/reset",
         "responseType": null,
         "source": "services/setupOrchestrationService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/shift-types/${shiftTypeId}/clone",
-        "responseType": "ShiftType",
-        "source": "services/shiftTypeService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/shift-types/${shiftTypeId}/calculate-hours",
-        "responseType": "WorkingHoursCalculation",
-        "source": "services/shiftTypeService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/shift-types/by-day/${day}",
-        "responseType": "ShiftType[]",
-        "source": "services/shiftTypeService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/shift-types/active",
-        "responseType": "ShiftType[]",
-        "source": "services/shiftTypeService.ts"
       },
       {
         "method": "GET",
@@ -2205,30 +2103,6 @@
       },
       {
         "method": "POST",
-        "endpoint": "/hr/staffing-plans/${planId}/close",
-        "responseType": "StaffingPlan",
-        "source": "services/staffingPlanService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/staffing-plans/active",
-        "responseType": "StaffingPlan[]",
-        "source": "services/staffingPlanService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/staffing-plans/department/${departmentId}",
-        "responseType": "StaffingPlan[]",
-        "source": "services/staffingPlanService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/staffing-plans/${planId}/bulk-update-details",
-        "responseType": "StaffingPlan",
-        "source": "services/staffingPlanService.ts"
-      },
-      {
-        "method": "POST",
         "endpoint": "/hr/staffing-plans/${planId}/bulk-create-job-openings",
         "responseType": "{ created: number; jobOpenings: any[] }",
         "source": "services/staffingPlanService.ts"
@@ -2238,12 +2112,6 @@
         "endpoint": "/hr/staffing-plans/vacancies-report",
         "responseType": null,
         "source": "services/staffingPlanService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/staffing-plans/:param/bulk-update-details",
-        "source": "services/staffingPlanService.ts",
-        "dynamic": true
       },
       {
         "method": "POST",
@@ -6957,6 +6825,22 @@
       },
       {
         "method": "GET",
+        "path": "/transactions/by-period",
+        "controller": "unknown",
+        "file": "crmReportsTransactions.route.js",
+        "fullPath": "/api/crm/reports/transactions/by-period",
+        "module": "crmReportsTransactions"
+      },
+      {
+        "method": "GET",
+        "path": "/transactions/trends",
+        "controller": "unknown",
+        "file": "crmReportsTransactions.route.js",
+        "fullPath": "/api/crm/reports/transactions/trends",
+        "module": "crmReportsTransactions"
+      },
+      {
+        "method": "GET",
         "path": "/",
         "controller": "unknown",
         "file": "crmSettings.route.js",
@@ -10597,6 +10481,22 @@
       },
       {
         "method": "GET",
+        "path": "/:shiftTypeId/coverage",
+        "controller": "unknown",
+        "file": "hrShiftTypesMore.route.js",
+        "fullPath": "/api/hr/shift-types/:shiftTypeId/coverage",
+        "module": "hrShiftTypesMore"
+      },
+      {
+        "method": "POST",
+        "path": "/:shiftTypeId/validate",
+        "controller": "unknown",
+        "file": "hrShiftTypesMore.route.js",
+        "fullPath": "/api/hr/shift-types/:shiftTypeId/validate",
+        "module": "hrShiftTypesMore"
+      },
+      {
+        "method": "GET",
         "path": "/headcount/by-department",
         "controller": "unknown",
         "file": "hrStaffingPlanDetails.route.js",
@@ -10874,6 +10774,30 @@
         "file": "hrStaffingPlansExtended.route.js",
         "fullPath": "/api/hr/staffing-plans/:planId/rollover",
         "module": "hrStaffingPlansExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:planId/export",
+        "controller": "unknown",
+        "file": "hrStaffingPlansMore.route.js",
+        "fullPath": "/api/hr/staffing-plans/:planId/export",
+        "module": "hrStaffingPlansMore"
+      },
+      {
+        "method": "GET",
+        "path": "/templates",
+        "controller": "unknown",
+        "file": "hrStaffingPlansMore.route.js",
+        "fullPath": "/api/hr/staffing-plans/templates",
+        "module": "hrStaffingPlansMore"
+      },
+      {
+        "method": "POST",
+        "path": "/from-template/:templateId",
+        "controller": "unknown",
+        "file": "hrStaffingPlansMore.route.js",
+        "fullPath": "/api/hr/staffing-plans/from-template/:templateId",
+        "module": "hrStaffingPlansMore"
       },
       {
         "method": "GET",
@@ -14644,6 +14568,22 @@
         "module": "preparedReport"
       },
       {
+        "method": "POST",
+        "path": "/:id/apply-discount",
+        "controller": "unknown",
+        "file": "priceLevelsExtended.route.js",
+        "fullPath": "/api/price-levels/:id/apply-discount",
+        "module": "priceLevelsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/:id/usage-stats",
+        "controller": "unknown",
+        "file": "priceLevelsExtended.route.js",
+        "fullPath": "/api/price-levels/:id/usage-stats",
+        "module": "priceLevelsExtended"
+      },
+      {
         "method": "GET",
         "path": "/search",
         "controller": "searchProducts",
@@ -15952,7 +15892,7 @@
         "path": "/",
         "controller": "unknown",
         "file": "salesTeam.routes.js",
-        "fullPath": "/api/salesTeams",
+        "fullPath": "/api/crm/sales-teams",
         "module": "salesTeams"
       },
       {
@@ -15960,7 +15900,7 @@
         "path": "/",
         "controller": "unknown",
         "file": "salesTeam.routes.js",
-        "fullPath": "/api/salesTeams",
+        "fullPath": "/api/crm/sales-teams",
         "module": "salesTeams"
       },
       {
@@ -15968,7 +15908,7 @@
         "path": "/:id",
         "controller": "unknown",
         "file": "salesTeam.routes.js",
-        "fullPath": "/api/salesTeams/:id",
+        "fullPath": "/api/crm/sales-teams/:id",
         "module": "salesTeams"
       },
       {
@@ -15976,7 +15916,7 @@
         "path": "/:id",
         "controller": "unknown",
         "file": "salesTeam.routes.js",
-        "fullPath": "/api/salesTeams/:id",
+        "fullPath": "/api/crm/sales-teams/:id",
         "module": "salesTeams"
       },
       {
@@ -15984,7 +15924,7 @@
         "path": "/:id",
         "controller": "unknown",
         "file": "salesTeam.routes.js",
-        "fullPath": "/api/salesTeams/:id",
+        "fullPath": "/api/crm/sales-teams/:id",
         "module": "salesTeams"
       },
       {
@@ -15992,7 +15932,7 @@
         "path": "/:id/members",
         "controller": "unknown",
         "file": "salesTeam.routes.js",
-        "fullPath": "/api/salesTeams/:id/members",
+        "fullPath": "/api/crm/sales-teams/:id/members",
         "module": "salesTeams"
       },
       {
@@ -16000,7 +15940,7 @@
         "path": "/:id/members/:userId",
         "controller": "unknown",
         "file": "salesTeam.routes.js",
-        "fullPath": "/api/salesTeams/:id/members/:userId",
+        "fullPath": "/api/crm/sales-teams/:id/members/:userId",
         "module": "salesTeams"
       },
       {
@@ -16008,7 +15948,7 @@
         "path": "/:id/stats",
         "controller": "unknown",
         "file": "salesTeam.routes.js",
-        "fullPath": "/api/salesTeams/:id/stats",
+        "fullPath": "/api/crm/sales-teams/:id/stats",
         "module": "salesTeams"
       },
       {
@@ -16016,7 +15956,7 @@
         "path": "/:id/leaderboard",
         "controller": "unknown",
         "file": "salesTeam.routes.js",
-        "fullPath": "/api/salesTeams/:id/leaderboard",
+        "fullPath": "/api/crm/sales-teams/:id/leaderboard",
         "module": "salesTeams"
       },
       {
@@ -16024,7 +15964,7 @@
         "path": "/:id/default",
         "controller": "unknown",
         "file": "salesTeam.routes.js",
-        "fullPath": "/api/salesTeams/:id/default",
+        "fullPath": "/api/crm/sales-teams/:id/default",
         "module": "salesTeams"
       },
       {
@@ -22396,6 +22336,11 @@
         "backendMethod": "POST"
       },
       {
+        "path": "/api/settings/sales/import",
+        "frontendMethod": "GET",
+        "backendMethod": "POST"
+      },
+      {
         "path": "/saudi-banking/lean/entities/:param",
         "frontendMethod": "POST",
         "backendMethod": "DELETE"
@@ -22457,6 +22402,11 @@
       },
       {
         "path": "/hr/staffing-plans/:param/calculate-vacancies",
+        "frontendMethod": "GET",
+        "backendMethod": "POST"
+      },
+      {
+        "path": "/hr/staffing-plans/:param/bulk-update-details",
         "frontendMethod": "GET",
         "backendMethod": "POST"
       },

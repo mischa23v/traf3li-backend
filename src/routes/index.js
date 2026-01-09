@@ -371,6 +371,16 @@ const hrSalaryComponentsExtendedRoute = require('./hrSalaryComponentsExtended.ro
 const chatterFollowersExtendedRoute = require('./chatterFollowersExtended.route');
 const chatterActivitiesExtendedRoute = require('./chatterActivitiesExtended.route');
 
+// Batch 15 Routes (staffing plans more, CRM reports transactions, sales teams)
+const hrStaffingPlansMoreRoute = require('./hrStaffingPlansMore.route');
+const crmReportsTransactionsRoute = require('./crmReportsTransactions.route');
+const salesTeamsRoute = require('./salesTeams.route');
+
+// Batch 16 Routes (price levels extended, settings sales, shift types more)
+const priceLevelsExtendedRoute = require('./priceLevelsExtended.route');
+const settingsSalesRoute = require('./settingsSales.route');
+const hrShiftTypesMoreRoute = require('./hrShiftTypesMore.route');
+
 // Who's Out Calendar & Compliance Dashboard Routes
 const whosOutRoute = require('./whosOut.route');
 const complianceDashboardRoute = require('./complianceDashboard.route');
@@ -857,6 +867,16 @@ module.exports = {
     hrSalaryComponentsExtendedRoute,
     chatterFollowersExtendedRoute,
     chatterActivitiesExtendedRoute,
+
+    // Batch 15 Routes (staffing plans more, CRM reports transactions, sales teams)
+    hrStaffingPlansMoreRoute,
+    crmReportsTransactionsRoute,
+    salesTeamsRoute,
+
+    // Batch 16 Routes (price levels extended, settings sales, shift types more)
+    priceLevelsExtendedRoute,
+    settingsSalesRoute,
+    hrShiftTypesMoreRoute,
 
     // Who's Out Calendar & Compliance Dashboard
     whosOutRoute,

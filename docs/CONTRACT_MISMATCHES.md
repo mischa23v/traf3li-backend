@@ -1,12 +1,12 @@
 # Frontend vs Backend Contract Mismatch Report
 
-> Generated: 2026-01-09T12:16:27.349Z
+> Generated: 2026-01-09T12:24:58.257Z
 
 ## Summary
 
 | Category | Frontend Only | Backend Only | Mismatches |
 |----------|--------------|--------------|------------|
-| API Endpoints | 424 | 2402 | 159 |
+| API Endpoints | 402 | 2411 | 161 |
 | Interfaces/Entities | 2871 | 154 | 0 |
 | Enums | 88 | 2138 | 0 |
 | Type Aliases | 167 | 0 | - |
@@ -17,7 +17,7 @@
 
 These endpoints are called by frontend but don't exist in backend - **will cause 404 errors**.
 
-### hr (42 missing)
+### hr (33 missing)
 
 | Method | Endpoint | Source File |
 |--------|----------|-------------|
@@ -38,22 +38,13 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | POST | `/hr/salary-components/validate-formula` | services/salaryComponentService.ts |
 | GET | `/hr/salary-components/${id}/usage` | services/salaryComponentService.ts |
 | GET | `/hr/salary-components/stats` | services/salaryComponentService.ts |
-| POST | `/hr/shift-types/${shiftTypeId}/clone` | services/shiftTypeService.ts |
-| POST | `/hr/shift-types/${shiftTypeId}/calculate-hours` | services/shiftTypeService.ts |
-| GET | `/hr/shift-types/by-day/${day}` | services/shiftTypeService.ts |
-| GET | `/hr/shift-types/active` | services/shiftTypeService.ts |
 | GET | `/hr/shift-types/ramadan` | services/shiftTypeService.ts |
 | POST | `/hr/shift-types/validate-times` | services/shiftTypeService.ts |
 | GET | `/hr/skills/by-category/${category}` | services/skillService.ts |
 | POST | `/hr/skills/bulk-delete` | services/skillService.ts |
 | GET | `/hr/skills/export?${params.toString()}` | services/skillService.ts |
-| POST | `/hr/staffing-plans/${planId}/close` | services/staffingPlanService.ts |
-| GET | `/hr/staffing-plans/active` | services/staffingPlanService.ts |
-| GET | `/hr/staffing-plans/department/${departmentId}` | services/staffingPlanService.ts |
-| POST | `/hr/staffing-plans/${planId}/bulk-update-details` | services/staffingPlanService.ts |
 | POST | `/hr/staffing-plans/${planId}/bulk-create-job-openings` | services/staffingPlanService.ts |
 | GET | `/hr/staffing-plans/vacancies-report` | services/staffingPlanService.ts |
-| GET | `/hr/staffing-plans/:param/bulk-update-details` | services/staffingPlanService.ts |
 | GET | `/hr/vehicle-logs?${params.toString()}` | services/vehicleService.ts |
 | POST | `/hr/vehicle-logs` | services/vehicleService.ts |
 | GET | `/hr/vehicles/service-due` | services/vehicleService.ts |
@@ -432,18 +423,6 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | PUT | `/integrations/${id}/settings` | services/integrationsService.ts |
 | POST | `/integrations/${id}/test` | services/integrationsService.ts |
 
-### price-levels (7 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/price-levels/default` | services/priceLevelService.ts |
-| POST | `/price-levels/${id}/calculate` | services/priceLevelService.ts |
-| POST | `/price-levels/${id}/assign` | services/priceLevelService.ts |
-| GET | `/price-levels/${id}/clients` | services/priceLevelService.ts |
-| POST | `/price-levels/${id}/duplicate` | services/priceLevelService.ts |
-| POST | `/price-levels/${id}/archive` | services/priceLevelService.ts |
-| POST | `/price-levels/${id}/restore` | services/priceLevelService.ts |
-
 ### contacts (6 missing)
 
 | Method | Endpoint | Source File |
@@ -455,17 +434,6 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | POST | `/contacts/${primaryId}/merge` | services/contactService.ts |
 | GET | `/contacts/${contactId}/stakeholder/${leadId}` | services/contactService.ts |
 
-### crm (6 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/crm/reports/transactions` | services/crmReportsService.ts |
-| GET | `/crm/reports/transactions/summary` | services/crmReportsService.ts |
-| GET | `/crm/reports/transactions/export` | services/crmReportsService.ts |
-| GET | `/crm/reports/${reportType}/export` | services/crmReportsService.ts |
-| POST | `/crm/reports/schedule` | services/crmReportsService.ts |
-| GET | `/crm/reports/${reportType}/metadata` | services/crmReportsService.ts |
-
 ### messages (6 missing)
 
 | Method | Endpoint | Source File |
@@ -476,17 +444,6 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | GET | `/messages/starred?${params.toString()}` | services/messageService.ts |
 | GET | `/messages/search?${params.toString()}` | services/messageService.ts |
 | POST | `/messages/${id}/star` | services/messageService.ts |
-
-### api (6 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/api/settings/sales` | services/salesSettingsService.ts |
-| GET | `/api/settings/sales/reset/${section}` | services/salesSettingsService.ts |
-| GET | `/api/settings/sales/history?limit=${limit}` | services/salesSettingsService.ts |
-| GET | `/api/settings/sales/export` | services/salesSettingsService.ts |
-| GET | `/api/settings/sales/import` | services/salesSettingsService.ts |
-| GET | `/api/settings/sales/validate` | services/salesSettingsService.ts |
 
 ### tasks (6 missing)
 
@@ -649,6 +606,14 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | GET | `/payments/${id}/receipt/download` | services/financeService.ts |
 | POST | `/payments/${id}/receipt/send` | services/financeService.ts |
 
+### price-levels (3 missing)
+
+| Method | Endpoint | Source File |
+|--------|----------|-------------|
+| GET | `/price-levels/default` | services/priceLevelService.ts |
+| POST | `/price-levels/${id}/archive` | services/priceLevelService.ts |
+| POST | `/price-levels/${id}/restore` | services/priceLevelService.ts |
+
 ### leads (2 missing)
 
 | Method | Endpoint | Source File |
@@ -669,6 +634,13 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 |--------|----------|-------------|
 | GET | `/lead-scoring/config` | services/crmAdvancedService.ts |
 | PUT | `/lead-scoring/config` | services/crmAdvancedService.ts |
+
+### crm (2 missing)
+
+| Method | Endpoint | Source File |
+|--------|----------|-------------|
+| POST | `/crm/reports/schedule` | services/crmReportsService.ts |
+| GET | `/crm/reports/${reportType}/metadata` | services/crmReportsService.ts |
 
 ### bank-reconciliation (2 missing)
 
@@ -808,6 +780,12 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 |--------|----------|-------------|
 | GET | `/prepared-reports?${params.toString()}` | services/preparedReportsService.ts |
 
+### api (1 missing)
+
+| Method | Endpoint | Source File |
+|--------|----------|-------------|
+| GET | `/api/settings/sales/validate` | services/salesSettingsService.ts |
+
 ### storage (1 missing)
 
 | Method | Endpoint | Source File |
@@ -832,7 +810,7 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 
 These endpoints exist in backend but frontend doesn't call them - potentially dead code or undocumented features.
 
-### hr (319 unused)
+### hr (324 unused)
 
 | Method | Endpoint |
 |--------|----------|
@@ -866,7 +844,7 @@ These endpoints exist in backend but frontend doesn't call them - potentially de
 | GET | `/api/hr/fleet/vehicles` |
 | GET | `/api/hr/fleet/vehicles/:id` |
 | POST | `/api/hr/fleet/vehicles` |
-| ... | *289 more* |
+| ... | *294 more* |
 
 ### workflows (159 unused)
 
@@ -1637,6 +1615,7 @@ Frontend calls with different HTTP method than backend expects.
 | `/saved-reports/reports/:param` | POST | GET |
 | `/hr/retention-bonuses/:param` | POST | GET |
 | `/hr/retention-bonuses/:param/cancel` | GET | POST |
+| `/api/settings/sales/import` | GET | POST |
 | `/saudi-banking/lean/entities/:param` | POST | DELETE |
 | `/saudi-banking/sadad/payments/:param/status` | POST | GET |
 | `/auth/sessions/:param` | GET | DELETE |
@@ -1650,6 +1629,7 @@ Frontend calls with different HTTP method than backend expects.
 | `/hr/staffing-plans/${planId}/details/${detailId}/unlink-job-opening` | POST | DELETE |
 | `/hr/staffing-plans/:param` | POST | GET |
 | `/hr/staffing-plans/:param/calculate-vacancies` | GET | POST |
+| `/hr/staffing-plans/:param/bulk-update-details` | GET | POST |
 | `/subscriptions/:param` | POST | GET |
 | `/succession-plans/:param` | POST | GET |
 | `/succession-plans/by-position/:param` | POST | GET |
@@ -2071,13 +2051,13 @@ Enums in backend models not exposed to frontend.
 ## Action Items
 
 ### 🔴 Critical (Will Break App)
-1. Add 424 missing backend endpoints
-2. Fix 159 HTTP method mismatches
+1. Add 402 missing backend endpoints
+2. Fix 161 HTTP method mismatches
 3. Sync 0 enum value differences
 
 ### 🟡 Important (May Cause Issues)
 1. Review 2871 frontend-only interfaces
-2. Document 2402 unused backend endpoints
+2. Document 2411 unused backend endpoints
 
 ### 📝 Housekeeping
 1. Remove dead code or add tests for unused endpoints

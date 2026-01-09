@@ -484,6 +484,16 @@ const {
     chatterFollowersExtendedRoute,
     chatterActivitiesExtendedRoute,
 
+    // Batch 15 Routes (staffing plans more, CRM reports transactions, sales teams)
+    hrStaffingPlansMoreRoute,
+    crmReportsTransactionsRoute,
+    salesTeamsRoute,
+
+    // Batch 16 Routes (price levels extended, settings sales, shift types more)
+    priceLevelsExtendedRoute,
+    settingsSalesRoute,
+    hrShiftTypesMoreRoute,
+
     // Unified Data Flow
     unifiedDataRoute,
 
@@ -1452,6 +1462,16 @@ app.use('/api/legal-documents', noCache, legalDocumentsCrudRoute); // Legal docu
 app.use('/api/hr/salary-components', noCache, hrSalaryComponentsExtendedRoute); // Extended salary component ops
 app.use('/api/chatter/followers', noCache, chatterFollowersExtendedRoute); // Chatter follower management
 app.use('/api/chatter/activities', noCache, chatterActivitiesExtendedRoute); // Chatter activity management
+
+// Batch 15 Routes (staffing plans more, CRM reports transactions, sales teams)
+app.use('/api/hr/staffing-plans', noCache, hrStaffingPlansMoreRoute); // Additional staffing plan operations
+app.use('/api/crm/reports', noCache, crmReportsTransactionsRoute); // CRM transaction reports
+app.use('/api/crm/sales-teams', noCache, salesTeamsRoute); // Sales team management
+
+// Batch 16 Routes (price levels extended, settings sales, shift types more)
+app.use('/api/price-levels', noCache, priceLevelsExtendedRoute); // Extended price level operations
+app.use('/api/settings/sales', noCache, settingsSalesRoute); // Sales settings management
+app.use('/api/hr/shift-types', noCache, hrShiftTypesMoreRoute); // Additional shift type operations
 
 // ============================================
 // UNIFIED DATA FLOW ROUTES
