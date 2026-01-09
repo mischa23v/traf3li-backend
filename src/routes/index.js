@@ -361,6 +361,16 @@ const ssoSettingsRoute = require('./ssoSettings.route');
 const legalDocumentsExtendedRoute = require('./legalDocumentsExtended.route');
 const paymentTermsSettingsRoute = require('./paymentTermsSettings.route');
 
+// Batch 13 Routes (staffing plans extended, tasks workflow rules, legal documents CRUD)
+const hrStaffingPlansExtendedRoute = require('./hrStaffingPlansExtended.route');
+const tasksWorkflowRulesRoute = require('./tasksWorkflowRules.route');
+const legalDocumentsCrudRoute = require('./legalDocumentsCrud.route');
+
+// Batch 14 Routes (salary components extended, chatter followers, chatter activities)
+const hrSalaryComponentsExtendedRoute = require('./hrSalaryComponentsExtended.route');
+const chatterFollowersExtendedRoute = require('./chatterFollowersExtended.route');
+const chatterActivitiesExtendedRoute = require('./chatterActivitiesExtended.route');
+
 // Who's Out Calendar & Compliance Dashboard Routes
 const whosOutRoute = require('./whosOut.route');
 const complianceDashboardRoute = require('./complianceDashboard.route');
@@ -837,6 +847,16 @@ module.exports = {
     ssoSettingsRoute,
     legalDocumentsExtendedRoute,
     paymentTermsSettingsRoute,
+
+    // Batch 13 Routes (staffing plans extended, tasks workflow rules, legal documents CRUD)
+    hrStaffingPlansExtendedRoute,
+    tasksWorkflowRulesRoute,
+    legalDocumentsCrudRoute,
+
+    // Batch 14 Routes (salary components extended, chatter followers, chatter activities)
+    hrSalaryComponentsExtendedRoute,
+    chatterFollowersExtendedRoute,
+    chatterActivitiesExtendedRoute,
 
     // Who's Out Calendar & Compliance Dashboard
     whosOutRoute,

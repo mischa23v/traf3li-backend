@@ -321,30 +321,6 @@
       },
       {
         "method": "GET",
-        "endpoint": "/chatter/followers/${resModel}/${resId}",
-        "responseType": null,
-        "source": "services/chatterService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/chatter/followers",
-        "responseType": null,
-        "source": "services/chatterService.ts"
-      },
-      {
-        "method": "DELETE",
-        "endpoint": "/chatter/followers/${followerId}",
-        "responseType": null,
-        "source": "services/chatterService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/chatter/followers/${followerId}/preferences",
-        "responseType": null,
-        "source": "services/chatterService.ts"
-      },
-      {
-        "method": "GET",
         "endpoint": "/chatter/followers/${resModel}/${resId}/me",
         "responseType": null,
         "source": "services/chatterService.ts"
@@ -362,38 +338,8 @@
         "source": "services/chatterService.ts"
       },
       {
-        "method": "GET",
-        "endpoint": "/chatter/activities/${resModel}/${resId}?${params.toString()}",
-        "responseType": null,
-        "source": "services/chatterService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/chatter/activities/me?${params.toString()}",
-        "responseType": null,
-        "source": "services/chatterService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/chatter/activities",
-        "responseType": null,
-        "source": "services/chatterService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/chatter/activities/${activityId}",
-        "responseType": null,
-        "source": "services/chatterService.ts"
-      },
-      {
         "method": "POST",
         "endpoint": "/chatter/activities/${activityId}/done",
-        "responseType": null,
-        "source": "services/chatterService.ts"
-      },
-      {
-        "method": "DELETE",
-        "endpoint": "/chatter/activities/${activityId}",
         "responseType": null,
         "source": "services/chatterService.ts"
       },
@@ -1574,32 +1520,8 @@
         "source": "services/legalDocumentService.ts"
       },
       {
-        "method": "GET",
-        "endpoint": "/legal-documents/${id}",
-        "responseType": null,
-        "source": "services/legalDocumentService.ts"
-      },
-      {
         "method": "POST",
         "endpoint": "/legal-documents",
-        "responseType": null,
-        "source": "services/legalDocumentService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/legal-documents/${id}",
-        "responseType": null,
-        "source": "services/legalDocumentService.ts"
-      },
-      {
-        "method": "DELETE",
-        "endpoint": "/legal-documents/${id}",
-        "responseType": null,
-        "source": "services/legalDocumentService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/legal-documents/${id}/download",
         "responseType": null,
         "source": "services/legalDocumentService.ts"
       },
@@ -2127,30 +2049,6 @@
       },
       {
         "method": "POST",
-        "endpoint": "/hr/salary-components/bulk-delete",
-        "responseType": null,
-        "source": "services/salaryComponentService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/salary-components/calculate",
-        "responseType": null,
-        "source": "services/salaryComponentService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/salary-components/seed-defaults",
-        "responseType": null,
-        "source": "services/salaryComponentService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/salary-components/${id}/duplicate",
-        "responseType": null,
-        "source": "services/salaryComponentService.ts"
-      },
-      {
-        "method": "POST",
         "endpoint": "/hr/salary-components/validate-formula",
         "responseType": null,
         "source": "services/salaryComponentService.ts"
@@ -2307,36 +2205,6 @@
       },
       {
         "method": "POST",
-        "endpoint": "/hr/staffing-plans/${planId}/calculate-vacancies",
-        "responseType": "StaffingPlan",
-        "source": "services/staffingPlanService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/staffing-plans/vacancies-summary",
-        "responseType": "VacanciesSummary",
-        "source": "services/staffingPlanService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/staffing-plans/${planId}/details/${detailId}/create-job-opening",
-        "responseType": "{ jobOpening: any; updatedPlan: StaffingPlan }",
-        "source": "services/staffingPlanService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/staffing-plans/${planId}/details/${detailId}/link-job-opening",
-        "responseType": "StaffingPlan",
-        "source": "services/staffingPlanService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/staffing-plans/${planId}/details/${detailId}/unlink-job-opening",
-        "responseType": "StaffingPlan",
-        "source": "services/staffingPlanService.ts"
-      },
-      {
-        "method": "POST",
         "endpoint": "/hr/staffing-plans/${planId}/close",
         "responseType": "StaffingPlan",
         "source": "services/staffingPlanService.ts"
@@ -2370,12 +2238,6 @@
         "endpoint": "/hr/staffing-plans/vacancies-report",
         "responseType": null,
         "source": "services/staffingPlanService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/staffing-plans/:param/calculate-vacancies",
-        "source": "services/staffingPlanService.ts",
-        "dynamic": true
       },
       {
         "method": "GET",
@@ -2478,30 +2340,6 @@
         "endpoint": "/tags/${tagId}/detach",
         "responseType": null,
         "source": "services/tagsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/tasks/${taskId}/available-dependencies",
-        "responseType": null,
-        "source": "services/tasksService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/tasks/${taskId}/workflow-rules/${ruleId}",
-        "responseType": null,
-        "source": "services/tasksService.ts"
-      },
-      {
-        "method": "DELETE",
-        "endpoint": "/tasks/${taskId}/workflow-rules/${ruleId}",
-        "responseType": null,
-        "source": "services/tasksService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/tasks/${taskId}/workflow-rules/${ruleId}/toggle",
-        "responseType": null,
-        "source": "services/tasksService.ts"
       },
       {
         "method": "GET",
@@ -6054,6 +5892,14 @@
         "module": "caseNotion"
       },
       {
+        "method": "POST",
+        "path": "/:activityId/complete",
+        "controller": "unknown",
+        "file": "chatterActivitiesExtended.route.js",
+        "fullPath": "/api/chatter/activities/:activityId/complete",
+        "module": "chatterActivitiesExtended"
+      },
+      {
         "method": "GET",
         "path": "/my-followed",
         "controller": "getMyFollowedRecords",
@@ -6108,6 +5954,22 @@
         "file": "chatterFollower.routes.js",
         "fullPath": "/api/chatterFollowers/:model/:recordId/toggle-follow",
         "module": "chatterFollowers"
+      },
+      {
+        "method": "POST",
+        "path": "/bulk-add",
+        "controller": "unknown",
+        "file": "chatterFollowersExtended.route.js",
+        "fullPath": "/api/chatter/followers/bulk-add",
+        "module": "chatterFollowersExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/bulk-remove",
+        "controller": "unknown",
+        "file": "chatterFollowersExtended.route.js",
+        "fullPath": "/api/chatter/followers/bulk-remove",
+        "module": "chatterFollowersExtended"
       },
       {
         "method": "GET",
@@ -10575,6 +10437,30 @@
       },
       {
         "method": "GET",
+        "path": "/summary",
+        "controller": "unknown",
+        "file": "hrSalaryComponentsExtended.route.js",
+        "fullPath": "/api/hr/salary-components/summary",
+        "module": "hrSalaryComponentsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/validate",
+        "controller": "unknown",
+        "file": "hrSalaryComponentsExtended.route.js",
+        "fullPath": "/api/hr/salary-components/validate",
+        "module": "hrSalaryComponentsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/tax-implications",
+        "controller": "unknown",
+        "file": "hrSalaryComponentsExtended.route.js",
+        "fullPath": "/api/hr/salary-components/tax-implications",
+        "module": "hrSalaryComponentsExtended"
+      },
+      {
+        "method": "GET",
         "path": "/departments/:id",
         "controller": "unknown",
         "file": "hrSetup.route.js",
@@ -10940,6 +10826,54 @@
         "file": "hrStaffingPlans.route.js",
         "fullPath": "/api/hr/staffing-plans/bulk-archive",
         "module": "hrStaffingPlans"
+      },
+      {
+        "method": "GET",
+        "path": "/:planId/job-openings",
+        "controller": "unknown",
+        "file": "hrStaffingPlansExtended.route.js",
+        "fullPath": "/api/hr/staffing-plans/:planId/job-openings",
+        "module": "hrStaffingPlansExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:planId/sync-headcount",
+        "controller": "unknown",
+        "file": "hrStaffingPlansExtended.route.js",
+        "fullPath": "/api/hr/staffing-plans/:planId/sync-headcount",
+        "module": "hrStaffingPlansExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/:planId/fulfillment-status",
+        "controller": "unknown",
+        "file": "hrStaffingPlansExtended.route.js",
+        "fullPath": "/api/hr/staffing-plans/:planId/fulfillment-status",
+        "module": "hrStaffingPlansExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:planId/generate-requisitions",
+        "controller": "unknown",
+        "file": "hrStaffingPlansExtended.route.js",
+        "fullPath": "/api/hr/staffing-plans/:planId/generate-requisitions",
+        "module": "hrStaffingPlansExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/comparison",
+        "controller": "unknown",
+        "file": "hrStaffingPlansExtended.route.js",
+        "fullPath": "/api/hr/staffing-plans/comparison",
+        "module": "hrStaffingPlansExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:planId/rollover",
+        "controller": "unknown",
+        "file": "hrStaffingPlansExtended.route.js",
+        "fullPath": "/api/hr/staffing-plans/:planId/rollover",
+        "module": "hrStaffingPlansExtended"
       },
       {
         "method": "GET",
@@ -12476,6 +12410,30 @@
         "file": "legalDocument.route.js",
         "fullPath": "/api/legalDocument/:_id/download",
         "module": "legalDocument"
+      },
+      {
+        "method": "GET",
+        "path": "/:id/versions",
+        "controller": "unknown",
+        "file": "legalDocumentsCrud.route.js",
+        "fullPath": "/api/legal-documents/:id/versions",
+        "module": "legalDocumentsCrud"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/versions",
+        "controller": "unknown",
+        "file": "legalDocumentsCrud.route.js",
+        "fullPath": "/api/legal-documents/:id/versions",
+        "module": "legalDocumentsCrud"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/restore/:versionId",
+        "controller": "unknown",
+        "file": "legalDocumentsCrud.route.js",
+        "fullPath": "/api/legal-documents/:id/restore/:versionId",
+        "module": "legalDocumentsCrud"
       },
       {
         "method": "GET",
@@ -18774,6 +18732,22 @@
         "module": "tasksExtended"
       },
       {
+        "method": "POST",
+        "path": "/:taskId/evaluate-rules",
+        "controller": "unknown",
+        "file": "tasksWorkflowRules.route.js",
+        "fullPath": "/api/tasks/:taskId/evaluate-rules",
+        "module": "tasksWorkflowRules"
+      },
+      {
+        "method": "GET",
+        "path": "/:taskId/rule-history",
+        "controller": "unknown",
+        "file": "tasksWorkflowRules.route.js",
+        "fullPath": "/api/tasks/:taskId/rule-history",
+        "module": "tasksWorkflowRules"
+      },
+      {
         "method": "GET",
         "path": "/stats",
         "controller": "getTeamStats",
@@ -22472,9 +22446,19 @@
         "backendMethod": "GET"
       },
       {
+        "path": "/hr/staffing-plans/${planId}/details/${detailId}/unlink-job-opening",
+        "frontendMethod": "POST",
+        "backendMethod": "DELETE"
+      },
+      {
         "path": "/hr/staffing-plans/:param",
         "frontendMethod": "POST",
         "backendMethod": "GET"
+      },
+      {
+        "path": "/hr/staffing-plans/:param/calculate-vacancies",
+        "frontendMethod": "GET",
+        "backendMethod": "POST"
       },
       {
         "path": "/subscriptions/:param",

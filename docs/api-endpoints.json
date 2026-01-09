@@ -1,7 +1,7 @@
 {
-  "generated": "2026-01-09T11:46:38.109Z",
-  "totalEndpoints": 4868,
-  "totalModules": 311,
+  "generated": "2026-01-09T12:16:24.468Z",
+  "totalEndpoints": 4915,
+  "totalModules": 317,
   "modules": {
     "account": [
       {
@@ -7099,6 +7099,56 @@
         "module": "caseNotion"
       }
     ],
+    "chatterActivitiesExtended": [
+      {
+        "method": "GET",
+        "path": "/:resModel/:resId",
+        "controller": "unknown",
+        "file": "chatterActivitiesExtended.route.js",
+        "fullPath": "/api/chatter/activities/:resModel/:resId",
+        "module": "chatterActivitiesExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/me",
+        "controller": "unknown",
+        "file": "chatterActivitiesExtended.route.js",
+        "fullPath": "/api/chatter/activities/me",
+        "module": "chatterActivitiesExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/",
+        "controller": "unknown",
+        "file": "chatterActivitiesExtended.route.js",
+        "fullPath": "/api/chatter/activities",
+        "module": "chatterActivitiesExtended"
+      },
+      {
+        "method": "PATCH",
+        "path": "/:activityId",
+        "controller": "unknown",
+        "file": "chatterActivitiesExtended.route.js",
+        "fullPath": "/api/chatter/activities/:activityId",
+        "module": "chatterActivitiesExtended"
+      },
+      {
+        "method": "DELETE",
+        "path": "/:activityId",
+        "controller": "unknown",
+        "file": "chatterActivitiesExtended.route.js",
+        "fullPath": "/api/chatter/activities/:activityId",
+        "module": "chatterActivitiesExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:activityId/complete",
+        "controller": "unknown",
+        "file": "chatterActivitiesExtended.route.js",
+        "fullPath": "/api/chatter/activities/:activityId/complete",
+        "module": "chatterActivitiesExtended"
+      }
+    ],
     "chatterFollowers": [
       {
         "method": "GET",
@@ -7155,6 +7205,56 @@
         "file": "chatterFollower.routes.js",
         "fullPath": "/api/chatterFollowers/:model/:recordId/toggle-follow",
         "module": "chatterFollowers"
+      }
+    ],
+    "chatterFollowersExtended": [
+      {
+        "method": "GET",
+        "path": "/:resModel/:resId",
+        "controller": "unknown",
+        "file": "chatterFollowersExtended.route.js",
+        "fullPath": "/api/chatter/followers/:resModel/:resId",
+        "module": "chatterFollowersExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/",
+        "controller": "unknown",
+        "file": "chatterFollowersExtended.route.js",
+        "fullPath": "/api/chatter/followers",
+        "module": "chatterFollowersExtended"
+      },
+      {
+        "method": "DELETE",
+        "path": "/:followerId",
+        "controller": "unknown",
+        "file": "chatterFollowersExtended.route.js",
+        "fullPath": "/api/chatter/followers/:followerId",
+        "module": "chatterFollowersExtended"
+      },
+      {
+        "method": "PATCH",
+        "path": "/:followerId/preferences",
+        "controller": "unknown",
+        "file": "chatterFollowersExtended.route.js",
+        "fullPath": "/api/chatter/followers/:followerId/preferences",
+        "module": "chatterFollowersExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/bulk-add",
+        "controller": "unknown",
+        "file": "chatterFollowersExtended.route.js",
+        "fullPath": "/api/chatter/followers/bulk-add",
+        "module": "chatterFollowersExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/bulk-remove",
+        "controller": "unknown",
+        "file": "chatterFollowersExtended.route.js",
+        "fullPath": "/api/chatter/followers/bulk-remove",
+        "module": "chatterFollowersExtended"
       }
     ],
     "churn": [
@@ -18361,6 +18461,64 @@
         "module": "hrSalaryComponents"
       }
     ],
+    "hrSalaryComponentsExtended": [
+      {
+        "method": "POST",
+        "path": "/bulk-delete",
+        "controller": "unknown",
+        "file": "hrSalaryComponentsExtended.route.js",
+        "fullPath": "/api/hr/salary-components/bulk-delete",
+        "module": "hrSalaryComponentsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/calculate",
+        "controller": "unknown",
+        "file": "hrSalaryComponentsExtended.route.js",
+        "fullPath": "/api/hr/salary-components/calculate",
+        "module": "hrSalaryComponentsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/seed-defaults",
+        "controller": "unknown",
+        "file": "hrSalaryComponentsExtended.route.js",
+        "fullPath": "/api/hr/salary-components/seed-defaults",
+        "module": "hrSalaryComponentsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/duplicate",
+        "controller": "unknown",
+        "file": "hrSalaryComponentsExtended.route.js",
+        "fullPath": "/api/hr/salary-components/:id/duplicate",
+        "module": "hrSalaryComponentsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/summary",
+        "controller": "unknown",
+        "file": "hrSalaryComponentsExtended.route.js",
+        "fullPath": "/api/hr/salary-components/summary",
+        "module": "hrSalaryComponentsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/validate",
+        "controller": "unknown",
+        "file": "hrSalaryComponentsExtended.route.js",
+        "fullPath": "/api/hr/salary-components/validate",
+        "module": "hrSalaryComponentsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/tax-implications",
+        "controller": "unknown",
+        "file": "hrSalaryComponentsExtended.route.js",
+        "fullPath": "/api/hr/salary-components/tax-implications",
+        "module": "hrSalaryComponentsExtended"
+      }
+    ],
     "hrSetup": [
       {
         "method": "GET",
@@ -19031,6 +19189,112 @@
         "file": "hrStaffingPlans.route.js",
         "fullPath": "/api/hr/staffing-plans/bulk-archive",
         "module": "hrStaffingPlans"
+      }
+    ],
+    "hrStaffingPlansExtended": [
+      {
+        "method": "POST",
+        "path": "/:planId/calculate-vacancies",
+        "controller": "unknown",
+        "file": "hrStaffingPlansExtended.route.js",
+        "fullPath": "/api/hr/staffing-plans/:planId/calculate-vacancies",
+        "module": "hrStaffingPlansExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/vacancies-summary",
+        "controller": "unknown",
+        "file": "hrStaffingPlansExtended.route.js",
+        "fullPath": "/api/hr/staffing-plans/vacancies-summary",
+        "module": "hrStaffingPlansExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:planId/details/:detailId/create-job-opening",
+        "controller": "unknown",
+        "file": "hrStaffingPlansExtended.route.js",
+        "fullPath": "/api/hr/staffing-plans/:planId/details/:detailId/create-job-opening",
+        "module": "hrStaffingPlansExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:planId/details/:detailId/link-job-opening",
+        "controller": "unknown",
+        "file": "hrStaffingPlansExtended.route.js",
+        "fullPath": "/api/hr/staffing-plans/:planId/details/:detailId/link-job-opening",
+        "module": "hrStaffingPlansExtended"
+      },
+      {
+        "method": "DELETE",
+        "path": "/:planId/details/:detailId/unlink-job-opening",
+        "controller": "unknown",
+        "file": "hrStaffingPlansExtended.route.js",
+        "fullPath": "/api/hr/staffing-plans/:planId/details/:detailId/unlink-job-opening",
+        "module": "hrStaffingPlansExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/:planId/job-openings",
+        "controller": "unknown",
+        "file": "hrStaffingPlansExtended.route.js",
+        "fullPath": "/api/hr/staffing-plans/:planId/job-openings",
+        "module": "hrStaffingPlansExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:planId/sync-headcount",
+        "controller": "unknown",
+        "file": "hrStaffingPlansExtended.route.js",
+        "fullPath": "/api/hr/staffing-plans/:planId/sync-headcount",
+        "module": "hrStaffingPlansExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/:planId/fulfillment-status",
+        "controller": "unknown",
+        "file": "hrStaffingPlansExtended.route.js",
+        "fullPath": "/api/hr/staffing-plans/:planId/fulfillment-status",
+        "module": "hrStaffingPlansExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:planId/generate-requisitions",
+        "controller": "unknown",
+        "file": "hrStaffingPlansExtended.route.js",
+        "fullPath": "/api/hr/staffing-plans/:planId/generate-requisitions",
+        "module": "hrStaffingPlansExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/comparison",
+        "controller": "unknown",
+        "file": "hrStaffingPlansExtended.route.js",
+        "fullPath": "/api/hr/staffing-plans/comparison",
+        "module": "hrStaffingPlansExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:planId/rollover",
+        "controller": "unknown",
+        "file": "hrStaffingPlansExtended.route.js",
+        "fullPath": "/api/hr/staffing-plans/:planId/rollover",
+        "module": "hrStaffingPlansExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/:planId/timeline",
+        "controller": "unknown",
+        "file": "hrStaffingPlansExtended.route.js",
+        "fullPath": "/api/hr/staffing-plans/:planId/timeline",
+        "module": "hrStaffingPlansExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:planId/approve",
+        "controller": "unknown",
+        "file": "hrStaffingPlansExtended.route.js",
+        "fullPath": "/api/hr/staffing-plans/:planId/approve",
+        "module": "hrStaffingPlansExtended"
       }
     ],
     "hrVehicles": [
@@ -22805,6 +23069,64 @@
         "file": "legalDocument.route.js",
         "fullPath": "/api/legalDocument/:_id/download",
         "module": "legalDocument"
+      }
+    ],
+    "legalDocumentsCrud": [
+      {
+        "method": "GET",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "legalDocumentsCrud.route.js",
+        "fullPath": "/api/legal-documents/:id",
+        "module": "legalDocumentsCrud"
+      },
+      {
+        "method": "PATCH",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "legalDocumentsCrud.route.js",
+        "fullPath": "/api/legal-documents/:id",
+        "module": "legalDocumentsCrud"
+      },
+      {
+        "method": "DELETE",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "legalDocumentsCrud.route.js",
+        "fullPath": "/api/legal-documents/:id",
+        "module": "legalDocumentsCrud"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/download",
+        "controller": "unknown",
+        "file": "legalDocumentsCrud.route.js",
+        "fullPath": "/api/legal-documents/:id/download",
+        "module": "legalDocumentsCrud"
+      },
+      {
+        "method": "GET",
+        "path": "/:id/versions",
+        "controller": "unknown",
+        "file": "legalDocumentsCrud.route.js",
+        "fullPath": "/api/legal-documents/:id/versions",
+        "module": "legalDocumentsCrud"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/versions",
+        "controller": "unknown",
+        "file": "legalDocumentsCrud.route.js",
+        "fullPath": "/api/legal-documents/:id/versions",
+        "module": "legalDocumentsCrud"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/restore/:versionId",
+        "controller": "unknown",
+        "file": "legalDocumentsCrud.route.js",
+        "fullPath": "/api/legal-documents/:id/restore/:versionId",
+        "module": "legalDocumentsCrud"
       }
     ],
     "legalDocumentsExtended": [
@@ -35017,6 +35339,72 @@
         "file": "tasksExtended.route.js",
         "fullPath": "/api/tasks/:taskId/convert-to-case",
         "module": "tasksExtended"
+      }
+    ],
+    "tasksWorkflowRules": [
+      {
+        "method": "GET",
+        "path": "/:taskId/available-dependencies",
+        "controller": "unknown",
+        "file": "tasksWorkflowRules.route.js",
+        "fullPath": "/api/tasks/:taskId/available-dependencies",
+        "module": "tasksWorkflowRules"
+      },
+      {
+        "method": "GET",
+        "path": "/:taskId/workflow-rules",
+        "controller": "unknown",
+        "file": "tasksWorkflowRules.route.js",
+        "fullPath": "/api/tasks/:taskId/workflow-rules",
+        "module": "tasksWorkflowRules"
+      },
+      {
+        "method": "POST",
+        "path": "/:taskId/workflow-rules",
+        "controller": "unknown",
+        "file": "tasksWorkflowRules.route.js",
+        "fullPath": "/api/tasks/:taskId/workflow-rules",
+        "module": "tasksWorkflowRules"
+      },
+      {
+        "method": "PATCH",
+        "path": "/:taskId/workflow-rules/:ruleId",
+        "controller": "unknown",
+        "file": "tasksWorkflowRules.route.js",
+        "fullPath": "/api/tasks/:taskId/workflow-rules/:ruleId",
+        "module": "tasksWorkflowRules"
+      },
+      {
+        "method": "DELETE",
+        "path": "/:taskId/workflow-rules/:ruleId",
+        "controller": "unknown",
+        "file": "tasksWorkflowRules.route.js",
+        "fullPath": "/api/tasks/:taskId/workflow-rules/:ruleId",
+        "module": "tasksWorkflowRules"
+      },
+      {
+        "method": "POST",
+        "path": "/:taskId/workflow-rules/:ruleId/toggle",
+        "controller": "unknown",
+        "file": "tasksWorkflowRules.route.js",
+        "fullPath": "/api/tasks/:taskId/workflow-rules/:ruleId/toggle",
+        "module": "tasksWorkflowRules"
+      },
+      {
+        "method": "POST",
+        "path": "/:taskId/evaluate-rules",
+        "controller": "unknown",
+        "file": "tasksWorkflowRules.route.js",
+        "fullPath": "/api/tasks/:taskId/evaluate-rules",
+        "module": "tasksWorkflowRules"
+      },
+      {
+        "method": "GET",
+        "path": "/:taskId/rule-history",
+        "controller": "unknown",
+        "file": "tasksWorkflowRules.route.js",
+        "fullPath": "/api/tasks/:taskId/rule-history",
+        "module": "tasksWorkflowRules"
       }
     ],
     "team": [

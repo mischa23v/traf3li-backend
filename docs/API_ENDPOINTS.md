@@ -58,7 +58,9 @@
 - [captcha](#captcha) (3 endpoints)
 - [case](#case) (54 endpoints)
 - [caseNotion](#casenotion) (74 endpoints)
+- [chatterActivitiesExtended](#chatteractivitiesextended) (6 endpoints)
 - [chatterFollowers](#chatterfollowers) (7 endpoints)
+- [chatterFollowersExtended](#chatterfollowersextended) (6 endpoints)
 - [churn](#churn) (19 endpoints)
 - [client](#client) (23 endpoints)
 - [cloudStorages](#cloudstorages) (13 endpoints)
@@ -145,10 +147,12 @@
 - [hrRecruitmentExtended](#hrrecruitmentextended) (17 endpoints)
 - [hrRetentionBonus](#hrretentionbonus) (16 endpoints)
 - [hrSalaryComponents](#hrsalarycomponents) (11 endpoints)
+- [hrSalaryComponentsExtended](#hrsalarycomponentsextended) (7 endpoints)
 - [hrSetup](#hrsetup) (27 endpoints)
 - [hrShiftTypesExtended](#hrshifttypesextended) (13 endpoints)
 - [hrStaffingPlanDetails](#hrstaffingplandetails) (17 endpoints)
 - [hrStaffingPlans](#hrstaffingplans) (26 endpoints)
+- [hrStaffingPlansExtended](#hrstaffingplansextended) (13 endpoints)
 - [hrVehicles](#hrvehicles) (16 endpoints)
 - [incomeTaxSlab](#incometaxslab) (9 endpoints)
 - [integrations](#integrations) (45 endpoints)
@@ -180,6 +184,7 @@
 - [leaveRequest](#leaverequest) (20 endpoints)
 - [legalContract](#legalcontract) (33 endpoints)
 - [legalDocument](#legaldocument) (6 endpoints)
+- [legalDocumentsCrud](#legaldocumentscrud) (7 endpoints)
 - [legalDocumentsExtended](#legaldocumentsextended) (7 endpoints)
 - [lifecycles](#lifecycles) (10 endpoints)
 - [lockDates](#lockdates) (8 endpoints)
@@ -282,6 +287,7 @@
 - [tag](#tag) (9 endpoints)
 - [task](#task) (89 endpoints)
 - [tasksExtended](#tasksextended) (13 endpoints)
+- [tasksWorkflowRules](#tasksworkflowrules) (8 endpoints)
 - [team](#team) (15 endpoints)
 - [telegram](#telegram) (11 endpoints)
 - [temporalCase](#temporalcase) (9 endpoints)
@@ -324,8 +330,8 @@
 
 | Metric | Count |
 |--------|-------|
-| Total Endpoints | 4868 |
-| Total Modules | 311 |
+| Total Endpoints | 4915 |
+| Total Modules | 317 |
 
 ---
 
@@ -1463,6 +1469,17 @@
 | `POST` | `/api/case-notion/cases/:caseId/notion/pages/:pageId/align` | unknown | caseNotion.route.js |
 | `POST` | `/api/case-notion/cases/:caseId/notion/pages/:pageId/distribute` | unknown | caseNotion.route.js |
 
+## chatterActivitiesExtended
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/chatter/activities/:resModel/:resId` | unknown | chatterActivitiesExtended.route.js |
+| `GET` | `/api/chatter/activities/me` | unknown | chatterActivitiesExtended.route.js |
+| `POST` | `/api/chatter/activities` | unknown | chatterActivitiesExtended.route.js |
+| `PATCH` | `/api/chatter/activities/:activityId` | unknown | chatterActivitiesExtended.route.js |
+| `DELETE` | `/api/chatter/activities/:activityId` | unknown | chatterActivitiesExtended.route.js |
+| `POST` | `/api/chatter/activities/:activityId/complete` | unknown | chatterActivitiesExtended.route.js |
+
 ## chatterFollowers
 
 | Method | Path | Controller | File |
@@ -1474,6 +1491,17 @@
 | `DELETE` | `/api/chatterFollowers/:model/:recordId/followers/:id` | removeFollower | chatterFollower.routes.js |
 | `PATCH` | `/api/chatterFollowers/:model/:recordId/followers/:id/preferences` | updateNotificationPreference | chatterFollower.routes.js |
 | `POST` | `/api/chatterFollowers/:model/:recordId/toggle-follow` | toggleFollow | chatterFollower.routes.js |
+
+## chatterFollowersExtended
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/chatter/followers/:resModel/:resId` | unknown | chatterFollowersExtended.route.js |
+| `POST` | `/api/chatter/followers` | unknown | chatterFollowersExtended.route.js |
+| `DELETE` | `/api/chatter/followers/:followerId` | unknown | chatterFollowersExtended.route.js |
+| `PATCH` | `/api/chatter/followers/:followerId/preferences` | unknown | chatterFollowersExtended.route.js |
+| `POST` | `/api/chatter/followers/bulk-add` | unknown | chatterFollowersExtended.route.js |
+| `POST` | `/api/chatter/followers/bulk-remove` | unknown | chatterFollowersExtended.route.js |
 
 ## churn
 
@@ -3284,6 +3312,18 @@
 | `PATCH` | `/api/hr/salary-components/:id/toggle-status` | unknown | hrSalaryComponents.route.js |
 | `PATCH` | `/api/hr/salary-components/reorder` | unknown | hrSalaryComponents.route.js |
 
+## hrSalaryComponentsExtended
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `POST` | `/api/hr/salary-components/bulk-delete` | unknown | hrSalaryComponentsExtended.route.js |
+| `POST` | `/api/hr/salary-components/calculate` | unknown | hrSalaryComponentsExtended.route.js |
+| `POST` | `/api/hr/salary-components/seed-defaults` | unknown | hrSalaryComponentsExtended.route.js |
+| `POST` | `/api/hr/salary-components/:id/duplicate` | unknown | hrSalaryComponentsExtended.route.js |
+| `GET` | `/api/hr/salary-components/summary` | unknown | hrSalaryComponentsExtended.route.js |
+| `POST` | `/api/hr/salary-components/validate` | unknown | hrSalaryComponentsExtended.route.js |
+| `GET` | `/api/hr/salary-components/tax-implications` | unknown | hrSalaryComponentsExtended.route.js |
+
 ## hrSetup
 
 | Method | Path | Controller | File |
@@ -3386,6 +3426,24 @@
 | `POST` | `/api/hr/staffing-plans/:planId/fill/:posId` | unknown | hrStaffingPlans.route.js |
 | `POST` | `/api/hr/staffing-plans/bulk-delete` | unknown | hrStaffingPlans.route.js |
 | `POST` | `/api/hr/staffing-plans/bulk-archive` | unknown | hrStaffingPlans.route.js |
+
+## hrStaffingPlansExtended
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `POST` | `/api/hr/staffing-plans/:planId/calculate-vacancies` | unknown | hrStaffingPlansExtended.route.js |
+| `GET` | `/api/hr/staffing-plans/vacancies-summary` | unknown | hrStaffingPlansExtended.route.js |
+| `POST` | `/api/hr/staffing-plans/:planId/details/:detailId/create-job-opening` | unknown | hrStaffingPlansExtended.route.js |
+| `POST` | `/api/hr/staffing-plans/:planId/details/:detailId/link-job-opening` | unknown | hrStaffingPlansExtended.route.js |
+| `DELETE` | `/api/hr/staffing-plans/:planId/details/:detailId/unlink-job-opening` | unknown | hrStaffingPlansExtended.route.js |
+| `GET` | `/api/hr/staffing-plans/:planId/job-openings` | unknown | hrStaffingPlansExtended.route.js |
+| `POST` | `/api/hr/staffing-plans/:planId/sync-headcount` | unknown | hrStaffingPlansExtended.route.js |
+| `GET` | `/api/hr/staffing-plans/:planId/fulfillment-status` | unknown | hrStaffingPlansExtended.route.js |
+| `POST` | `/api/hr/staffing-plans/:planId/generate-requisitions` | unknown | hrStaffingPlansExtended.route.js |
+| `GET` | `/api/hr/staffing-plans/comparison` | unknown | hrStaffingPlansExtended.route.js |
+| `POST` | `/api/hr/staffing-plans/:planId/rollover` | unknown | hrStaffingPlansExtended.route.js |
+| `GET` | `/api/hr/staffing-plans/:planId/timeline` | unknown | hrStaffingPlansExtended.route.js |
+| `POST` | `/api/hr/staffing-plans/:planId/approve` | unknown | hrStaffingPlansExtended.route.js |
 
 ## hrVehicles
 
@@ -4005,6 +4063,18 @@
 | `PATCH` | `/api/legalDocument/:_id` | updateDocument | legalDocument.route.js |
 | `DELETE` | `/api/legalDocument/:_id` | deleteDocument | legalDocument.route.js |
 | `POST` | `/api/legalDocument/:_id/download` | incrementDownload | legalDocument.route.js |
+
+## legalDocumentsCrud
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/legal-documents/:id` | unknown | legalDocumentsCrud.route.js |
+| `PATCH` | `/api/legal-documents/:id` | unknown | legalDocumentsCrud.route.js |
+| `DELETE` | `/api/legal-documents/:id` | unknown | legalDocumentsCrud.route.js |
+| `POST` | `/api/legal-documents/:id/download` | unknown | legalDocumentsCrud.route.js |
+| `GET` | `/api/legal-documents/:id/versions` | unknown | legalDocumentsCrud.route.js |
+| `POST` | `/api/legal-documents/:id/versions` | unknown | legalDocumentsCrud.route.js |
+| `POST` | `/api/legal-documents/:id/restore/:versionId` | unknown | legalDocumentsCrud.route.js |
 
 ## legalDocumentsExtended
 
@@ -6017,6 +6087,19 @@
 | `DELETE` | `/api/tasks/:taskId/recurring` | unknown | tasksExtended.route.js |
 | `POST` | `/api/tasks/:taskId/convert-to-case` | unknown | tasksExtended.route.js |
 
+## tasksWorkflowRules
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/tasks/:taskId/available-dependencies` | unknown | tasksWorkflowRules.route.js |
+| `GET` | `/api/tasks/:taskId/workflow-rules` | unknown | tasksWorkflowRules.route.js |
+| `POST` | `/api/tasks/:taskId/workflow-rules` | unknown | tasksWorkflowRules.route.js |
+| `PATCH` | `/api/tasks/:taskId/workflow-rules/:ruleId` | unknown | tasksWorkflowRules.route.js |
+| `DELETE` | `/api/tasks/:taskId/workflow-rules/:ruleId` | unknown | tasksWorkflowRules.route.js |
+| `POST` | `/api/tasks/:taskId/workflow-rules/:ruleId/toggle` | unknown | tasksWorkflowRules.route.js |
+| `POST` | `/api/tasks/:taskId/evaluate-rules` | unknown | tasksWorkflowRules.route.js |
+| `GET` | `/api/tasks/:taskId/rule-history` | unknown | tasksWorkflowRules.route.js |
+
 ## team
 
 | Method | Path | Controller | File |
@@ -6756,7 +6839,7 @@
 
 ## Quick Reference by Method
 
-### GET (2078)
+### GET (2093)
 
 <details>
 <summary>Click to expand</summary>
@@ -7143,6 +7226,9 @@ GET    /api/cases/statistics
 GET    /api/chat/conversations
 GET    /api/chat/conversations/:conversationId
 GET    /api/chat/providers
+GET    /api/chatter/activities/:resModel/:resId
+GET    /api/chatter/activities/me
+GET    /api/chatter/followers/:resModel/:resId
 GET    /api/chatterFollowers/:model/:recordId/followers
 GET    /api/chatterFollowers/my-followed
 GET    /api/churn/analytics/cohorts
@@ -7871,6 +7957,8 @@ GET    /api/hr/salary-components
 GET    /api/hr/salary-components/:id
 GET    /api/hr/salary-components/deductions
 GET    /api/hr/salary-components/earnings
+GET    /api/hr/salary-components/summary
+GET    /api/hr/salary-components/tax-implications
 GET    /api/hr/self-service/advances
 GET    /api/hr/self-service/approvals/pending
 GET    /api/hr/self-service/dashboard
@@ -7927,12 +8015,16 @@ GET    /api/hr/skills/types
 GET    /api/hr/staffing-plans
 GET    /api/hr/staffing-plans/:planId
 GET    /api/hr/staffing-plans/:planId/budget
+GET    /api/hr/staffing-plans/:planId/fulfillment-status
+GET    /api/hr/staffing-plans/:planId/job-openings
 GET    /api/hr/staffing-plans/:planId/positions/filled
 GET    /api/hr/staffing-plans/:planId/positions/open
 GET    /api/hr/staffing-plans/:planId/progress
 GET    /api/hr/staffing-plans/:planId/timeline
+GET    /api/hr/staffing-plans/:planId/timeline
 GET    /api/hr/staffing-plans/analytics
 GET    /api/hr/staffing-plans/attrition-forecast
+GET    /api/hr/staffing-plans/comparison
 GET    /api/hr/staffing-plans/cost-analysis
 GET    /api/hr/staffing-plans/export
 GET    /api/hr/staffing-plans/forecast
@@ -7943,6 +8035,7 @@ GET    /api/hr/staffing-plans/headcount/by-job-family
 GET    /api/hr/staffing-plans/headcount/by-location
 GET    /api/hr/staffing-plans/headcount/trends
 GET    /api/hr/staffing-plans/scenarios
+GET    /api/hr/staffing-plans/vacancies-summary
 GET    /api/hr/staffing-plans/variance
 GET    /api/hr/surveys
 GET    /api/hr/surveys/:id
@@ -8134,9 +8227,11 @@ GET    /api/leave-requests/calendar
 GET    /api/leave-requests/pending-approvals
 GET    /api/leave-requests/stats
 GET    /api/leave-requests/types
+GET    /api/legal-documents/:id
 GET    /api/legal-documents/:id/audit-trail
 GET    /api/legal-documents/:id/parties
 GET    /api/legal-documents/:id/signature-status
+GET    /api/legal-documents/:id/versions
 GET    /api/legalDocument
 GET    /api/legalDocument/:_id
 GET    /api/lifecycles/:entityType/:entityId
@@ -8620,7 +8715,10 @@ GET    /api/tasks/:id/documents/:documentId/versions
 GET    /api/tasks/:id/documents/:documentId/versions/:versionId
 GET    /api/tasks/:id/full
 GET    /api/tasks/:id/time-tracking/summary
+GET    /api/tasks/:taskId/available-dependencies
+GET    /api/tasks/:taskId/rule-history
 GET    /api/tasks/:taskId/time-tracking
+GET    /api/tasks/:taskId/workflow-rules
 GET    /api/tasks/archived
 GET    /api/tasks/case/:caseId
 GET    /api/tasks/client/:clientId
@@ -8844,7 +8942,7 @@ GET    /api/zoom/status
 
 </details>
 
-### POST (1966)
+### POST (1989)
 
 <details>
 <summary>Click to expand</summary>
@@ -9225,6 +9323,11 @@ POST   /api/cases/:id/workflow/resume
 POST   /api/cases/:id/workflow/transition-stage
 POST   /api/chat
 POST   /api/chat/stream
+POST   /api/chatter/activities
+POST   /api/chatter/activities/:activityId/complete
+POST   /api/chatter/followers
+POST   /api/chatter/followers/bulk-add
+POST   /api/chatter/followers/bulk-remove
 POST   /api/chatterFollowers/:model/:recordId/followers
 POST   /api/chatterFollowers/:model/:recordId/followers/bulk
 POST   /api/chatterFollowers/:model/:recordId/toggle-follow
@@ -9866,8 +9969,13 @@ POST   /api/hr/retention-bonuses/:id/reject
 POST   /api/hr/retention-bonuses/:id/submit
 POST   /api/hr/retention-bonuses/bulk-delete
 POST   /api/hr/salary-components
+POST   /api/hr/salary-components/:id/duplicate
 POST   /api/hr/salary-components/bulk
+POST   /api/hr/salary-components/bulk-delete
+POST   /api/hr/salary-components/calculate
 POST   /api/hr/salary-components/initialize-defaults
+POST   /api/hr/salary-components/seed-defaults
+POST   /api/hr/salary-components/validate
 POST   /api/hr/self-service/leave/request
 POST   /api/hr/self-service/leave/request/:requestId/cancel
 POST   /api/hr/shift-types
@@ -9906,13 +10014,20 @@ POST   /api/hr/skills/verify
 POST   /api/hr/staffing-plans
 POST   /api/hr/staffing-plans/:planId/activate
 POST   /api/hr/staffing-plans/:planId/approve
+POST   /api/hr/staffing-plans/:planId/approve
 POST   /api/hr/staffing-plans/:planId/archive
+POST   /api/hr/staffing-plans/:planId/calculate-vacancies
 POST   /api/hr/staffing-plans/:planId/details
+POST   /api/hr/staffing-plans/:planId/details/:detailId/create-job-opening
+POST   /api/hr/staffing-plans/:planId/details/:detailId/link-job-opening
 POST   /api/hr/staffing-plans/:planId/duplicate
 POST   /api/hr/staffing-plans/:planId/fill/:posId
+POST   /api/hr/staffing-plans/:planId/generate-requisitions
 POST   /api/hr/staffing-plans/:planId/positions
 POST   /api/hr/staffing-plans/:planId/reject
+POST   /api/hr/staffing-plans/:planId/rollover
 POST   /api/hr/staffing-plans/:planId/submit
+POST   /api/hr/staffing-plans/:planId/sync-headcount
 POST   /api/hr/staffing-plans/bulk-archive
 POST   /api/hr/staffing-plans/bulk-delete
 POST   /api/hr/staffing-plans/bulk-update
@@ -10105,10 +10220,13 @@ POST   /api/leave-requests/:id/request-extension
 POST   /api/leave-requests/:id/submit
 POST   /api/leave-requests/bulk-delete
 POST   /api/leave-requests/check-conflicts
+POST   /api/legal-documents/:id/download
 POST   /api/legal-documents/:id/execute
 POST   /api/legal-documents/:id/request-signature
+POST   /api/legal-documents/:id/restore/:versionId
 POST   /api/legal-documents/:id/send-reminder
 POST   /api/legal-documents/:id/sign
+POST   /api/legal-documents/:id/versions
 POST   /api/legalDocument
 POST   /api/legalDocument/:_id/download
 POST   /api/lifecycles/initiate
@@ -10548,11 +10666,14 @@ POST   /api/tasks/:id/voice-memos
 POST   /api/tasks/:id/workflow-rules
 POST   /api/tasks/:taskId/convert-to-case
 POST   /api/tasks/:taskId/dependencies
+POST   /api/tasks/:taskId/evaluate-rules
 POST   /api/tasks/:taskId/recurring
 POST   /api/tasks/:taskId/time-tracking/manual
 POST   /api/tasks/:taskId/time-tracking/start
 POST   /api/tasks/:taskId/time-tracking/stop
 POST   /api/tasks/:taskId/watchers
+POST   /api/tasks/:taskId/workflow-rules
+POST   /api/tasks/:taskId/workflow-rules/:ruleId/toggle
 POST   /api/tasks/auto-schedule
 POST   /api/tasks/bulk
 POST   /api/tasks/bulk/archive
@@ -11087,7 +11208,7 @@ PUT    /api/zoom/settings
 
 </details>
 
-### PATCH (227)
+### PATCH (231)
 
 <details>
 <summary>Click to expand</summary>
@@ -11135,6 +11256,8 @@ PATCH  /api/cases/:_id/stage
 PATCH  /api/cases/:_id/status
 PATCH  /api/cases/:_id/timeline/:eventId
 PATCH  /api/chat/conversations/:conversationId
+PATCH  /api/chatter/activities/:activityId
+PATCH  /api/chatter/followers/:followerId/preferences
 PATCH  /api/chatterFollowers/:model/:recordId/followers/:id/preferences
 PATCH  /api/clients/:id/flags
 PATCH  /api/clients/:id/status
@@ -11239,6 +11362,7 @@ PATCH  /api/leave-allocations/:id
 PATCH  /api/leave-allocations/:id/update-balance
 PATCH  /api/leave-encashments/:id
 PATCH  /api/leave-requests/:id
+PATCH  /api/legal-documents/:id
 PATCH  /api/legalDocument/:_id
 PATCH  /api/lockDates/:lockType
 PATCH  /api/lockDates/fiscal-year
@@ -11305,6 +11429,7 @@ PATCH  /api/tasks/:id/timer/pause
 PATCH  /api/tasks/:id/timer/resume
 PATCH  /api/tasks/:id/voice-memos/:memoId/transcription
 PATCH  /api/tasks/:taskId/subtasks/reorder
+PATCH  /api/tasks/:taskId/workflow-rules/:ruleId
 PATCH  /api/tasks/reorder
 PATCH  /api/tasks/templates/:templateId
 PATCH  /api/team/:id
@@ -11324,7 +11449,7 @@ PATCH  /api/workflows/:id
 
 </details>
 
-### DELETE (340)
+### DELETE (345)
 
 <details>
 <summary>Click to expand</summary>
@@ -11399,6 +11524,8 @@ DELETE /api/cases/:_id/notes/:noteId
 DELETE /api/cases/:_id/rich-documents/:docId
 DELETE /api/cases/:_id/timeline/:eventId
 DELETE /api/chat/conversations/:conversationId
+DELETE /api/chatter/activities/:activityId
+DELETE /api/chatter/followers/:followerId
 DELETE /api/chatterFollowers/:model/:recordId/followers/:id
 DELETE /api/clients/:id
 DELETE /api/clients/:id/attachments/:attachmentId
@@ -11516,6 +11643,7 @@ DELETE /api/hr/skills/assign/:employeeId/:skillId
 DELETE /api/hr/skills/competencies/:id
 DELETE /api/hr/staffing-plans/:planId
 DELETE /api/hr/staffing-plans/:planId/details/:detailId
+DELETE /api/hr/staffing-plans/:planId/details/:detailId/unlink-job-opening
 DELETE /api/hr/staffing-plans/:planId/positions/:posId
 DELETE /api/hr/staffing-plans/scenarios/:scenarioId
 DELETE /api/hr/surveys/:id
@@ -11541,6 +11669,7 @@ DELETE /api/leadSource/:id
 DELETE /api/leave-allocations/:id
 DELETE /api/leave-encashments/:id
 DELETE /api/leave-requests/:id
+DELETE /api/legal-documents/:id
 DELETE /api/legalDocument/:_id
 DELETE /api/lifecycles/workflows/:id
 DELETE /api/lostReason/:id
@@ -11641,6 +11770,7 @@ DELETE /api/tasks/:taskId/dependencies/:depId
 DELETE /api/tasks/:taskId/recurring
 DELETE /api/tasks/:taskId/time-tracking/:entryId
 DELETE /api/tasks/:taskId/watchers/:userId
+DELETE /api/tasks/:taskId/workflow-rules/:ruleId
 DELETE /api/tasks/bulk
 DELETE /api/tasks/templates/:templateId
 DELETE /api/team/:id

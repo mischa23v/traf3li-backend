@@ -474,6 +474,16 @@ const {
     legalDocumentsExtendedRoute,
     paymentTermsSettingsRoute,
 
+    // Batch 13 Routes (staffing plans extended, tasks workflow rules, legal documents CRUD)
+    hrStaffingPlansExtendedRoute,
+    tasksWorkflowRulesRoute,
+    legalDocumentsCrudRoute,
+
+    // Batch 14 Routes (salary components extended, chatter followers, chatter activities)
+    hrSalaryComponentsExtendedRoute,
+    chatterFollowersExtendedRoute,
+    chatterActivitiesExtendedRoute,
+
     // Unified Data Flow
     unifiedDataRoute,
 
@@ -1432,6 +1442,16 @@ app.use('/api/workflows', noCache, workflowsExtendedRoute); // Extended workflow
 app.use('/api/settings/sso', noCache, ssoSettingsRoute); // SSO configuration
 app.use('/api/legal-documents', noCache, legalDocumentsExtendedRoute); // Legal document signing/tracking
 app.use('/api/settings/payment-terms', noCache, paymentTermsSettingsRoute); // Payment terms configuration
+
+// Batch 13 Routes (staffing plans extended, tasks workflow rules, legal documents CRUD)
+app.use('/api/hr/staffing-plans', noCache, hrStaffingPlansExtendedRoute); // Extended staffing plan operations
+app.use('/api/tasks', noCache, tasksWorkflowRulesRoute); // Task workflow rules management
+app.use('/api/legal-documents', noCache, legalDocumentsCrudRoute); // Legal documents CRUD
+
+// Batch 14 Routes (salary components extended, chatter followers, chatter activities)
+app.use('/api/hr/salary-components', noCache, hrSalaryComponentsExtendedRoute); // Extended salary component ops
+app.use('/api/chatter/followers', noCache, chatterFollowersExtendedRoute); // Chatter follower management
+app.use('/api/chatter/activities', noCache, chatterActivitiesExtendedRoute); // Chatter activity management
 
 // ============================================
 // UNIFIED DATA FLOW ROUTES
