@@ -110,6 +110,8 @@ const crmTransactionRoute = require('./crmTransaction.route');
 
 // CRM Reports Routes
 const crmReportsRoute = require('./crmReports.route');
+const crmReportsAliasRoute = require('./crmReportsAlias.route');
+const crmReportsExtendedRoute = require('./crmReportsExtended.route');
 
 // Appointment Routes
 const appointmentRoute = require('./appointment.route');
@@ -281,6 +283,114 @@ const kycRoute = require('./kyc.route');
 const shiftRoute = require('./shift.route');
 const leaveManagementRoute = require('./leaveManagement.route');
 const hrExtendedRoute = require('./hrExtended.route');
+
+// HR Frontend-Expected Routes (employee-incentives, employee-promotions, skill-maps, transfers)
+const employeeIncentiveRoute = require('./employeeIncentive.route');
+const employeePromotionRoute = require('./employeePromotion.route');
+const skillMapRoute = require('./skillMap.route');
+const employeeTransferRoute = require('./employeeTransfer.route');
+
+// HR Setup Wizard Routes (departments, designations, leave-types, shift-types)
+const hrSetupRoute = require('./hrSetup.route');
+
+// HR Policy Routes (expense policies, leave policies, attendance rules, salary components)
+const hrExpensePolicyRoute = require('./hrExpensePolicy.route');
+const hrLeavePolicyRoute = require('./hrLeavePolicy.route');
+const hrLeavePolicyAssignmentRoute = require('./hrLeavePolicyAssignment.route');
+const hrAttendanceRulesRoute = require('./hrAttendanceRules.route');
+const hrSalaryComponentsRoute = require('./hrSalaryComponents.route');
+
+// Settings Alias Routes (general settings, HR settings, taxes, payment-modes)
+const settingsAliasRoute = require('./settingsAlias.route');
+
+// CRM Alias Routes (lead sources, sales stages, CRM reports)
+const crmAliasRoute = require('./crmAlias.route');
+
+// Leave Management Routes (encashment, allocation, compensatory)
+const leaveEncashmentRoute = require('./leaveEncashment.route');
+const leaveAllocationRoute = require('./leaveAllocation.route');
+const compensatoryLeaveRoute = require('./compensatoryLeave.route');
+
+// Batch 4 Routes (events, auth, inter-company, products, subscriptions, corporate cards)
+const eventsExtendedRoute = require('./eventsExtended.route');
+const authExtendedRoute = require('./authExtended.route');
+const interCompanyExtendedRoute = require('./interCompanyExtended.route');
+const productsEnhancedRoute = require('./productsEnhanced.route');
+const subscriptionsRoute = require('./subscriptions.route');
+const corporateCardsRoute = require('./corporateCards.route');
+
+// Batch 5 Routes (HR recruitment extended, retention bonuses, payroll extended)
+const hrRecruitmentExtendedRoute = require('./hrRecruitmentExtended.route');
+const hrRetentionBonusRoute = require('./hrRetentionBonus.route');
+const hrPayrollExtendedRoute = require('./hrPayrollExtended.route');
+
+// Batch 6 Routes (activities, shifts, transactions, workflows extended)
+const activitiesExtendedRoute = require('./activitiesExtended.route');
+const shiftAssignmentsRoute = require('./shiftAssignments.route');
+const shiftRequestsRoute = require('./shiftRequests.route');
+const transactionsExtendedRoute = require('./transactionsExtended.route');
+const workflowExtendedRoute = require('./workflowExtended.route');
+
+// Batch 7 Routes (approvals, assets, attendance extended)
+const approvalsExtendedRoute = require('./approvalsExtended.route');
+const assetsExtendedRoute = require('./assetsExtended.route');
+const attendanceExtendedRoute = require('./attendanceExtended.route');
+
+// Batch 8 Routes (automated actions, budgets, audit logs extended)
+const automatedActionsExtendedRoute = require('./automatedActionsExtended.route');
+const budgetsRoute = require('./budgets.route');
+const auditLogsExtendedRoute = require('./auditLogsExtended.route');
+
+// Batch 9 Routes (HR staffing plans, vehicles, shift types extended)
+const hrStaffingPlansRoute = require('./hrStaffingPlans.route');
+const hrVehiclesRoute = require('./hrVehicles.route');
+const hrShiftTypesExtendedRoute = require('./hrShiftTypesExtended.route');
+
+// Batch 10 Routes (tasks extended, documents extended, drip campaigns)
+const tasksExtendedRoute = require('./tasksExtended.route');
+const documentsExtendedRoute = require('./documentsExtended.route');
+const dripCampaignsRoute = require('./dripCampaigns.route');
+
+// Batch 11 Routes (staffing plan details, reminders extended, workflows extended)
+const hrStaffingPlanDetailsRoute = require('./hrStaffingPlanDetails.route');
+const remindersExtendedRoute = require('./remindersExtended.route');
+const workflowsExtendedRoute = require('./workflowsExtended.route');
+
+// Batch 12 Routes (SSO settings, legal documents extended, payment terms settings)
+const ssoSettingsRoute = require('./ssoSettings.route');
+const legalDocumentsExtendedRoute = require('./legalDocumentsExtended.route');
+const paymentTermsSettingsRoute = require('./paymentTermsSettings.route');
+
+// Batch 13 Routes (staffing plans extended, tasks workflow rules, legal documents CRUD)
+const hrStaffingPlansExtendedRoute = require('./hrStaffingPlansExtended.route');
+const tasksWorkflowRulesRoute = require('./tasksWorkflowRules.route');
+const legalDocumentsCrudRoute = require('./legalDocumentsCrud.route');
+
+// Batch 14 Routes (salary components extended, chatter followers, chatter activities)
+const hrSalaryComponentsExtendedRoute = require('./hrSalaryComponentsExtended.route');
+const chatterFollowersExtendedRoute = require('./chatterFollowersExtended.route');
+const chatterActivitiesExtendedRoute = require('./chatterActivitiesExtended.route');
+
+// Batch 15 Routes (staffing plans more, CRM reports transactions, sales teams)
+const hrStaffingPlansMoreRoute = require('./hrStaffingPlansMore.route');
+const crmReportsTransactionsRoute = require('./crmReportsTransactions.route');
+const salesTeamsRoute = require('./salesTeams.route');
+
+// Batch 16 Routes (price levels extended, settings sales, shift types more)
+const priceLevelsExtendedRoute = require('./priceLevelsExtended.route');
+const settingsSalesRoute = require('./settingsSales.route');
+const hrShiftTypesMoreRoute = require('./hrShiftTypesMore.route');
+
+// Batch 17 Routes (sales teams extended, territories, contacts extended)
+const salesTeamsExtendedRoute = require('./salesTeamsExtended.route');
+const territoriesRoute = require('./territories.route');
+const contactsExtendedRoute = require('./contactsExtended.route');
+
+// Batch 18 Routes (leave periods, payroll extended, docs versions, integrations extended)
+const leavePeriodsRoute = require('./leavePeriods.route');
+const payrollExtendedRoute = require('./payrollExtended.route');
+const documentsVersionsExtendedRoute = require('./documentsVersionsExtended.route');
+const integrationsExtendedRoute = require('./integrationsExtended.route');
 
 // Who's Out Calendar & Compliance Dashboard Routes
 const whosOutRoute = require('./whosOut.route');
@@ -508,6 +618,8 @@ module.exports = {
 
     // CRM Reports
     crmReportsRoute,
+    crmReportsAliasRoute,
+    crmReportsExtendedRoute,
 
     // Appointments
     appointmentRoute,
@@ -679,6 +791,114 @@ module.exports = {
     shiftRoute,
     leaveManagementRoute,
     hrExtendedRoute,
+
+    // HR Frontend-Expected Routes
+    employeeIncentiveRoute,
+    employeePromotionRoute,
+    skillMapRoute,
+    employeeTransferRoute,
+
+    // HR Setup Wizard Routes
+    hrSetupRoute,
+
+    // HR Policy Routes
+    hrExpensePolicyRoute,
+    hrLeavePolicyRoute,
+    hrLeavePolicyAssignmentRoute,
+    hrAttendanceRulesRoute,
+    hrSalaryComponentsRoute,
+
+    // Settings Alias Routes
+    settingsAliasRoute,
+
+    // CRM Alias Routes
+    crmAliasRoute,
+
+    // Leave Management Routes
+    leaveEncashmentRoute,
+    leaveAllocationRoute,
+    compensatoryLeaveRoute,
+
+    // Batch 4 Routes (events, auth, inter-company, products, subscriptions, corporate cards)
+    eventsExtendedRoute,
+    authExtendedRoute,
+    interCompanyExtendedRoute,
+    productsEnhancedRoute,
+    subscriptionsRoute,
+    corporateCardsRoute,
+
+    // Batch 5 Routes (HR recruitment extended, retention bonuses, payroll extended)
+    hrRecruitmentExtendedRoute,
+    hrRetentionBonusRoute,
+    hrPayrollExtendedRoute,
+
+    // Batch 6 Routes (activities, shifts, transactions, workflows extended)
+    activitiesExtendedRoute,
+    shiftAssignmentsRoute,
+    shiftRequestsRoute,
+    transactionsExtendedRoute,
+    workflowExtendedRoute,
+
+    // Batch 7 Routes (approvals, assets, attendance extended)
+    approvalsExtendedRoute,
+    assetsExtendedRoute,
+    attendanceExtendedRoute,
+
+    // Batch 8 Routes (automated actions, budgets, audit logs extended)
+    automatedActionsExtendedRoute,
+    budgetsRoute,
+    auditLogsExtendedRoute,
+
+    // Batch 9 Routes (HR staffing plans, vehicles, shift types extended)
+    hrStaffingPlansRoute,
+    hrVehiclesRoute,
+    hrShiftTypesExtendedRoute,
+
+    // Batch 10 Routes (tasks extended, documents extended, drip campaigns)
+    tasksExtendedRoute,
+    documentsExtendedRoute,
+    dripCampaignsRoute,
+
+    // Batch 11 Routes (staffing plan details, reminders extended, workflows extended)
+    hrStaffingPlanDetailsRoute,
+    remindersExtendedRoute,
+    workflowsExtendedRoute,
+
+    // Batch 12 Routes (SSO settings, legal documents extended, payment terms settings)
+    ssoSettingsRoute,
+    legalDocumentsExtendedRoute,
+    paymentTermsSettingsRoute,
+
+    // Batch 13 Routes (staffing plans extended, tasks workflow rules, legal documents CRUD)
+    hrStaffingPlansExtendedRoute,
+    tasksWorkflowRulesRoute,
+    legalDocumentsCrudRoute,
+
+    // Batch 14 Routes (salary components extended, chatter followers, chatter activities)
+    hrSalaryComponentsExtendedRoute,
+    chatterFollowersExtendedRoute,
+    chatterActivitiesExtendedRoute,
+
+    // Batch 15 Routes (staffing plans more, CRM reports transactions, sales teams)
+    hrStaffingPlansMoreRoute,
+    crmReportsTransactionsRoute,
+    salesTeamsRoute,
+
+    // Batch 16 Routes (price levels extended, settings sales, shift types more)
+    priceLevelsExtendedRoute,
+    settingsSalesRoute,
+    hrShiftTypesMoreRoute,
+
+    // Batch 17 Routes (sales teams extended, territories, contacts extended)
+    salesTeamsExtendedRoute,
+    territoriesRoute,
+    contactsExtendedRoute,
+
+    // Batch 18 Routes (leave periods, payroll extended, docs versions, integrations extended)
+    leavePeriodsRoute,
+    payrollExtendedRoute,
+    documentsVersionsExtendedRoute,
+    integrationsExtendedRoute,
 
     // Who's Out Calendar & Compliance Dashboard
     whosOutRoute,

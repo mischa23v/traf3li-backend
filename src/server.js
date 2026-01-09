@@ -222,6 +222,8 @@ const {
 
     // CRM Reports
     crmReportsRoute,
+    crmReportsAliasRoute,
+    crmReportsExtendedRoute,
 
     // Appointments
     appointmentRoute,
@@ -394,6 +396,114 @@ const {
     shiftRoute,
     leaveManagementRoute,
     hrExtendedRoute,
+
+    // HR Frontend-Expected Routes
+    employeeIncentiveRoute,
+    employeePromotionRoute,
+    skillMapRoute,
+    employeeTransferRoute,
+
+    // HR Setup Wizard Routes
+    hrSetupRoute,
+
+    // HR Policy Routes
+    hrExpensePolicyRoute,
+    hrLeavePolicyRoute,
+    hrLeavePolicyAssignmentRoute,
+    hrAttendanceRulesRoute,
+    hrSalaryComponentsRoute,
+
+    // Settings Alias Routes
+    settingsAliasRoute,
+
+    // CRM Alias Routes
+    crmAliasRoute,
+
+    // Leave Management Routes
+    leaveEncashmentRoute,
+    leaveAllocationRoute,
+    compensatoryLeaveRoute,
+
+    // Batch 4 Routes
+    eventsExtendedRoute,
+    authExtendedRoute,
+    interCompanyExtendedRoute,
+    productsEnhancedRoute,
+    subscriptionsRoute,
+    corporateCardsRoute,
+
+    // Batch 5 Routes (HR recruitment extended, retention bonuses, payroll extended)
+    hrRecruitmentExtendedRoute,
+    hrRetentionBonusRoute,
+    hrPayrollExtendedRoute,
+
+    // Batch 6 Routes (activities, shifts, transactions, workflows extended)
+    activitiesExtendedRoute,
+    shiftAssignmentsRoute,
+    shiftRequestsRoute,
+    transactionsExtendedRoute,
+    workflowExtendedRoute,
+
+    // Batch 7 Routes (approvals, assets, attendance extended)
+    approvalsExtendedRoute,
+    assetsExtendedRoute,
+    attendanceExtendedRoute,
+
+    // Batch 8 Routes (automated actions, budgets, audit logs extended)
+    automatedActionsExtendedRoute,
+    budgetsRoute,
+    auditLogsExtendedRoute,
+
+    // Batch 9 Routes (HR staffing plans, vehicles, shift types extended)
+    hrStaffingPlansRoute,
+    hrVehiclesRoute,
+    hrShiftTypesExtendedRoute,
+
+    // Batch 10 Routes (tasks extended, documents extended, drip campaigns)
+    tasksExtendedRoute,
+    documentsExtendedRoute,
+    dripCampaignsRoute,
+
+    // Batch 11 Routes (staffing plan details, reminders extended, workflows extended)
+    hrStaffingPlanDetailsRoute,
+    remindersExtendedRoute,
+    workflowsExtendedRoute,
+
+    // Batch 12 Routes (SSO settings, legal documents extended, payment terms settings)
+    ssoSettingsRoute,
+    legalDocumentsExtendedRoute,
+    paymentTermsSettingsRoute,
+
+    // Batch 13 Routes (staffing plans extended, tasks workflow rules, legal documents CRUD)
+    hrStaffingPlansExtendedRoute,
+    tasksWorkflowRulesRoute,
+    legalDocumentsCrudRoute,
+
+    // Batch 14 Routes (salary components extended, chatter followers, chatter activities)
+    hrSalaryComponentsExtendedRoute,
+    chatterFollowersExtendedRoute,
+    chatterActivitiesExtendedRoute,
+
+    // Batch 15 Routes (staffing plans more, CRM reports transactions, sales teams)
+    hrStaffingPlansMoreRoute,
+    crmReportsTransactionsRoute,
+    salesTeamsRoute,
+
+    // Batch 16 Routes (price levels extended, settings sales, shift types more)
+    priceLevelsExtendedRoute,
+    settingsSalesRoute,
+    hrShiftTypesMoreRoute,
+
+    // Batch 17 Routes (sales teams extended, territories, contacts extended)
+    salesTeamsExtendedRoute,
+    territoriesRoute,
+    contactsExtendedRoute,
+
+    // Batch 18 Routes (leave periods, payroll extended, docs versions, integrations extended)
+    leavePeriodsRoute,
+    payrollExtendedRoute,
+    documentsVersionsExtendedRoute,
+    integrationsExtendedRoute,
 
     // Unified Data Flow
     unifiedDataRoute,
@@ -942,6 +1052,7 @@ app.use('/api/gigs', gigRoute);
 app.use('/api/auth', noCache, authRoute); // No cache for auth endpoints
 app.use('/api/auth/mfa', noCache, mfaRoute); // MFA/TOTP authentication endpoints
 app.use('/api/auth', noCache, captchaRoute); // CAPTCHA verification endpoints
+app.use('/api/auth', noCache, authExtendedRoute); // Auth extended (MFA, onboarding, sessions)
 app.use('/api/admin', noCache, adminRoute); // Admin endpoints for token management
 app.use('/api/admin-api', noCache, adminApiRoute); // Comprehensive Admin API for Appsmith/Budibase integration
 app.use('/api/admin/tools', noCache, adminToolsRoute); // Admin tools for system management
@@ -975,6 +1086,7 @@ app.use('/api/gantt', ganttRoute);
 app.use('/api/notifications', noCache, notificationRoute); // No cache for notifications
 app.use('/api/notification-preferences', noCache, notificationPreferenceRoute); // No cache for preferences
 app.use('/api/events', eventRoute);
+app.use('/api/events', eventsExtendedRoute); // Events extended (actions, recurring, templates)
 
 // ============================================
 // DASHBOARD FINANCE ROUTES (Sensitive Data)
@@ -1086,6 +1198,9 @@ app.use('/api/sales-forecasts', salesForecastRoutes);  // Sales forecasting & qu
 app.use('/api/sales-quotas', salesQuotaRoute);  // Sales quota management
 app.use('/api/crm-transactions', noCache, crmTransactionRoute);  // CRM transaction logging & analytics
 app.use('/api/crm-reports', noCache, crmReportsRoute);  // CRM reports & analytics dashboard
+app.use('/api/crm/reports', noCache, crmReportsAliasRoute);  // CRM reports alias for frontend expected paths
+app.use('/api/crm-reports', noCache, crmReportsExtendedRoute);  // CRM reports extended (revenue, performance, customer analytics)
+app.use('/api/crm', noCache, crmAliasRoute);  // CRM alias (leads, appointments, lead-sources, sales-stages, reports)
 app.use('/api/appointments', appointmentRoute);  // Appointments, availability, and scheduling
 app.use('/api/sales', noCache, salesRoute);  // Sales module (orders, deliveries, returns, commissions)
 app.use('/api/whatsapp', whatsappRoute);
@@ -1123,9 +1238,18 @@ app.use('/api/deals/health', dealHealthRoutes);
 // HR ROUTES (Sensitive Employee Data)
 // ============================================
 app.use('/api/hr', noCache, hrRoute); // No cache for HR data
+app.use('/api/hr', noCache, hrSetupRoute); // HR setup wizard (departments, designations, leave-types, shift-types)
+app.use('/api/hr/expense-policies', noCache, hrExpensePolicyRoute); // HR expense policies
+app.use('/api/hr/leave-policies', noCache, hrLeavePolicyRoute); // HR leave policies
+app.use('/api/hr/leave-policy-assignments', noCache, hrLeavePolicyAssignmentRoute); // HR leave policy assignments
+app.use('/api/hr/attendance-rules', noCache, hrAttendanceRulesRoute); // HR attendance rules
+app.use('/api/hr/salary-components', noCache, hrSalaryComponentsRoute); // HR salary components
 app.use('/api/hr/payroll', noCache, payrollRoute); // Critical: No cache for payroll
 app.use('/api/hr/payroll-runs', noCache, payrollRunRoute);
 app.use('/api/leave-requests', leaveRequestRoute);
+app.use('/api/leave-encashments', noCache, leaveEncashmentRoute); // Leave encashment requests
+app.use('/api/leave-allocations', noCache, leaveAllocationRoute); // Leave allocations & balances
+app.use('/api/compensatory-leave-requests', noCache, compensatoryLeaveRoute); // Compensatory leave
 app.use('/api/attendance', noCache, attendanceRoute);
 app.use('/api/hr/performance-reviews', noCache, performanceReviewRoute);
 app.use('/api/hr/recruitment', recruitmentRoute);
@@ -1174,6 +1298,7 @@ app.use('/api/recurring-transactions', recurringTransactionRoute);
 app.use('/api/price-levels', priceLevelRoute);
 app.use('/api/fiscal-periods', fiscalPeriodRoute);
 app.use('/api/inter-company', noCache, interCompanyRoute);
+app.use('/api/inter-company', noCache, interCompanyExtendedRoute); // Inter-company extended (reconciliation, reports)
 app.use('/api/reports/consolidated', noCache, consolidatedReportsRoute);
 
 // ============================================
@@ -1186,6 +1311,9 @@ app.use('/api/recurring-invoices', noCache, recurringInvoiceRoute);
 app.use('/api/payment-terms', paymentTermsRoute);
 app.use('/api/expense-policies', expensePolicyRoute);
 app.use('/api/corporate-cards', noCache, corporateCardRoute);
+app.use('/api/corporate-cards', noCache, corporateCardsRoute); // Corporate cards extended (transactions, analytics)
+app.use('/api/subscriptions', noCache, subscriptionsRoute); // Subscription management
+app.use('/api/products/enhanced', noCache, productsEnhancedRoute); // Enhanced products (variants, barcodes)
 app.use('/api/payment-receipts', noCache, paymentReceiptRoute);
 app.use('/api/invoice-approvals', noCache, invoiceApprovalRoute);
 app.use('/api/notification-settings', noCache, notificationSettingsRoute);
@@ -1243,6 +1371,9 @@ app.use('/api/document-analysis', documentAnalysisRoute);
 // Smart Scheduling & NLP (Task Management 10/10)
 app.use('/api/smart-scheduling', smartSchedulingRoute);
 
+// General Settings (general, HR, taxes, payment modes)
+app.use('/api/settings', noCache, settingsAliasRoute);
+
 // AI Settings (API Keys Management)
 app.use('/api/settings/ai', aiSettingsRoute);
 
@@ -1284,6 +1415,85 @@ app.use('/api/hr/leave-management', noCache, leaveManagementRoute);
 
 // Extended HR features (encashment, compensatory, promotions, transfers, etc.)
 app.use('/api/hr/extended', noCache, hrExtendedRoute);
+
+// HR Frontend-Expected Routes (employee-incentives, employee-promotions, skill-maps, transfers)
+app.use('/api/hr/employee-incentives', noCache, employeeIncentiveRoute);
+app.use('/api/hr/employee-promotions', noCache, employeePromotionRoute);
+app.use('/api/hr/skill-maps', noCache, skillMapRoute);
+app.use('/api/hr/transfers', noCache, employeeTransferRoute);
+
+// Batch 5 Routes (HR recruitment extended, retention bonuses, payroll extended)
+app.use('/api/hr/recruitment', noCache, hrRecruitmentExtendedRoute); // Extended recruitment endpoints
+app.use('/api/hr/retention-bonuses', noCache, hrRetentionBonusRoute); // Retention bonus management
+app.use('/api/hr/payroll-runs', noCache, hrPayrollExtendedRoute); // Extended payroll run operations
+
+// Batch 6 Routes (activities, shifts, transactions, workflows extended)
+app.use('/api/activities', noCache, activitiesExtendedRoute); // Extended activities management
+app.use('/api/shift-assignments', noCache, shiftAssignmentsRoute); // Shift assignment management
+app.use('/api/shift-requests', noCache, shiftRequestsRoute); // Shift request management
+app.use('/api/transactions', noCache, transactionsExtendedRoute); // Extended transaction operations
+app.use('/api/workflow', noCache, workflowExtendedRoute); // Extended workflow operations
+
+// Batch 7 Routes (approvals, assets, attendance extended)
+app.use('/api/approvals', noCache, approvalsExtendedRoute); // Extended approval management
+app.use('/api/assets', noCache, assetsExtendedRoute); // Extended asset management
+app.use('/api/attendance', noCache, attendanceExtendedRoute); // Extended attendance operations
+
+// Batch 8 Routes (automated actions, budgets, audit logs extended)
+app.use('/api/automated-actions', noCache, automatedActionsExtendedRoute); // Extended automated actions
+app.use('/api/budgets', noCache, budgetsRoute); // Budget management
+app.use('/api/audit-logs', noCache, auditLogsExtendedRoute); // Extended audit log operations
+
+// Batch 9 Routes (HR staffing plans, vehicles, shift types extended)
+app.use('/api/hr/staffing-plans', noCache, hrStaffingPlansRoute); // Workforce planning
+app.use('/api/hr/vehicles', noCache, hrVehiclesRoute); // Fleet/vehicle management
+app.use('/api/hr/shift-types', noCache, hrShiftTypesExtendedRoute); // Extended shift type operations
+
+// Batch 10 Routes (tasks extended, documents extended, drip campaigns)
+app.use('/api/tasks', noCache, tasksExtendedRoute); // Extended task operations
+app.use('/api/documents', noCache, documentsExtendedRoute); // Extended document operations
+app.use('/api/email-marketing/drip-campaigns', noCache, dripCampaignsRoute); // Drip campaign management
+
+// Batch 11 Routes (staffing plan details, reminders extended, workflows extended)
+app.use('/api/hr/staffing-plans', noCache, hrStaffingPlanDetailsRoute); // Staffing plan details operations
+app.use('/api/reminders', noCache, remindersExtendedRoute); // Extended reminder operations
+app.use('/api/workflows', noCache, workflowsExtendedRoute); // Extended workflow operations
+
+// Batch 12 Routes (SSO settings, legal documents extended, payment terms settings)
+app.use('/api/settings/sso', noCache, ssoSettingsRoute); // SSO configuration
+app.use('/api/legal-documents', noCache, legalDocumentsExtendedRoute); // Legal document signing/tracking
+app.use('/api/settings/payment-terms', noCache, paymentTermsSettingsRoute); // Payment terms configuration
+
+// Batch 13 Routes (staffing plans extended, tasks workflow rules, legal documents CRUD)
+app.use('/api/hr/staffing-plans', noCache, hrStaffingPlansExtendedRoute); // Extended staffing plan operations
+app.use('/api/tasks', noCache, tasksWorkflowRulesRoute); // Task workflow rules management
+app.use('/api/legal-documents', noCache, legalDocumentsCrudRoute); // Legal documents CRUD
+
+// Batch 14 Routes (salary components extended, chatter followers, chatter activities)
+app.use('/api/hr/salary-components', noCache, hrSalaryComponentsExtendedRoute); // Extended salary component ops
+app.use('/api/chatter/followers', noCache, chatterFollowersExtendedRoute); // Chatter follower management
+app.use('/api/chatter/activities', noCache, chatterActivitiesExtendedRoute); // Chatter activity management
+
+// Batch 15 Routes (staffing plans more, CRM reports transactions, sales teams)
+app.use('/api/hr/staffing-plans', noCache, hrStaffingPlansMoreRoute); // Additional staffing plan operations
+app.use('/api/crm/reports', noCache, crmReportsTransactionsRoute); // CRM transaction reports
+app.use('/api/crm/sales-teams', noCache, salesTeamsRoute); // Sales team management
+
+// Batch 16 Routes (price levels extended, settings sales, shift types more)
+app.use('/api/price-levels', noCache, priceLevelsExtendedRoute); // Extended price level operations
+app.use('/api/settings/sales', noCache, settingsSalesRoute); // Sales settings management
+app.use('/api/hr/shift-types', noCache, hrShiftTypesMoreRoute); // Additional shift type operations
+
+// Batch 17 Routes (sales teams extended, territories, contacts extended)
+app.use('/api/sales-teams', noCache, salesTeamsExtendedRoute); // Extended sales team operations
+app.use('/api/territories', noCache, territoriesRoute); // Territory management
+app.use('/api/contacts', noCache, contactsExtendedRoute); // Extended contact operations
+
+// Batch 18 Routes (leave periods, payroll extended, docs versions, integrations extended)
+app.use('/api/leave-periods', noCache, leavePeriodsRoute); // Leave period management
+app.use('/api/payroll', noCache, payrollExtendedRoute); // Extended payroll operations
+app.use('/api/documents', noCache, documentsVersionsExtendedRoute); // Document version operations
+app.use('/api/integrations', noCache, integrationsExtendedRoute); // Extended integration operations
 
 // ============================================
 // UNIFIED DATA FLOW ROUTES
