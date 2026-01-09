@@ -1,6 +1,6 @@
 /**
  * Auto-generated TypeScript types from Mongoose models
- * Generated: 2026-01-09T07:39:41.509Z
+ * Generated: 2026-01-09T08:00:42.877Z
  *
  * DO NOT EDIT - Regenerate with: npm run contracts:models
  */
