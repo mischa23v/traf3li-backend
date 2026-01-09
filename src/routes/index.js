@@ -331,6 +331,16 @@ const shiftRequestsRoute = require('./shiftRequests.route');
 const transactionsExtendedRoute = require('./transactionsExtended.route');
 const workflowExtendedRoute = require('./workflowExtended.route');
 
+// Batch 7 Routes (approvals, assets, attendance extended)
+const approvalsExtendedRoute = require('./approvalsExtended.route');
+const assetsExtendedRoute = require('./assetsExtended.route');
+const attendanceExtendedRoute = require('./attendanceExtended.route');
+
+// Batch 8 Routes (automated actions, budgets, audit logs extended)
+const automatedActionsExtendedRoute = require('./automatedActionsExtended.route');
+const budgetsRoute = require('./budgets.route');
+const auditLogsExtendedRoute = require('./auditLogsExtended.route');
+
 // Who's Out Calendar & Compliance Dashboard Routes
 const whosOutRoute = require('./whosOut.route');
 const complianceDashboardRoute = require('./complianceDashboard.route');
@@ -777,6 +787,16 @@ module.exports = {
     shiftRequestsRoute,
     transactionsExtendedRoute,
     workflowExtendedRoute,
+
+    // Batch 7 Routes (approvals, assets, attendance extended)
+    approvalsExtendedRoute,
+    assetsExtendedRoute,
+    attendanceExtendedRoute,
+
+    // Batch 8 Routes (automated actions, budgets, audit logs extended)
+    automatedActionsExtendedRoute,
+    budgetsRoute,
+    auditLogsExtendedRoute,
 
     // Who's Out Calendar & Compliance Dashboard
     whosOutRoute,

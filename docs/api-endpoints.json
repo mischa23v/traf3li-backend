@@ -1,7 +1,7 @@
 {
-  "generated": "2026-01-09T10:49:41.399Z",
-  "totalEndpoints": 4644,
-  "totalModules": 293,
+  "generated": "2026-01-09T11:26:39.711Z",
+  "totalEndpoints": 4723,
+  "totalModules": 299,
   "modules": {
     "account": [
       {
@@ -2015,6 +2015,96 @@
         "module": "approvals"
       }
     ],
+    "approvalsExtended": [
+      {
+        "method": "GET",
+        "path": "/templates",
+        "controller": "unknown",
+        "file": "approvalsExtended.route.js",
+        "fullPath": "/api/approvals/templates",
+        "module": "approvalsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/templates",
+        "controller": "unknown",
+        "file": "approvalsExtended.route.js",
+        "fullPath": "/api/approvals/templates",
+        "module": "approvalsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/templates/:id",
+        "controller": "unknown",
+        "file": "approvalsExtended.route.js",
+        "fullPath": "/api/approvals/templates/:id",
+        "module": "approvalsExtended"
+      },
+      {
+        "method": "PUT",
+        "path": "/templates/:id",
+        "controller": "unknown",
+        "file": "approvalsExtended.route.js",
+        "fullPath": "/api/approvals/templates/:id",
+        "module": "approvalsExtended"
+      },
+      {
+        "method": "DELETE",
+        "path": "/templates/:id",
+        "controller": "unknown",
+        "file": "approvalsExtended.route.js",
+        "fullPath": "/api/approvals/templates/:id",
+        "module": "approvalsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/my-requests",
+        "controller": "unknown",
+        "file": "approvalsExtended.route.js",
+        "fullPath": "/api/approvals/my-requests",
+        "module": "approvalsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/stats",
+        "controller": "unknown",
+        "file": "approvalsExtended.route.js",
+        "fullPath": "/api/approvals/stats",
+        "module": "approvalsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/check",
+        "controller": "unknown",
+        "file": "approvalsExtended.route.js",
+        "fullPath": "/api/approvals/check",
+        "module": "approvalsExtended"
+      },
+      {
+        "method": "DELETE",
+        "path": "/rules/:ruleId",
+        "controller": "unknown",
+        "file": "approvalsExtended.route.js",
+        "fullPath": "/api/approvals/rules/:ruleId",
+        "module": "approvalsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/pending",
+        "controller": "unknown",
+        "file": "approvalsExtended.route.js",
+        "fullPath": "/api/approvals/pending",
+        "module": "approvalsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/history",
+        "controller": "unknown",
+        "file": "approvalsExtended.route.js",
+        "fullPath": "/api/approvals/history",
+        "module": "approvalsExtended"
+      }
+    ],
     "apps": [
       {
         "method": "GET",
@@ -2503,6 +2593,128 @@
         "module": "assets"
       }
     ],
+    "assetsExtended": [
+      {
+        "method": "GET",
+        "path": "/:assetId/depreciation",
+        "controller": "unknown",
+        "file": "assetsExtended.route.js",
+        "fullPath": "/api/assets/:assetId/depreciation",
+        "module": "assetsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:assetId/depreciation/calculate",
+        "controller": "unknown",
+        "file": "assetsExtended.route.js",
+        "fullPath": "/api/assets/:assetId/depreciation/calculate",
+        "module": "assetsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/:assetId/maintenance",
+        "controller": "unknown",
+        "file": "assetsExtended.route.js",
+        "fullPath": "/api/assets/:assetId/maintenance",
+        "module": "assetsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:assetId/maintenance",
+        "controller": "unknown",
+        "file": "assetsExtended.route.js",
+        "fullPath": "/api/assets/:assetId/maintenance",
+        "module": "assetsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/:assetId/maintenance/:scheduleId",
+        "controller": "unknown",
+        "file": "assetsExtended.route.js",
+        "fullPath": "/api/assets/:assetId/maintenance/:scheduleId",
+        "module": "assetsExtended"
+      },
+      {
+        "method": "PUT",
+        "path": "/:assetId/maintenance/:scheduleId",
+        "controller": "unknown",
+        "file": "assetsExtended.route.js",
+        "fullPath": "/api/assets/:assetId/maintenance/:scheduleId",
+        "module": "assetsExtended"
+      },
+      {
+        "method": "DELETE",
+        "path": "/:assetId/maintenance/:scheduleId",
+        "controller": "unknown",
+        "file": "assetsExtended.route.js",
+        "fullPath": "/api/assets/:assetId/maintenance/:scheduleId",
+        "module": "assetsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:assetId/maintenance/:scheduleId/complete",
+        "controller": "unknown",
+        "file": "assetsExtended.route.js",
+        "fullPath": "/api/assets/:assetId/maintenance/:scheduleId/complete",
+        "module": "assetsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/sell",
+        "controller": "unknown",
+        "file": "assetsExtended.route.js",
+        "fullPath": "/api/assets/:id/sell",
+        "module": "assetsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/scrap",
+        "controller": "unknown",
+        "file": "assetsExtended.route.js",
+        "fullPath": "/api/assets/:id/scrap",
+        "module": "assetsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/repairs",
+        "controller": "unknown",
+        "file": "assetsExtended.route.js",
+        "fullPath": "/api/assets/repairs",
+        "module": "assetsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/repairs",
+        "controller": "unknown",
+        "file": "assetsExtended.route.js",
+        "fullPath": "/api/assets/repairs",
+        "module": "assetsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/repairs/:id",
+        "controller": "unknown",
+        "file": "assetsExtended.route.js",
+        "fullPath": "/api/assets/repairs/:id",
+        "module": "assetsExtended"
+      },
+      {
+        "method": "PUT",
+        "path": "/repairs/:id",
+        "controller": "unknown",
+        "file": "assetsExtended.route.js",
+        "fullPath": "/api/assets/repairs/:id",
+        "module": "assetsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/repairs/:id/complete",
+        "controller": "unknown",
+        "file": "assetsExtended.route.js",
+        "fullPath": "/api/assets/repairs/:id/complete",
+        "module": "assetsExtended"
+      }
+    ],
     "attendance": [
       {
         "method": "GET",
@@ -2727,6 +2939,112 @@
         "file": "attendance.route.js",
         "fullPath": "/api/attendance/:id/overtime/approve",
         "module": "attendance"
+      }
+    ],
+    "attendanceExtended": [
+      {
+        "method": "POST",
+        "path": "/:recordId/approve-early-departure",
+        "controller": "unknown",
+        "file": "attendanceExtended.route.js",
+        "fullPath": "/api/attendance/:recordId/approve-early-departure",
+        "module": "attendanceExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:recordId/approve-overtime",
+        "controller": "unknown",
+        "file": "attendanceExtended.route.js",
+        "fullPath": "/api/attendance/:recordId/approve-overtime",
+        "module": "attendanceExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:recordId/approve-timesheet",
+        "controller": "unknown",
+        "file": "attendanceExtended.route.js",
+        "fullPath": "/api/attendance/:recordId/approve-timesheet",
+        "module": "attendanceExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:recordId/reject-timesheet",
+        "controller": "unknown",
+        "file": "attendanceExtended.route.js",
+        "fullPath": "/api/attendance/:recordId/reject-timesheet",
+        "module": "attendanceExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:recordId/excuse-late",
+        "controller": "unknown",
+        "file": "attendanceExtended.route.js",
+        "fullPath": "/api/attendance/:recordId/excuse-late",
+        "module": "attendanceExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:recordId/violations/:violationId/confirm",
+        "controller": "unknown",
+        "file": "attendanceExtended.route.js",
+        "fullPath": "/api/attendance/:recordId/violations/:violationId/confirm",
+        "module": "attendanceExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:recordId/violations/:violationId/dismiss",
+        "controller": "unknown",
+        "file": "attendanceExtended.route.js",
+        "fullPath": "/api/attendance/:recordId/violations/:violationId/dismiss",
+        "module": "attendanceExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/bulk",
+        "controller": "unknown",
+        "file": "attendanceExtended.route.js",
+        "fullPath": "/api/attendance/bulk",
+        "module": "attendanceExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/compliance-report",
+        "controller": "unknown",
+        "file": "attendanceExtended.route.js",
+        "fullPath": "/api/attendance/compliance-report",
+        "module": "attendanceExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/daily-summary",
+        "controller": "unknown",
+        "file": "attendanceExtended.route.js",
+        "fullPath": "/api/attendance/daily-summary",
+        "module": "attendanceExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/employee-summary/:employeeId",
+        "controller": "unknown",
+        "file": "attendanceExtended.route.js",
+        "fullPath": "/api/attendance/employee-summary/:employeeId",
+        "module": "attendanceExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/lock-for-payroll",
+        "controller": "unknown",
+        "file": "attendanceExtended.route.js",
+        "fullPath": "/api/attendance/lock-for-payroll",
+        "module": "attendanceExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/stats",
+        "controller": "unknown",
+        "file": "attendanceExtended.route.js",
+        "fullPath": "/api/attendance/stats",
+        "module": "attendanceExtended"
       }
     ],
     "audit": [
@@ -3035,6 +3353,56 @@
         "file": "auditLog.route.js",
         "fullPath": "/api/audit-logs/archive/verify",
         "module": "auditLog"
+      }
+    ],
+    "auditLogsExtended": [
+      {
+        "method": "GET",
+        "path": "/stats",
+        "controller": "unknown",
+        "file": "auditLogsExtended.route.js",
+        "fullPath": "/api/audit-logs/stats",
+        "module": "auditLogsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/batch",
+        "controller": "unknown",
+        "file": "auditLogsExtended.route.js",
+        "fullPath": "/api/audit-logs/batch",
+        "module": "auditLogsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/resource/:resource/:resourceId",
+        "controller": "unknown",
+        "file": "auditLogsExtended.route.js",
+        "fullPath": "/api/audit-logs/resource/:resource/:resourceId",
+        "module": "auditLogsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/user/:userId",
+        "controller": "unknown",
+        "file": "auditLogsExtended.route.js",
+        "fullPath": "/api/audit-logs/user/:userId",
+        "module": "auditLogsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/export",
+        "controller": "unknown",
+        "file": "auditLogsExtended.route.js",
+        "fullPath": "/api/audit-logs/export",
+        "module": "auditLogsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/recent",
+        "controller": "unknown",
+        "file": "auditLogsExtended.route.js",
+        "fullPath": "/api/audit-logs/recent",
+        "module": "auditLogsExtended"
       }
     ],
     "auth": [
@@ -3689,6 +4057,136 @@
         "file": "automatedAction.routes.js",
         "fullPath": "/api/automatedActions/:id/duplicate",
         "module": "automatedActions"
+      }
+    ],
+    "automatedActionsExtended": [
+      {
+        "method": "GET",
+        "path": "/",
+        "controller": "unknown",
+        "file": "automatedActionsExtended.route.js",
+        "fullPath": "/api/automated-actions",
+        "module": "automatedActionsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/",
+        "controller": "unknown",
+        "file": "automatedActionsExtended.route.js",
+        "fullPath": "/api/automated-actions",
+        "module": "automatedActionsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "automatedActionsExtended.route.js",
+        "fullPath": "/api/automated-actions/:id",
+        "module": "automatedActionsExtended"
+      },
+      {
+        "method": "PUT",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "automatedActionsExtended.route.js",
+        "fullPath": "/api/automated-actions/:id",
+        "module": "automatedActionsExtended"
+      },
+      {
+        "method": "DELETE",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "automatedActionsExtended.route.js",
+        "fullPath": "/api/automated-actions/:id",
+        "module": "automatedActionsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/toggle",
+        "controller": "unknown",
+        "file": "automatedActionsExtended.route.js",
+        "fullPath": "/api/automated-actions/:id/toggle",
+        "module": "automatedActionsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/test",
+        "controller": "unknown",
+        "file": "automatedActionsExtended.route.js",
+        "fullPath": "/api/automated-actions/:id/test",
+        "module": "automatedActionsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/duplicate",
+        "controller": "unknown",
+        "file": "automatedActionsExtended.route.js",
+        "fullPath": "/api/automated-actions/:id/duplicate",
+        "module": "automatedActionsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/:actionId/logs",
+        "controller": "unknown",
+        "file": "automatedActionsExtended.route.js",
+        "fullPath": "/api/automated-actions/:actionId/logs",
+        "module": "automatedActionsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/logs",
+        "controller": "unknown",
+        "file": "automatedActionsExtended.route.js",
+        "fullPath": "/api/automated-actions/logs",
+        "module": "automatedActionsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/bulk",
+        "controller": "unknown",
+        "file": "automatedActionsExtended.route.js",
+        "fullPath": "/api/automated-actions/bulk",
+        "module": "automatedActionsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/bulk/enable",
+        "controller": "unknown",
+        "file": "automatedActionsExtended.route.js",
+        "fullPath": "/api/automated-actions/bulk/enable",
+        "module": "automatedActionsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/bulk/disable",
+        "controller": "unknown",
+        "file": "automatedActionsExtended.route.js",
+        "fullPath": "/api/automated-actions/bulk/disable",
+        "module": "automatedActionsExtended"
+      },
+      {
+        "method": "DELETE",
+        "path": "/bulk",
+        "controller": "unknown",
+        "file": "automatedActionsExtended.route.js",
+        "fullPath": "/api/automated-actions/bulk",
+        "module": "automatedActionsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/models",
+        "controller": "unknown",
+        "file": "automatedActionsExtended.route.js",
+        "fullPath": "/api/automated-actions/models",
+        "module": "automatedActionsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/models/:modelName/fields",
+        "controller": "unknown",
+        "file": "automatedActionsExtended.route.js",
+        "fullPath": "/api/automated-actions/models/:modelName/fields",
+        "module": "automatedActionsExtended"
       }
     ],
     "automations": [
@@ -4903,6 +5401,152 @@
         "file": "brokers.route.js",
         "fullPath": "/api/v1/brokers/:id/set-default",
         "module": "brokers"
+      }
+    ],
+    "budgets": [
+      {
+        "method": "GET",
+        "path": "/",
+        "controller": "unknown",
+        "file": "budgets.route.js",
+        "fullPath": "/api/budgets",
+        "module": "budgets"
+      },
+      {
+        "method": "POST",
+        "path": "/",
+        "controller": "unknown",
+        "file": "budgets.route.js",
+        "fullPath": "/api/budgets",
+        "module": "budgets"
+      },
+      {
+        "method": "GET",
+        "path": "/check",
+        "controller": "unknown",
+        "file": "budgets.route.js",
+        "fullPath": "/api/budgets/check",
+        "module": "budgets"
+      },
+      {
+        "method": "GET",
+        "path": "/stats",
+        "controller": "unknown",
+        "file": "budgets.route.js",
+        "fullPath": "/api/budgets/stats",
+        "module": "budgets"
+      },
+      {
+        "method": "GET",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "budgets.route.js",
+        "fullPath": "/api/budgets/:id",
+        "module": "budgets"
+      },
+      {
+        "method": "PUT",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "budgets.route.js",
+        "fullPath": "/api/budgets/:id",
+        "module": "budgets"
+      },
+      {
+        "method": "DELETE",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "budgets.route.js",
+        "fullPath": "/api/budgets/:id",
+        "module": "budgets"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/submit",
+        "controller": "unknown",
+        "file": "budgets.route.js",
+        "fullPath": "/api/budgets/:id/submit",
+        "module": "budgets"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/approve",
+        "controller": "unknown",
+        "file": "budgets.route.js",
+        "fullPath": "/api/budgets/:id/approve",
+        "module": "budgets"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/reject",
+        "controller": "unknown",
+        "file": "budgets.route.js",
+        "fullPath": "/api/budgets/:id/reject",
+        "module": "budgets"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/close",
+        "controller": "unknown",
+        "file": "budgets.route.js",
+        "fullPath": "/api/budgets/:id/close",
+        "module": "budgets"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/duplicate",
+        "controller": "unknown",
+        "file": "budgets.route.js",
+        "fullPath": "/api/budgets/:id/duplicate",
+        "module": "budgets"
+      },
+      {
+        "method": "GET",
+        "path": "/:budgetId/distribution",
+        "controller": "unknown",
+        "file": "budgets.route.js",
+        "fullPath": "/api/budgets/:budgetId/distribution",
+        "module": "budgets"
+      },
+      {
+        "method": "GET",
+        "path": "/:budgetId/vs-actual",
+        "controller": "unknown",
+        "file": "budgets.route.js",
+        "fullPath": "/api/budgets/:budgetId/vs-actual",
+        "module": "budgets"
+      },
+      {
+        "method": "GET",
+        "path": "/:budgetId/lines",
+        "controller": "unknown",
+        "file": "budgets.route.js",
+        "fullPath": "/api/budgets/:budgetId/lines",
+        "module": "budgets"
+      },
+      {
+        "method": "POST",
+        "path": "/:budgetId/lines",
+        "controller": "unknown",
+        "file": "budgets.route.js",
+        "fullPath": "/api/budgets/:budgetId/lines",
+        "module": "budgets"
+      },
+      {
+        "method": "PUT",
+        "path": "/:budgetId/lines/:lineId",
+        "controller": "unknown",
+        "file": "budgets.route.js",
+        "fullPath": "/api/budgets/:budgetId/lines/:lineId",
+        "module": "budgets"
+      },
+      {
+        "method": "DELETE",
+        "path": "/:budgetId/lines/:lineId",
+        "controller": "unknown",
+        "file": "budgets.route.js",
+        "fullPath": "/api/budgets/:budgetId/lines/:lineId",
+        "module": "budgets"
       }
     ],
     "bulkActionss": [

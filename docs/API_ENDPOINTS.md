@@ -24,16 +24,21 @@
 - [appointment](#appointment) (28 endpoints)
 - [approval](#approval) (8 endpoints)
 - [approvals](#approvals) (11 endpoints)
+- [approvalsExtended](#approvalsextended) (11 endpoints)
 - [apps](#apps) (10 endpoints)
 - [arAging](#araging) (6 endpoints)
 - [assetAssignment](#assetassignment) (23 endpoints)
 - [assets](#assets) (21 endpoints)
+- [assetsExtended](#assetsextended) (15 endpoints)
 - [attendance](#attendance) (28 endpoints)
+- [attendanceExtended](#attendanceextended) (13 endpoints)
 - [audit](#audit) (5 endpoints)
 - [auditLog](#auditlog) (33 endpoints)
+- [auditLogsExtended](#auditlogsextended) (6 endpoints)
 - [auth](#auth) (42 endpoints)
 - [authExtended](#authextended) (24 endpoints)
 - [automatedActions](#automatedactions) (15 endpoints)
+- [automatedActionsExtended](#automatedactionsextended) (16 endpoints)
 - [automations](#automations) (10 endpoints)
 - [bankAccount](#bankaccount) (10 endpoints)
 - [bankReconciliation](#bankreconciliation) (33 endpoints)
@@ -45,6 +50,7 @@
 - [billingRate](#billingrate) (8 endpoints)
 - [biometric](#biometric) (32 endpoints)
 - [brokers](#brokers) (6 endpoints)
+- [budgets](#budgets) (18 endpoints)
 - [bulkActionss](#bulkactionss) (5 endpoints)
 - [buying](#buying) (33 endpoints)
 - [calendar](#calendar) (11 endpoints)
@@ -306,8 +312,8 @@
 
 | Metric | Count |
 |--------|-------|
-| Total Endpoints | 4644 |
-| Total Modules | 293 |
+| Total Endpoints | 4723 |
+| Total Modules | 299 |
 
 ---
 
@@ -648,6 +654,22 @@
 | `POST` | `/api/approvals/:id/delegate` | unknown | approval.routes.js |
 | `GET` | `/api/approvals/history/:entityType/:entityId` | unknown | approval.routes.js |
 
+## approvalsExtended
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/approvals/templates` | unknown | approvalsExtended.route.js |
+| `POST` | `/api/approvals/templates` | unknown | approvalsExtended.route.js |
+| `GET` | `/api/approvals/templates/:id` | unknown | approvalsExtended.route.js |
+| `PUT` | `/api/approvals/templates/:id` | unknown | approvalsExtended.route.js |
+| `DELETE` | `/api/approvals/templates/:id` | unknown | approvalsExtended.route.js |
+| `GET` | `/api/approvals/my-requests` | unknown | approvalsExtended.route.js |
+| `GET` | `/api/approvals/stats` | unknown | approvalsExtended.route.js |
+| `POST` | `/api/approvals/check` | unknown | approvalsExtended.route.js |
+| `DELETE` | `/api/approvals/rules/:ruleId` | unknown | approvalsExtended.route.js |
+| `GET` | `/api/approvals/pending` | unknown | approvalsExtended.route.js |
+| `GET` | `/api/approvals/history` | unknown | approvalsExtended.route.js |
+
 ## apps
 
 | Method | Path | Controller | File |
@@ -728,6 +750,26 @@
 | `POST` | `/api/assets/:id/submit` | unknown | assets.route.js |
 | `DELETE` | `/api/assets/:id` | unknown | assets.route.js |
 
+## assetsExtended
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/assets/:assetId/depreciation` | unknown | assetsExtended.route.js |
+| `POST` | `/api/assets/:assetId/depreciation/calculate` | unknown | assetsExtended.route.js |
+| `GET` | `/api/assets/:assetId/maintenance` | unknown | assetsExtended.route.js |
+| `POST` | `/api/assets/:assetId/maintenance` | unknown | assetsExtended.route.js |
+| `GET` | `/api/assets/:assetId/maintenance/:scheduleId` | unknown | assetsExtended.route.js |
+| `PUT` | `/api/assets/:assetId/maintenance/:scheduleId` | unknown | assetsExtended.route.js |
+| `DELETE` | `/api/assets/:assetId/maintenance/:scheduleId` | unknown | assetsExtended.route.js |
+| `POST` | `/api/assets/:assetId/maintenance/:scheduleId/complete` | unknown | assetsExtended.route.js |
+| `POST` | `/api/assets/:id/sell` | unknown | assetsExtended.route.js |
+| `POST` | `/api/assets/:id/scrap` | unknown | assetsExtended.route.js |
+| `GET` | `/api/assets/repairs` | unknown | assetsExtended.route.js |
+| `POST` | `/api/assets/repairs` | unknown | assetsExtended.route.js |
+| `GET` | `/api/assets/repairs/:id` | unknown | assetsExtended.route.js |
+| `PUT` | `/api/assets/repairs/:id` | unknown | assetsExtended.route.js |
+| `POST` | `/api/assets/repairs/:id/complete` | unknown | assetsExtended.route.js |
+
 ## attendance
 
 | Method | Path | Controller | File |
@@ -760,6 +802,24 @@
 | `PUT` | `/api/attendance/:id/violations/:violationIndex/resolve` | unknown | attendance.route.js |
 | `POST` | `/api/attendance/:id/violations/:violationIndex/appeal` | unknown | attendance.route.js |
 | `POST` | `/api/attendance/:id/overtime/approve` | unknown | attendance.route.js |
+
+## attendanceExtended
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `POST` | `/api/attendance/:recordId/approve-early-departure` | unknown | attendanceExtended.route.js |
+| `POST` | `/api/attendance/:recordId/approve-overtime` | unknown | attendanceExtended.route.js |
+| `POST` | `/api/attendance/:recordId/approve-timesheet` | unknown | attendanceExtended.route.js |
+| `POST` | `/api/attendance/:recordId/reject-timesheet` | unknown | attendanceExtended.route.js |
+| `POST` | `/api/attendance/:recordId/excuse-late` | unknown | attendanceExtended.route.js |
+| `POST` | `/api/attendance/:recordId/violations/:violationId/confirm` | unknown | attendanceExtended.route.js |
+| `POST` | `/api/attendance/:recordId/violations/:violationId/dismiss` | unknown | attendanceExtended.route.js |
+| `POST` | `/api/attendance/bulk` | unknown | attendanceExtended.route.js |
+| `GET` | `/api/attendance/compliance-report` | unknown | attendanceExtended.route.js |
+| `GET` | `/api/attendance/daily-summary` | unknown | attendanceExtended.route.js |
+| `GET` | `/api/attendance/employee-summary/:employeeId` | unknown | attendanceExtended.route.js |
+| `POST` | `/api/attendance/lock-for-payroll` | unknown | attendanceExtended.route.js |
+| `GET` | `/api/attendance/stats` | unknown | attendanceExtended.route.js |
 
 ## audit
 
@@ -808,6 +868,17 @@
 | `GET` | `/api/audit-logs/archive/stats` | unknown | auditLog.route.js |
 | `POST` | `/api/audit-logs/archive/run` | unknown | auditLog.route.js |
 | `POST` | `/api/audit-logs/archive/verify` | unknown | auditLog.route.js |
+
+## auditLogsExtended
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/audit-logs/stats` | unknown | auditLogsExtended.route.js |
+| `POST` | `/api/audit-logs/batch` | unknown | auditLogsExtended.route.js |
+| `GET` | `/api/audit-logs/resource/:resource/:resourceId` | unknown | auditLogsExtended.route.js |
+| `GET` | `/api/audit-logs/user/:userId` | unknown | auditLogsExtended.route.js |
+| `GET` | `/api/audit-logs/export` | unknown | auditLogsExtended.route.js |
+| `GET` | `/api/audit-logs/recent` | unknown | auditLogsExtended.route.js |
 
 ## auth
 
@@ -904,6 +975,27 @@
 | `POST` | `/api/automatedActions/:id/test` | testAction | automatedAction.routes.js |
 | `GET` | `/api/automatedActions/:id/logs` | getActionLogs | automatedAction.routes.js |
 | `POST` | `/api/automatedActions/:id/duplicate` | duplicateAction | automatedAction.routes.js |
+
+## automatedActionsExtended
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/automated-actions` | unknown | automatedActionsExtended.route.js |
+| `POST` | `/api/automated-actions` | unknown | automatedActionsExtended.route.js |
+| `GET` | `/api/automated-actions/:id` | unknown | automatedActionsExtended.route.js |
+| `PUT` | `/api/automated-actions/:id` | unknown | automatedActionsExtended.route.js |
+| `DELETE` | `/api/automated-actions/:id` | unknown | automatedActionsExtended.route.js |
+| `POST` | `/api/automated-actions/:id/toggle` | unknown | automatedActionsExtended.route.js |
+| `POST` | `/api/automated-actions/:id/test` | unknown | automatedActionsExtended.route.js |
+| `POST` | `/api/automated-actions/:id/duplicate` | unknown | automatedActionsExtended.route.js |
+| `GET` | `/api/automated-actions/:actionId/logs` | unknown | automatedActionsExtended.route.js |
+| `GET` | `/api/automated-actions/logs` | unknown | automatedActionsExtended.route.js |
+| `POST` | `/api/automated-actions/bulk` | unknown | automatedActionsExtended.route.js |
+| `POST` | `/api/automated-actions/bulk/enable` | unknown | automatedActionsExtended.route.js |
+| `POST` | `/api/automated-actions/bulk/disable` | unknown | automatedActionsExtended.route.js |
+| `DELETE` | `/api/automated-actions/bulk` | unknown | automatedActionsExtended.route.js |
+| `GET` | `/api/automated-actions/models` | unknown | automatedActionsExtended.route.js |
+| `GET` | `/api/automated-actions/models/:modelName/fields` | unknown | automatedActionsExtended.route.js |
 
 ## automations
 
@@ -1108,6 +1200,29 @@
 | `PATCH` | `/api/v1/brokers/:id` | updateBroker | brokers.route.js |
 | `DELETE` | `/api/v1/brokers/:id` | deleteBroker | brokers.route.js |
 | `POST` | `/api/v1/brokers/:id/set-default` | setDefaultBroker | brokers.route.js |
+
+## budgets
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/budgets` | unknown | budgets.route.js |
+| `POST` | `/api/budgets` | unknown | budgets.route.js |
+| `GET` | `/api/budgets/check` | unknown | budgets.route.js |
+| `GET` | `/api/budgets/stats` | unknown | budgets.route.js |
+| `GET` | `/api/budgets/:id` | unknown | budgets.route.js |
+| `PUT` | `/api/budgets/:id` | unknown | budgets.route.js |
+| `DELETE` | `/api/budgets/:id` | unknown | budgets.route.js |
+| `POST` | `/api/budgets/:id/submit` | unknown | budgets.route.js |
+| `POST` | `/api/budgets/:id/approve` | unknown | budgets.route.js |
+| `POST` | `/api/budgets/:id/reject` | unknown | budgets.route.js |
+| `POST` | `/api/budgets/:id/close` | unknown | budgets.route.js |
+| `POST` | `/api/budgets/:id/duplicate` | unknown | budgets.route.js |
+| `GET` | `/api/budgets/:budgetId/distribution` | unknown | budgets.route.js |
+| `GET` | `/api/budgets/:budgetId/vs-actual` | unknown | budgets.route.js |
+| `GET` | `/api/budgets/:budgetId/lines` | unknown | budgets.route.js |
+| `POST` | `/api/budgets/:budgetId/lines` | unknown | budgets.route.js |
+| `PUT` | `/api/budgets/:budgetId/lines/:lineId` | unknown | budgets.route.js |
+| `DELETE` | `/api/budgets/:budgetId/lines/:lineId` | unknown | budgets.route.js |
 
 ## bulkActionss
 
@@ -6424,7 +6539,7 @@
 
 ## Quick Reference by Method
 
-### GET (1987)
+### GET (2020)
 
 <details>
 <summary>Click to expand</summary>
@@ -6543,10 +6658,16 @@ GET    /api/appointments/slots
 GET    /api/appointments/stats
 GET    /api/approvals/:id
 GET    /api/approvals/history
+GET    /api/approvals/history
 GET    /api/approvals/history/:entityType/:entityId
+GET    /api/approvals/my-requests
+GET    /api/approvals/pending
 GET    /api/approvals/pending
 GET    /api/approvals/pending
 GET    /api/approvals/rules
+GET    /api/approvals/stats
+GET    /api/approvals/templates
+GET    /api/approvals/templates/:id
 GET    /api/approvals/workflows
 GET    /api/approvals/workflows/:id
 GET    /api/apps
@@ -6561,20 +6682,29 @@ GET    /api/ar-aging/priority/:invoiceId
 GET    /api/ar-aging/report
 GET    /api/ar-aging/summary
 GET    /api/assets
+GET    /api/assets/:assetId/depreciation
+GET    /api/assets/:assetId/maintenance
+GET    /api/assets/:assetId/maintenance/:scheduleId
 GET    /api/assets/:id
 GET    /api/assets/categories
 GET    /api/assets/categories/:id
 GET    /api/assets/maintenance
 GET    /api/assets/maintenance/:id
 GET    /api/assets/movements
+GET    /api/assets/repairs
+GET    /api/assets/repairs/:id
 GET    /api/assets/settings
 GET    /api/assets/stats
 GET    /api/attendance
 GET    /api/attendance/:id
 GET    /api/attendance/:id/breaks
+GET    /api/attendance/compliance-report
 GET    /api/attendance/corrections/pending
+GET    /api/attendance/daily-summary
+GET    /api/attendance/employee-summary/:employeeId
 GET    /api/attendance/employee/:employeeId/date/:date
 GET    /api/attendance/report/monthly
+GET    /api/attendance/stats
 GET    /api/attendance/stats/department
 GET    /api/attendance/status/:employeeId
 GET    /api/attendance/summary/:employeeId
@@ -6595,13 +6725,18 @@ GET    /api/audit-logs/compliance-report
 GET    /api/audit-logs/compliance/retention-status
 GET    /api/audit-logs/entity/:type/:id
 GET    /api/audit-logs/export
+GET    /api/audit-logs/export
 GET    /api/audit-logs/failed-logins
+GET    /api/audit-logs/recent
+GET    /api/audit-logs/resource/:resource/:resourceId
 GET    /api/audit-logs/search
 GET    /api/audit-logs/security
 GET    /api/audit-logs/security-events
+GET    /api/audit-logs/stats
 GET    /api/audit-logs/summary
 GET    /api/audit-logs/suspicious
 GET    /api/audit-logs/user/:id
+GET    /api/audit-logs/user/:userId
 GET    /api/audit/export
 GET    /api/audit/options
 GET    /api/audit/stats
@@ -6636,6 +6771,12 @@ GET    /api/auth/sso/domain/:domain
 GET    /api/auth/sso/linked
 GET    /api/auth/sso/providers
 GET    /api/auth/webauthn/credentials
+GET    /api/automated-actions
+GET    /api/automated-actions/:actionId/logs
+GET    /api/automated-actions/:id
+GET    /api/automated-actions/logs
+GET    /api/automated-actions/models
+GET    /api/automated-actions/models/:modelName/fields
 GET    /api/automatedActions
 GET    /api/automatedActions/:id
 GET    /api/automatedActions/:id/logs
@@ -6702,6 +6843,13 @@ GET    /api/biometric/logs/daily-summary
 GET    /api/biometric/logs/failed
 GET    /api/biometric/logs/spoofing
 GET    /api/biometric/logs/stats
+GET    /api/budgets
+GET    /api/budgets/:budgetId/distribution
+GET    /api/budgets/:budgetId/lines
+GET    /api/budgets/:budgetId/vs-actual
+GET    /api/budgets/:id
+GET    /api/budgets/check
+GET    /api/budgets/stats
 GET    /api/bulkActionss/:jobId/progress
 GET    /api/bulkActionss/supported/:entityType?
 GET    /api/buying/material-requests
@@ -8421,7 +8569,7 @@ GET    /api/zoom/status
 
 </details>
 
-### POST (1871)
+### POST (1904)
 
 <details>
 <summary>Click to expand</summary>
@@ -8505,18 +8653,27 @@ POST   /api/approvals/:id/cancel
 POST   /api/approvals/:id/decide
 POST   /api/approvals/:id/delegate
 POST   /api/approvals/:id/reject
+POST   /api/approvals/check
 POST   /api/approvals/initiate
+POST   /api/approvals/templates
 POST   /api/approvals/workflows
 POST   /api/apps/:appId/connect
 POST   /api/apps/:appId/disconnect
 POST   /api/apps/:appId/sync
 POST   /api/apps/:appId/test
 POST   /api/assets
+POST   /api/assets/:assetId/depreciation/calculate
+POST   /api/assets/:assetId/maintenance
+POST   /api/assets/:assetId/maintenance/:scheduleId/complete
+POST   /api/assets/:id/scrap
+POST   /api/assets/:id/sell
 POST   /api/assets/:id/submit
 POST   /api/assets/categories
 POST   /api/assets/maintenance
 POST   /api/assets/maintenance/:id/complete
 POST   /api/assets/movements
+POST   /api/assets/repairs
+POST   /api/assets/repairs/:id/complete
 POST   /api/attendance
 POST   /api/attendance/:id/approve
 POST   /api/attendance/:id/break/end
@@ -8526,15 +8683,25 @@ POST   /api/attendance/:id/overtime/approve
 POST   /api/attendance/:id/reject
 POST   /api/attendance/:id/violations
 POST   /api/attendance/:id/violations/:violationIndex/appeal
+POST   /api/attendance/:recordId/approve-early-departure
+POST   /api/attendance/:recordId/approve-overtime
+POST   /api/attendance/:recordId/approve-timesheet
+POST   /api/attendance/:recordId/excuse-late
+POST   /api/attendance/:recordId/reject-timesheet
+POST   /api/attendance/:recordId/violations/:violationId/confirm
+POST   /api/attendance/:recordId/violations/:violationId/dismiss
+POST   /api/attendance/bulk
 POST   /api/attendance/check-in
 POST   /api/attendance/check-out
 POST   /api/attendance/import
+POST   /api/attendance/lock-for-payroll
 POST   /api/attendance/mark-absences
 POST   /api/audit-logs/archive/run
 POST   /api/audit-logs/archive/verify
 POST   /api/audit-logs/archiving/restore
 POST   /api/audit-logs/archiving/run
 POST   /api/audit-logs/archiving/verify
+POST   /api/audit-logs/batch
 POST   /api/audit-logs/check-brute-force
 POST   /api/audit-logs/compliance/export-for-audit
 POST   /api/audit-logs/compliance/generate-report
@@ -8612,6 +8779,13 @@ POST   /api/auth/webauthn/authenticate/finish
 POST   /api/auth/webauthn/authenticate/start
 POST   /api/auth/webauthn/register/finish
 POST   /api/auth/webauthn/register/start
+POST   /api/automated-actions
+POST   /api/automated-actions/:id/duplicate
+POST   /api/automated-actions/:id/test
+POST   /api/automated-actions/:id/toggle
+POST   /api/automated-actions/bulk
+POST   /api/automated-actions/bulk/disable
+POST   /api/automated-actions/bulk/enable
 POST   /api/automatedActions
 POST   /api/automatedActions/:id/duplicate
 POST   /api/automatedActions/:id/test
@@ -8685,6 +8859,13 @@ POST   /api/biometric/geofence/validate
 POST   /api/biometric/identify
 POST   /api/biometric/logs/process
 POST   /api/biometric/verify
+POST   /api/budgets
+POST   /api/budgets/:budgetId/lines
+POST   /api/budgets/:id/approve
+POST   /api/budgets/:id/close
+POST   /api/budgets/:id/duplicate
+POST   /api/budgets/:id/reject
+POST   /api/budgets/:id/submit
 POST   /api/bulkActionss/:entityType
 POST   /api/bulkActionss/:entityType/validate
 POST   /api/bulkActionss/:jobId/cancel
@@ -10302,7 +10483,7 @@ POST   /api/zoom/webhook
 
 </details>
 
-### PUT (248)
+### PUT (254)
 
 <details>
 <summary>Click to expand</summary>
@@ -10320,17 +10501,21 @@ PUT    /api/appointments/:id/no-show
 PUT    /api/appointments/availability/:id
 PUT    /api/appointments/settings
 PUT    /api/approvals/rules
+PUT    /api/approvals/templates/:id
 PUT    /api/approvals/workflows/:id
 PUT    /api/apps/:appId/settings
+PUT    /api/assets/:assetId/maintenance/:scheduleId
 PUT    /api/assets/:id
 PUT    /api/assets/categories/:id
 PUT    /api/assets/maintenance/:id
+PUT    /api/assets/repairs/:id
 PUT    /api/assets/settings
 PUT    /api/attendance/:id
 PUT    /api/attendance/:id/corrections/:correctionId
 PUT    /api/attendance/:id/violations/:violationIndex/resolve
 PUT    /api/auth/captcha/settings
 PUT    /api/auth/saml/config
+PUT    /api/automated-actions/:id
 PUT    /api/automations/:id
 PUT    /api/bank-accounts/:id
 PUT    /api/bank-reconciliation/feeds/:id
@@ -10341,6 +10526,8 @@ PUT    /api/billing/subscription
 PUT    /api/bills/:id
 PUT    /api/biometric/devices/:id
 PUT    /api/biometric/geofence/:id
+PUT    /api/budgets/:budgetId/lines/:lineId
+PUT    /api/budgets/:id
 PUT    /api/buying/rfqs/:id
 PUT    /api/buying/settings
 PUT    /api/buying/suppliers/:id
@@ -10789,7 +10976,7 @@ PATCH  /api/webhooks/:id
 
 </details>
 
-### DELETE (319)
+### DELETE (326)
 
 <details>
 <summary>Click to expand</summary>
@@ -10809,7 +10996,10 @@ DELETE /api/api-keys/:id
 DELETE /api/appointments/:id
 DELETE /api/appointments/availability/:id
 DELETE /api/appointments/blocked-times/:id
+DELETE /api/approvals/rules/:ruleId
+DELETE /api/approvals/templates/:id
 DELETE /api/approvals/workflows/:id
+DELETE /api/assets/:assetId/maintenance/:scheduleId
 DELETE /api/assets/:id
 DELETE /api/assets/categories/:id
 DELETE /api/attendance/:id
@@ -10818,6 +11008,8 @@ DELETE /api/auth/sessions/:id
 DELETE /api/auth/sessions/:sessionId/report
 DELETE /api/auth/sso/unlink/:providerType
 DELETE /api/auth/webauthn/credentials/:id
+DELETE /api/automated-actions/:id
+DELETE /api/automated-actions/bulk
 DELETE /api/automatedActions/:id
 DELETE /api/automatedActions/bulk
 DELETE /api/automations/:id
@@ -10834,6 +11026,8 @@ DELETE /api/bills/:id
 DELETE /api/bills/:id/attachments/:attachmentId
 DELETE /api/biometric/devices/:id
 DELETE /api/biometric/geofence/:id
+DELETE /api/budgets/:budgetId/lines/:lineId
+DELETE /api/budgets/:id
 DELETE /api/buying/purchase-orders/:id
 DELETE /api/buying/rfqs/:id
 DELETE /api/buying/suppliers/:id

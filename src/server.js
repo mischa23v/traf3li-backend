@@ -444,6 +444,16 @@ const {
     transactionsExtendedRoute,
     workflowExtendedRoute,
 
+    // Batch 7 Routes (approvals, assets, attendance extended)
+    approvalsExtendedRoute,
+    assetsExtendedRoute,
+    attendanceExtendedRoute,
+
+    // Batch 8 Routes (automated actions, budgets, audit logs extended)
+    automatedActionsExtendedRoute,
+    budgetsRoute,
+    auditLogsExtendedRoute,
+
     // Unified Data Flow
     unifiedDataRoute,
 
@@ -1372,6 +1382,16 @@ app.use('/api/shift-assignments', noCache, shiftAssignmentsRoute); // Shift assi
 app.use('/api/shift-requests', noCache, shiftRequestsRoute); // Shift request management
 app.use('/api/transactions', noCache, transactionsExtendedRoute); // Extended transaction operations
 app.use('/api/workflow', noCache, workflowExtendedRoute); // Extended workflow operations
+
+// Batch 7 Routes (approvals, assets, attendance extended)
+app.use('/api/approvals', noCache, approvalsExtendedRoute); // Extended approval management
+app.use('/api/assets', noCache, assetsExtendedRoute); // Extended asset management
+app.use('/api/attendance', noCache, attendanceExtendedRoute); // Extended attendance operations
+
+// Batch 8 Routes (automated actions, budgets, audit logs extended)
+app.use('/api/automated-actions', noCache, automatedActionsExtendedRoute); // Extended automated actions
+app.use('/api/budgets', noCache, budgetsRoute); // Budget management
+app.use('/api/audit-logs', noCache, auditLogsExtendedRoute); // Extended audit log operations
 
 // ============================================
 // UNIFIED DATA FLOW ROUTES

@@ -1,12 +1,12 @@
 # Frontend vs Backend Contract Mismatch Report
 
-> Generated: 2026-01-09T10:49:51.821Z
+> Generated: 2026-01-09T11:26:52.534Z
 
 ## Summary
 
 | Category | Frontend Only | Backend Only | Mismatches |
 |----------|--------------|--------------|------------|
-| API Endpoints | 592 | 2309 | 142 |
+| API Endpoints | 526 | 2314 | 152 |
 | Interfaces/Entities | 2871 | 154 | 0 |
 | Enums | 88 | 2138 | 0 |
 | Type Aliases | 167 | 0 | - |
@@ -164,27 +164,6 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | POST | `/reminders/templates/${templateId}/create` | services/remindersService.ts |
 | POST | `/reminders/${id}/save-as-template` | services/remindersService.ts |
 
-### budgets (16 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/budgets` | services/budgetService.ts |
-| GET | `/budgets/${id}` | services/budgetService.ts |
-| POST | `/budgets` | services/budgetService.ts |
-| PATCH | `/budgets/${id}` | services/budgetService.ts |
-| DELETE | `/budgets/${id}` | services/budgetService.ts |
-| POST | `/budgets/${id}/submit` | services/budgetService.ts |
-| POST | `/budgets/${id}/approve` | services/budgetService.ts |
-| POST | `/budgets/${id}/reject` | services/budgetService.ts |
-| POST | `/budgets/${id}/close` | services/budgetService.ts |
-| GET | `/budgets/${budgetId}/lines` | services/budgetService.ts |
-| PATCH | `/budgets/${budgetId}/lines/${lineId}` | services/budgetService.ts |
-| GET | `/budgets/stats` | services/budgetService.ts |
-| GET | `/budgets/${budgetId}/vs-actual` | services/budgetService.ts |
-| POST | `/budgets/check` | services/budgetService.ts |
-| POST | `/budgets/${budgetId}/distribution` | services/budgetService.ts |
-| POST | `/budgets/${id}/duplicate` | services/budgetService.ts |
-
 ### email-marketing (16 missing)
 
 | Method | Endpoint | Source File |
@@ -265,44 +244,6 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | GET | `/crm-reports/transactions/summary` | hooks/use-crm-reports.ts |
 | GET | `/crm-reports/transactions/export` | hooks/use-crm-reports.ts |
 
-### assets (14 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| PATCH | `/assets/${id}/sell` | services/assetsService.ts |
-| PATCH | `/assets/${id}/scrap` | services/assetsService.ts |
-| GET | `/assets/${assetId}/depreciation` | services/assetsService.ts |
-| POST | `/assets/${assetId}/depreciation` | services/assetsService.ts |
-| POST | `/assets/${assetId}/maintenance` | services/assetsService.ts |
-| PUT | `/assets/${assetId}/maintenance/${scheduleId}` | services/assetsService.ts |
-| PATCH | `/assets/${assetId}/maintenance/${scheduleId}/complete` | services/assetsService.ts |
-| GET | `/assets/repairs` | services/assetsService.ts |
-| GET | `/assets/repairs/${id}` | services/assetsService.ts |
-| POST | `/assets/repairs` | services/assetsService.ts |
-| PUT | `/assets/repairs/${id}` | services/assetsService.ts |
-| PATCH | `/assets/repairs/${id}/complete` | services/assetsService.ts |
-| GET | `/assets/:param/maintenance` | services/assetsService.ts |
-| POST | `/assets/repairs/:param` | services/assetsService.ts |
-
-### automated-actions (14 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/automated-actions/${id}` | services/automatedActionService.ts |
-| POST | `/automated-actions` | services/automatedActionService.ts |
-| PUT | `/automated-actions/${id}` | services/automatedActionService.ts |
-| DELETE | `/automated-actions/${id}` | services/automatedActionService.ts |
-| POST | `/automated-actions/${id}/toggle` | services/automatedActionService.ts |
-| POST | `/automated-actions/${id}/test` | services/automatedActionService.ts |
-| POST | `/automated-actions/${id}/duplicate` | services/automatedActionService.ts |
-| GET | `/automated-actions/${actionId}/logs?${params.toString()}` | services/automatedActionService.ts |
-| GET | `/automated-actions/logs?${params.toString()}` | services/automatedActionService.ts |
-| GET | `/automated-actions/models` | services/automatedActionService.ts |
-| GET | `/automated-actions/models/${modelName}/fields` | services/automatedActionService.ts |
-| POST | `/automated-actions/bulk/enable` | services/automatedActionService.ts |
-| POST | `/automated-actions/bulk/disable` | services/automatedActionService.ts |
-| DELETE | `/automated-actions/bulk` | services/automatedActionService.ts |
-
 ### leave-periods (14 missing)
 
 | Method | Endpoint | Source File |
@@ -321,24 +262,6 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | GET | `/leave-periods/${periodId}/allocation-summary` | services/leavePeriodService.ts |
 | POST | `/leave-periods/:param` | services/leavePeriodService.ts |
 | GET | `/leave-periods/:param/allocate` | services/leavePeriodService.ts |
-
-### attendance (13 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| POST | `/attendance/${recordId}/excuse-late` | services/attendanceService.ts |
-| POST | `/attendance/${recordId}/approve-early-departure` | services/attendanceService.ts |
-| POST | `/attendance/${recordId}/approve-timesheet` | services/attendanceService.ts |
-| POST | `/attendance/${recordId}/reject-timesheet` | services/attendanceService.ts |
-| POST | `/attendance/${recordId}/approve-overtime` | services/attendanceService.ts |
-| GET | `/attendance/daily-summary?${params.toString()}` | services/attendanceService.ts |
-| GET | `/attendance/employee-summary/${employeeId}?${params.toString()}` | services/attendanceService.ts |
-| GET | `/attendance/stats?${params.toString()}` | services/attendanceService.ts |
-| POST | `/attendance/bulk` | services/attendanceService.ts |
-| POST | `/attendance/lock-for-payroll` | services/attendanceService.ts |
-| POST | `/attendance/${recordId}/violations/${violationId}/confirm` | services/attendanceService.ts |
-| POST | `/attendance/${recordId}/violations/${violationId}/dismiss` | services/attendanceService.ts |
-| GET | `/attendance/compliance-report?${params.toString()}` | services/attendanceService.ts |
 
 ### legal-documents (12 missing)
 
@@ -662,16 +585,6 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | PATCH | `/api-keys/${keyId}` | services/apiKeysService.ts |
 | GET | `/api-keys/stats` | services/apiKeysService.ts |
 
-### approvals (5 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| DELETE | `/approvals/rules/${ruleId}` | services/approvalService.ts |
-| GET | `/approvals/templates` | services/approvalService.ts |
-| GET | `/approvals/my-requests` | services/approvalService.ts |
-| GET | `/approvals/stats` | services/approvalService.ts |
-| POST | `/approvals/check` | services/approvalService.ts |
-
 ### cases (5 missing)
 
 | Method | Endpoint | Source File |
@@ -785,14 +698,6 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | PATCH | `/support/tickets/${id}/assign` | services/supportService.ts |
 | GET | `/support/tickets/${ticketId}/communications` | services/supportService.ts |
 | POST | `/support/tickets/${ticketId}/communications` | services/supportService.ts |
-
-### audit-logs (3 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| POST | `/audit-logs/batch` | services/auditService.ts |
-| GET | `/audit-logs/resource/${resource}/${resourceId}` | services/auditService.ts |
-| GET | `/audit-logs/stats` | services/auditService.ts |
 
 ### time-tracking (3 missing)
 
@@ -908,12 +813,6 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | Method | Endpoint | Source File |
 |--------|----------|-------------|
 | GET | `/debit-notes/export` | services/accountingService.ts |
-
-### automated-actions?${params.toString()} (1 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/automated-actions?${params.toString()}` | services/automatedActionService.ts |
 
 ### firms (1 missing)
 
@@ -1488,7 +1387,7 @@ These endpoints exist in backend but frontend doesn't call them - potentially de
 | GET | `/api/analyticss/crm/revenue` |
 | GET | `/api/analyticss/crm/forecast-accuracy` |
 
-### audit-logs (25 unused)
+### audit-logs (26 unused)
 
 | Method | Endpoint |
 |--------|----------|
@@ -1517,6 +1416,7 @@ These endpoints exist in backend but frontend doesn't call them - potentially de
 | GET | `/api/audit-logs/archive/stats` |
 | POST | `/api/audit-logs/archive/run` |
 | POST | `/api/audit-logs/archive/verify` |
+| GET | `/api/audit-logs/recent` |
 
 ### dunning (24 unused)
 
@@ -1680,8 +1580,14 @@ Frontend calls with different HTTP method than backend expects.
 | `/hr/asset-assignments/:param/acknowledge` | GET | POST |
 | `/hr/asset-assignments/by-employee/:param` | POST | GET |
 | `/assets/${id}/submit` | PATCH | POST |
+| `/assets/${id}/sell` | PATCH | POST |
+| `/assets/${id}/scrap` | PATCH | POST |
+| `/assets/${assetId}/depreciation` | POST | GET |
+| `/assets/${assetId}/maintenance/${scheduleId}/complete` | PATCH | POST |
+| `/assets/repairs/${id}/complete` | PATCH | POST |
 | `/assets/:param` | POST | GET |
 | `/assets/categories/:param` | POST | GET |
+| `/assets/repairs/:param` | POST | GET |
 | `/attendance/${recordId}/breaks` | POST | GET |
 | `/attendance/${recordId}/violations` | GET | POST |
 | `/attendance/:param` | POST | GET |
@@ -1695,6 +1601,10 @@ Frontend calls with different HTTP method than backend expects.
 | `/bank-transactions/:param` | POST | GET |
 | `/bank-transfers/:param` | POST | GET |
 | `/hr/employee-benefits/:param` | POST | GET |
+| `/budgets/${id}` | PATCH | GET |
+| `/budgets/${budgetId}/lines/${lineId}` | PATCH | PUT |
+| `/budgets/check` | POST | GET |
+| `/budgets/${budgetId}/distribution` | POST | GET |
 | `/hr/compensation-rewards/:param` | POST | GET |
 | `/compensatory-leave-requests/:param` | POST | GET |
 | `/conflict-checks/:param` | POST | GET |
@@ -2208,13 +2118,13 @@ Enums in backend models not exposed to frontend.
 ## Action Items
 
 ### 🔴 Critical (Will Break App)
-1. Add 592 missing backend endpoints
-2. Fix 142 HTTP method mismatches
+1. Add 526 missing backend endpoints
+2. Fix 152 HTTP method mismatches
 3. Sync 0 enum value differences
 
 ### 🟡 Important (May Cause Issues)
 1. Review 2871 frontend-only interfaces
-2. Document 2309 unused backend endpoints
+2. Document 2314 unused backend endpoints
 
 ### 📝 Housekeeping
 1. Remove dead code or add tests for unused endpoints

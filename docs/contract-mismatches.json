@@ -224,310 +224,10 @@
         "source": "services/apiKeysService.ts"
       },
       {
-        "method": "DELETE",
-        "endpoint": "/approvals/rules/${ruleId}",
-        "responseType": null,
-        "source": "services/approvalService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/approvals/templates",
-        "responseType": null,
-        "source": "services/approvalService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/approvals/my-requests",
-        "responseType": null,
-        "source": "services/approvalService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/approvals/stats",
-        "responseType": null,
-        "source": "services/approvalService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/approvals/check",
-        "responseType": null,
-        "source": "services/approvalService.ts"
-      },
-      {
         "method": "POST",
         "endpoint": "/hr/asset-assignments/${assignmentId}/incidents/${incidentId}/resolve",
         "responseType": null,
         "source": "services/assetAssignmentService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/assets/${id}/sell",
-        "responseType": "Asset",
-        "source": "services/assetsService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/assets/${id}/scrap",
-        "responseType": "Asset",
-        "source": "services/assetsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/assets/${assetId}/depreciation",
-        "responseType": "DepreciationEntry[]",
-        "source": "services/assetsService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/assets/${assetId}/depreciation",
-        "responseType": "DepreciationEntry",
-        "source": "services/assetsService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/assets/${assetId}/maintenance",
-        "responseType": "MaintenanceSchedule",
-        "source": "services/assetsService.ts"
-      },
-      {
-        "method": "PUT",
-        "endpoint": "/assets/${assetId}/maintenance/${scheduleId}",
-        "responseType": "MaintenanceSchedule",
-        "source": "services/assetsService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/assets/${assetId}/maintenance/${scheduleId}/complete",
-        "responseType": "MaintenanceSchedule",
-        "source": "services/assetsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/assets/repairs",
-        "responseType": "AssetRepair[]",
-        "source": "services/assetsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/assets/repairs/${id}",
-        "responseType": "AssetRepair",
-        "source": "services/assetsService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/assets/repairs",
-        "responseType": "AssetRepair",
-        "source": "services/assetsService.ts"
-      },
-      {
-        "method": "PUT",
-        "endpoint": "/assets/repairs/${id}",
-        "responseType": "AssetRepair",
-        "source": "services/assetsService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/assets/repairs/${id}/complete",
-        "responseType": "AssetRepair",
-        "source": "services/assetsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/assets/:param/maintenance",
-        "source": "services/assetsService.ts",
-        "dynamic": true
-      },
-      {
-        "method": "POST",
-        "endpoint": "/assets/repairs/:param",
-        "source": "services/assetsService.ts",
-        "dynamic": true
-      },
-      {
-        "method": "POST",
-        "endpoint": "/attendance/${recordId}/excuse-late",
-        "responseType": null,
-        "source": "services/attendanceService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/attendance/${recordId}/approve-early-departure",
-        "responseType": null,
-        "source": "services/attendanceService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/attendance/${recordId}/approve-timesheet",
-        "responseType": null,
-        "source": "services/attendanceService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/attendance/${recordId}/reject-timesheet",
-        "responseType": null,
-        "source": "services/attendanceService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/attendance/${recordId}/approve-overtime",
-        "responseType": null,
-        "source": "services/attendanceService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/attendance/daily-summary?${params.toString()}",
-        "responseType": null,
-        "source": "services/attendanceService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/attendance/employee-summary/${employeeId}?${params.toString()}",
-        "responseType": null,
-        "source": "services/attendanceService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/attendance/stats?${params.toString()}",
-        "responseType": null,
-        "source": "services/attendanceService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/attendance/bulk",
-        "responseType": null,
-        "source": "services/attendanceService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/attendance/lock-for-payroll",
-        "responseType": null,
-        "source": "services/attendanceService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/attendance/${recordId}/violations/${violationId}/confirm",
-        "responseType": null,
-        "source": "services/attendanceService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/attendance/${recordId}/violations/${violationId}/dismiss",
-        "responseType": null,
-        "source": "services/attendanceService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/attendance/compliance-report?${params.toString()}",
-        "responseType": null,
-        "source": "services/attendanceService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/audit-logs/batch",
-        "responseType": null,
-        "source": "services/auditService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/audit-logs/resource/${resource}/${resourceId}",
-        "responseType": null,
-        "source": "services/auditService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/audit-logs/stats",
-        "responseType": null,
-        "source": "services/auditService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/automated-actions?${params.toString()}",
-        "responseType": null,
-        "source": "services/automatedActionService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/automated-actions/${id}",
-        "responseType": null,
-        "source": "services/automatedActionService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/automated-actions",
-        "responseType": null,
-        "source": "services/automatedActionService.ts"
-      },
-      {
-        "method": "PUT",
-        "endpoint": "/automated-actions/${id}",
-        "responseType": null,
-        "source": "services/automatedActionService.ts"
-      },
-      {
-        "method": "DELETE",
-        "endpoint": "/automated-actions/${id}",
-        "responseType": null,
-        "source": "services/automatedActionService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/automated-actions/${id}/toggle",
-        "responseType": null,
-        "source": "services/automatedActionService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/automated-actions/${id}/test",
-        "responseType": null,
-        "source": "services/automatedActionService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/automated-actions/${id}/duplicate",
-        "responseType": null,
-        "source": "services/automatedActionService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/automated-actions/${actionId}/logs?${params.toString()}",
-        "responseType": null,
-        "source": "services/automatedActionService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/automated-actions/logs?${params.toString()}",
-        "responseType": null,
-        "source": "services/automatedActionService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/automated-actions/models",
-        "responseType": null,
-        "source": "services/automatedActionService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/automated-actions/models/${modelName}/fields",
-        "responseType": null,
-        "source": "services/automatedActionService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/automated-actions/bulk/enable",
-        "responseType": null,
-        "source": "services/automatedActionService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/automated-actions/bulk/disable",
-        "responseType": null,
-        "source": "services/automatedActionService.ts"
-      },
-      {
-        "method": "DELETE",
-        "endpoint": "/automated-actions/bulk",
-        "responseType": null,
-        "source": "services/automatedActionService.ts"
       },
       {
         "method": "DELETE",
@@ -582,102 +282,6 @@
         "endpoint": "/firms/${cachedFirmId}/logo",
         "responseType": null,
         "source": "services/billingSettingsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/budgets",
-        "responseType": null,
-        "source": "services/budgetService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/budgets/${id}",
-        "responseType": null,
-        "source": "services/budgetService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/budgets",
-        "responseType": null,
-        "source": "services/budgetService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/budgets/${id}",
-        "responseType": null,
-        "source": "services/budgetService.ts"
-      },
-      {
-        "method": "DELETE",
-        "endpoint": "/budgets/${id}",
-        "responseType": null,
-        "source": "services/budgetService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/budgets/${id}/submit",
-        "responseType": null,
-        "source": "services/budgetService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/budgets/${id}/approve",
-        "responseType": null,
-        "source": "services/budgetService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/budgets/${id}/reject",
-        "responseType": null,
-        "source": "services/budgetService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/budgets/${id}/close",
-        "responseType": null,
-        "source": "services/budgetService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/budgets/${budgetId}/lines",
-        "responseType": null,
-        "source": "services/budgetService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/budgets/${budgetId}/lines/${lineId}",
-        "responseType": null,
-        "source": "services/budgetService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/budgets/stats",
-        "responseType": null,
-        "source": "services/budgetService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/budgets/${budgetId}/vs-actual",
-        "responseType": null,
-        "source": "services/budgetService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/budgets/check",
-        "responseType": null,
-        "source": "services/budgetService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/budgets/${budgetId}/distribution",
-        "responseType": null,
-        "source": "services/budgetService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/budgets/${id}/duplicate",
-        "responseType": null,
-        "source": "services/budgetService.ts"
       },
       {
         "method": "GET",
@@ -5037,6 +4641,30 @@
       },
       {
         "method": "GET",
+        "path": "/templates/:id",
+        "controller": "unknown",
+        "file": "approvalsExtended.route.js",
+        "fullPath": "/api/approvals/templates/:id",
+        "module": "approvalsExtended"
+      },
+      {
+        "method": "PUT",
+        "path": "/templates/:id",
+        "controller": "unknown",
+        "file": "approvalsExtended.route.js",
+        "fullPath": "/api/approvals/templates/:id",
+        "module": "approvalsExtended"
+      },
+      {
+        "method": "DELETE",
+        "path": "/templates/:id",
+        "controller": "unknown",
+        "file": "approvalsExtended.route.js",
+        "fullPath": "/api/approvals/templates/:id",
+        "module": "approvalsExtended"
+      },
+      {
+        "method": "GET",
         "path": "/categories",
         "controller": "getCategories",
         "file": "apps.route.js",
@@ -5154,6 +4782,14 @@
         "file": "assets.route.js",
         "fullPath": "/api/assets/maintenance/:id/complete",
         "module": "assets"
+      },
+      {
+        "method": "POST",
+        "path": "/:assetId/depreciation/calculate",
+        "controller": "unknown",
+        "file": "assetsExtended.route.js",
+        "fullPath": "/api/assets/:assetId/depreciation/calculate",
+        "module": "assetsExtended"
       },
       {
         "method": "GET",
@@ -5394,6 +5030,14 @@
         "file": "auditLog.route.js",
         "fullPath": "/api/audit-logs/archive/verify",
         "module": "auditLog"
+      },
+      {
+        "method": "GET",
+        "path": "/recent",
+        "controller": "unknown",
+        "file": "auditLogsExtended.route.js",
+        "fullPath": "/api/audit-logs/recent",
+        "module": "auditLogsExtended"
       },
       {
         "method": "POST",
@@ -22105,12 +21749,42 @@
         "backendMethod": "POST"
       },
       {
+        "path": "/assets/${id}/sell",
+        "frontendMethod": "PATCH",
+        "backendMethod": "POST"
+      },
+      {
+        "path": "/assets/${id}/scrap",
+        "frontendMethod": "PATCH",
+        "backendMethod": "POST"
+      },
+      {
+        "path": "/assets/${assetId}/depreciation",
+        "frontendMethod": "POST",
+        "backendMethod": "GET"
+      },
+      {
+        "path": "/assets/${assetId}/maintenance/${scheduleId}/complete",
+        "frontendMethod": "PATCH",
+        "backendMethod": "POST"
+      },
+      {
+        "path": "/assets/repairs/${id}/complete",
+        "frontendMethod": "PATCH",
+        "backendMethod": "POST"
+      },
+      {
         "path": "/assets/:param",
         "frontendMethod": "POST",
         "backendMethod": "GET"
       },
       {
         "path": "/assets/categories/:param",
+        "frontendMethod": "POST",
+        "backendMethod": "GET"
+      },
+      {
+        "path": "/assets/repairs/:param",
         "frontendMethod": "POST",
         "backendMethod": "GET"
       },
@@ -22176,6 +21850,26 @@
       },
       {
         "path": "/hr/employee-benefits/:param",
+        "frontendMethod": "POST",
+        "backendMethod": "GET"
+      },
+      {
+        "path": "/budgets/${id}",
+        "frontendMethod": "PATCH",
+        "backendMethod": "GET"
+      },
+      {
+        "path": "/budgets/${budgetId}/lines/${lineId}",
+        "frontendMethod": "PATCH",
+        "backendMethod": "PUT"
+      },
+      {
+        "path": "/budgets/check",
+        "frontendMethod": "POST",
+        "backendMethod": "GET"
+      },
+      {
+        "path": "/budgets/${budgetId}/distribution",
         "frontendMethod": "POST",
         "backendMethod": "GET"
       },
