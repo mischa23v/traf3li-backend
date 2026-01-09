@@ -223,6 +223,7 @@ const {
     // CRM Reports
     crmReportsRoute,
     crmReportsAliasRoute,
+    crmReportsExtendedRoute,
 
     // Appointments
     appointmentRoute,
@@ -401,6 +402,12 @@ const {
     employeePromotionRoute,
     skillMapRoute,
     employeeTransferRoute,
+
+    // HR Setup Wizard Routes
+    hrSetupRoute,
+
+    // Settings Alias Routes
+    settingsAliasRoute,
 
     // Unified Data Flow
     unifiedDataRoute,
@@ -1094,6 +1101,7 @@ app.use('/api/sales-quotas', salesQuotaRoute);  // Sales quota management
 app.use('/api/crm-transactions', noCache, crmTransactionRoute);  // CRM transaction logging & analytics
 app.use('/api/crm-reports', noCache, crmReportsRoute);  // CRM reports & analytics dashboard
 app.use('/api/crm/reports', noCache, crmReportsAliasRoute);  // CRM reports alias for frontend expected paths
+app.use('/api/crm-reports', noCache, crmReportsExtendedRoute);  // CRM reports extended (revenue, performance, customer analytics)
 app.use('/api/appointments', appointmentRoute);  // Appointments, availability, and scheduling
 app.use('/api/sales', noCache, salesRoute);  // Sales module (orders, deliveries, returns, commissions)
 app.use('/api/whatsapp', whatsappRoute);
@@ -1131,6 +1139,7 @@ app.use('/api/deals/health', dealHealthRoutes);
 // HR ROUTES (Sensitive Employee Data)
 // ============================================
 app.use('/api/hr', noCache, hrRoute); // No cache for HR data
+app.use('/api/hr', noCache, hrSetupRoute); // HR setup wizard (departments, designations, leave-types, shift-types)
 app.use('/api/hr/payroll', noCache, payrollRoute); // Critical: No cache for payroll
 app.use('/api/hr/payroll-runs', noCache, payrollRunRoute);
 app.use('/api/leave-requests', leaveRequestRoute);
@@ -1250,6 +1259,9 @@ app.use('/api/document-analysis', documentAnalysisRoute);
 
 // Smart Scheduling & NLP (Task Management 10/10)
 app.use('/api/smart-scheduling', smartSchedulingRoute);
+
+// General Settings (general, HR, taxes, payment modes)
+app.use('/api/settings', noCache, settingsAliasRoute);
 
 // AI Settings (API Keys Management)
 app.use('/api/settings/ai', aiSettingsRoute);

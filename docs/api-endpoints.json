@@ -1,7 +1,7 @@
 {
-  "generated": "2026-01-09T09:37:17.345Z",
-  "totalEndpoints": 4184,
-  "totalModules": 267,
+  "generated": "2026-01-09T09:53:08.519Z",
+  "totalEndpoints": 4261,
+  "totalModules": 270,
   "modules": {
     "account": [
       {
@@ -8351,6 +8351,200 @@
         "module": "crmReportsAlias"
       }
     ],
+    "crmReportsExtended": [
+      {
+        "method": "GET",
+        "path": "/pipeline/overview",
+        "controller": "unknown",
+        "file": "crmReportsExtended.route.js",
+        "fullPath": "/api/crm-reports/pipeline/overview",
+        "module": "crmReportsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/pipeline/velocity",
+        "controller": "unknown",
+        "file": "crmReportsExtended.route.js",
+        "fullPath": "/api/crm-reports/pipeline/velocity",
+        "module": "crmReportsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/pipeline/stage-duration",
+        "controller": "unknown",
+        "file": "crmReportsExtended.route.js",
+        "fullPath": "/api/crm-reports/pipeline/stage-duration",
+        "module": "crmReportsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/pipeline/deal-aging",
+        "controller": "unknown",
+        "file": "crmReportsExtended.route.js",
+        "fullPath": "/api/crm-reports/pipeline/deal-aging",
+        "module": "crmReportsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/pipeline/movement",
+        "controller": "unknown",
+        "file": "crmReportsExtended.route.js",
+        "fullPath": "/api/crm-reports/pipeline/movement",
+        "module": "crmReportsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/leads/by-source",
+        "controller": "unknown",
+        "file": "crmReportsExtended.route.js",
+        "fullPath": "/api/crm-reports/leads/by-source",
+        "module": "crmReportsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/leads/conversion-funnel",
+        "controller": "unknown",
+        "file": "crmReportsExtended.route.js",
+        "fullPath": "/api/crm-reports/leads/conversion-funnel",
+        "module": "crmReportsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/leads/response-time",
+        "controller": "unknown",
+        "file": "crmReportsExtended.route.js",
+        "fullPath": "/api/crm-reports/leads/response-time",
+        "module": "crmReportsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/leads/velocity-rate",
+        "controller": "unknown",
+        "file": "crmReportsExtended.route.js",
+        "fullPath": "/api/crm-reports/leads/velocity-rate",
+        "module": "crmReportsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/leads/distribution",
+        "controller": "unknown",
+        "file": "crmReportsExtended.route.js",
+        "fullPath": "/api/crm-reports/leads/distribution",
+        "module": "crmReportsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/activities/summary",
+        "controller": "unknown",
+        "file": "crmReportsExtended.route.js",
+        "fullPath": "/api/crm-reports/activities/summary",
+        "module": "crmReportsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/activities/calls",
+        "controller": "unknown",
+        "file": "crmReportsExtended.route.js",
+        "fullPath": "/api/crm-reports/activities/calls",
+        "module": "crmReportsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/activities/emails",
+        "controller": "unknown",
+        "file": "crmReportsExtended.route.js",
+        "fullPath": "/api/crm-reports/activities/emails",
+        "module": "crmReportsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/activities/meetings",
+        "controller": "unknown",
+        "file": "crmReportsExtended.route.js",
+        "fullPath": "/api/crm-reports/activities/meetings",
+        "module": "crmReportsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/activities/tasks",
+        "controller": "unknown",
+        "file": "crmReportsExtended.route.js",
+        "fullPath": "/api/crm-reports/activities/tasks",
+        "module": "crmReportsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/revenue/forecast",
+        "controller": "unknown",
+        "file": "crmReportsExtended.route.js",
+        "fullPath": "/api/crm-reports/revenue/forecast",
+        "module": "crmReportsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/revenue/analysis",
+        "controller": "unknown",
+        "file": "crmReportsExtended.route.js",
+        "fullPath": "/api/crm-reports/revenue/analysis",
+        "module": "crmReportsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/revenue/quota-attainment",
+        "controller": "unknown",
+        "file": "crmReportsExtended.route.js",
+        "fullPath": "/api/crm-reports/revenue/quota-attainment",
+        "module": "crmReportsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/revenue/win-rate",
+        "controller": "unknown",
+        "file": "crmReportsExtended.route.js",
+        "fullPath": "/api/crm-reports/revenue/win-rate",
+        "module": "crmReportsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/revenue/deal-size",
+        "controller": "unknown",
+        "file": "crmReportsExtended.route.js",
+        "fullPath": "/api/crm-reports/revenue/deal-size",
+        "module": "crmReportsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/performance/leaderboard",
+        "controller": "unknown",
+        "file": "crmReportsExtended.route.js",
+        "fullPath": "/api/crm-reports/performance/leaderboard",
+        "module": "crmReportsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/performance/team",
+        "controller": "unknown",
+        "file": "crmReportsExtended.route.js",
+        "fullPath": "/api/crm-reports/performance/team",
+        "module": "crmReportsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/performance/rep-scorecard/:userId",
+        "controller": "unknown",
+        "file": "crmReportsExtended.route.js",
+        "fullPath": "/api/crm-reports/performance/rep-scorecard/:userId",
+        "module": "crmReportsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/performance/activity-metrics",
+        "controller": "unknown",
+        "file": "crmReportsExtended.route.js",
+        "fullPath": "/api/crm-reports/performance/activity-metrics",
+        "module": "crmReportsExtended"
+      }
+    ],
     "crmSettings": [
       {
         "method": "GET",
@@ -15473,6 +15667,224 @@
         "file": "hrExtended.route.js",
         "fullPath": "/api/hr/extended/setup-wizard/skip",
         "module": "hrExtended"
+      }
+    ],
+    "hrSetup": [
+      {
+        "method": "GET",
+        "path": "/departments",
+        "controller": "unknown",
+        "file": "hrSetup.route.js",
+        "fullPath": "/api/hr/departments",
+        "module": "hrSetup"
+      },
+      {
+        "method": "GET",
+        "path": "/departments/:id",
+        "controller": "unknown",
+        "file": "hrSetup.route.js",
+        "fullPath": "/api/hr/departments/:id",
+        "module": "hrSetup"
+      },
+      {
+        "method": "POST",
+        "path": "/departments",
+        "controller": "unknown",
+        "file": "hrSetup.route.js",
+        "fullPath": "/api/hr/departments",
+        "module": "hrSetup"
+      },
+      {
+        "method": "POST",
+        "path": "/departments/bulk",
+        "controller": "unknown",
+        "file": "hrSetup.route.js",
+        "fullPath": "/api/hr/departments/bulk",
+        "module": "hrSetup"
+      },
+      {
+        "method": "PUT",
+        "path": "/departments/:id",
+        "controller": "unknown",
+        "file": "hrSetup.route.js",
+        "fullPath": "/api/hr/departments/:id",
+        "module": "hrSetup"
+      },
+      {
+        "method": "DELETE",
+        "path": "/departments/:id",
+        "controller": "unknown",
+        "file": "hrSetup.route.js",
+        "fullPath": "/api/hr/departments/:id",
+        "module": "hrSetup"
+      },
+      {
+        "method": "GET",
+        "path": "/designations",
+        "controller": "unknown",
+        "file": "hrSetup.route.js",
+        "fullPath": "/api/hr/designations",
+        "module": "hrSetup"
+      },
+      {
+        "method": "GET",
+        "path": "/designations/:id",
+        "controller": "unknown",
+        "file": "hrSetup.route.js",
+        "fullPath": "/api/hr/designations/:id",
+        "module": "hrSetup"
+      },
+      {
+        "method": "POST",
+        "path": "/designations",
+        "controller": "unknown",
+        "file": "hrSetup.route.js",
+        "fullPath": "/api/hr/designations",
+        "module": "hrSetup"
+      },
+      {
+        "method": "POST",
+        "path": "/designations/bulk",
+        "controller": "unknown",
+        "file": "hrSetup.route.js",
+        "fullPath": "/api/hr/designations/bulk",
+        "module": "hrSetup"
+      },
+      {
+        "method": "PUT",
+        "path": "/designations/:id",
+        "controller": "unknown",
+        "file": "hrSetup.route.js",
+        "fullPath": "/api/hr/designations/:id",
+        "module": "hrSetup"
+      },
+      {
+        "method": "DELETE",
+        "path": "/designations/:id",
+        "controller": "unknown",
+        "file": "hrSetup.route.js",
+        "fullPath": "/api/hr/designations/:id",
+        "module": "hrSetup"
+      },
+      {
+        "method": "GET",
+        "path": "/leave-types",
+        "controller": "unknown",
+        "file": "hrSetup.route.js",
+        "fullPath": "/api/hr/leave-types",
+        "module": "hrSetup"
+      },
+      {
+        "method": "GET",
+        "path": "/leave-types/:id",
+        "controller": "unknown",
+        "file": "hrSetup.route.js",
+        "fullPath": "/api/hr/leave-types/:id",
+        "module": "hrSetup"
+      },
+      {
+        "method": "POST",
+        "path": "/leave-types",
+        "controller": "unknown",
+        "file": "hrSetup.route.js",
+        "fullPath": "/api/hr/leave-types",
+        "module": "hrSetup"
+      },
+      {
+        "method": "POST",
+        "path": "/leave-types/bulk",
+        "controller": "unknown",
+        "file": "hrSetup.route.js",
+        "fullPath": "/api/hr/leave-types/bulk",
+        "module": "hrSetup"
+      },
+      {
+        "method": "POST",
+        "path": "/leave-types/initialize",
+        "controller": "unknown",
+        "file": "hrSetup.route.js",
+        "fullPath": "/api/hr/leave-types/initialize",
+        "module": "hrSetup"
+      },
+      {
+        "method": "PUT",
+        "path": "/leave-types/:id",
+        "controller": "unknown",
+        "file": "hrSetup.route.js",
+        "fullPath": "/api/hr/leave-types/:id",
+        "module": "hrSetup"
+      },
+      {
+        "method": "DELETE",
+        "path": "/leave-types/:id",
+        "controller": "unknown",
+        "file": "hrSetup.route.js",
+        "fullPath": "/api/hr/leave-types/:id",
+        "module": "hrSetup"
+      },
+      {
+        "method": "GET",
+        "path": "/shift-types",
+        "controller": "unknown",
+        "file": "hrSetup.route.js",
+        "fullPath": "/api/hr/shift-types",
+        "module": "hrSetup"
+      },
+      {
+        "method": "GET",
+        "path": "/shift-types/:id",
+        "controller": "unknown",
+        "file": "hrSetup.route.js",
+        "fullPath": "/api/hr/shift-types/:id",
+        "module": "hrSetup"
+      },
+      {
+        "method": "POST",
+        "path": "/shift-types",
+        "controller": "unknown",
+        "file": "hrSetup.route.js",
+        "fullPath": "/api/hr/shift-types",
+        "module": "hrSetup"
+      },
+      {
+        "method": "POST",
+        "path": "/shift-types/bulk",
+        "controller": "unknown",
+        "file": "hrSetup.route.js",
+        "fullPath": "/api/hr/shift-types/bulk",
+        "module": "hrSetup"
+      },
+      {
+        "method": "PUT",
+        "path": "/shift-types/:id",
+        "controller": "unknown",
+        "file": "hrSetup.route.js",
+        "fullPath": "/api/hr/shift-types/:id",
+        "module": "hrSetup"
+      },
+      {
+        "method": "DELETE",
+        "path": "/shift-types/:id",
+        "controller": "unknown",
+        "file": "hrSetup.route.js",
+        "fullPath": "/api/hr/shift-types/:id",
+        "module": "hrSetup"
+      },
+      {
+        "method": "PATCH",
+        "path": "/shift-types/:id/default",
+        "controller": "unknown",
+        "file": "hrSetup.route.js",
+        "fullPath": "/api/hr/shift-types/:id/default",
+        "module": "hrSetup"
+      },
+      {
+        "method": "GET",
+        "path": "/analytics/dashboard",
+        "controller": "unknown",
+        "file": "hrSetup.route.js",
+        "fullPath": "/api/hr/analytics/dashboard",
+        "module": "hrSetup"
       }
     ],
     "incomeTaxSlab": [
@@ -26945,6 +27357,216 @@
         "file": "securityIncident.route.js",
         "fullPath": "/api/security/csp-violations",
         "module": "securityIncident"
+      }
+    ],
+    "settingsAlias": [
+      {
+        "method": "GET",
+        "path": "/",
+        "controller": "unknown",
+        "file": "settingsAlias.route.js",
+        "fullPath": "/api/settings",
+        "module": "settingsAlias"
+      },
+      {
+        "method": "PATCH",
+        "path": "/account",
+        "controller": "unknown",
+        "file": "settingsAlias.route.js",
+        "fullPath": "/api/settings/account",
+        "module": "settingsAlias"
+      },
+      {
+        "method": "PATCH",
+        "path": "/appearance",
+        "controller": "unknown",
+        "file": "settingsAlias.route.js",
+        "fullPath": "/api/settings/appearance",
+        "module": "settingsAlias"
+      },
+      {
+        "method": "PATCH",
+        "path": "/display",
+        "controller": "unknown",
+        "file": "settingsAlias.route.js",
+        "fullPath": "/api/settings/display",
+        "module": "settingsAlias"
+      },
+      {
+        "method": "PATCH",
+        "path": "/notifications",
+        "controller": "unknown",
+        "file": "settingsAlias.route.js",
+        "fullPath": "/api/settings/notifications",
+        "module": "settingsAlias"
+      },
+      {
+        "method": "GET",
+        "path": "/hr",
+        "controller": "unknown",
+        "file": "settingsAlias.route.js",
+        "fullPath": "/api/settings/hr",
+        "module": "settingsAlias"
+      },
+      {
+        "method": "PATCH",
+        "path": "/hr",
+        "controller": "unknown",
+        "file": "settingsAlias.route.js",
+        "fullPath": "/api/settings/hr",
+        "module": "settingsAlias"
+      },
+      {
+        "method": "PATCH",
+        "path": "/hr/employee",
+        "controller": "unknown",
+        "file": "settingsAlias.route.js",
+        "fullPath": "/api/settings/hr/employee",
+        "module": "settingsAlias"
+      },
+      {
+        "method": "PATCH",
+        "path": "/hr/leave",
+        "controller": "unknown",
+        "file": "settingsAlias.route.js",
+        "fullPath": "/api/settings/hr/leave",
+        "module": "settingsAlias"
+      },
+      {
+        "method": "PATCH",
+        "path": "/hr/attendance",
+        "controller": "unknown",
+        "file": "settingsAlias.route.js",
+        "fullPath": "/api/settings/hr/attendance",
+        "module": "settingsAlias"
+      },
+      {
+        "method": "PATCH",
+        "path": "/hr/payroll",
+        "controller": "unknown",
+        "file": "settingsAlias.route.js",
+        "fullPath": "/api/settings/hr/payroll",
+        "module": "settingsAlias"
+      },
+      {
+        "method": "PATCH",
+        "path": "/hr/expense",
+        "controller": "unknown",
+        "file": "settingsAlias.route.js",
+        "fullPath": "/api/settings/hr/expense",
+        "module": "settingsAlias"
+      },
+      {
+        "method": "GET",
+        "path": "/crm",
+        "controller": "unknown",
+        "file": "settingsAlias.route.js",
+        "fullPath": "/api/settings/crm",
+        "module": "settingsAlias"
+      },
+      {
+        "method": "PUT",
+        "path": "/crm",
+        "controller": "unknown",
+        "file": "settingsAlias.route.js",
+        "fullPath": "/api/settings/crm",
+        "module": "settingsAlias"
+      },
+      {
+        "method": "GET",
+        "path": "/finance",
+        "controller": "unknown",
+        "file": "settingsAlias.route.js",
+        "fullPath": "/api/settings/finance",
+        "module": "settingsAlias"
+      },
+      {
+        "method": "PUT",
+        "path": "/finance",
+        "controller": "unknown",
+        "file": "settingsAlias.route.js",
+        "fullPath": "/api/settings/finance",
+        "module": "settingsAlias"
+      },
+      {
+        "method": "GET",
+        "path": "/taxes",
+        "controller": "unknown",
+        "file": "settingsAlias.route.js",
+        "fullPath": "/api/settings/taxes",
+        "module": "settingsAlias"
+      },
+      {
+        "method": "POST",
+        "path": "/taxes",
+        "controller": "unknown",
+        "file": "settingsAlias.route.js",
+        "fullPath": "/api/settings/taxes",
+        "module": "settingsAlias"
+      },
+      {
+        "method": "PUT",
+        "path": "/taxes/:id",
+        "controller": "unknown",
+        "file": "settingsAlias.route.js",
+        "fullPath": "/api/settings/taxes/:id",
+        "module": "settingsAlias"
+      },
+      {
+        "method": "DELETE",
+        "path": "/taxes/:id",
+        "controller": "unknown",
+        "file": "settingsAlias.route.js",
+        "fullPath": "/api/settings/taxes/:id",
+        "module": "settingsAlias"
+      },
+      {
+        "method": "PATCH",
+        "path": "/taxes/:id/default",
+        "controller": "unknown",
+        "file": "settingsAlias.route.js",
+        "fullPath": "/api/settings/taxes/:id/default",
+        "module": "settingsAlias"
+      },
+      {
+        "method": "GET",
+        "path": "/payment-modes",
+        "controller": "unknown",
+        "file": "settingsAlias.route.js",
+        "fullPath": "/api/settings/payment-modes",
+        "module": "settingsAlias"
+      },
+      {
+        "method": "POST",
+        "path": "/payment-modes",
+        "controller": "unknown",
+        "file": "settingsAlias.route.js",
+        "fullPath": "/api/settings/payment-modes",
+        "module": "settingsAlias"
+      },
+      {
+        "method": "PUT",
+        "path": "/payment-modes/:id",
+        "controller": "unknown",
+        "file": "settingsAlias.route.js",
+        "fullPath": "/api/settings/payment-modes/:id",
+        "module": "settingsAlias"
+      },
+      {
+        "method": "DELETE",
+        "path": "/payment-modes/:id",
+        "controller": "unknown",
+        "file": "settingsAlias.route.js",
+        "fullPath": "/api/settings/payment-modes/:id",
+        "module": "settingsAlias"
+      },
+      {
+        "method": "PATCH",
+        "path": "/payment-modes/:id/default",
+        "controller": "unknown",
+        "file": "settingsAlias.route.js",
+        "fullPath": "/api/settings/payment-modes/:id/default",
+        "module": "settingsAlias"
       }
     ],
     "setupWizard": [

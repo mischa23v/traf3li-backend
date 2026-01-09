@@ -72,6 +72,7 @@
 - [crmPipeline](#crmpipeline) (12 endpoints)
 - [crmReports](#crmreports) (27 endpoints)
 - [crmReportsAlias](#crmreportsalias) (18 endpoints)
+- [crmReportsExtended](#crmreportsextended) (24 endpoints)
 - [crmSettings](#crmsettings) (3 endpoints)
 - [crmTransaction](#crmtransaction) (15 endpoints)
 - [currency](#currency) (6 endpoints)
@@ -122,6 +123,7 @@
 - [hr](#hr) (14 endpoints)
 - [hrAnalytics](#hranalytics) (21 endpoints)
 - [hrExtended](#hrextended) (49 endpoints)
+- [hrSetup](#hrsetup) (27 endpoints)
 - [incomeTaxSlab](#incometaxslab) (9 endpoints)
 - [integrations](#integrations) (45 endpoints)
 - [interCompany](#intercompany) (10 endpoints)
@@ -222,6 +224,7 @@
 - [score](#score) (3 endpoints)
 - [security](#security) (11 endpoints)
 - [securityIncident](#securityincident) (8 endpoints)
+- [settingsAlias](#settingsalias) (26 endpoints)
 - [setupWizard](#setupwizard) (13 endpoints)
 - [shift](#shift) (17 endpoints)
 - [skillMap](#skillmap) (26 endpoints)
@@ -280,8 +283,8 @@
 
 | Metric | Count |
 |--------|-------|
-| Total Endpoints | 4184 |
-| Total Modules | 267 |
+| Total Endpoints | 4261 |
+| Total Modules | 270 |
 
 ---
 
@@ -1642,6 +1645,35 @@
 | `GET` | `/api/crm/reports/revenue/by-month` | unknown | crmReportsAlias.route.js |
 | `GET` | `/api/crm/reports/revenue/by-rep` | unknown | crmReportsAlias.route.js |
 
+## crmReportsExtended
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/crm-reports/pipeline/overview` | unknown | crmReportsExtended.route.js |
+| `GET` | `/api/crm-reports/pipeline/velocity` | unknown | crmReportsExtended.route.js |
+| `GET` | `/api/crm-reports/pipeline/stage-duration` | unknown | crmReportsExtended.route.js |
+| `GET` | `/api/crm-reports/pipeline/deal-aging` | unknown | crmReportsExtended.route.js |
+| `GET` | `/api/crm-reports/pipeline/movement` | unknown | crmReportsExtended.route.js |
+| `GET` | `/api/crm-reports/leads/by-source` | unknown | crmReportsExtended.route.js |
+| `GET` | `/api/crm-reports/leads/conversion-funnel` | unknown | crmReportsExtended.route.js |
+| `GET` | `/api/crm-reports/leads/response-time` | unknown | crmReportsExtended.route.js |
+| `GET` | `/api/crm-reports/leads/velocity-rate` | unknown | crmReportsExtended.route.js |
+| `GET` | `/api/crm-reports/leads/distribution` | unknown | crmReportsExtended.route.js |
+| `GET` | `/api/crm-reports/activities/summary` | unknown | crmReportsExtended.route.js |
+| `GET` | `/api/crm-reports/activities/calls` | unknown | crmReportsExtended.route.js |
+| `GET` | `/api/crm-reports/activities/emails` | unknown | crmReportsExtended.route.js |
+| `GET` | `/api/crm-reports/activities/meetings` | unknown | crmReportsExtended.route.js |
+| `GET` | `/api/crm-reports/activities/tasks` | unknown | crmReportsExtended.route.js |
+| `GET` | `/api/crm-reports/revenue/forecast` | unknown | crmReportsExtended.route.js |
+| `GET` | `/api/crm-reports/revenue/analysis` | unknown | crmReportsExtended.route.js |
+| `GET` | `/api/crm-reports/revenue/quota-attainment` | unknown | crmReportsExtended.route.js |
+| `GET` | `/api/crm-reports/revenue/win-rate` | unknown | crmReportsExtended.route.js |
+| `GET` | `/api/crm-reports/revenue/deal-size` | unknown | crmReportsExtended.route.js |
+| `GET` | `/api/crm-reports/performance/leaderboard` | unknown | crmReportsExtended.route.js |
+| `GET` | `/api/crm-reports/performance/team` | unknown | crmReportsExtended.route.js |
+| `GET` | `/api/crm-reports/performance/rep-scorecard/:userId` | unknown | crmReportsExtended.route.js |
+| `GET` | `/api/crm-reports/performance/activity-metrics` | unknown | crmReportsExtended.route.js |
+
 ## crmSettings
 
 | Method | Path | Controller | File |
@@ -2769,6 +2801,38 @@
 | `POST` | `/api/hr/extended/setup-wizard/complete-step/:stepId` | unknown | hrExtended.route.js |
 | `POST` | `/api/hr/extended/setup-wizard/skip-step/:stepId` | unknown | hrExtended.route.js |
 | `POST` | `/api/hr/extended/setup-wizard/skip` | unknown | hrExtended.route.js |
+
+## hrSetup
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/hr/departments` | unknown | hrSetup.route.js |
+| `GET` | `/api/hr/departments/:id` | unknown | hrSetup.route.js |
+| `POST` | `/api/hr/departments` | unknown | hrSetup.route.js |
+| `POST` | `/api/hr/departments/bulk` | unknown | hrSetup.route.js |
+| `PUT` | `/api/hr/departments/:id` | unknown | hrSetup.route.js |
+| `DELETE` | `/api/hr/departments/:id` | unknown | hrSetup.route.js |
+| `GET` | `/api/hr/designations` | unknown | hrSetup.route.js |
+| `GET` | `/api/hr/designations/:id` | unknown | hrSetup.route.js |
+| `POST` | `/api/hr/designations` | unknown | hrSetup.route.js |
+| `POST` | `/api/hr/designations/bulk` | unknown | hrSetup.route.js |
+| `PUT` | `/api/hr/designations/:id` | unknown | hrSetup.route.js |
+| `DELETE` | `/api/hr/designations/:id` | unknown | hrSetup.route.js |
+| `GET` | `/api/hr/leave-types` | unknown | hrSetup.route.js |
+| `GET` | `/api/hr/leave-types/:id` | unknown | hrSetup.route.js |
+| `POST` | `/api/hr/leave-types` | unknown | hrSetup.route.js |
+| `POST` | `/api/hr/leave-types/bulk` | unknown | hrSetup.route.js |
+| `POST` | `/api/hr/leave-types/initialize` | unknown | hrSetup.route.js |
+| `PUT` | `/api/hr/leave-types/:id` | unknown | hrSetup.route.js |
+| `DELETE` | `/api/hr/leave-types/:id` | unknown | hrSetup.route.js |
+| `GET` | `/api/hr/shift-types` | unknown | hrSetup.route.js |
+| `GET` | `/api/hr/shift-types/:id` | unknown | hrSetup.route.js |
+| `POST` | `/api/hr/shift-types` | unknown | hrSetup.route.js |
+| `POST` | `/api/hr/shift-types/bulk` | unknown | hrSetup.route.js |
+| `PUT` | `/api/hr/shift-types/:id` | unknown | hrSetup.route.js |
+| `DELETE` | `/api/hr/shift-types/:id` | unknown | hrSetup.route.js |
+| `PATCH` | `/api/hr/shift-types/:id/default` | unknown | hrSetup.route.js |
+| `GET` | `/api/hr/analytics/dashboard` | unknown | hrSetup.route.js |
 
 ## incomeTaxSlab
 
@@ -4679,6 +4743,37 @@
 | `GET` | `/api/security/csp-violations` | getCspViolations | securityIncident.route.js |
 | `DELETE` | `/api/security/csp-violations` | clearCspViolations | securityIncident.route.js |
 
+## settingsAlias
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/settings` | unknown | settingsAlias.route.js |
+| `PATCH` | `/api/settings/account` | unknown | settingsAlias.route.js |
+| `PATCH` | `/api/settings/appearance` | unknown | settingsAlias.route.js |
+| `PATCH` | `/api/settings/display` | unknown | settingsAlias.route.js |
+| `PATCH` | `/api/settings/notifications` | unknown | settingsAlias.route.js |
+| `GET` | `/api/settings/hr` | unknown | settingsAlias.route.js |
+| `PATCH` | `/api/settings/hr` | unknown | settingsAlias.route.js |
+| `PATCH` | `/api/settings/hr/employee` | unknown | settingsAlias.route.js |
+| `PATCH` | `/api/settings/hr/leave` | unknown | settingsAlias.route.js |
+| `PATCH` | `/api/settings/hr/attendance` | unknown | settingsAlias.route.js |
+| `PATCH` | `/api/settings/hr/payroll` | unknown | settingsAlias.route.js |
+| `PATCH` | `/api/settings/hr/expense` | unknown | settingsAlias.route.js |
+| `GET` | `/api/settings/crm` | unknown | settingsAlias.route.js |
+| `PUT` | `/api/settings/crm` | unknown | settingsAlias.route.js |
+| `GET` | `/api/settings/finance` | unknown | settingsAlias.route.js |
+| `PUT` | `/api/settings/finance` | unknown | settingsAlias.route.js |
+| `GET` | `/api/settings/taxes` | unknown | settingsAlias.route.js |
+| `POST` | `/api/settings/taxes` | unknown | settingsAlias.route.js |
+| `PUT` | `/api/settings/taxes/:id` | unknown | settingsAlias.route.js |
+| `DELETE` | `/api/settings/taxes/:id` | unknown | settingsAlias.route.js |
+| `PATCH` | `/api/settings/taxes/:id/default` | unknown | settingsAlias.route.js |
+| `GET` | `/api/settings/payment-modes` | unknown | settingsAlias.route.js |
+| `POST` | `/api/settings/payment-modes` | unknown | settingsAlias.route.js |
+| `PUT` | `/api/settings/payment-modes/:id` | unknown | settingsAlias.route.js |
+| `DELETE` | `/api/settings/payment-modes/:id` | unknown | settingsAlias.route.js |
+| `PATCH` | `/api/settings/payment-modes/:id/default` | unknown | settingsAlias.route.js |
+
 ## setupWizard
 
 | Method | Path | Controller | File |
@@ -5808,7 +5903,7 @@
 
 ## Quick Reference by Method
 
-### GET (1788)
+### GET (1827)
 
 <details>
 <summary>Click to expand</summary>
@@ -6243,6 +6338,11 @@ GET    /api/crm-activities/timeline
 GET    /api/crm-pipelines
 GET    /api/crm-pipelines/:id
 GET    /api/crm-pipelines/:id/stats
+GET    /api/crm-reports/activities/calls
+GET    /api/crm-reports/activities/emails
+GET    /api/crm-reports/activities/meetings
+GET    /api/crm-reports/activities/summary
+GET    /api/crm-reports/activities/tasks
 GET    /api/crm-reports/activity/by-day-of-week
 GET    /api/crm-reports/activity/by-hour
 GET    /api/crm-reports/activity/leaderboard
@@ -6261,10 +6361,29 @@ GET    /api/crm-reports/lead-conversion-time
 GET    /api/crm-reports/lead-owner-efficiency
 GET    /api/crm-reports/leads-source/overview
 GET    /api/crm-reports/leads-source/trend
+GET    /api/crm-reports/leads/by-source
+GET    /api/crm-reports/leads/conversion-funnel
+GET    /api/crm-reports/leads/distribution
+GET    /api/crm-reports/leads/response-time
+GET    /api/crm-reports/leads/velocity-rate
 GET    /api/crm-reports/lost-opportunity
+GET    /api/crm-reports/performance/activity-metrics
+GET    /api/crm-reports/performance/leaderboard
+GET    /api/crm-reports/performance/rep-scorecard/:userId
+GET    /api/crm-reports/performance/team
+GET    /api/crm-reports/pipeline/deal-aging
+GET    /api/crm-reports/pipeline/movement
+GET    /api/crm-reports/pipeline/overview
+GET    /api/crm-reports/pipeline/stage-duration
+GET    /api/crm-reports/pipeline/velocity
 GET    /api/crm-reports/prospects-engaged
 GET    /api/crm-reports/quick-stats
 GET    /api/crm-reports/recent-activity
+GET    /api/crm-reports/revenue/analysis
+GET    /api/crm-reports/revenue/deal-size
+GET    /api/crm-reports/revenue/forecast
+GET    /api/crm-reports/revenue/quota-attainment
+GET    /api/crm-reports/revenue/win-rate
 GET    /api/crm-reports/sales-pipeline
 GET    /api/crm-reports/win-loss/overview
 GET    /api/crm-reports/win-loss/reasons
@@ -6581,6 +6700,7 @@ GET    /api/hr/advances/emergency
 GET    /api/hr/advances/overdue-recoveries
 GET    /api/hr/advances/pending-approvals
 GET    /api/hr/advances/stats
+GET    /api/hr/analytics/dashboard
 GET    /api/hr/asset-assignments
 GET    /api/hr/asset-assignments/:id
 GET    /api/hr/asset-assignments/by-employee/:employeeId
@@ -6606,6 +6726,10 @@ GET    /api/hr/compliance/labor-law
 GET    /api/hr/compliance/nitaqat
 GET    /api/hr/compliance/probation/ending
 GET    /api/hr/compliance/wps
+GET    /api/hr/departments
+GET    /api/hr/departments/:id
+GET    /api/hr/designations
+GET    /api/hr/designations/:id
 GET    /api/hr/employee-benefits
 GET    /api/hr/employee-benefits/:id
 GET    /api/hr/employee-benefits/cost-summary
@@ -6711,6 +6835,8 @@ GET    /api/hr/leave-management/leave-periods/current
 GET    /api/hr/leave-management/leave-policies
 GET    /api/hr/leave-management/leave-policies/:id
 GET    /api/hr/leave-management/leave-policies/default
+GET    /api/hr/leave-types
+GET    /api/hr/leave-types/:id
 GET    /api/hr/offboarding
 GET    /api/hr/offboarding/:offboardingId
 GET    /api/hr/offboarding/by-employee/:employeeId
@@ -6767,6 +6893,8 @@ GET    /api/hr/self-service/leave/requests
 GET    /api/hr/self-service/loans
 GET    /api/hr/self-service/payslips
 GET    /api/hr/self-service/profile
+GET    /api/hr/shift-types
+GET    /api/hr/shift-types/:id
 GET    /api/hr/shifts/shift-assignments
 GET    /api/hr/shifts/shift-assignments/:id
 GET    /api/hr/shifts/shift-assignments/employee/:employeeId
@@ -7313,13 +7441,19 @@ GET    /api/security/incidents/:id
 GET    /api/security/incidents/open
 GET    /api/security/incidents/stats
 GET    /api/security/stats
+GET    /api/settings
 GET    /api/settings/ai
 GET    /api/settings/ai/features
 GET    /api/settings/ai/usage
+GET    /api/settings/crm
 GET    /api/settings/email/signatures
 GET    /api/settings/email/smtp
 GET    /api/settings/email/templates
 GET    /api/settings/email/templates/:id
+GET    /api/settings/finance
+GET    /api/settings/hr
+GET    /api/settings/payment-modes
+GET    /api/settings/taxes
 GET    /api/setup/next-task
 GET    /api/setup/progress-percentage
 GET    /api/setup/sections
@@ -7606,7 +7740,7 @@ GET    /api/zoom/status
 
 </details>
 
-### POST (1692)
+### POST (1703)
 
 <details>
 <summary>Click to expand</summary>
@@ -8260,6 +8394,10 @@ POST   /api/hr/compensation-rewards/:id/salary-increase
 POST   /api/hr/compensation-rewards/:id/submit-review
 POST   /api/hr/compensation-rewards/:id/total-rewards-statement
 POST   /api/hr/compensation-rewards/bulk-delete
+POST   /api/hr/departments
+POST   /api/hr/departments/bulk
+POST   /api/hr/designations
+POST   /api/hr/designations/bulk
 POST   /api/hr/employee-benefits
 POST   /api/hr/employee-benefits/:id/activate
 POST   /api/hr/employee-benefits/:id/beneficiaries
@@ -8395,6 +8533,9 @@ POST   /api/hr/leave-management/leave-periods/:id/activate
 POST   /api/hr/leave-management/leave-periods/:id/close
 POST   /api/hr/leave-management/leave-policies
 POST   /api/hr/leave-management/leave-policies/:id/clone
+POST   /api/hr/leave-types
+POST   /api/hr/leave-types/bulk
+POST   /api/hr/leave-types/initialize
 POST   /api/hr/offboarding
 POST   /api/hr/offboarding/:offboardingId/approve-settlement
 POST   /api/hr/offboarding/:offboardingId/calculate-settlement
@@ -8477,6 +8618,8 @@ POST   /api/hr/recruitment/jobs/:id/publish
 POST   /api/hr/recruitment/jobs/:id/status
 POST   /api/hr/self-service/leave/request
 POST   /api/hr/self-service/leave/request/:requestId/cancel
+POST   /api/hr/shift-types
+POST   /api/hr/shift-types/bulk
 POST   /api/hr/shifts/shift-assignments
 POST   /api/hr/shifts/shift-assignments/bulk
 POST   /api/hr/shifts/shift-types
@@ -8976,6 +9119,8 @@ POST   /api/settings/email/signatures
 POST   /api/settings/email/smtp/test
 POST   /api/settings/email/templates
 POST   /api/settings/email/templates/:id/preview
+POST   /api/settings/payment-modes
+POST   /api/settings/taxes
 POST   /api/setup/admin/sections
 POST   /api/setup/admin/tasks
 POST   /api/setup/reset
@@ -9308,7 +9453,7 @@ POST   /api/zoom/webhook
 
 </details>
 
-### PUT (228)
+### PUT (236)
 
 <details>
 <summary>Click to expand</summary>
@@ -9404,6 +9549,8 @@ PUT    /api/hr/asset-assignments/:id/repair/:repairId
 PUT    /api/hr/asset-assignments/:id/status
 PUT    /api/hr/compensation-rewards/:id
 PUT    /api/hr/compensation-rewards/:id/allowances/:allowanceId
+PUT    /api/hr/departments/:id
+PUT    /api/hr/designations/:id
 PUT    /api/hr/employees/:id
 PUT    /api/hr/extended/salary-components/:id
 PUT    /api/hr/extended/settings
@@ -9416,7 +9563,9 @@ PUT    /api/hr/job-positions/:id/salary-range
 PUT    /api/hr/leave-management/leave-allocations/:id
 PUT    /api/hr/leave-management/leave-periods/:id
 PUT    /api/hr/leave-management/leave-policies/:id
+PUT    /api/hr/leave-types/:id
 PUT    /api/hr/payroll/:id
+PUT    /api/hr/shift-types/:id
 PUT    /api/hr/skill-maps/:employeeId/skills
 PUT    /api/hr/transfers/:id
 PUT    /api/incomeTaxSlab/:id
@@ -9497,10 +9646,14 @@ PUT    /api/salesStage/reorder
 PUT    /api/salesTeams/:id
 PUT    /api/savedFilters/:id
 PUT    /api/security/incidents/:id
+PUT    /api/settings/crm
 PUT    /api/settings/email/signatures/:id
 PUT    /api/settings/email/signatures/:id/default
 PUT    /api/settings/email/smtp
 PUT    /api/settings/email/templates/:id
+PUT    /api/settings/finance
+PUT    /api/settings/payment-modes/:id
+PUT    /api/settings/taxes/:id
 PUT    /api/slack/settings
 PUT    /api/slas/:id
 PUT    /api/sloMonitorings/:id
@@ -9546,7 +9699,7 @@ PUT    /api/zoom/settings
 
 </details>
 
-### PATCH (186)
+### PATCH (199)
 
 <details>
 <summary>Click to expand</summary>
@@ -9655,6 +9808,7 @@ PATCH  /api/hr/recruitment/applicants/:id/references/:referenceId
 PATCH  /api/hr/recruitment/applicants/:id/talent-pool
 PATCH  /api/hr/recruitment/jobs/:id
 PATCH  /api/hr/self-service/profile
+PATCH  /api/hr/shift-types/:id/default
 PATCH  /api/hr/shifts/shift-assignments/:id
 PATCH  /api/hr/shifts/shift-types/:id
 PATCH  /api/hr/skill-maps/:employeeId/skills/:skillId
@@ -9704,7 +9858,19 @@ PATCH  /api/saved-reports/widgets/:id
 PATCH  /api/saved-reports/widgets/layout
 PATCH  /api/savedFilters/:id
 PATCH  /api/security/incidents/:id/status
+PATCH  /api/settings/account
 PATCH  /api/settings/ai/preferences
+PATCH  /api/settings/appearance
+PATCH  /api/settings/display
+PATCH  /api/settings/hr
+PATCH  /api/settings/hr/attendance
+PATCH  /api/settings/hr/employee
+PATCH  /api/settings/hr/expense
+PATCH  /api/settings/hr/leave
+PATCH  /api/settings/hr/payroll
+PATCH  /api/settings/notifications
+PATCH  /api/settings/payment-modes/:id/default
+PATCH  /api/settings/taxes/:id/default
 PATCH  /api/setup/admin/sections/:sectionId
 PATCH  /api/setup/admin/tasks/:taskId
 PATCH  /api/staff/:id
@@ -9742,7 +9908,7 @@ PATCH  /api/webhooks/:id
 
 </details>
 
-### DELETE (290)
+### DELETE (296)
 
 <details>
 <summary>Click to expand</summary>
@@ -9873,6 +10039,8 @@ DELETE /api/hr/advances/:advanceId
 DELETE /api/hr/asset-assignments/:id
 DELETE /api/hr/compensation-rewards/:id
 DELETE /api/hr/compensation-rewards/:id/allowances/:allowanceId
+DELETE /api/hr/departments/:id
+DELETE /api/hr/designations/:id
 DELETE /api/hr/employee-benefits/:id
 DELETE /api/hr/employee-benefits/:id/beneficiaries/:beneficiaryId
 DELETE /api/hr/employee-benefits/:id/dependents/:memberId
@@ -9891,6 +10059,7 @@ DELETE /api/hr/job-positions/:id
 DELETE /api/hr/leave-management/leave-allocations/:id
 DELETE /api/hr/leave-management/leave-periods/:id
 DELETE /api/hr/leave-management/leave-policies/:id
+DELETE /api/hr/leave-types/:id
 DELETE /api/hr/offboarding/:offboardingId
 DELETE /api/hr/okrs/:id
 DELETE /api/hr/onboarding/:onboardingId
@@ -9901,6 +10070,7 @@ DELETE /api/hr/payroll/:id
 DELETE /api/hr/performance-reviews/:id
 DELETE /api/hr/recruitment/applicants/:id
 DELETE /api/hr/recruitment/jobs/:id
+DELETE /api/hr/shift-types/:id
 DELETE /api/hr/shifts/shift-assignments/:id
 DELETE /api/hr/shifts/shift-types/:id
 DELETE /api/hr/skill-maps/:employeeId/skills/:skillId
@@ -9993,6 +10163,8 @@ DELETE /api/security/csp-violations
 DELETE /api/settings/ai/keys/:provider
 DELETE /api/settings/email/signatures/:id
 DELETE /api/settings/email/templates/:id
+DELETE /api/settings/payment-modes/:id
+DELETE /api/settings/taxes/:id
 DELETE /api/setup/admin/sections/:sectionId
 DELETE /api/setup/admin/tasks/:taskId
 DELETE /api/slas/:id
