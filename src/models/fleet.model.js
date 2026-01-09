@@ -1837,15 +1837,16 @@ driverProfileSchema.statics.getDriverRankings = async function(firmQuery, limit 
 // EXPORTS
 // ═══════════════════════════════════════════════════════════════
 
-const Vehicle = mongoose.model('Vehicle', vehicleSchema);
-const FuelLog = mongoose.model('FuelLog', fuelLogSchema);
-const MaintenanceRecord = mongoose.model('MaintenanceRecord', maintenanceRecordSchema);
-const VehicleAssignment = mongoose.model('VehicleAssignment', vehicleAssignmentSchema);
-const VehicleInspection = mongoose.model('VehicleInspection', vehicleInspectionSchema);
-const TripLog = mongoose.model('TripLog', tripLogSchema);
-const VehicleIncident = mongoose.model('VehicleIncident', vehicleIncidentSchema);
-const GpsLocationHistory = mongoose.model('GpsLocationHistory', gpsLocationHistorySchema);
-const DriverProfile = mongoose.model('DriverProfile', driverProfileSchema);
+// Use existing model if already registered (vehicle.model.js may have registered it first)
+const Vehicle = mongoose.models.Vehicle || mongoose.model('Vehicle', vehicleSchema);
+const FuelLog = mongoose.models.FuelLog || mongoose.model('FuelLog', fuelLogSchema);
+const MaintenanceRecord = mongoose.models.MaintenanceRecord || mongoose.model('MaintenanceRecord', maintenanceRecordSchema);
+const VehicleAssignment = mongoose.models.VehicleAssignment || mongoose.model('VehicleAssignment', vehicleAssignmentSchema);
+const VehicleInspection = mongoose.models.VehicleInspection || mongoose.model('VehicleInspection', vehicleInspectionSchema);
+const TripLog = mongoose.models.TripLog || mongoose.model('TripLog', tripLogSchema);
+const VehicleIncident = mongoose.models.VehicleIncident || mongoose.model('VehicleIncident', vehicleIncidentSchema);
+const GpsLocationHistory = mongoose.models.GpsLocationHistory || mongoose.model('GpsLocationHistory', gpsLocationHistorySchema);
+const DriverProfile = mongoose.models.DriverProfile || mongoose.model('DriverProfile', driverProfileSchema);
 
 module.exports = {
     Vehicle,
