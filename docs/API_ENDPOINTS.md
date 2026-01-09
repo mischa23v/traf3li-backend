@@ -56,6 +56,7 @@
 - [cloudStorages](#cloudstorages) (13 endpoints)
 - [commandPalettes](#commandpalettes) (9 endpoints)
 - [compensationReward](#compensationreward) (24 endpoints)
+- [compensatoryLeave](#compensatoryleave) (21 endpoints)
 - [competitor](#competitor) (6 endpoints)
 - [competitors](#competitors) (7 endpoints)
 - [complianceDashboard](#compliancedashboard) (8 endpoints)
@@ -153,6 +154,8 @@
 - [leadConversion](#leadconversion) (6 endpoints)
 - [leadScoring](#leadscoring) (19 endpoints)
 - [leadSource](#leadsource) (6 endpoints)
+- [leaveAllocation](#leaveallocation) (20 endpoints)
+- [leaveEncashment](#leaveencashment) (20 endpoints)
 - [leaveManagement](#leavemanagement) (26 endpoints)
 - [leaveRequest](#leaverequest) (20 endpoints)
 - [legalContract](#legalcontract) (33 endpoints)
@@ -289,8 +292,8 @@
 
 | Metric | Count |
 |--------|-------|
-| Total Endpoints | 4339 |
-| Total Modules | 276 |
+| Total Endpoints | 4400 |
+| Total Modules | 279 |
 
 ---
 
@@ -1390,6 +1393,32 @@
 | `POST` | `/api/hr/compensation-rewards/:id/decline-review` | unknown | compensationReward.route.js |
 | `POST` | `/api/hr/compensation-rewards/:id/recognition` | unknown | compensationReward.route.js |
 | `POST` | `/api/hr/compensation-rewards/:id/total-rewards-statement` | unknown | compensationReward.route.js |
+
+## compensatoryLeave
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/compensatory-leave-requests` | unknown | compensatoryLeave.route.js |
+| `GET` | `/api/compensatory-leave-requests/pending-approvals` | unknown | compensatoryLeave.route.js |
+| `GET` | `/api/compensatory-leave-requests/stats` | unknown | compensatoryLeave.route.js |
+| `GET` | `/api/compensatory-leave-requests/policy` | unknown | compensatoryLeave.route.js |
+| `GET` | `/api/compensatory-leave-requests/balance/:employeeId` | unknown | compensatoryLeave.route.js |
+| `GET` | `/api/compensatory-leave-requests/holiday-work-records` | unknown | compensatoryLeave.route.js |
+| `GET` | `/api/compensatory-leave-requests/expiring` | unknown | compensatoryLeave.route.js |
+| `GET` | `/api/compensatory-leave-requests/export` | unknown | compensatoryLeave.route.js |
+| `GET` | `/api/compensatory-leave-requests/:id` | unknown | compensatoryLeave.route.js |
+| `POST` | `/api/compensatory-leave-requests` | unknown | compensatoryLeave.route.js |
+| `POST` | `/api/compensatory-leave-requests/calculate-days` | unknown | compensatoryLeave.route.js |
+| `POST` | `/api/compensatory-leave-requests/expire-unused` | unknown | compensatoryLeave.route.js |
+| `PATCH` | `/api/compensatory-leave-requests/:id` | unknown | compensatoryLeave.route.js |
+| `DELETE` | `/api/compensatory-leave-requests/:id` | unknown | compensatoryLeave.route.js |
+| `POST` | `/api/compensatory-leave-requests/:id/submit` | unknown | compensatoryLeave.route.js |
+| `POST` | `/api/compensatory-leave-requests/:id/approve` | unknown | compensatoryLeave.route.js |
+| `POST` | `/api/compensatory-leave-requests/:id/reject` | unknown | compensatoryLeave.route.js |
+| `POST` | `/api/compensatory-leave-requests/:id/cancel` | unknown | compensatoryLeave.route.js |
+| `POST` | `/api/compensatory-leave-requests/:requestId/documents` | unknown | compensatoryLeave.route.js |
+| `POST` | `/api/compensatory-leave-requests/bulk-approve` | unknown | compensatoryLeave.route.js |
+| `POST` | `/api/compensatory-leave-requests/bulk-reject` | unknown | compensatoryLeave.route.js |
 
 ## competitor
 
@@ -3369,6 +3398,56 @@
 | `POST` | `/api/leadSource/defaults` | unknown | leadSource.route.js |
 | `PUT` | `/api/leadSource/:id` | unknown | leadSource.route.js |
 | `DELETE` | `/api/leadSource/:id` | unknown | leadSource.route.js |
+
+## leaveAllocation
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/leave-allocations` | unknown | leaveAllocation.route.js |
+| `GET` | `/api/leave-allocations/balance/:employeeId` | unknown | leaveAllocation.route.js |
+| `GET` | `/api/leave-allocations/employee/:employeeId/all` | unknown | leaveAllocation.route.js |
+| `GET` | `/api/leave-allocations/history/:employeeId` | unknown | leaveAllocation.route.js |
+| `GET` | `/api/leave-allocations/summary/:leavePeriodId` | unknown | leaveAllocation.route.js |
+| `GET` | `/api/leave-allocations/low-balance` | unknown | leaveAllocation.route.js |
+| `GET` | `/api/leave-allocations/expiring-carry-forward` | unknown | leaveAllocation.route.js |
+| `GET` | `/api/leave-allocations/carry-forward/summary` | unknown | leaveAllocation.route.js |
+| `GET` | `/api/leave-allocations/statistics` | unknown | leaveAllocation.route.js |
+| `GET` | `/api/leave-allocations/:id` | unknown | leaveAllocation.route.js |
+| `POST` | `/api/leave-allocations` | unknown | leaveAllocation.route.js |
+| `POST` | `/api/leave-allocations/bulk` | unknown | leaveAllocation.route.js |
+| `POST` | `/api/leave-allocations/carry-forward` | unknown | leaveAllocation.route.js |
+| `POST` | `/api/leave-allocations/carry-forward/process-all` | unknown | leaveAllocation.route.js |
+| `POST` | `/api/leave-allocations/carry-forward/expire` | unknown | leaveAllocation.route.js |
+| `PATCH` | `/api/leave-allocations/:id` | unknown | leaveAllocation.route.js |
+| `PATCH` | `/api/leave-allocations/:id/update-balance` | unknown | leaveAllocation.route.js |
+| `POST` | `/api/leave-allocations/:id/adjust` | unknown | leaveAllocation.route.js |
+| `POST` | `/api/leave-allocations/:id/encash` | unknown | leaveAllocation.route.js |
+| `DELETE` | `/api/leave-allocations/:id` | unknown | leaveAllocation.route.js |
+
+## leaveEncashment
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/leave-encashments` | unknown | leaveEncashment.route.js |
+| `GET` | `/api/leave-encashments/pending-approvals` | unknown | leaveEncashment.route.js |
+| `GET` | `/api/leave-encashments/stats` | unknown | leaveEncashment.route.js |
+| `GET` | `/api/leave-encashments/policy` | unknown | leaveEncashment.route.js |
+| `GET` | `/api/leave-encashments/eligibility/:employeeId` | unknown | leaveEncashment.route.js |
+| `GET` | `/api/leave-encashments/employee/:employeeId` | unknown | leaveEncashment.route.js |
+| `GET` | `/api/leave-encashments/export` | unknown | leaveEncashment.route.js |
+| `GET` | `/api/leave-encashments/:id` | unknown | leaveEncashment.route.js |
+| `POST` | `/api/leave-encashments` | unknown | leaveEncashment.route.js |
+| `POST` | `/api/leave-encashments/calculate` | unknown | leaveEncashment.route.js |
+| `PATCH` | `/api/leave-encashments/:id` | unknown | leaveEncashment.route.js |
+| `DELETE` | `/api/leave-encashments/:id` | unknown | leaveEncashment.route.js |
+| `POST` | `/api/leave-encashments/:id/submit` | unknown | leaveEncashment.route.js |
+| `POST` | `/api/leave-encashments/:id/approve` | unknown | leaveEncashment.route.js |
+| `POST` | `/api/leave-encashments/:id/reject` | unknown | leaveEncashment.route.js |
+| `POST` | `/api/leave-encashments/:id/mark-paid` | unknown | leaveEncashment.route.js |
+| `POST` | `/api/leave-encashments/:id/process` | unknown | leaveEncashment.route.js |
+| `POST` | `/api/leave-encashments/:id/cancel` | unknown | leaveEncashment.route.js |
+| `POST` | `/api/leave-encashments/bulk-approve` | unknown | leaveEncashment.route.js |
+| `POST` | `/api/leave-encashments/bulk-reject` | unknown | leaveEncashment.route.js |
 
 ## leaveManagement
 
@@ -6017,7 +6096,7 @@
 
 ## Quick Reference by Method
 
-### GET (1868)
+### GET (1895)
 
 <details>
 <summary>Click to expand</summary>
@@ -6396,6 +6475,15 @@ GET    /api/commandPalettes/commands
 GET    /api/commandPalettes/recent
 GET    /api/commandPalettes/saved-searches
 GET    /api/commandPalettes/search
+GET    /api/compensatory-leave-requests
+GET    /api/compensatory-leave-requests/:id
+GET    /api/compensatory-leave-requests/balance/:employeeId
+GET    /api/compensatory-leave-requests/expiring
+GET    /api/compensatory-leave-requests/export
+GET    /api/compensatory-leave-requests/holiday-work-records
+GET    /api/compensatory-leave-requests/pending-approvals
+GET    /api/compensatory-leave-requests/policy
+GET    /api/compensatory-leave-requests/stats
 GET    /api/competitors
 GET    /api/competitors
 GET    /api/competitors/:id
@@ -7237,6 +7325,24 @@ GET    /api/leads/pipeline/:pipelineId?
 GET    /api/leads/stats
 GET    /api/leadSource
 GET    /api/leadSource/:id
+GET    /api/leave-allocations
+GET    /api/leave-allocations/:id
+GET    /api/leave-allocations/balance/:employeeId
+GET    /api/leave-allocations/carry-forward/summary
+GET    /api/leave-allocations/employee/:employeeId/all
+GET    /api/leave-allocations/expiring-carry-forward
+GET    /api/leave-allocations/history/:employeeId
+GET    /api/leave-allocations/low-balance
+GET    /api/leave-allocations/statistics
+GET    /api/leave-allocations/summary/:leavePeriodId
+GET    /api/leave-encashments
+GET    /api/leave-encashments/:id
+GET    /api/leave-encashments/eligibility/:employeeId
+GET    /api/leave-encashments/employee/:employeeId
+GET    /api/leave-encashments/export
+GET    /api/leave-encashments/pending-approvals
+GET    /api/leave-encashments/policy
+GET    /api/leave-encashments/stats
 GET    /api/leave-requests
 GET    /api/leave-requests/:id
 GET    /api/leave-requests/balance/:employeeId
@@ -7895,7 +8001,7 @@ GET    /api/zoom/status
 
 </details>
 
-### POST (1724)
+### POST (1751)
 
 <details>
 <summary>Click to expand</summary>
@@ -8241,6 +8347,16 @@ POST   /api/commandPalettes/saved-searches
 POST   /api/commandPalettes/track/command
 POST   /api/commandPalettes/track/record
 POST   /api/commandPalettes/track/search
+POST   /api/compensatory-leave-requests
+POST   /api/compensatory-leave-requests/:id/approve
+POST   /api/compensatory-leave-requests/:id/cancel
+POST   /api/compensatory-leave-requests/:id/reject
+POST   /api/compensatory-leave-requests/:id/submit
+POST   /api/compensatory-leave-requests/:requestId/documents
+POST   /api/compensatory-leave-requests/bulk-approve
+POST   /api/compensatory-leave-requests/bulk-reject
+POST   /api/compensatory-leave-requests/calculate-days
+POST   /api/compensatory-leave-requests/expire-unused
 POST   /api/competitors
 POST   /api/competitors
 POST   /api/competitors/:id/record-loss
@@ -8964,6 +9080,23 @@ POST   /api/leads/:id/verify/wathq
 POST   /api/leads/bulk-delete
 POST   /api/leadSource
 POST   /api/leadSource/defaults
+POST   /api/leave-allocations
+POST   /api/leave-allocations/:id/adjust
+POST   /api/leave-allocations/:id/encash
+POST   /api/leave-allocations/bulk
+POST   /api/leave-allocations/carry-forward
+POST   /api/leave-allocations/carry-forward/expire
+POST   /api/leave-allocations/carry-forward/process-all
+POST   /api/leave-encashments
+POST   /api/leave-encashments/:id/approve
+POST   /api/leave-encashments/:id/cancel
+POST   /api/leave-encashments/:id/mark-paid
+POST   /api/leave-encashments/:id/process
+POST   /api/leave-encashments/:id/reject
+POST   /api/leave-encashments/:id/submit
+POST   /api/leave-encashments/bulk-approve
+POST   /api/leave-encashments/bulk-reject
+POST   /api/leave-encashments/calculate
 POST   /api/leave-requests
 POST   /api/leave-requests/:id/approve
 POST   /api/leave-requests/:id/cancel
@@ -9878,7 +10011,7 @@ PUT    /api/zoom/settings
 
 </details>
 
-### PATCH (208)
+### PATCH (212)
 
 <details>
 <summary>Click to expand</summary>
@@ -9929,6 +10062,7 @@ PATCH  /api/chat/conversations/:conversationId
 PATCH  /api/chatterFollowers/:model/:recordId/followers/:id/preferences
 PATCH  /api/clients/:id/flags
 PATCH  /api/clients/:id/status
+PATCH  /api/compensatory-leave-requests/:id
 PATCH  /api/conflict-checks/:id
 PATCH  /api/contacts/:id
 PATCH  /api/contracts/:contractId
@@ -10015,6 +10149,9 @@ PATCH  /api/invoices/:_id
 PATCH  /api/invoices/:id
 PATCH  /api/jobs/:_id
 PATCH  /api/journal-entries/:id
+PATCH  /api/leave-allocations/:id
+PATCH  /api/leave-allocations/:id/update-balance
+PATCH  /api/leave-encashments/:id
 PATCH  /api/leave-requests/:id
 PATCH  /api/legalDocument/:_id
 PATCH  /api/lockDates/:lockType
@@ -10096,7 +10233,7 @@ PATCH  /api/webhooks/:id
 
 </details>
 
-### DELETE (300)
+### DELETE (303)
 
 <details>
 <summary>Click to expand</summary>
@@ -10167,6 +10304,7 @@ DELETE /api/clients/:id/attachments/:attachmentId
 DELETE /api/clients/bulk
 DELETE /api/cloudStorages/:provider/files/:fileId
 DELETE /api/commandPalettes/saved-searches/:name
+DELETE /api/compensatory-leave-requests/:id
 DELETE /api/competitors/:id
 DELETE /api/competitors/:id
 DELETE /api/conflict-checks/:id
@@ -10288,6 +10426,8 @@ DELETE /api/journal-entries/:id
 DELETE /api/keyboardShortcuts/:id
 DELETE /api/leads/:id
 DELETE /api/leadSource/:id
+DELETE /api/leave-allocations/:id
+DELETE /api/leave-encashments/:id
 DELETE /api/leave-requests/:id
 DELETE /api/legalDocument/:_id
 DELETE /api/lifecycles/workflows/:id

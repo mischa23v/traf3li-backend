@@ -306,6 +306,11 @@ const settingsAliasRoute = require('./settingsAlias.route');
 // CRM Alias Routes (lead sources, sales stages, CRM reports)
 const crmAliasRoute = require('./crmAlias.route');
 
+// Leave Management Routes (encashment, allocation, compensatory)
+const leaveEncashmentRoute = require('./leaveEncashment.route');
+const leaveAllocationRoute = require('./leaveAllocation.route');
+const compensatoryLeaveRoute = require('./compensatoryLeave.route');
+
 // Who's Out Calendar & Compliance Dashboard Routes
 const whosOutRoute = require('./whosOut.route');
 const complianceDashboardRoute = require('./complianceDashboard.route');
@@ -727,6 +732,11 @@ module.exports = {
 
     // CRM Alias Routes
     crmAliasRoute,
+
+    // Leave Management Routes
+    leaveEncashmentRoute,
+    leaveAllocationRoute,
+    compensatoryLeaveRoute,
 
     // Who's Out Calendar & Compliance Dashboard
     whosOutRoute,

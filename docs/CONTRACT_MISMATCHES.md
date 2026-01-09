@@ -1,12 +1,12 @@
 # Frontend vs Backend Contract Mismatch Report
 
-> Generated: 2026-01-09T10:02:54.108Z
+> Generated: 2026-01-09T10:15:01.810Z
 
 ## Summary
 
 | Category | Frontend Only | Backend Only | Mismatches |
 |----------|--------------|--------------|------------|
-| API Endpoints | 889 | 2290 | 122 |
+| API Endpoints | 823 | 2290 | 127 |
 | Interfaces/Entities | 2871 | 154 | 0 |
 | Enums | 88 | 2138 | 0 |
 | Type Aliases | 167 | 0 | - |
@@ -159,33 +159,6 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | GET | `/api/settings/sales/import` | services/salesSettingsService.ts |
 | GET | `/api/settings/sales/validate` | services/salesSettingsService.ts |
 
-### leave-encashments (22 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/leave-encashments/${id}` | services/leaveEncashmentService.ts |
-| POST | `/leave-encashments` | services/leaveEncashmentService.ts |
-| PATCH | `/leave-encashments/${id}` | services/leaveEncashmentService.ts |
-| DELETE | `/leave-encashments/${id}` | services/leaveEncashmentService.ts |
-| POST | `/leave-encashments/${id}/submit` | services/leaveEncashmentService.ts |
-| POST | `/leave-encashments/calculate` | services/leaveEncashmentService.ts |
-| GET | `/leave-encashments/eligibility/${employeeId}` | services/leaveEncashmentService.ts |
-| POST | `/leave-encashments/${id}/approve` | services/leaveEncashmentService.ts |
-| POST | `/leave-encashments/${id}/reject` | services/leaveEncashmentService.ts |
-| POST | `/leave-encashments/${id}/mark-paid` | services/leaveEncashmentService.ts |
-| POST | `/leave-encashments/${id}/process` | services/leaveEncashmentService.ts |
-| POST | `/leave-encashments/${id}/cancel` | services/leaveEncashmentService.ts |
-| GET | `/leave-encashments/stats?${params.toString()}` | services/leaveEncashmentService.ts |
-| GET | `/leave-encashments/pending-approvals` | services/leaveEncashmentService.ts |
-| GET | `/leave-encashments/employee/${employeeId}` | services/leaveEncashmentService.ts |
-| POST | `/leave-encashments/bulk-approve` | services/leaveEncashmentService.ts |
-| POST | `/leave-encashments/bulk-reject` | services/leaveEncashmentService.ts |
-| GET | `/leave-encashments/export?${params.toString()}` | services/leaveEncashmentService.ts |
-| GET | `/leave-encashments/policy` | services/leaveEncashmentService.ts |
-| POST | `/leave-encashments/:param` | services/leaveEncashmentService.ts |
-| POST | `/leave-encashments/eligibility/:param` | services/leaveEncashmentService.ts |
-| POST | `/leave-encashments/export?:param` | services/leaveEncashmentService.ts |
-
 ### products (22 missing)
 
 | Method | Endpoint | Source File |
@@ -239,57 +212,6 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | GET | `/subscriptions/upcoming-renewals` | services/subscriptionService.ts |
 | GET | `/subscriptions/past-due` | services/subscriptionService.ts |
 | POST | `/subscriptions/:param` | services/subscriptionService.ts |
-
-### compensatory-leave-requests (21 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/compensatory-leave-requests/${id}` | services/compensatoryLeaveService.ts |
-| POST | `/compensatory-leave-requests` | services/compensatoryLeaveService.ts |
-| PATCH | `/compensatory-leave-requests/${id}` | services/compensatoryLeaveService.ts |
-| DELETE | `/compensatory-leave-requests/${id}` | services/compensatoryLeaveService.ts |
-| POST | `/compensatory-leave-requests/${id}/submit` | services/compensatoryLeaveService.ts |
-| POST | `/compensatory-leave-requests/calculate-days` | services/compensatoryLeaveService.ts |
-| POST | `/compensatory-leave-requests/${id}/approve` | services/compensatoryLeaveService.ts |
-| POST | `/compensatory-leave-requests/${id}/reject` | services/compensatoryLeaveService.ts |
-| POST | `/compensatory-leave-requests/${id}/cancel` | services/compensatoryLeaveService.ts |
-| GET | `/compensatory-leave-requests/balance/${employeeId}` | services/compensatoryLeaveService.ts |
-| POST | `/compensatory-leave-requests/expire-unused?${params.toString()}` | services/compensatoryLeaveService.ts |
-| GET | `/compensatory-leave-requests/holiday-work-records?${params.toString()}` | services/compensatoryLeaveService.ts |
-| GET | `/compensatory-leave-requests/stats?${params.toString()}` | services/compensatoryLeaveService.ts |
-| GET | `/compensatory-leave-requests/pending-approvals` | services/compensatoryLeaveService.ts |
-| GET | `/compensatory-leave-requests/expiring?${params.toString()}` | services/compensatoryLeaveService.ts |
-| POST | `/compensatory-leave-requests/${requestId}/documents` | services/compensatoryLeaveService.ts |
-| GET | `/compensatory-leave-requests/export?${params.toString()}` | services/compensatoryLeaveService.ts |
-| POST | `/compensatory-leave-requests/bulk-approve` | services/compensatoryLeaveService.ts |
-| POST | `/compensatory-leave-requests/bulk-reject` | services/compensatoryLeaveService.ts |
-| GET | `/compensatory-leave-requests/policy` | services/compensatoryLeaveService.ts |
-| POST | `/compensatory-leave-requests/:param` | services/compensatoryLeaveService.ts |
-
-### leave-allocations (20 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/leave-allocations/${allocationId}` | services/leaveAllocationService.ts |
-| POST | `/leave-allocations` | services/leaveAllocationService.ts |
-| PATCH | `/leave-allocations/${allocationId}` | services/leaveAllocationService.ts |
-| DELETE | `/leave-allocations/${allocationId}` | services/leaveAllocationService.ts |
-| GET | `/leave-allocations/balance/${employeeId}?${params.toString()}` | services/leaveAllocationService.ts |
-| GET | `/leave-allocations/employee/${employeeId}/all` | services/leaveAllocationService.ts |
-| POST | `/leave-allocations/bulk` | services/leaveAllocationService.ts |
-| POST | `/leave-allocations/carry-forward` | services/leaveAllocationService.ts |
-| POST | `/leave-allocations/carry-forward/process-all` | services/leaveAllocationService.ts |
-| POST | `/leave-allocations/carry-forward/expire?${params.toString()}` | services/leaveAllocationService.ts |
-| PATCH | `/leave-allocations/${allocationId}/update-balance` | services/leaveAllocationService.ts |
-| POST | `/leave-allocations/${allocationId}/encash` | services/leaveAllocationService.ts |
-| GET | `/leave-allocations/summary/${leavePeriodId}?${params.toString()}` | services/leaveAllocationService.ts |
-| GET | `/leave-allocations/carry-forward/summary?${params.toString()}` | services/leaveAllocationService.ts |
-| GET | `/leave-allocations/low-balance?${params.toString()}` | services/leaveAllocationService.ts |
-| GET | `/leave-allocations/expiring-carry-forward?${params.toString()}` | services/leaveAllocationService.ts |
-| POST | `/leave-allocations/${allocationId}/adjust` | services/leaveAllocationService.ts |
-| GET | `/leave-allocations/history/${employeeId}?${params.toString()}` | services/leaveAllocationService.ts |
-| GET | `/leave-allocations/statistics?${params.toString()}` | services/leaveAllocationService.ts |
-| POST | `/leave-allocations/:param` | services/leaveAllocationService.ts |
 
 ### corporate-cards (19 missing)
 
@@ -1252,12 +1174,6 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 |--------|----------|-------------|
 | DELETE | `/case-workflows/${id}` | services/caseWorkflowsService.ts |
 
-### compensatory-leave-requests?${params.toString()} (1 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/compensatory-leave-requests?${params.toString()}` | services/compensatoryLeaveService.ts |
-
 ### consent (1 missing)
 
 | Method | Endpoint | Source File |
@@ -1281,18 +1197,6 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | Method | Endpoint | Source File |
 |--------|----------|-------------|
 | GET | `/income-tax-slabs?${params.toString()}` | services/incomeTaxSlabsService.ts |
-
-### leave-allocations?${params.toString()} (1 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/leave-allocations?${params.toString()}` | services/leaveAllocationService.ts |
-
-### leave-encashments?${params.toString()} (1 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/leave-encashments?${params.toString()}` | services/leaveEncashmentService.ts |
 
 ### leave-periods?${params.toString()} (1 missing)
 
@@ -2045,6 +1949,7 @@ Frontend calls with different HTTP method than backend expects.
 | `/bank-transfers/:param` | POST | GET |
 | `/hr/employee-benefits/:param` | POST | GET |
 | `/hr/compensation-rewards/:param` | POST | GET |
+| `/compensatory-leave-requests/:param` | POST | GET |
 | `/conflict-checks/:param` | POST | GET |
 | `/contacts/:param` | POST | GET |
 | `/contacts/search?q=:param` | DELETE | GET |
@@ -2073,6 +1978,10 @@ Frontend calls with different HTTP method than backend expects.
 | `/hr/grievances/:param` | POST | GET |
 | `/hr/grievances/:param/acknowledge` | GET | POST |
 | `/api/inter-company/transactions/${id}` | DELETE | GET |
+| `/leave-allocations/:param` | POST | GET |
+| `/leave-encashments/:param` | POST | GET |
+| `/leave-encashments/eligibility/:param` | POST | GET |
+| `/leave-encashments/export?:param` | POST | GET |
 | `/hr/leave-policies/:param` | POST | GET |
 | `/hr/leave-policy-assignments/employee/:param/current` | POST | GET |
 | `/leave-requests/:param` | POST | GET |
@@ -2537,8 +2446,8 @@ Enums in backend models not exposed to frontend.
 ## Action Items
 
 ### 🔴 Critical (Will Break App)
-1. Add 889 missing backend endpoints
-2. Fix 122 HTTP method mismatches
+1. Add 823 missing backend endpoints
+2. Fix 127 HTTP method mismatches
 3. Sync 0 enum value differences
 
 ### 🟡 Important (May Cause Issues)

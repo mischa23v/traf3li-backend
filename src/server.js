@@ -419,6 +419,11 @@ const {
     // CRM Alias Routes
     crmAliasRoute,
 
+    // Leave Management Routes
+    leaveEncashmentRoute,
+    leaveAllocationRoute,
+    compensatoryLeaveRoute,
+
     // Unified Data Flow
     unifiedDataRoute,
 
@@ -1159,6 +1164,9 @@ app.use('/api/hr/salary-components', noCache, hrSalaryComponentsRoute); // HR sa
 app.use('/api/hr/payroll', noCache, payrollRoute); // Critical: No cache for payroll
 app.use('/api/hr/payroll-runs', noCache, payrollRunRoute);
 app.use('/api/leave-requests', leaveRequestRoute);
+app.use('/api/leave-encashments', noCache, leaveEncashmentRoute); // Leave encashment requests
+app.use('/api/leave-allocations', noCache, leaveAllocationRoute); // Leave allocations & balances
+app.use('/api/compensatory-leave-requests', noCache, compensatoryLeaveRoute); // Compensatory leave
 app.use('/api/attendance', noCache, attendanceRoute);
 app.use('/api/hr/performance-reviews', noCache, performanceReviewRoute);
 app.use('/api/hr/recruitment', recruitmentRoute);

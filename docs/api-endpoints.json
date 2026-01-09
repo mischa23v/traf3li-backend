@@ -1,7 +1,7 @@
 {
-  "generated": "2026-01-09T10:02:42.873Z",
-  "totalEndpoints": 4339,
-  "totalModules": 276,
+  "generated": "2026-01-09T10:14:54.536Z",
+  "totalEndpoints": 4400,
+  "totalModules": 279,
   "modules": {
     "account": [
       {
@@ -6877,6 +6877,176 @@
         "file": "compensationReward.route.js",
         "fullPath": "/api/hr/compensation-rewards/:id/total-rewards-statement",
         "module": "compensationReward"
+      }
+    ],
+    "compensatoryLeave": [
+      {
+        "method": "GET",
+        "path": "/",
+        "controller": "unknown",
+        "file": "compensatoryLeave.route.js",
+        "fullPath": "/api/compensatory-leave-requests",
+        "module": "compensatoryLeave"
+      },
+      {
+        "method": "GET",
+        "path": "/pending-approvals",
+        "controller": "unknown",
+        "file": "compensatoryLeave.route.js",
+        "fullPath": "/api/compensatory-leave-requests/pending-approvals",
+        "module": "compensatoryLeave"
+      },
+      {
+        "method": "GET",
+        "path": "/stats",
+        "controller": "unknown",
+        "file": "compensatoryLeave.route.js",
+        "fullPath": "/api/compensatory-leave-requests/stats",
+        "module": "compensatoryLeave"
+      },
+      {
+        "method": "GET",
+        "path": "/policy",
+        "controller": "unknown",
+        "file": "compensatoryLeave.route.js",
+        "fullPath": "/api/compensatory-leave-requests/policy",
+        "module": "compensatoryLeave"
+      },
+      {
+        "method": "GET",
+        "path": "/balance/:employeeId",
+        "controller": "unknown",
+        "file": "compensatoryLeave.route.js",
+        "fullPath": "/api/compensatory-leave-requests/balance/:employeeId",
+        "module": "compensatoryLeave"
+      },
+      {
+        "method": "GET",
+        "path": "/holiday-work-records",
+        "controller": "unknown",
+        "file": "compensatoryLeave.route.js",
+        "fullPath": "/api/compensatory-leave-requests/holiday-work-records",
+        "module": "compensatoryLeave"
+      },
+      {
+        "method": "GET",
+        "path": "/expiring",
+        "controller": "unknown",
+        "file": "compensatoryLeave.route.js",
+        "fullPath": "/api/compensatory-leave-requests/expiring",
+        "module": "compensatoryLeave"
+      },
+      {
+        "method": "GET",
+        "path": "/export",
+        "controller": "unknown",
+        "file": "compensatoryLeave.route.js",
+        "fullPath": "/api/compensatory-leave-requests/export",
+        "module": "compensatoryLeave"
+      },
+      {
+        "method": "GET",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "compensatoryLeave.route.js",
+        "fullPath": "/api/compensatory-leave-requests/:id",
+        "module": "compensatoryLeave"
+      },
+      {
+        "method": "POST",
+        "path": "/",
+        "controller": "unknown",
+        "file": "compensatoryLeave.route.js",
+        "fullPath": "/api/compensatory-leave-requests",
+        "module": "compensatoryLeave"
+      },
+      {
+        "method": "POST",
+        "path": "/calculate-days",
+        "controller": "unknown",
+        "file": "compensatoryLeave.route.js",
+        "fullPath": "/api/compensatory-leave-requests/calculate-days",
+        "module": "compensatoryLeave"
+      },
+      {
+        "method": "POST",
+        "path": "/expire-unused",
+        "controller": "unknown",
+        "file": "compensatoryLeave.route.js",
+        "fullPath": "/api/compensatory-leave-requests/expire-unused",
+        "module": "compensatoryLeave"
+      },
+      {
+        "method": "PATCH",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "compensatoryLeave.route.js",
+        "fullPath": "/api/compensatory-leave-requests/:id",
+        "module": "compensatoryLeave"
+      },
+      {
+        "method": "DELETE",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "compensatoryLeave.route.js",
+        "fullPath": "/api/compensatory-leave-requests/:id",
+        "module": "compensatoryLeave"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/submit",
+        "controller": "unknown",
+        "file": "compensatoryLeave.route.js",
+        "fullPath": "/api/compensatory-leave-requests/:id/submit",
+        "module": "compensatoryLeave"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/approve",
+        "controller": "unknown",
+        "file": "compensatoryLeave.route.js",
+        "fullPath": "/api/compensatory-leave-requests/:id/approve",
+        "module": "compensatoryLeave"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/reject",
+        "controller": "unknown",
+        "file": "compensatoryLeave.route.js",
+        "fullPath": "/api/compensatory-leave-requests/:id/reject",
+        "module": "compensatoryLeave"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/cancel",
+        "controller": "unknown",
+        "file": "compensatoryLeave.route.js",
+        "fullPath": "/api/compensatory-leave-requests/:id/cancel",
+        "module": "compensatoryLeave"
+      },
+      {
+        "method": "POST",
+        "path": "/:requestId/documents",
+        "controller": "unknown",
+        "file": "compensatoryLeave.route.js",
+        "fullPath": "/api/compensatory-leave-requests/:requestId/documents",
+        "module": "compensatoryLeave"
+      },
+      {
+        "method": "POST",
+        "path": "/bulk-approve",
+        "controller": "unknown",
+        "file": "compensatoryLeave.route.js",
+        "fullPath": "/api/compensatory-leave-requests/bulk-approve",
+        "module": "compensatoryLeave"
+      },
+      {
+        "method": "POST",
+        "path": "/bulk-reject",
+        "controller": "unknown",
+        "file": "compensatoryLeave.route.js",
+        "fullPath": "/api/compensatory-leave-requests/bulk-reject",
+        "module": "compensatoryLeave"
       }
     ],
     "competitor": [
@@ -19023,6 +19193,330 @@
         "file": "leadSource.route.js",
         "fullPath": "/api/leadSource/:id",
         "module": "leadSource"
+      }
+    ],
+    "leaveAllocation": [
+      {
+        "method": "GET",
+        "path": "/",
+        "controller": "unknown",
+        "file": "leaveAllocation.route.js",
+        "fullPath": "/api/leave-allocations",
+        "module": "leaveAllocation"
+      },
+      {
+        "method": "GET",
+        "path": "/balance/:employeeId",
+        "controller": "unknown",
+        "file": "leaveAllocation.route.js",
+        "fullPath": "/api/leave-allocations/balance/:employeeId",
+        "module": "leaveAllocation"
+      },
+      {
+        "method": "GET",
+        "path": "/employee/:employeeId/all",
+        "controller": "unknown",
+        "file": "leaveAllocation.route.js",
+        "fullPath": "/api/leave-allocations/employee/:employeeId/all",
+        "module": "leaveAllocation"
+      },
+      {
+        "method": "GET",
+        "path": "/history/:employeeId",
+        "controller": "unknown",
+        "file": "leaveAllocation.route.js",
+        "fullPath": "/api/leave-allocations/history/:employeeId",
+        "module": "leaveAllocation"
+      },
+      {
+        "method": "GET",
+        "path": "/summary/:leavePeriodId",
+        "controller": "unknown",
+        "file": "leaveAllocation.route.js",
+        "fullPath": "/api/leave-allocations/summary/:leavePeriodId",
+        "module": "leaveAllocation"
+      },
+      {
+        "method": "GET",
+        "path": "/low-balance",
+        "controller": "unknown",
+        "file": "leaveAllocation.route.js",
+        "fullPath": "/api/leave-allocations/low-balance",
+        "module": "leaveAllocation"
+      },
+      {
+        "method": "GET",
+        "path": "/expiring-carry-forward",
+        "controller": "unknown",
+        "file": "leaveAllocation.route.js",
+        "fullPath": "/api/leave-allocations/expiring-carry-forward",
+        "module": "leaveAllocation"
+      },
+      {
+        "method": "GET",
+        "path": "/carry-forward/summary",
+        "controller": "unknown",
+        "file": "leaveAllocation.route.js",
+        "fullPath": "/api/leave-allocations/carry-forward/summary",
+        "module": "leaveAllocation"
+      },
+      {
+        "method": "GET",
+        "path": "/statistics",
+        "controller": "unknown",
+        "file": "leaveAllocation.route.js",
+        "fullPath": "/api/leave-allocations/statistics",
+        "module": "leaveAllocation"
+      },
+      {
+        "method": "GET",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "leaveAllocation.route.js",
+        "fullPath": "/api/leave-allocations/:id",
+        "module": "leaveAllocation"
+      },
+      {
+        "method": "POST",
+        "path": "/",
+        "controller": "unknown",
+        "file": "leaveAllocation.route.js",
+        "fullPath": "/api/leave-allocations",
+        "module": "leaveAllocation"
+      },
+      {
+        "method": "POST",
+        "path": "/bulk",
+        "controller": "unknown",
+        "file": "leaveAllocation.route.js",
+        "fullPath": "/api/leave-allocations/bulk",
+        "module": "leaveAllocation"
+      },
+      {
+        "method": "POST",
+        "path": "/carry-forward",
+        "controller": "unknown",
+        "file": "leaveAllocation.route.js",
+        "fullPath": "/api/leave-allocations/carry-forward",
+        "module": "leaveAllocation"
+      },
+      {
+        "method": "POST",
+        "path": "/carry-forward/process-all",
+        "controller": "unknown",
+        "file": "leaveAllocation.route.js",
+        "fullPath": "/api/leave-allocations/carry-forward/process-all",
+        "module": "leaveAllocation"
+      },
+      {
+        "method": "POST",
+        "path": "/carry-forward/expire",
+        "controller": "unknown",
+        "file": "leaveAllocation.route.js",
+        "fullPath": "/api/leave-allocations/carry-forward/expire",
+        "module": "leaveAllocation"
+      },
+      {
+        "method": "PATCH",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "leaveAllocation.route.js",
+        "fullPath": "/api/leave-allocations/:id",
+        "module": "leaveAllocation"
+      },
+      {
+        "method": "PATCH",
+        "path": "/:id/update-balance",
+        "controller": "unknown",
+        "file": "leaveAllocation.route.js",
+        "fullPath": "/api/leave-allocations/:id/update-balance",
+        "module": "leaveAllocation"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/adjust",
+        "controller": "unknown",
+        "file": "leaveAllocation.route.js",
+        "fullPath": "/api/leave-allocations/:id/adjust",
+        "module": "leaveAllocation"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/encash",
+        "controller": "unknown",
+        "file": "leaveAllocation.route.js",
+        "fullPath": "/api/leave-allocations/:id/encash",
+        "module": "leaveAllocation"
+      },
+      {
+        "method": "DELETE",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "leaveAllocation.route.js",
+        "fullPath": "/api/leave-allocations/:id",
+        "module": "leaveAllocation"
+      }
+    ],
+    "leaveEncashment": [
+      {
+        "method": "GET",
+        "path": "/",
+        "controller": "unknown",
+        "file": "leaveEncashment.route.js",
+        "fullPath": "/api/leave-encashments",
+        "module": "leaveEncashment"
+      },
+      {
+        "method": "GET",
+        "path": "/pending-approvals",
+        "controller": "unknown",
+        "file": "leaveEncashment.route.js",
+        "fullPath": "/api/leave-encashments/pending-approvals",
+        "module": "leaveEncashment"
+      },
+      {
+        "method": "GET",
+        "path": "/stats",
+        "controller": "unknown",
+        "file": "leaveEncashment.route.js",
+        "fullPath": "/api/leave-encashments/stats",
+        "module": "leaveEncashment"
+      },
+      {
+        "method": "GET",
+        "path": "/policy",
+        "controller": "unknown",
+        "file": "leaveEncashment.route.js",
+        "fullPath": "/api/leave-encashments/policy",
+        "module": "leaveEncashment"
+      },
+      {
+        "method": "GET",
+        "path": "/eligibility/:employeeId",
+        "controller": "unknown",
+        "file": "leaveEncashment.route.js",
+        "fullPath": "/api/leave-encashments/eligibility/:employeeId",
+        "module": "leaveEncashment"
+      },
+      {
+        "method": "GET",
+        "path": "/employee/:employeeId",
+        "controller": "unknown",
+        "file": "leaveEncashment.route.js",
+        "fullPath": "/api/leave-encashments/employee/:employeeId",
+        "module": "leaveEncashment"
+      },
+      {
+        "method": "GET",
+        "path": "/export",
+        "controller": "unknown",
+        "file": "leaveEncashment.route.js",
+        "fullPath": "/api/leave-encashments/export",
+        "module": "leaveEncashment"
+      },
+      {
+        "method": "GET",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "leaveEncashment.route.js",
+        "fullPath": "/api/leave-encashments/:id",
+        "module": "leaveEncashment"
+      },
+      {
+        "method": "POST",
+        "path": "/",
+        "controller": "unknown",
+        "file": "leaveEncashment.route.js",
+        "fullPath": "/api/leave-encashments",
+        "module": "leaveEncashment"
+      },
+      {
+        "method": "POST",
+        "path": "/calculate",
+        "controller": "unknown",
+        "file": "leaveEncashment.route.js",
+        "fullPath": "/api/leave-encashments/calculate",
+        "module": "leaveEncashment"
+      },
+      {
+        "method": "PATCH",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "leaveEncashment.route.js",
+        "fullPath": "/api/leave-encashments/:id",
+        "module": "leaveEncashment"
+      },
+      {
+        "method": "DELETE",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "leaveEncashment.route.js",
+        "fullPath": "/api/leave-encashments/:id",
+        "module": "leaveEncashment"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/submit",
+        "controller": "unknown",
+        "file": "leaveEncashment.route.js",
+        "fullPath": "/api/leave-encashments/:id/submit",
+        "module": "leaveEncashment"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/approve",
+        "controller": "unknown",
+        "file": "leaveEncashment.route.js",
+        "fullPath": "/api/leave-encashments/:id/approve",
+        "module": "leaveEncashment"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/reject",
+        "controller": "unknown",
+        "file": "leaveEncashment.route.js",
+        "fullPath": "/api/leave-encashments/:id/reject",
+        "module": "leaveEncashment"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/mark-paid",
+        "controller": "unknown",
+        "file": "leaveEncashment.route.js",
+        "fullPath": "/api/leave-encashments/:id/mark-paid",
+        "module": "leaveEncashment"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/process",
+        "controller": "unknown",
+        "file": "leaveEncashment.route.js",
+        "fullPath": "/api/leave-encashments/:id/process",
+        "module": "leaveEncashment"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/cancel",
+        "controller": "unknown",
+        "file": "leaveEncashment.route.js",
+        "fullPath": "/api/leave-encashments/:id/cancel",
+        "module": "leaveEncashment"
+      },
+      {
+        "method": "POST",
+        "path": "/bulk-approve",
+        "controller": "unknown",
+        "file": "leaveEncashment.route.js",
+        "fullPath": "/api/leave-encashments/bulk-approve",
+        "module": "leaveEncashment"
+      },
+      {
+        "method": "POST",
+        "path": "/bulk-reject",
+        "controller": "unknown",
+        "file": "leaveEncashment.route.js",
+        "fullPath": "/api/leave-encashments/bulk-reject",
+        "module": "leaveEncashment"
       }
     ],
     "leaveManagement": [

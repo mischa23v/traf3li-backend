@@ -915,138 +915,6 @@
       },
       {
         "method": "GET",
-        "endpoint": "/compensatory-leave-requests?${params.toString()}",
-        "responseType": null,
-        "source": "services/compensatoryLeaveService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/compensatory-leave-requests/${id}",
-        "responseType": null,
-        "source": "services/compensatoryLeaveService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/compensatory-leave-requests",
-        "responseType": null,
-        "source": "services/compensatoryLeaveService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/compensatory-leave-requests/${id}",
-        "responseType": null,
-        "source": "services/compensatoryLeaveService.ts"
-      },
-      {
-        "method": "DELETE",
-        "endpoint": "/compensatory-leave-requests/${id}",
-        "responseType": null,
-        "source": "services/compensatoryLeaveService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/compensatory-leave-requests/${id}/submit",
-        "responseType": null,
-        "source": "services/compensatoryLeaveService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/compensatory-leave-requests/calculate-days",
-        "responseType": null,
-        "source": "services/compensatoryLeaveService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/compensatory-leave-requests/${id}/approve",
-        "responseType": null,
-        "source": "services/compensatoryLeaveService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/compensatory-leave-requests/${id}/reject",
-        "responseType": null,
-        "source": "services/compensatoryLeaveService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/compensatory-leave-requests/${id}/cancel",
-        "responseType": null,
-        "source": "services/compensatoryLeaveService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/compensatory-leave-requests/balance/${employeeId}",
-        "responseType": null,
-        "source": "services/compensatoryLeaveService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/compensatory-leave-requests/expire-unused?${params.toString()}",
-        "responseType": null,
-        "source": "services/compensatoryLeaveService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/compensatory-leave-requests/holiday-work-records?${params.toString()}",
-        "responseType": null,
-        "source": "services/compensatoryLeaveService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/compensatory-leave-requests/stats?${params.toString()}",
-        "responseType": null,
-        "source": "services/compensatoryLeaveService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/compensatory-leave-requests/pending-approvals",
-        "responseType": null,
-        "source": "services/compensatoryLeaveService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/compensatory-leave-requests/expiring?${params.toString()}",
-        "responseType": null,
-        "source": "services/compensatoryLeaveService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/compensatory-leave-requests/${requestId}/documents",
-        "responseType": null,
-        "source": "services/compensatoryLeaveService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/compensatory-leave-requests/export?${params.toString()}",
-        "responseType": null,
-        "source": "services/compensatoryLeaveService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/compensatory-leave-requests/bulk-approve",
-        "responseType": null,
-        "source": "services/compensatoryLeaveService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/compensatory-leave-requests/bulk-reject",
-        "responseType": null,
-        "source": "services/compensatoryLeaveService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/compensatory-leave-requests/policy",
-        "responseType": null,
-        "source": "services/compensatoryLeaveService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/compensatory-leave-requests/:param",
-        "source": "services/compensatoryLeaveService.ts",
-        "dynamic": true
-      },
-      {
-        "method": "GET",
         "endpoint": "/consent/export/${requestId}",
         "responseType": null,
         "source": "services/consent.service.ts"
@@ -2544,270 +2412,6 @@
         "endpoint": "/ldap/login",
         "responseType": null,
         "source": "services/ldapService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/leave-allocations?${params.toString()}",
-        "responseType": null,
-        "source": "services/leaveAllocationService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/leave-allocations/${allocationId}",
-        "responseType": null,
-        "source": "services/leaveAllocationService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/leave-allocations",
-        "responseType": null,
-        "source": "services/leaveAllocationService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/leave-allocations/${allocationId}",
-        "responseType": null,
-        "source": "services/leaveAllocationService.ts"
-      },
-      {
-        "method": "DELETE",
-        "endpoint": "/leave-allocations/${allocationId}",
-        "responseType": null,
-        "source": "services/leaveAllocationService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/leave-allocations/balance/${employeeId}?${params.toString()}",
-        "responseType": null,
-        "source": "services/leaveAllocationService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/leave-allocations/employee/${employeeId}/all",
-        "responseType": null,
-        "source": "services/leaveAllocationService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/leave-allocations/bulk",
-        "responseType": null,
-        "source": "services/leaveAllocationService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/leave-allocations/carry-forward",
-        "responseType": null,
-        "source": "services/leaveAllocationService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/leave-allocations/carry-forward/process-all",
-        "responseType": null,
-        "source": "services/leaveAllocationService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/leave-allocations/carry-forward/expire?${params.toString()}",
-        "responseType": null,
-        "source": "services/leaveAllocationService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/leave-allocations/${allocationId}/update-balance",
-        "responseType": null,
-        "source": "services/leaveAllocationService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/leave-allocations/${allocationId}/encash",
-        "responseType": null,
-        "source": "services/leaveAllocationService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/leave-allocations/summary/${leavePeriodId}?${params.toString()}",
-        "responseType": null,
-        "source": "services/leaveAllocationService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/leave-allocations/carry-forward/summary?${params.toString()}",
-        "responseType": null,
-        "source": "services/leaveAllocationService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/leave-allocations/low-balance?${params.toString()}",
-        "responseType": null,
-        "source": "services/leaveAllocationService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/leave-allocations/expiring-carry-forward?${params.toString()}",
-        "responseType": null,
-        "source": "services/leaveAllocationService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/leave-allocations/${allocationId}/adjust",
-        "responseType": null,
-        "source": "services/leaveAllocationService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/leave-allocations/history/${employeeId}?${params.toString()}",
-        "responseType": null,
-        "source": "services/leaveAllocationService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/leave-allocations/statistics?${params.toString()}",
-        "responseType": null,
-        "source": "services/leaveAllocationService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/leave-allocations/:param",
-        "source": "services/leaveAllocationService.ts",
-        "dynamic": true
-      },
-      {
-        "method": "GET",
-        "endpoint": "/leave-encashments?${params.toString()}",
-        "responseType": null,
-        "source": "services/leaveEncashmentService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/leave-encashments/${id}",
-        "responseType": null,
-        "source": "services/leaveEncashmentService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/leave-encashments",
-        "responseType": null,
-        "source": "services/leaveEncashmentService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/leave-encashments/${id}",
-        "responseType": null,
-        "source": "services/leaveEncashmentService.ts"
-      },
-      {
-        "method": "DELETE",
-        "endpoint": "/leave-encashments/${id}",
-        "responseType": null,
-        "source": "services/leaveEncashmentService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/leave-encashments/${id}/submit",
-        "responseType": null,
-        "source": "services/leaveEncashmentService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/leave-encashments/calculate",
-        "responseType": null,
-        "source": "services/leaveEncashmentService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/leave-encashments/eligibility/${employeeId}",
-        "responseType": null,
-        "source": "services/leaveEncashmentService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/leave-encashments/${id}/approve",
-        "responseType": null,
-        "source": "services/leaveEncashmentService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/leave-encashments/${id}/reject",
-        "responseType": null,
-        "source": "services/leaveEncashmentService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/leave-encashments/${id}/mark-paid",
-        "responseType": null,
-        "source": "services/leaveEncashmentService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/leave-encashments/${id}/process",
-        "responseType": null,
-        "source": "services/leaveEncashmentService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/leave-encashments/${id}/cancel",
-        "responseType": null,
-        "source": "services/leaveEncashmentService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/leave-encashments/stats?${params.toString()}",
-        "responseType": null,
-        "source": "services/leaveEncashmentService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/leave-encashments/pending-approvals",
-        "responseType": null,
-        "source": "services/leaveEncashmentService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/leave-encashments/employee/${employeeId}",
-        "responseType": null,
-        "source": "services/leaveEncashmentService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/leave-encashments/bulk-approve",
-        "responseType": null,
-        "source": "services/leaveEncashmentService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/leave-encashments/bulk-reject",
-        "responseType": null,
-        "source": "services/leaveEncashmentService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/leave-encashments/export?${params.toString()}",
-        "responseType": null,
-        "source": "services/leaveEncashmentService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/leave-encashments/policy",
-        "responseType": null,
-        "source": "services/leaveEncashmentService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/leave-encashments/:param",
-        "source": "services/leaveEncashmentService.ts",
-        "dynamic": true
-      },
-      {
-        "method": "POST",
-        "endpoint": "/leave-encashments/eligibility/:param",
-        "source": "services/leaveEncashmentService.ts",
-        "dynamic": true
-      },
-      {
-        "method": "POST",
-        "endpoint": "/leave-encashments/export?:param",
-        "source": "services/leaveEncashmentService.ts",
-        "dynamic": true
       },
       {
         "method": "GET",
@@ -23815,6 +23419,11 @@
         "backendMethod": "GET"
       },
       {
+        "path": "/compensatory-leave-requests/:param",
+        "frontendMethod": "POST",
+        "backendMethod": "GET"
+      },
+      {
         "path": "/conflict-checks/:param",
         "frontendMethod": "POST",
         "backendMethod": "GET"
@@ -23952,6 +23561,26 @@
       {
         "path": "/api/inter-company/transactions/${id}",
         "frontendMethod": "DELETE",
+        "backendMethod": "GET"
+      },
+      {
+        "path": "/leave-allocations/:param",
+        "frontendMethod": "POST",
+        "backendMethod": "GET"
+      },
+      {
+        "path": "/leave-encashments/:param",
+        "frontendMethod": "POST",
+        "backendMethod": "GET"
+      },
+      {
+        "path": "/leave-encashments/eligibility/:param",
+        "frontendMethod": "POST",
+        "backendMethod": "GET"
+      },
+      {
+        "path": "/leave-encashments/export?:param",
+        "frontendMethod": "POST",
         "backendMethod": "GET"
       },
       {
