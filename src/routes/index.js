@@ -381,6 +381,17 @@ const priceLevelsExtendedRoute = require('./priceLevelsExtended.route');
 const settingsSalesRoute = require('./settingsSales.route');
 const hrShiftTypesMoreRoute = require('./hrShiftTypesMore.route');
 
+// Batch 17 Routes (sales teams extended, territories, contacts extended)
+const salesTeamsExtendedRoute = require('./salesTeamsExtended.route');
+const territoriesRoute = require('./territories.route');
+const contactsExtendedRoute = require('./contactsExtended.route');
+
+// Batch 18 Routes (leave periods, payroll extended, docs versions, integrations extended)
+const leavePeriodsRoute = require('./leavePeriods.route');
+const payrollExtendedRoute = require('./payrollExtended.route');
+const documentsVersionsExtendedRoute = require('./documentsVersionsExtended.route');
+const integrationsExtendedRoute = require('./integrationsExtended.route');
+
 // Who's Out Calendar & Compliance Dashboard Routes
 const whosOutRoute = require('./whosOut.route');
 const complianceDashboardRoute = require('./complianceDashboard.route');
@@ -877,6 +888,17 @@ module.exports = {
     priceLevelsExtendedRoute,
     settingsSalesRoute,
     hrShiftTypesMoreRoute,
+
+    // Batch 17 Routes (sales teams extended, territories, contacts extended)
+    salesTeamsExtendedRoute,
+    territoriesRoute,
+    contactsExtendedRoute,
+
+    // Batch 18 Routes (leave periods, payroll extended, docs versions, integrations extended)
+    leavePeriodsRoute,
+    payrollExtendedRoute,
+    documentsVersionsExtendedRoute,
+    integrationsExtendedRoute,
 
     // Who's Out Calendar & Compliance Dashboard
     whosOutRoute,

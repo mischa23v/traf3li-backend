@@ -422,30 +422,6 @@
         "source": "services/consolidatedReportService.ts"
       },
       {
-        "method": "GET",
-        "endpoint": "/contacts/${contactId}/cases",
-        "responseType": null,
-        "source": "services/contactService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/contacts/${contactId}/activities",
-        "responseType": null,
-        "source": "services/contactService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/contacts/${contactId}/conflict-check",
-        "responseType": null,
-        "source": "services/contactService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/contacts/${contactId}/conflict-status",
-        "responseType": null,
-        "source": "services/contactService.ts"
-      },
-      {
         "method": "POST",
         "endpoint": "/contacts/${primaryId}/merge",
         "responseType": null,
@@ -644,86 +620,14 @@
         "source": "services/crmSettingsService.ts"
       },
       {
-        "method": "GET",
-        "endpoint": "/sales-teams/${id}",
-        "responseType": null,
-        "source": "services/crmSettingsService.ts"
-      },
-      {
         "method": "POST",
         "endpoint": "/sales-teams",
         "responseType": null,
         "source": "services/crmSettingsService.ts"
       },
       {
-        "method": "PUT",
-        "endpoint": "/sales-teams/${id}",
-        "responseType": null,
-        "source": "services/crmSettingsService.ts"
-      },
-      {
-        "method": "DELETE",
-        "endpoint": "/sales-teams/${id}",
-        "responseType": null,
-        "source": "services/crmSettingsService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/sales-teams/${id}/members",
-        "responseType": null,
-        "source": "services/crmSettingsService.ts"
-      },
-      {
-        "method": "DELETE",
-        "endpoint": "/sales-teams/${id}/members/${userId}",
-        "responseType": null,
-        "source": "services/crmSettingsService.ts"
-      },
-      {
-        "method": "PUT",
-        "endpoint": "/sales-teams/${id}/members/${userId}",
-        "responseType": null,
-        "source": "services/crmSettingsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/territories",
-        "responseType": null,
-        "source": "services/crmSettingsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/territories/${id}",
-        "responseType": null,
-        "source": "services/crmSettingsService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/territories",
-        "responseType": null,
-        "source": "services/crmSettingsService.ts"
-      },
-      {
-        "method": "PUT",
-        "endpoint": "/territories/${id}",
-        "responseType": null,
-        "source": "services/crmSettingsService.ts"
-      },
-      {
-        "method": "DELETE",
-        "endpoint": "/territories/${id}",
-        "responseType": null,
-        "source": "services/crmSettingsService.ts"
-      },
-      {
         "method": "POST",
         "endpoint": "/territories/reorder",
-        "responseType": null,
-        "source": "services/crmSettingsService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/territories/${id}/users",
         "responseType": null,
         "source": "services/crmSettingsService.ts"
       },
@@ -894,30 +798,6 @@
         "endpoint": "/crm-settings/reset",
         "responseType": null,
         "source": "services/crmSettingsService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/documents/${documentId}/versions/cleanup",
-        "responseType": null,
-        "source": "services/documentVersionService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/documents/${documentId}/versions/compare?v1=${versionId1}&v2=${versionId2}",
-        "responseType": null,
-        "source": "services/documentVersionService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/documents/${documentId}/versions/statistics",
-        "responseType": null,
-        "source": "services/documentVersionService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/documents/${documentId}/versions/diff?v1=${versionId1}&v2=${versionId2}",
-        "responseType": null,
-        "source": "services/documentVersionService.ts"
       },
       {
         "method": "GET",
@@ -1262,38 +1142,8 @@
         "source": "services/integrationsService.ts"
       },
       {
-        "method": "GET",
-        "endpoint": "/integrations/${id}",
-        "responseType": null,
-        "source": "services/integrationsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/integrations/${id}/status",
-        "responseType": null,
-        "source": "services/integrationsService.ts"
-      },
-      {
         "method": "POST",
         "endpoint": "/integrations/${data.integrationId}/connect",
-        "responseType": null,
-        "source": "services/integrationsService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/integrations/${id}/disconnect",
-        "responseType": null,
-        "source": "services/integrationsService.ts"
-      },
-      {
-        "method": "PUT",
-        "endpoint": "/integrations/${id}/settings",
-        "responseType": null,
-        "source": "services/integrationsService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/integrations/${id}/test",
         "responseType": null,
         "source": "services/integrationsService.ts"
       },
@@ -1401,36 +1251,6 @@
       },
       {
         "method": "GET",
-        "endpoint": "/leave-periods?${params.toString()}",
-        "responseType": null,
-        "source": "services/leavePeriodService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/leave-periods/${id}",
-        "responseType": null,
-        "source": "services/leavePeriodService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/leave-periods",
-        "responseType": null,
-        "source": "services/leavePeriodService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/leave-periods/${id}",
-        "responseType": null,
-        "source": "services/leavePeriodService.ts"
-      },
-      {
-        "method": "DELETE",
-        "endpoint": "/leave-periods/${id}",
-        "responseType": null,
-        "source": "services/leavePeriodService.ts"
-      },
-      {
-        "method": "GET",
         "endpoint": "/leave-periods/active",
         "responseType": null,
         "source": "services/leavePeriodService.ts"
@@ -1444,12 +1264,6 @@
       {
         "method": "GET",
         "endpoint": "/leave-periods/${periodId}/statistics",
-        "responseType": null,
-        "source": "services/leavePeriodService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/leave-periods/${id}/activate",
         "responseType": null,
         "source": "services/leavePeriodService.ts"
       },
@@ -1476,12 +1290,6 @@
         "endpoint": "/leave-periods/${periodId}/allocation-summary",
         "responseType": null,
         "source": "services/leavePeriodService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/leave-periods/:param",
-        "source": "services/leavePeriodService.ts",
-        "dynamic": true
       },
       {
         "method": "GET",
@@ -1622,32 +1430,8 @@
         "source": "services/payrollService.ts"
       },
       {
-        "method": "GET",
-        "endpoint": "/payroll/${id}",
-        "responseType": null,
-        "source": "services/payrollService.ts"
-      },
-      {
         "method": "POST",
         "endpoint": "/payroll",
-        "responseType": null,
-        "source": "services/payrollService.ts"
-      },
-      {
-        "method": "PUT",
-        "endpoint": "/payroll/${id}",
-        "responseType": null,
-        "source": "services/payrollService.ts"
-      },
-      {
-        "method": "DELETE",
-        "endpoint": "/payroll/${id}",
-        "responseType": null,
-        "source": "services/payrollService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/payroll/${id}/approve",
         "responseType": null,
         "source": "services/payrollService.ts"
       },
@@ -6449,6 +6233,22 @@
       },
       {
         "method": "GET",
+        "path": "/:contactId/timeline",
+        "controller": "unknown",
+        "file": "contactsExtended.route.js",
+        "fullPath": "/api/contacts/:contactId/timeline",
+        "module": "contactsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/:contactId/relationships",
+        "controller": "unknown",
+        "file": "contactsExtended.route.js",
+        "fullPath": "/api/contacts/:contactId/relationships",
+        "module": "contactsExtended"
+      },
+      {
+        "method": "GET",
         "path": "/stats",
         "controller": "unknown",
         "file": "conversation.routes.js",
@@ -7710,6 +7510,22 @@
         "file": "documentsExtended.route.js",
         "fullPath": "/api/documents/:documentId/versions/:versionId/compare",
         "module": "documentsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/:documentId/versions/timeline",
+        "controller": "unknown",
+        "file": "documentsVersionsExtended.route.js",
+        "fullPath": "/api/documents/:documentId/versions/timeline",
+        "module": "documentsVersionsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:documentId/versions/restore/:versionId",
+        "controller": "unknown",
+        "file": "documentsVersionsExtended.route.js",
+        "fullPath": "/api/documents/:documentId/versions/restore/:versionId",
+        "module": "documentsVersionsExtended"
       },
       {
         "method": "GET",
@@ -11272,6 +11088,14 @@
         "module": "integrations"
       },
       {
+        "method": "GET",
+        "path": "/:id/logs",
+        "controller": "unknown",
+        "file": "integrationsExtended.route.js",
+        "fullPath": "/api/integrations/:id/logs",
+        "module": "integrationsExtended"
+      },
+      {
         "method": "POST",
         "path": "/transactions/:id/confirm",
         "controller": "unknown",
@@ -12014,6 +11838,22 @@
         "file": "leaveManagement.route.js",
         "fullPath": "/api/hr/leave-management/leave-allocations/generate",
         "module": "leaveManagement"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/close",
+        "controller": "unknown",
+        "file": "leavePeriods.route.js",
+        "fullPath": "/api/leave-periods/:id/close",
+        "module": "leavePeriods"
+      },
+      {
+        "method": "GET",
+        "path": "/:id/allocations",
+        "controller": "unknown",
+        "file": "leavePeriods.route.js",
+        "fullPath": "/api/leave-periods/:id/allocations",
+        "module": "leavePeriods"
       },
       {
         "method": "POST",
@@ -14001,6 +13841,38 @@
       },
       {
         "method": "POST",
+        "path": "/:id/process",
+        "controller": "unknown",
+        "file": "payrollExtended.route.js",
+        "fullPath": "/api/payroll/:id/process",
+        "module": "payrollExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/recalculate",
+        "controller": "unknown",
+        "file": "payrollExtended.route.js",
+        "fullPath": "/api/payroll/:id/recalculate",
+        "module": "payrollExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/:id/slips",
+        "controller": "unknown",
+        "file": "payrollExtended.route.js",
+        "fullPath": "/api/payroll/:id/slips",
+        "module": "payrollExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/finalize",
+        "controller": "unknown",
+        "file": "payrollExtended.route.js",
+        "fullPath": "/api/payroll/:id/finalize",
+        "module": "payrollExtended"
+      },
+      {
+        "method": "POST",
         "path": "/bulk-delete",
         "controller": "bulkDeletePayrollRuns",
         "file": "payrollRun.route.js",
@@ -15966,6 +15838,14 @@
         "file": "salesTeam.routes.js",
         "fullPath": "/api/crm/sales-teams/:id/default",
         "module": "salesTeams"
+      },
+      {
+        "method": "GET",
+        "path": "/:id/performance",
+        "controller": "unknown",
+        "file": "salesTeamsExtended.route.js",
+        "fullPath": "/api/sales-teams/:id/performance",
+        "module": "salesTeamsExtended"
       },
       {
         "method": "GET",
@@ -19064,6 +18944,22 @@
         "module": "temporalOnboarding"
       },
       {
+        "method": "DELETE",
+        "path": "/:id/users/:userId",
+        "controller": "unknown",
+        "file": "territories.route.js",
+        "fullPath": "/api/territories/:id/users/:userId",
+        "module": "territories"
+      },
+      {
+        "method": "GET",
+        "path": "/:id/stats",
+        "controller": "unknown",
+        "file": "territories.route.js",
+        "fullPath": "/api/territories/:id/stats",
+        "module": "territories"
+      },
+      {
         "method": "GET",
         "path": "/",
         "controller": "unknown",
@@ -21946,6 +21842,11 @@
         "backendMethod": "PUT"
       },
       {
+        "path": "/sales-teams/${id}/members/${userId}",
+        "frontendMethod": "PUT",
+        "backendMethod": "DELETE"
+      },
+      {
         "path": "/data-export/jobs/:param",
         "frontendMethod": "POST",
         "backendMethod": "GET"
@@ -22082,6 +21983,11 @@
       },
       {
         "path": "/leave-encashments/export?:param",
+        "frontendMethod": "POST",
+        "backendMethod": "GET"
+      },
+      {
+        "path": "/leave-periods/:param",
         "frontendMethod": "POST",
         "backendMethod": "GET"
       },

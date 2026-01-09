@@ -494,6 +494,17 @@ const {
     settingsSalesRoute,
     hrShiftTypesMoreRoute,
 
+    // Batch 17 Routes (sales teams extended, territories, contacts extended)
+    salesTeamsExtendedRoute,
+    territoriesRoute,
+    contactsExtendedRoute,
+
+    // Batch 18 Routes (leave periods, payroll extended, docs versions, integrations extended)
+    leavePeriodsRoute,
+    payrollExtendedRoute,
+    documentsVersionsExtendedRoute,
+    integrationsExtendedRoute,
+
     // Unified Data Flow
     unifiedDataRoute,
 
@@ -1472,6 +1483,17 @@ app.use('/api/crm/sales-teams', noCache, salesTeamsRoute); // Sales team managem
 app.use('/api/price-levels', noCache, priceLevelsExtendedRoute); // Extended price level operations
 app.use('/api/settings/sales', noCache, settingsSalesRoute); // Sales settings management
 app.use('/api/hr/shift-types', noCache, hrShiftTypesMoreRoute); // Additional shift type operations
+
+// Batch 17 Routes (sales teams extended, territories, contacts extended)
+app.use('/api/sales-teams', noCache, salesTeamsExtendedRoute); // Extended sales team operations
+app.use('/api/territories', noCache, territoriesRoute); // Territory management
+app.use('/api/contacts', noCache, contactsExtendedRoute); // Extended contact operations
+
+// Batch 18 Routes (leave periods, payroll extended, docs versions, integrations extended)
+app.use('/api/leave-periods', noCache, leavePeriodsRoute); // Leave period management
+app.use('/api/payroll', noCache, payrollExtendedRoute); // Extended payroll operations
+app.use('/api/documents', noCache, documentsVersionsExtendedRoute); // Document version operations
+app.use('/api/integrations', noCache, integrationsExtendedRoute); // Extended integration operations
 
 // ============================================
 // UNIFIED DATA FLOW ROUTES

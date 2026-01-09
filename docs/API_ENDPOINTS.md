@@ -75,6 +75,7 @@
 - [consolidatedReports](#consolidatedreports) (8 endpoints)
 - [contact](#contact) (17 endpoints)
 - [contactLists](#contactlists) (10 endpoints)
+- [contactsExtended](#contactsextended) (6 endpoints)
 - [conversation](#conversation) (4 endpoints)
 - [conversations](#conversations) (10 endpoints)
 - [corporateCard](#corporatecard) (15 endpoints)
@@ -103,6 +104,7 @@
 - [document](#document) (19 endpoints)
 - [documentAnalysis](#documentanalysis) (11 endpoints)
 - [documentsExtended](#documentsextended) (11 endpoints)
+- [documentsVersionsExtended](#documentsversionsextended) (6 endpoints)
 - [docusign](#docusign) (17 endpoints)
 - [dripCampaigns](#dripcampaigns) (9 endpoints)
 - [dunning](#dunning) (24 endpoints)
@@ -159,6 +161,7 @@
 - [hrVehicles](#hrvehicles) (16 endpoints)
 - [incomeTaxSlab](#incometaxslab) (9 endpoints)
 - [integrations](#integrations) (45 endpoints)
+- [integrationsExtended](#integrationsextended) (6 endpoints)
 - [interCompany](#intercompany) (10 endpoints)
 - [interCompanyExtended](#intercompanyextended) (16 endpoints)
 - [interestAreas](#interestareas) (6 endpoints)
@@ -184,6 +187,7 @@
 - [leaveAllocation](#leaveallocation) (20 endpoints)
 - [leaveEncashment](#leaveencashment) (20 endpoints)
 - [leaveManagement](#leavemanagement) (26 endpoints)
+- [leavePeriods](#leaveperiods) (8 endpoints)
 - [leaveRequest](#leaverequest) (20 endpoints)
 - [legalContract](#legalcontract) (33 endpoints)
 - [legalDocument](#legaldocument) (6 endpoints)
@@ -219,6 +223,7 @@
 - [paymentTermsSettings](#paymenttermssettings) (7 endpoints)
 - [payout](#payout) (10 endpoints)
 - [payroll](#payroll) (13 endpoints)
+- [payrollExtended](#payrollextended) (8 endpoints)
 - [payrollRun](#payrollrun) (20 endpoints)
 - [pdfme](#pdfme) (15 endpoints)
 - [peerReview](#peerreview) (3 endpoints)
@@ -257,6 +262,7 @@
 - [salesQuota](#salesquota) (11 endpoints)
 - [salesStage](#salesstage) (7 endpoints)
 - [salesTeams](#salesteams) (17 endpoints)
+- [salesTeamsExtended](#salesteamsextended) (6 endpoints)
 - [saless](#saless) (75 endpoints)
 - [saml](#saml) (8 endpoints)
 - [sandboxs](#sandboxs) (9 endpoints)
@@ -299,6 +305,7 @@
 - [temporalInvoice](#temporalinvoice) (6 endpoints)
 - [temporalOffboarding](#temporaloffboarding) (5 endpoints)
 - [temporalOnboarding](#temporalonboarding) (7 endpoints)
+- [territories](#territories) (8 endpoints)
 - [territory](#territory) (6 endpoints)
 - [territorys](#territorys) (9 endpoints)
 - [threadMessages](#threadmessages) (10 endpoints)
@@ -335,8 +342,8 @@
 
 | Metric | Count |
 |--------|-------|
-| Total Endpoints | 4953 |
-| Total Modules | 322 |
+| Total Endpoints | 5001 |
+| Total Modules | 329 |
 
 ---
 
@@ -1757,6 +1764,17 @@
 | `POST` | `/api/contactLists/:id/refresh` | unknown | contactList.routes.js |
 | `POST` | `/api/contactLists/:id/duplicate` | unknown | contactList.routes.js |
 
+## contactsExtended
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/contacts/:contactId/cases` | unknown | contactsExtended.route.js |
+| `GET` | `/api/contacts/:contactId/activities` | unknown | contactsExtended.route.js |
+| `POST` | `/api/contacts/:contactId/conflict-check` | unknown | contactsExtended.route.js |
+| `POST` | `/api/contacts/:contactId/conflict-status` | unknown | contactsExtended.route.js |
+| `GET` | `/api/contacts/:contactId/timeline` | unknown | contactsExtended.route.js |
+| `GET` | `/api/contacts/:contactId/relationships` | unknown | contactsExtended.route.js |
+
 ## conversation
 
 | Method | Path | Controller | File |
@@ -2260,6 +2278,17 @@
 | `GET` | `/api/documents/:id/download-url` | unknown | documentsExtended.route.js |
 | `POST` | `/api/documents/:id/encrypt` | unknown | documentsExtended.route.js |
 | `POST` | `/api/documents/:id/decrypt` | unknown | documentsExtended.route.js |
+
+## documentsVersionsExtended
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `POST` | `/api/documents/:documentId/versions/cleanup` | unknown | documentsVersionsExtended.route.js |
+| `GET` | `/api/documents/:documentId/versions/compare` | unknown | documentsVersionsExtended.route.js |
+| `GET` | `/api/documents/:documentId/versions/statistics` | unknown | documentsVersionsExtended.route.js |
+| `GET` | `/api/documents/:documentId/versions/diff` | unknown | documentsVersionsExtended.route.js |
+| `GET` | `/api/documents/:documentId/versions/timeline` | unknown | documentsVersionsExtended.route.js |
+| `POST` | `/api/documents/:documentId/versions/restore/:versionId` | unknown | documentsVersionsExtended.route.js |
 
 ## docusign
 
@@ -3569,6 +3598,17 @@
 | `POST` | `/api/integrations/discord/message` | unknown | integrations.route.js |
 | `POST` | `/api/integrations/discord/webhook` | unknown | integrations.route.js |
 
+## integrationsExtended
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/integrations/:id` | unknown | integrationsExtended.route.js |
+| `GET` | `/api/integrations/:id/status` | unknown | integrationsExtended.route.js |
+| `POST` | `/api/integrations/:id/disconnect` | unknown | integrationsExtended.route.js |
+| `PUT` | `/api/integrations/:id/settings` | unknown | integrationsExtended.route.js |
+| `POST` | `/api/integrations/:id/test` | unknown | integrationsExtended.route.js |
+| `GET` | `/api/integrations/:id/logs` | unknown | integrationsExtended.route.js |
+
 ## interCompany
 
 | Method | Path | Controller | File |
@@ -4028,6 +4068,19 @@
 | `POST` | `/api/hr/leave-management/leave-allocations/:id/approve` | unknown | leaveManagement.route.js |
 | `POST` | `/api/hr/leave-management/leave-allocations/:id/adjust` | unknown | leaveManagement.route.js |
 | `POST` | `/api/hr/leave-management/leave-allocations/generate` | unknown | leaveManagement.route.js |
+
+## leavePeriods
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/leave-periods` | unknown | leavePeriods.route.js |
+| `POST` | `/api/leave-periods` | unknown | leavePeriods.route.js |
+| `GET` | `/api/leave-periods/:id` | unknown | leavePeriods.route.js |
+| `PATCH` | `/api/leave-periods/:id` | unknown | leavePeriods.route.js |
+| `DELETE` | `/api/leave-periods/:id` | unknown | leavePeriods.route.js |
+| `POST` | `/api/leave-periods/:id/activate` | unknown | leavePeriods.route.js |
+| `POST` | `/api/leave-periods/:id/close` | unknown | leavePeriods.route.js |
+| `GET` | `/api/leave-periods/:id/allocations` | unknown | leavePeriods.route.js |
 
 ## leaveRequest
 
@@ -4647,6 +4700,19 @@
 | `GET` | `/api/hr/payroll/:id` | getSalarySlip | payroll.route.js |
 | `PUT` | `/api/hr/payroll/:id` | updateSalarySlip | payroll.route.js |
 | `DELETE` | `/api/hr/payroll/:id` | deleteSalarySlip | payroll.route.js |
+
+## payrollExtended
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/payroll/:id` | unknown | payrollExtended.route.js |
+| `PUT` | `/api/payroll/:id` | unknown | payrollExtended.route.js |
+| `DELETE` | `/api/payroll/:id` | unknown | payrollExtended.route.js |
+| `POST` | `/api/payroll/:id/approve` | unknown | payrollExtended.route.js |
+| `POST` | `/api/payroll/:id/process` | unknown | payrollExtended.route.js |
+| `POST` | `/api/payroll/:id/recalculate` | unknown | payrollExtended.route.js |
+| `GET` | `/api/payroll/:id/slips` | unknown | payrollExtended.route.js |
+| `POST` | `/api/payroll/:id/finalize` | unknown | payrollExtended.route.js |
 
 ## payrollRun
 
@@ -5358,6 +5424,17 @@
 | `DELETE` | `/api/crm/sales-teams/:id` | unknown | salesTeams.route.js |
 | `POST` | `/api/crm/sales-teams/:id/members` | unknown | salesTeams.route.js |
 | `DELETE` | `/api/crm/sales-teams/:id/members/:userId` | unknown | salesTeams.route.js |
+
+## salesTeamsExtended
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/sales-teams/:id` | unknown | salesTeamsExtended.route.js |
+| `PUT` | `/api/sales-teams/:id` | unknown | salesTeamsExtended.route.js |
+| `DELETE` | `/api/sales-teams/:id` | unknown | salesTeamsExtended.route.js |
+| `POST` | `/api/sales-teams/:id/members` | unknown | salesTeamsExtended.route.js |
+| `DELETE` | `/api/sales-teams/:id/members/:userId` | unknown | salesTeamsExtended.route.js |
+| `GET` | `/api/sales-teams/:id/performance` | unknown | salesTeamsExtended.route.js |
 
 ## saless
 
@@ -6251,6 +6328,19 @@
 | `POST` | `/api/temporalOnboarding/:id/onboarding/skip-phase` | unknown | temporalOnboarding.route.js |
 | `DELETE` | `/api/temporalOnboarding/:id/onboarding/cancel` | unknown | temporalOnboarding.route.js |
 
+## territories
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/territories` | unknown | territories.route.js |
+| `POST` | `/api/territories` | unknown | territories.route.js |
+| `GET` | `/api/territories/:id` | unknown | territories.route.js |
+| `PUT` | `/api/territories/:id` | unknown | territories.route.js |
+| `DELETE` | `/api/territories/:id` | unknown | territories.route.js |
+| `POST` | `/api/territories/:id/users` | unknown | territories.route.js |
+| `DELETE` | `/api/territories/:id/users/:userId` | unknown | territories.route.js |
+| `GET` | `/api/territories/:id/stats` | unknown | territories.route.js |
+
 ## territory
 
 | Method | Path | Controller | File |
@@ -6907,7 +6997,7 @@
 
 ## Quick Reference by Method
 
-### GET (2113)
+### GET (2134)
 
 <details>
 <summary>Click to expand</summary>
@@ -7358,6 +7448,10 @@ GET    /api/contactLists
 GET    /api/contactLists/:id
 GET    /api/contactLists/:id/members
 GET    /api/contacts
+GET    /api/contacts/:contactId/activities
+GET    /api/contacts/:contactId/cases
+GET    /api/contacts/:contactId/relationships
+GET    /api/contacts/:contactId/timeline
 GET    /api/contacts/:id
 GET    /api/contacts/case/:caseId
 GET    /api/contacts/client/:clientId
@@ -7597,6 +7691,10 @@ GET    /api/documents/:documentId/versions/:versionId
 GET    /api/documents/:documentId/versions/:versionId/download
 GET    /api/documents/:documentId/versions/:versionId/download-url
 GET    /api/documents/:documentId/versions/:versionId/preview-url
+GET    /api/documents/:documentId/versions/compare
+GET    /api/documents/:documentId/versions/diff
+GET    /api/documents/:documentId/versions/statistics
+GET    /api/documents/:documentId/versions/timeline
 GET    /api/documents/:id
 GET    /api/documents/:id/download
 GET    /api/documents/:id/download-url
@@ -8166,6 +8264,9 @@ GET    /api/hr/whos-out/week
 GET    /api/incomeTaxSlab
 GET    /api/incomeTaxSlab/:id
 GET    /api/incomeTaxSlab/countries
+GET    /api/integrations/:id
+GET    /api/integrations/:id/logs
+GET    /api/integrations/:id/status
 GET    /api/integrations/discord/auth-url
 GET    /api/integrations/discord/callback
 GET    /api/integrations/discord/guilds
@@ -8306,6 +8407,9 @@ GET    /api/leave-encashments/export
 GET    /api/leave-encashments/pending-approvals
 GET    /api/leave-encashments/policy
 GET    /api/leave-encashments/stats
+GET    /api/leave-periods
+GET    /api/leave-periods/:id
+GET    /api/leave-periods/:id/allocations
 GET    /api/leave-requests
 GET    /api/leave-requests/:id
 GET    /api/leave-requests/balance/:employeeId
@@ -8420,6 +8524,8 @@ GET    /api/payroll-runs
 GET    /api/payroll-runs/:id
 GET    /api/payroll-runs/:id/export
 GET    /api/payroll-runs/stats
+GET    /api/payroll/:id
+GET    /api/payroll/:id/slips
 GET    /api/pdfme/download/:fileName
 GET    /api/pdfme/templates
 GET    /api/pdfme/templates/:id
@@ -8600,6 +8706,8 @@ GET    /api/sales-quotas/leaderboard
 GET    /api/sales-quotas/my-quota
 GET    /api/sales-quotas/period-comparison
 GET    /api/sales-quotas/team-summary
+GET    /api/sales-teams/:id
+GET    /api/sales-teams/:id/performance
 GET    /api/salesForecasts
 GET    /api/salesForecasts/:id
 GET    /api/salesForecasts/by-period
@@ -8842,6 +8950,9 @@ GET    /api/temporal-invoices/:id/approval-status
 GET    /api/temporal-invoices/pending-approvals
 GET    /api/temporalOffboarding/:id/offboarding/status
 GET    /api/temporalOnboarding/:id/onboarding/status
+GET    /api/territories
+GET    /api/territories/:id
+GET    /api/territories/:id/stats
 GET    /api/territory
 GET    /api/territory/:id
 GET    /api/territory/tree
@@ -9030,7 +9141,7 @@ GET    /api/zoom/status
 
 </details>
 
-### POST (2003)
+### POST (2019)
 
 <details>
 <summary>Click to expand</summary>
@@ -9462,6 +9573,8 @@ POST   /api/contactLists/:id/duplicate
 POST   /api/contactLists/:id/members
 POST   /api/contactLists/:id/refresh
 POST   /api/contacts
+POST   /api/contacts/:contactId/conflict-check
+POST   /api/contacts/:contactId/conflict-status
 POST   /api/contacts/:id/link-case
 POST   /api/contacts/:id/link-client
 POST   /api/contacts/:id/unlink-case
@@ -9581,6 +9694,8 @@ POST   /api/document-analysis/:documentId/reanalyze
 POST   /api/document-analysis/batch
 POST   /api/documents/:documentId/versions/:versionId/compare
 POST   /api/documents/:documentId/versions/:versionId/restore
+POST   /api/documents/:documentId/versions/cleanup
+POST   /api/documents/:documentId/versions/restore/:versionId
 POST   /api/documents/:id/decrypt
 POST   /api/documents/:id/encrypt
 POST   /api/documents/:id/move
@@ -10170,6 +10285,8 @@ POST   /api/incomeTaxSlab
 POST   /api/incomeTaxSlab/:id/calculate
 POST   /api/incomeTaxSlab/calculate-by-country
 POST   /api/incomeTaxSlab/initialize-defaults
+POST   /api/integrations/:id/disconnect
+POST   /api/integrations/:id/test
 POST   /api/integrations/discord/complete-setup
 POST   /api/integrations/discord/disconnect
 POST   /api/integrations/discord/message
@@ -10309,6 +10426,9 @@ POST   /api/leave-encashments/:id/submit
 POST   /api/leave-encashments/bulk-approve
 POST   /api/leave-encashments/bulk-reject
 POST   /api/leave-encashments/calculate
+POST   /api/leave-periods
+POST   /api/leave-periods/:id/activate
+POST   /api/leave-periods/:id/close
 POST   /api/leave-requests
 POST   /api/leave-requests/:id/approve
 POST   /api/leave-requests/:id/cancel
@@ -10423,6 +10543,10 @@ POST   /api/payroll-runs/:id/process-payments
 POST   /api/payroll-runs/:id/send-notifications
 POST   /api/payroll-runs/:id/validate
 POST   /api/payroll-runs/bulk-delete
+POST   /api/payroll/:id/approve
+POST   /api/payroll/:id/finalize
+POST   /api/payroll/:id/process
+POST   /api/payroll/:id/recalculate
 POST   /api/pdfme/generate
 POST   /api/pdfme/generate/async
 POST   /api/pdfme/generate/contract
@@ -10567,6 +10691,7 @@ POST   /api/retainers/:id/replenish
 POST   /api/reviews
 POST   /api/sales-quotas
 POST   /api/sales-quotas/:id/record-deal
+POST   /api/sales-teams/:id/members
 POST   /api/salesForecasts
 POST   /api/salesForecasts/:id/adjustments
 POST   /api/salesForecasts/:id/approve
@@ -10819,6 +10944,8 @@ POST   /api/temporalOnboarding/:id/onboarding/complete-review
 POST   /api/temporalOnboarding/:id/onboarding/complete-training
 POST   /api/temporalOnboarding/:id/onboarding/skip-phase
 POST   /api/temporalOnboarding/:id/start-onboarding
+POST   /api/territories
+POST   /api/territories/:id/users
 POST   /api/territory
 POST   /api/territorys
 POST   /api/threadMessages
@@ -11043,7 +11170,7 @@ POST   /api/zoom/webhook
 
 </details>
 
-### PUT (259)
+### PUT (263)
 
 <details>
 <summary>Click to expand</summary>
@@ -11175,6 +11302,7 @@ PUT    /api/hr/shift-types/:id
 PUT    /api/hr/skill-maps/:employeeId/skills
 PUT    /api/hr/transfers/:id
 PUT    /api/incomeTaxSlab/:id
+PUT    /api/integrations/:id/settings
 PUT    /api/integrations/discord/settings
 PUT    /api/integrations/quickbooks/mappings/accounts
 PUT    /api/integrations/quickbooks/mappings/fields
@@ -11214,6 +11342,7 @@ PUT    /api/payment-terms/:id
 PUT    /api/payments/:id
 PUT    /api/payments/:id/apply
 PUT    /api/payments/:id/check-status
+PUT    /api/payroll/:id
 PUT    /api/pdfme/templates/:id
 PUT    /api/permissions/config
 PUT    /api/permissions/policies/:policyId
@@ -11244,6 +11373,7 @@ PUT    /api/reports/:id/schedule
 PUT    /api/reports/:id/schedule
 PUT    /api/retainers/:id
 PUT    /api/sales-quotas/:id
+PUT    /api/sales-teams/:id
 PUT    /api/salesForecasts/:id
 PUT    /api/salesPerson/:id
 PUT    /api/saless/commissions/plans/:id
@@ -11286,6 +11416,7 @@ PUT    /api/tasks/bulk
 PUT    /api/tasks/templates/:templateId
 PUT    /api/telegram/settings
 PUT    /api/templates/admin/:id
+PUT    /api/territories/:id
 PUT    /api/territory/:id
 PUT    /api/territorys/:id
 PUT    /api/territorys/:id/move
@@ -11312,7 +11443,7 @@ PUT    /api/zoom/settings
 
 </details>
 
-### PATCH (231)
+### PATCH (232)
 
 <details>
 <summary>Click to expand</summary>
@@ -11465,6 +11596,7 @@ PATCH  /api/journal-entries/:id
 PATCH  /api/leave-allocations/:id
 PATCH  /api/leave-allocations/:id/update-balance
 PATCH  /api/leave-encashments/:id
+PATCH  /api/leave-periods/:id
 PATCH  /api/leave-requests/:id
 PATCH  /api/legal-documents/:id
 PATCH  /api/legalDocument/:_id
@@ -11553,7 +11685,7 @@ PATCH  /api/workflows/:id
 
 </details>
 
-### DELETE (347)
+### DELETE (353)
 
 <details>
 <summary>Click to expand</summary>
@@ -11776,6 +11908,7 @@ DELETE /api/leads/:id
 DELETE /api/leadSource/:id
 DELETE /api/leave-allocations/:id
 DELETE /api/leave-encashments/:id
+DELETE /api/leave-periods/:id
 DELETE /api/leave-requests/:id
 DELETE /api/legal-documents/:id
 DELETE /api/legalDocument/:_id
@@ -11801,6 +11934,7 @@ DELETE /api/payments/:id
 DELETE /api/payments/:id/unapply/:invoiceId
 DELETE /api/payments/bulk
 DELETE /api/payroll-runs/:id
+DELETE /api/payroll/:id
 DELETE /api/pdfme/templates/:id
 DELETE /api/permissions/policies/:policyId
 DELETE /api/permissions/relations
@@ -11831,6 +11965,8 @@ DELETE /api/reports/:id
 DELETE /api/reports/:id
 DELETE /api/reviews/:_id
 DELETE /api/sales-quotas/:id
+DELETE /api/sales-teams/:id
+DELETE /api/sales-teams/:id/members/:userId
 DELETE /api/salesForecasts/:id
 DELETE /api/salesPerson/:id
 DELETE /api/saless/orders/:id/items/:itemId
@@ -11883,6 +12019,8 @@ DELETE /api/team/:id
 DELETE /api/team/:id/revoke-invite
 DELETE /api/templates/admin/:id
 DELETE /api/temporalOnboarding/:id/onboarding/cancel
+DELETE /api/territories/:id
+DELETE /api/territories/:id/users/:userId
 DELETE /api/territory/:id
 DELETE /api/territorys/:id
 DELETE /api/threadMessages/:id

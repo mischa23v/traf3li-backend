@@ -1,12 +1,12 @@
 # Frontend vs Backend Contract Mismatch Report
 
-> Generated: 2026-01-09T12:24:58.257Z
+> Generated: 2026-01-09T12:31:55.657Z
 
 ## Summary
 
 | Category | Frontend Only | Backend Only | Mismatches |
 |----------|--------------|--------------|------------|
-| API Endpoints | 402 | 2411 | 161 |
+| API Endpoints | 366 | 2425 | 163 |
 | Interfaces/Entities | 2871 | 154 | 0 |
 | Enums | 88 | 2138 | 0 |
 | Type Aliases | 167 | 0 | - |
@@ -94,25 +94,6 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | GET | `/crm-reports/transactions/summary` | hooks/use-crm-reports.ts |
 | GET | `/crm-reports/transactions/export` | hooks/use-crm-reports.ts |
 
-### leave-periods (14 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/leave-periods/${id}` | services/leavePeriodService.ts |
-| POST | `/leave-periods` | services/leavePeriodService.ts |
-| PATCH | `/leave-periods/${id}` | services/leavePeriodService.ts |
-| DELETE | `/leave-periods/${id}` | services/leavePeriodService.ts |
-| GET | `/leave-periods/active` | services/leavePeriodService.ts |
-| POST | `/leave-periods/${periodId}/allocate` | services/leavePeriodService.ts |
-| GET | `/leave-periods/${periodId}/statistics` | services/leavePeriodService.ts |
-| POST | `/leave-periods/${id}/activate` | services/leavePeriodService.ts |
-| POST | `/leave-periods/${id}/deactivate` | services/leavePeriodService.ts |
-| GET | `/leave-periods/year/${year}` | services/leavePeriodService.ts |
-| GET | `/leave-periods/check-date` | services/leavePeriodService.ts |
-| GET | `/leave-periods/${periodId}/allocation-summary` | services/leavePeriodService.ts |
-| POST | `/leave-periods/:param` | services/leavePeriodService.ts |
-| GET | `/leave-periods/:param/allocate` | services/leavePeriodService.ts |
-
 ### reminders (13 missing)
 
 | Method | Endpoint | Source File |
@@ -130,22 +111,6 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | GET | `/reminders/templates` | services/remindersService.ts |
 | POST | `/reminders/templates/${templateId}/create` | services/remindersService.ts |
 | POST | `/reminders/${id}/save-as-template` | services/remindersService.ts |
-
-### payroll (11 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/payroll/${id}` | services/payrollService.ts |
-| POST | `/payroll` | services/payrollService.ts |
-| PUT | `/payroll/${id}` | services/payrollService.ts |
-| DELETE | `/payroll/${id}` | services/payrollService.ts |
-| POST | `/payroll/${id}/approve` | services/payrollService.ts |
-| POST | `/payroll/${id}/pay` | services/payrollService.ts |
-| GET | `/payroll/stats?${params.toString()}` | services/payrollService.ts |
-| POST | `/payroll/generate` | services/payrollService.ts |
-| POST | `/payroll/approve` | services/payrollService.ts |
-| POST | `/payroll/pay` | services/payrollService.ts |
-| POST | `/payroll/wps/submit` | services/payrollService.ts |
 
 ### email-marketing (10 missing)
 
@@ -297,32 +262,6 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | GET | `/crm-analytics/activities` | services/crmAnalyticsService.ts |
 | GET | `/crm-analytics/win-loss` | services/crmAnalyticsService.ts |
 
-### sales-teams (8 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/sales-teams` | services/crmSettingsService.ts |
-| GET | `/sales-teams/${id}` | services/crmSettingsService.ts |
-| POST | `/sales-teams` | services/crmSettingsService.ts |
-| PUT | `/sales-teams/${id}` | services/crmSettingsService.ts |
-| DELETE | `/sales-teams/${id}` | services/crmSettingsService.ts |
-| POST | `/sales-teams/${id}/members` | services/crmSettingsService.ts |
-| DELETE | `/sales-teams/${id}/members/${userId}` | services/crmSettingsService.ts |
-| PUT | `/sales-teams/${id}/members/${userId}` | services/crmSettingsService.ts |
-
-### territories (8 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/territories` | services/crmSettingsService.ts |
-| GET | `/territories/${id}` | services/crmSettingsService.ts |
-| POST | `/territories` | services/crmSettingsService.ts |
-| PUT | `/territories/${id}` | services/crmSettingsService.ts |
-| DELETE | `/territories/${id}` | services/crmSettingsService.ts |
-| POST | `/territories/reorder` | services/crmSettingsService.ts |
-| POST | `/territories/${id}/users` | services/crmSettingsService.ts |
-| POST | `/territories/${id}/teams` | services/crmSettingsService.ts |
-
 ### income-tax-slabs (8 missing)
 
 | Method | Endpoint | Source File |
@@ -348,6 +287,19 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | POST | `/journal-entries/${id}/duplicate` | services/journalEntryService.ts |
 | GET | `/journal-entries/templates` | services/journalEntryService.ts |
 | POST | `/journal-entries/from-template/${templateId}` | services/journalEntryService.ts |
+
+### leave-periods (8 missing)
+
+| Method | Endpoint | Source File |
+|--------|----------|-------------|
+| GET | `/leave-periods/active` | services/leavePeriodService.ts |
+| POST | `/leave-periods/${periodId}/allocate` | services/leavePeriodService.ts |
+| GET | `/leave-periods/${periodId}/statistics` | services/leavePeriodService.ts |
+| POST | `/leave-periods/${id}/deactivate` | services/leavePeriodService.ts |
+| GET | `/leave-periods/year/${year}` | services/leavePeriodService.ts |
+| GET | `/leave-periods/check-date` | services/leavePeriodService.ts |
+| GET | `/leave-periods/${periodId}/allocation-summary` | services/leavePeriodService.ts |
+| GET | `/leave-periods/:param/allocate` | services/leavePeriodService.ts |
 
 ### legal-documents (8 missing)
 
@@ -411,28 +363,17 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | POST | `/exchange-rate-revaluation/${id}/reverse` | services/exchangeRateRevaluationService.ts |
 | GET | `/exchange-rate-revaluation/report?${params.toString()}` | services/exchangeRateRevaluationService.ts |
 
-### integrations (7 missing)
+### payroll (7 missing)
 
 | Method | Endpoint | Source File |
 |--------|----------|-------------|
-| GET | `/integrations` | services/integrationsService.ts |
-| GET | `/integrations/${id}` | services/integrationsService.ts |
-| GET | `/integrations/${id}/status` | services/integrationsService.ts |
-| POST | `/integrations/${data.integrationId}/connect` | services/integrationsService.ts |
-| POST | `/integrations/${id}/disconnect` | services/integrationsService.ts |
-| PUT | `/integrations/${id}/settings` | services/integrationsService.ts |
-| POST | `/integrations/${id}/test` | services/integrationsService.ts |
-
-### contacts (6 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/contacts/${contactId}/cases` | services/contactService.ts |
-| GET | `/contacts/${contactId}/activities` | services/contactService.ts |
-| POST | `/contacts/${contactId}/conflict-check` | services/contactService.ts |
-| POST | `/contacts/${contactId}/conflict-status` | services/contactService.ts |
-| POST | `/contacts/${primaryId}/merge` | services/contactService.ts |
-| GET | `/contacts/${contactId}/stakeholder/${leadId}` | services/contactService.ts |
+| POST | `/payroll` | services/payrollService.ts |
+| POST | `/payroll/${id}/pay` | services/payrollService.ts |
+| GET | `/payroll/stats?${params.toString()}` | services/payrollService.ts |
+| POST | `/payroll/generate` | services/payrollService.ts |
+| POST | `/payroll/approve` | services/payrollService.ts |
+| POST | `/payroll/pay` | services/payrollService.ts |
+| POST | `/payroll/wps/submit` | services/payrollService.ts |
 
 ### messages (6 missing)
 
@@ -495,16 +436,6 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | PUT | `/crm-tags/${id}` | services/crmSettingsService.ts |
 | DELETE | `/crm-tags/${id}` | services/crmSettingsService.ts |
 | POST | `/crm-tags/merge` | services/crmSettingsService.ts |
-
-### documents (5 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| POST | `/documents/${documentId}/versions/cleanup` | services/documentVersionService.ts |
-| GET | `/documents/${documentId}/versions/compare?v1=${versionId1}&v2=${versionId2}` | services/documentVersionService.ts |
-| GET | `/documents/${documentId}/versions/statistics` | services/documentVersionService.ts |
-| GET | `/documents/${documentId}/versions/diff?v1=${versionId1}&v2=${versionId2}` | services/documentVersionService.ts |
-| GET | `/documents/${documentId}/versions/${versionId}/content` | services/documentVersionService.ts |
 
 ### prepared-reports (5 missing)
 
@@ -628,6 +559,13 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | GET | `/consolidated-reports/auto-eliminations?${params.toString()}` | services/consolidatedReportService.ts |
 | GET | `/consolidated-reports/full-statement?${queryParams.toString()}` | services/consolidatedReportService.ts |
 
+### contacts (2 missing)
+
+| Method | Endpoint | Source File |
+|--------|----------|-------------|
+| POST | `/contacts/${primaryId}/merge` | services/contactService.ts |
+| GET | `/contacts/${contactId}/stakeholder/${leadId}` | services/contactService.ts |
+
 ### lead-scoring (2 missing)
 
 | Method | Endpoint | Source File |
@@ -642,12 +580,33 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | POST | `/crm/reports/schedule` | services/crmReportsService.ts |
 | GET | `/crm/reports/${reportType}/metadata` | services/crmReportsService.ts |
 
+### sales-teams (2 missing)
+
+| Method | Endpoint | Source File |
+|--------|----------|-------------|
+| GET | `/sales-teams` | services/crmSettingsService.ts |
+| POST | `/sales-teams` | services/crmSettingsService.ts |
+
+### territories (2 missing)
+
+| Method | Endpoint | Source File |
+|--------|----------|-------------|
+| POST | `/territories/reorder` | services/crmSettingsService.ts |
+| POST | `/territories/${id}/teams` | services/crmSettingsService.ts |
+
 ### bank-reconciliation (2 missing)
 
 | Method | Endpoint | Source File |
 |--------|----------|-------------|
 | POST | `/bank-reconciliation/feeds/${id}/fetch` | services/financeAdvancedService.ts |
 | GET | `/bank-reconciliation/feeds/${id}/transactions` | services/financeAdvancedService.ts |
+
+### integrations (2 missing)
+
+| Method | Endpoint | Source File |
+|--------|----------|-------------|
+| GET | `/integrations` | services/integrationsService.ts |
+| POST | `/integrations/${data.integrationId}/connect` | services/integrationsService.ts |
 
 ### notifications (2 missing)
 
@@ -750,6 +709,12 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 |--------|----------|-------------|
 | GET | `/competitors/stats` | services/crmSettingsService.ts |
 
+### documents (1 missing)
+
+| Method | Endpoint | Source File |
+|--------|----------|-------------|
+| GET | `/documents/${documentId}/versions/${versionId}/content` | services/documentVersionService.ts |
+
 ### exchange-rate-revaluation?${params.toString()} (1 missing)
 
 | Method | Endpoint | Source File |
@@ -761,12 +726,6 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | Method | Endpoint | Source File |
 |--------|----------|-------------|
 | GET | `/income-tax-slabs?${params.toString()}` | services/incomeTaxSlabsService.ts |
-
-### leave-periods?${params.toString()} (1 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/leave-periods?${params.toString()}` | services/leavePeriodService.ts |
 
 ### payroll?${params.toString()} (1 missing)
 
@@ -1026,7 +985,7 @@ These endpoints exist in backend but frontend doesn't call them - potentially de
 | GET | `/api/admin/tools/slow-queries` |
 | ... | *19 more* |
 
-### integrations (45 unused)
+### integrations (46 unused)
 
 | Method | Endpoint |
 |--------|----------|
@@ -1060,7 +1019,7 @@ These endpoints exist in backend but frontend doesn't call them - potentially de
 | POST | `/api/integrations/xero/sync/contacts` |
 | POST | `/api/integrations/xero/sync/accounts` |
 | POST | `/api/integrations/xero/sync/payments` |
-| ... | *15 more* |
+| ... | *16 more* |
 
 ### auth (35 unused)
 
@@ -1537,6 +1496,7 @@ Frontend calls with different HTTP method than backend expects.
 | `/corporate-cards/${id}` | PATCH | GET |
 | `/email-marketing/subscribers/${id}` | GET | PUT |
 | `/whatsapp/conversations/${conversationId}/assign` | POST | PUT |
+| `/sales-teams/${id}/members/${userId}` | PUT | DELETE |
 | `/data-export/jobs/:param` | POST | GET |
 | `/data-export/import/:param/cancel` | GET | POST |
 | `/data-export/templates/:param` | GET | PATCH |
@@ -1565,6 +1525,7 @@ Frontend calls with different HTTP method than backend expects.
 | `/leave-encashments/:param` | POST | GET |
 | `/leave-encashments/eligibility/:param` | POST | GET |
 | `/leave-encashments/export?:param` | POST | GET |
+| `/leave-periods/:param` | POST | GET |
 | `/hr/leave-policies/:param` | POST | GET |
 | `/hr/leave-policy-assignments/employee/:param/current` | POST | GET |
 | `/leave-requests/:param` | POST | GET |
@@ -2051,13 +2012,13 @@ Enums in backend models not exposed to frontend.
 ## Action Items
 
 ### 🔴 Critical (Will Break App)
-1. Add 402 missing backend endpoints
-2. Fix 161 HTTP method mismatches
+1. Add 366 missing backend endpoints
+2. Fix 163 HTTP method mismatches
 3. Sync 0 enum value differences
 
 ### 🟡 Important (May Cause Issues)
 1. Review 2871 frontend-only interfaces
-2. Document 2411 unused backend endpoints
+2. Document 2425 unused backend endpoints
 
 ### 📝 Housekeeping
 1. Remove dead code or add tests for unused endpoints

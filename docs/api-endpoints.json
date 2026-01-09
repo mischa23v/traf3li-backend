@@ -1,7 +1,7 @@
 {
-  "generated": "2026-01-09T12:24:46.050Z",
-  "totalEndpoints": 4953,
-  "totalModules": 322,
+  "generated": "2026-01-09T12:31:52.575Z",
+  "totalEndpoints": 5001,
+  "totalModules": 329,
   "modules": {
     "account": [
       {
@@ -8717,6 +8717,56 @@
         "module": "contactLists"
       }
     ],
+    "contactsExtended": [
+      {
+        "method": "GET",
+        "path": "/:contactId/cases",
+        "controller": "unknown",
+        "file": "contactsExtended.route.js",
+        "fullPath": "/api/contacts/:contactId/cases",
+        "module": "contactsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/:contactId/activities",
+        "controller": "unknown",
+        "file": "contactsExtended.route.js",
+        "fullPath": "/api/contacts/:contactId/activities",
+        "module": "contactsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:contactId/conflict-check",
+        "controller": "unknown",
+        "file": "contactsExtended.route.js",
+        "fullPath": "/api/contacts/:contactId/conflict-check",
+        "module": "contactsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:contactId/conflict-status",
+        "controller": "unknown",
+        "file": "contactsExtended.route.js",
+        "fullPath": "/api/contacts/:contactId/conflict-status",
+        "module": "contactsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/:contactId/timeline",
+        "controller": "unknown",
+        "file": "contactsExtended.route.js",
+        "fullPath": "/api/contacts/:contactId/timeline",
+        "module": "contactsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/:contactId/relationships",
+        "controller": "unknown",
+        "file": "contactsExtended.route.js",
+        "fullPath": "/api/contacts/:contactId/relationships",
+        "module": "contactsExtended"
+      }
+    ],
     "conversation": [
       {
         "method": "GET",
@@ -11683,6 +11733,56 @@
         "file": "documentsExtended.route.js",
         "fullPath": "/api/documents/:id/decrypt",
         "module": "documentsExtended"
+      }
+    ],
+    "documentsVersionsExtended": [
+      {
+        "method": "POST",
+        "path": "/:documentId/versions/cleanup",
+        "controller": "unknown",
+        "file": "documentsVersionsExtended.route.js",
+        "fullPath": "/api/documents/:documentId/versions/cleanup",
+        "module": "documentsVersionsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/:documentId/versions/compare",
+        "controller": "unknown",
+        "file": "documentsVersionsExtended.route.js",
+        "fullPath": "/api/documents/:documentId/versions/compare",
+        "module": "documentsVersionsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/:documentId/versions/statistics",
+        "controller": "unknown",
+        "file": "documentsVersionsExtended.route.js",
+        "fullPath": "/api/documents/:documentId/versions/statistics",
+        "module": "documentsVersionsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/:documentId/versions/diff",
+        "controller": "unknown",
+        "file": "documentsVersionsExtended.route.js",
+        "fullPath": "/api/documents/:documentId/versions/diff",
+        "module": "documentsVersionsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/:documentId/versions/timeline",
+        "controller": "unknown",
+        "file": "documentsVersionsExtended.route.js",
+        "fullPath": "/api/documents/:documentId/versions/timeline",
+        "module": "documentsVersionsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:documentId/versions/restore/:versionId",
+        "controller": "unknown",
+        "file": "documentsVersionsExtended.route.js",
+        "fullPath": "/api/documents/:documentId/versions/restore/:versionId",
+        "module": "documentsVersionsExtended"
       }
     ],
     "docusign": [
@@ -20021,6 +20121,56 @@
         "module": "integrations"
       }
     ],
+    "integrationsExtended": [
+      {
+        "method": "GET",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "integrationsExtended.route.js",
+        "fullPath": "/api/integrations/:id",
+        "module": "integrationsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/:id/status",
+        "controller": "unknown",
+        "file": "integrationsExtended.route.js",
+        "fullPath": "/api/integrations/:id/status",
+        "module": "integrationsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/disconnect",
+        "controller": "unknown",
+        "file": "integrationsExtended.route.js",
+        "fullPath": "/api/integrations/:id/disconnect",
+        "module": "integrationsExtended"
+      },
+      {
+        "method": "PUT",
+        "path": "/:id/settings",
+        "controller": "unknown",
+        "file": "integrationsExtended.route.js",
+        "fullPath": "/api/integrations/:id/settings",
+        "module": "integrationsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/test",
+        "controller": "unknown",
+        "file": "integrationsExtended.route.js",
+        "fullPath": "/api/integrations/:id/test",
+        "module": "integrationsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/:id/logs",
+        "controller": "unknown",
+        "file": "integrationsExtended.route.js",
+        "fullPath": "/api/integrations/:id/logs",
+        "module": "integrationsExtended"
+      }
+    ],
     "interCompany": [
       {
         "method": "GET",
@@ -22749,6 +22899,72 @@
         "file": "leaveManagement.route.js",
         "fullPath": "/api/hr/leave-management/leave-allocations/generate",
         "module": "leaveManagement"
+      }
+    ],
+    "leavePeriods": [
+      {
+        "method": "GET",
+        "path": "/",
+        "controller": "unknown",
+        "file": "leavePeriods.route.js",
+        "fullPath": "/api/leave-periods",
+        "module": "leavePeriods"
+      },
+      {
+        "method": "POST",
+        "path": "/",
+        "controller": "unknown",
+        "file": "leavePeriods.route.js",
+        "fullPath": "/api/leave-periods",
+        "module": "leavePeriods"
+      },
+      {
+        "method": "GET",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "leavePeriods.route.js",
+        "fullPath": "/api/leave-periods/:id",
+        "module": "leavePeriods"
+      },
+      {
+        "method": "PATCH",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "leavePeriods.route.js",
+        "fullPath": "/api/leave-periods/:id",
+        "module": "leavePeriods"
+      },
+      {
+        "method": "DELETE",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "leavePeriods.route.js",
+        "fullPath": "/api/leave-periods/:id",
+        "module": "leavePeriods"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/activate",
+        "controller": "unknown",
+        "file": "leavePeriods.route.js",
+        "fullPath": "/api/leave-periods/:id/activate",
+        "module": "leavePeriods"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/close",
+        "controller": "unknown",
+        "file": "leavePeriods.route.js",
+        "fullPath": "/api/leave-periods/:id/close",
+        "module": "leavePeriods"
+      },
+      {
+        "method": "GET",
+        "path": "/:id/allocations",
+        "controller": "unknown",
+        "file": "leavePeriods.route.js",
+        "fullPath": "/api/leave-periods/:id/allocations",
+        "module": "leavePeriods"
       }
     ],
     "leaveRequest": [
@@ -26371,6 +26587,72 @@
         "file": "payroll.route.js",
         "fullPath": "/api/hr/payroll/:id",
         "module": "payroll"
+      }
+    ],
+    "payrollExtended": [
+      {
+        "method": "GET",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "payrollExtended.route.js",
+        "fullPath": "/api/payroll/:id",
+        "module": "payrollExtended"
+      },
+      {
+        "method": "PUT",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "payrollExtended.route.js",
+        "fullPath": "/api/payroll/:id",
+        "module": "payrollExtended"
+      },
+      {
+        "method": "DELETE",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "payrollExtended.route.js",
+        "fullPath": "/api/payroll/:id",
+        "module": "payrollExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/approve",
+        "controller": "unknown",
+        "file": "payrollExtended.route.js",
+        "fullPath": "/api/payroll/:id/approve",
+        "module": "payrollExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/process",
+        "controller": "unknown",
+        "file": "payrollExtended.route.js",
+        "fullPath": "/api/payroll/:id/process",
+        "module": "payrollExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/recalculate",
+        "controller": "unknown",
+        "file": "payrollExtended.route.js",
+        "fullPath": "/api/payroll/:id/recalculate",
+        "module": "payrollExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/:id/slips",
+        "controller": "unknown",
+        "file": "payrollExtended.route.js",
+        "fullPath": "/api/payroll/:id/slips",
+        "module": "payrollExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/finalize",
+        "controller": "unknown",
+        "file": "payrollExtended.route.js",
+        "fullPath": "/api/payroll/:id/finalize",
+        "module": "payrollExtended"
       }
     ],
     "payrollRun": [
@@ -30615,6 +30897,56 @@
         "file": "salesTeams.route.js",
         "fullPath": "/api/crm/sales-teams/:id/members/:userId",
         "module": "salesTeams"
+      }
+    ],
+    "salesTeamsExtended": [
+      {
+        "method": "GET",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "salesTeamsExtended.route.js",
+        "fullPath": "/api/sales-teams/:id",
+        "module": "salesTeamsExtended"
+      },
+      {
+        "method": "PUT",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "salesTeamsExtended.route.js",
+        "fullPath": "/api/sales-teams/:id",
+        "module": "salesTeamsExtended"
+      },
+      {
+        "method": "DELETE",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "salesTeamsExtended.route.js",
+        "fullPath": "/api/sales-teams/:id",
+        "module": "salesTeamsExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/members",
+        "controller": "unknown",
+        "file": "salesTeamsExtended.route.js",
+        "fullPath": "/api/sales-teams/:id/members",
+        "module": "salesTeamsExtended"
+      },
+      {
+        "method": "DELETE",
+        "path": "/:id/members/:userId",
+        "controller": "unknown",
+        "file": "salesTeamsExtended.route.js",
+        "fullPath": "/api/sales-teams/:id/members/:userId",
+        "module": "salesTeamsExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/:id/performance",
+        "controller": "unknown",
+        "file": "salesTeamsExtended.route.js",
+        "fullPath": "/api/sales-teams/:id/performance",
+        "module": "salesTeamsExtended"
       }
     ],
     "saless": [
@@ -36155,6 +36487,72 @@
         "file": "temporalOnboarding.route.js",
         "fullPath": "/api/temporalOnboarding/:id/onboarding/cancel",
         "module": "temporalOnboarding"
+      }
+    ],
+    "territories": [
+      {
+        "method": "GET",
+        "path": "/",
+        "controller": "unknown",
+        "file": "territories.route.js",
+        "fullPath": "/api/territories",
+        "module": "territories"
+      },
+      {
+        "method": "POST",
+        "path": "/",
+        "controller": "unknown",
+        "file": "territories.route.js",
+        "fullPath": "/api/territories",
+        "module": "territories"
+      },
+      {
+        "method": "GET",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "territories.route.js",
+        "fullPath": "/api/territories/:id",
+        "module": "territories"
+      },
+      {
+        "method": "PUT",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "territories.route.js",
+        "fullPath": "/api/territories/:id",
+        "module": "territories"
+      },
+      {
+        "method": "DELETE",
+        "path": "/:id",
+        "controller": "unknown",
+        "file": "territories.route.js",
+        "fullPath": "/api/territories/:id",
+        "module": "territories"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/users",
+        "controller": "unknown",
+        "file": "territories.route.js",
+        "fullPath": "/api/territories/:id/users",
+        "module": "territories"
+      },
+      {
+        "method": "DELETE",
+        "path": "/:id/users/:userId",
+        "controller": "unknown",
+        "file": "territories.route.js",
+        "fullPath": "/api/territories/:id/users/:userId",
+        "module": "territories"
+      },
+      {
+        "method": "GET",
+        "path": "/:id/stats",
+        "controller": "unknown",
+        "file": "territories.route.js",
+        "fullPath": "/api/territories/:id/stats",
+        "module": "territories"
       }
     ],
     "territory": [
