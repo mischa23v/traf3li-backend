@@ -29,8 +29,8 @@ function extractEndpointsFromFile(filePath) {
     const fileName = path.basename(filePath, '.js').replace('.route', '').replace('.routes', '');
     const endpoints = [];
 
-    // Match router.METHOD('path', ...) patterns
-    const routeRegex = /router\.(get|post|put|patch|delete)\s*\(\s*['"`]([^'"`]+)['"`]/gi;
+    // Match router.METHOD('path', ...) or app.METHOD('path', ...) patterns
+    const routeRegex = /(?:router|app)\.(get|post|put|patch|delete)\s*\(\s*['"`]([^'"`]+)['"`]/gi;
 
     let match;
     while ((match = routeRegex.exec(content)) !== null) {

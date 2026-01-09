@@ -7,7 +7,10 @@
 ## Table of Contents
 
 - [account](#account) (7 endpoints)
+- [activity](#activity) (5 endpoints)
 - [activityPlans](#activityplans) (6 endpoints)
+- [activitys](#activitys) (13 endpoints)
+- [admin](#admin) (13 endpoints)
 - [adminApi](#adminapi) (22 endpoints)
 - [adminTools](#admintools) (30 endpoints)
 - [aiChat](#aichat) (7 endpoints)
@@ -15,38 +18,53 @@
 - [aiSettings](#aisettings) (7 endpoints)
 - [analyticsReport](#analyticsreport) (20 endpoints)
 - [analyticss](#analyticss) (26 endpoints)
+- [answer](#answer) (6 endpoints)
 - [apiKey](#apikey) (7 endpoints)
 - [appointment](#appointment) (28 endpoints)
 - [approval](#approval) (8 endpoints)
 - [approvals](#approvals) (11 endpoints)
 - [apps](#apps) (10 endpoints)
+- [arAging](#araging) (6 endpoints)
 - [assetAssignment](#assetassignment) (23 endpoints)
 - [assets](#assets) (21 endpoints)
 - [attendance](#attendance) (28 endpoints)
 - [audit](#audit) (5 endpoints)
 - [auditLog](#auditlog) (33 endpoints)
+- [auth](#auth) (42 endpoints)
 - [automatedActions](#automatedactions) (15 endpoints)
 - [automations](#automations) (10 endpoints)
+- [bankAccount](#bankaccount) (10 endpoints)
+- [bankReconciliation](#bankreconciliation) (33 endpoints)
+- [bankTransaction](#banktransaction) (6 endpoints)
+- [bankTransfer](#banktransfer) (4 endpoints)
+- [bill](#bill) (20 endpoints)
+- [billPayment](#billpayment) (4 endpoints)
 - [billing](#billing) (16 endpoints)
+- [billingRate](#billingrate) (8 endpoints)
 - [biometric](#biometric) (32 endpoints)
 - [brokers](#brokers) (6 endpoints)
 - [bulkActionss](#bulkactionss) (5 endpoints)
 - [buying](#buying) (33 endpoints)
+- [calendar](#calendar) (11 endpoints)
 - [campaigns](#campaigns) (12 endpoints)
 - [captcha](#captcha) (3 endpoints)
+- [case](#case) (54 endpoints)
 - [caseNotion](#casenotion) (74 endpoints)
 - [chatterFollowers](#chatterfollowers) (7 endpoints)
 - [churn](#churn) (19 endpoints)
+- [client](#client) (23 endpoints)
 - [cloudStorages](#cloudstorages) (13 endpoints)
 - [commandPalettes](#commandpalettes) (9 endpoints)
 - [compensationReward](#compensationreward) (24 endpoints)
 - [competitor](#competitor) (6 endpoints)
 - [competitors](#competitors) (7 endpoints)
 - [complianceDashboard](#compliancedashboard) (8 endpoints)
+- [conflictCheck](#conflictcheck) (8 endpoints)
 - [consent](#consent) (6 endpoints)
 - [consolidatedReports](#consolidatedreports) (8 endpoints)
 - [contact](#contact) (17 endpoints)
 - [contactLists](#contactlists) (10 endpoints)
+- [conversation](#conversation) (4 endpoints)
 - [conversations](#conversations) (10 endpoints)
 - [corporateCard](#corporatecard) (15 endpoints)
 - [creditNote](#creditnote) (10 endpoints)
@@ -55,13 +73,19 @@
 - [crmReports](#crmreports) (27 endpoints)
 - [crmSettings](#crmsettings) (3 endpoints)
 - [crmTransaction](#crmtransaction) (15 endpoints)
+- [currency](#currency) (6 endpoints)
 - [customFields](#customfields) (17 endpoints)
 - [cycles](#cycles) (11 endpoints)
+- [dashboard](#dashboard) (12 endpoints)
+- [dataExport](#dataexport) (18 endpoints)
 - [dealHealths](#dealhealths) (6 endpoints)
 - [dealRooms](#dealrooms) (11 endpoints)
 - [debitNote](#debitnote) (12 endpoints)
 - [deduplications](#deduplications) (6 endpoints)
 - [discord](#discord) (11 endpoints)
+- [dispute](#dispute) (10 endpoints)
+- [document](#document) (19 endpoints)
+- [documentAnalysis](#documentanalysis) (11 endpoints)
 - [docusign](#docusign) (17 endpoints)
 - [dunning](#dunning) (24 endpoints)
 - [emailMarketing](#emailmarketing) (39 endpoints)
@@ -71,14 +95,21 @@
 - [employeeBenefit](#employeebenefit) (23 endpoints)
 - [employeeLoan](#employeeloan) (24 endpoints)
 - [employeeSelfService](#employeeselfservice) (11 endpoints)
+- [event](#event) (51 endpoints)
 - [exchangeRateRevaluation](#exchangeraterevaluation) (9 endpoints)
+- [expense](#expense) (17 endpoints)
 - [expenseClaim](#expenseclaim) (32 endpoints)
 - [expensePolicy](#expensepolicy) (13 endpoints)
 - [fieldHistorys](#fieldhistorys) (8 endpoints)
 - [financeSetup](#financesetup) (7 endpoints)
+- [firm](#firm) (46 endpoints)
+- [fiscalPeriod](#fiscalperiod) (12 endpoints)
 - [fleet](#fleet) (33 endpoints)
+- [followup](#followup) (16 endpoints)
 - [gantt](#gantt) (36 endpoints)
 - [generalLedger](#generalledger) (12 endpoints)
+- [gig](#gig) (4 endpoints)
+- [github](#github) (12 endpoints)
 - [gmail](#gmail) (18 endpoints)
 - [googleCalendar](#googlecalendar) (21 endpoints)
 - [gosi](#gosi) (7 endpoints)
@@ -94,13 +125,17 @@
 - [inventory](#inventory) (38 endpoints)
 - [investmentSearch](#investmentsearch) (9 endpoints)
 - [investments](#investments) (11 endpoints)
+- [invitation](#invitation) (3 endpoints)
 - [invoice](#invoice) (34 endpoints)
 - [invoiceApproval](#invoiceapproval) (9 endpoints)
+- [invoiceTemplate](#invoicetemplate) (11 endpoints)
+- [job](#job) (6 endpoints)
 - [jobPosition](#jobposition) (25 endpoints)
 - [journalEntry](#journalentry) (8 endpoints)
 - [keyboardShortcuts](#keyboardshortcuts) (9 endpoints)
 - [kpiAnalytics](#kpianalytics) (4 endpoints)
 - [kyc](#kyc) (9 endpoints)
+- [lawyer](#lawyer) (3 endpoints)
 - [ldap](#ldap) (6 endpoints)
 - [lead](#lead) (21 endpoints)
 - [leadConversion](#leadconversion) (6 endpoints)
@@ -109,54 +144,78 @@
 - [leaveManagement](#leavemanagement) (26 endpoints)
 - [leaveRequest](#leaverequest) (20 endpoints)
 - [legalContract](#legalcontract) (33 endpoints)
+- [legalDocument](#legaldocument) (6 endpoints)
 - [lifecycles](#lifecycles) (10 endpoints)
+- [lockDates](#lockdates) (8 endpoints)
 - [lostReason](#lostreason) (7 endpoints)
 - [lostReasons](#lostreasons) (7 endpoints)
 - [macros](#macros) (9 endpoints)
 - [manufacturing](#manufacturing) (28 endpoints)
+- [matterBudget](#matterbudget) (19 endpoints)
+- [message](#message) (4 endpoints)
 - [metrics](#metrics) (4 endpoints)
 - [mfa](#mfa) (9 endpoints)
 - [microsoftCalendar](#microsoftcalendar) (17 endpoints)
 - [mlScoring](#mlscoring) (18 endpoints)
+- [notification](#notification) (11 endpoints)
+- [notificationPreference](#notificationpreference) (12 endpoints)
 - [notificationSettings](#notificationsettings) (6 endpoints)
+- [oauth](#oauth) (15 endpoints)
 - [offboarding](#offboarding) (21 endpoints)
+- [offlineSyncs](#offlinesyncs) (6 endpoints)
 - [okr](#okr) (15 endpoints)
 - [onboarding](#onboarding) (22 endpoints)
+- [order](#order) (6 endpoints)
 - [organization](#organization) (13 endpoints)
 - [organizationTemplate](#organizationtemplate) (13 endpoints)
 - [organizationalUnit](#organizationalunit) (24 endpoints)
+- [payment](#payment) (20 endpoints)
 - [paymentReceipt](#paymentreceipt) (7 endpoints)
 - [paymentTerms](#paymentterms) (10 endpoints)
 - [payout](#payout) (10 endpoints)
 - [payroll](#payroll) (13 endpoints)
 - [payrollRun](#payrollrun) (20 endpoints)
 - [pdfme](#pdfme) (15 endpoints)
+- [peerReview](#peerreview) (3 endpoints)
 - [performanceReview](#performancereview) (28 endpoints)
 - [permission](#permission) (32 endpoints)
 - [plan](#plan) (8 endpoints)
 - [playbook](#playbook) (15 endpoints)
 - [plugins](#plugins) (16 endpoints)
 - [preparedReport](#preparedreport) (7 endpoints)
+- [priceLevel](#pricelevel) (7 endpoints)
 - [products](#products) (9 endpoints)
+- [proposal](#proposal) (6 endpoints)
 - [quality](#quality) (19 endpoints)
+- [question](#question) (5 endpoints)
 - [queue](#queue) (13 endpoints)
 - [quotes](#quotes) (15 endpoints)
+- [rateCard](#ratecard) (11 endpoints)
+- [rateGroup](#rategroup) (9 endpoints)
 - [rateLimit](#ratelimit) (12 endpoints)
 - [recruitment](#recruitment) (39 endpoints)
 - [recurringInvoice](#recurringinvoice) (13 endpoints)
+- [recurringTransaction](#recurringtransaction) (10 endpoints)
 - [referral](#referral) (11 endpoints)
 - [refund](#refund) (11 endpoints)
 - [regionalBanks](#regionalbanks) (9 endpoints)
+- [reminder](#reminder) (48 endpoints)
+- [report](#report) (21 endpoints)
 - [reports](#reports) (10 endpoints)
+- [retainer](#retainer) (10 endpoints)
+- [review](#review) (3 endpoints)
 - [salesForecasts](#salesforecasts) (11 endpoints)
 - [salesPerson](#salesperson) (7 endpoints)
 - [salesQuota](#salesquota) (11 endpoints)
 - [salesStage](#salesstage) (7 endpoints)
 - [salesTeams](#salesteams) (10 endpoints)
 - [saless](#saless) (75 endpoints)
+- [saml](#saml) (8 endpoints)
 - [sandboxs](#sandboxs) (9 endpoints)
 - [saudiBanking](#saudibanking) (32 endpoints)
 - [savedFilters](#savedfilters) (11 endpoints)
+- [savedReport](#savedreport) (15 endpoints)
+- [score](#score) (3 endpoints)
 - [security](#security) (11 endpoints)
 - [securityIncident](#securityincident) (8 endpoints)
 - [setupWizard](#setupwizard) (13 endpoints)
@@ -165,13 +224,18 @@
 - [slack](#slack) (12 endpoints)
 - [slas](#slas) (10 endpoints)
 - [sloMonitorings](#slomonitorings) (18 endpoints)
+- [smartButton](#smartbutton) (2 endpoints)
+- [smartScheduling](#smartscheduling) (6 endpoints)
 - [ssoConfig](#ssoconfig) (5 endpoints)
 - [staff](#staff) (9 endpoints)
+- [statement](#statement) (7 endpoints)
 - [status](#status) (22 endpoints)
 - [subcontracting](#subcontracting) (14 endpoints)
 - [successionPlan](#successionplan) (27 endpoints)
 - [support](#support) (16 endpoints)
 - [survey](#survey) (16 endpoints)
+- [tag](#tag) (9 endpoints)
+- [task](#task) (89 endpoints)
 - [team](#team) (15 endpoints)
 - [telegram](#telegram) (11 endpoints)
 - [temporalCase](#temporalcase) (9 endpoints)
@@ -180,13 +244,19 @@
 - [temporalOnboarding](#temporalonboarding) (7 endpoints)
 - [territory](#territory) (6 endpoints)
 - [territorys](#territorys) (9 endpoints)
+- [threadMessages](#threadmessages) (10 endpoints)
 - [timeTracking](#timetracking) (29 endpoints)
 - [timelines](#timelines) (2 endpoints)
 - [trades](#trades) (10 endpoints)
 - [tradingAccounts](#tradingaccounts) (8 endpoints)
 - [training](#training) (29 endpoints)
+- [transaction](#transaction) (10 endpoints)
 - [trello](#trello) (16 endpoints)
+- [trustAccount](#trustaccount) (17 endpoints)
 - [unifiedData](#unifieddata) (6 endpoints)
+- [user](#user) (13 endpoints)
+- [userSettings](#usersettings) (6 endpoints)
+- [vendor](#vendor) (6 endpoints)
 - [verify](#verify) (19 endpoints)
 - [views](#views) (11 endpoints)
 - [walkthrough](#walkthrough) (14 endpoints)
@@ -194,6 +264,7 @@
 - [webhook](#webhook) (16 endpoints)
 - [whatsapp](#whatsapp) (24 endpoints)
 - [whosOut](#whosout) (6 endpoints)
+- [workflow](#workflow) (13 endpoints)
 - [workflows](#workflows) (154 endpoints)
 - [zatca](#zatca) (12 endpoints)
 - [zoom](#zoom) (14 endpoints)
@@ -204,8 +275,8 @@
 
 | Metric | Count |
 |--------|-------|
-| Total Endpoints | 3105 |
-| Total Modules | 191 |
+| Total Endpoints | 4086 |
+| Total Modules | 262 |
 
 ---
 
@@ -221,6 +292,16 @@
 | `PATCH` | `/api/account/:id` | updateAccount | account.route.js |
 | `DELETE` | `/api/account/:id` | deleteAccount | account.route.js |
 
+## activity
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/activity/summary` | getActivitySummary | activity.route.js |
+| `GET` | `/api/activity/overview` | getActivityOverview | activity.route.js |
+| `GET` | `/api/activity/entity/:entityType/:entityId` | getEntityActivities | activity.route.js |
+| `GET` | `/api/activity` | getActivities | activity.route.js |
+| `GET` | `/api/activity/:id` | getActivity | activity.route.js |
+
 ## activityPlans
 
 | Method | Path | Controller | File |
@@ -231,6 +312,42 @@
 | `PUT` | `/api/activityPlans/:id` | unknown | activityPlan.routes.js |
 | `DELETE` | `/api/activityPlans/:id` | unknown | activityPlan.routes.js |
 | `POST` | `/api/activityPlans/:id/duplicate` | unknown | activityPlan.routes.js |
+
+## activitys
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/activitys/stats` | getActivityStats | activity.routes.js |
+| `GET` | `/api/activitys/my` | getMyActivities | activity.routes.js |
+| `GET` | `/api/activitys/types` | getActivityTypes | activity.routes.js |
+| `POST` | `/api/activitys/types` | createActivityType | activity.routes.js |
+| `PATCH` | `/api/activitys/types/:id` | updateActivityType | activity.routes.js |
+| `DELETE` | `/api/activitys/types/:id` | deleteActivityType | activity.routes.js |
+| `GET` | `/api/activitys` | getActivities | activity.routes.js |
+| `POST` | `/api/activitys` | scheduleActivity | activity.routes.js |
+| `GET` | `/api/activitys/:id` | getActivity | activity.routes.js |
+| `POST` | `/api/activitys/:id/done` | markAsDone | activity.routes.js |
+| `POST` | `/api/activitys/:id/cancel` | cancelActivity | activity.routes.js |
+| `PATCH` | `/api/activitys/:id/reschedule` | reschedule | activity.routes.js |
+| `PATCH` | `/api/activitys/:id/reassign` | reassign | activity.routes.js |
+
+## admin
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `POST` | `/api/admin/users/:id/revoke-tokens` | revokeUserTokens | admin.route.js |
+| `GET` | `/api/admin/revoked-tokens` | getRecentRevocations | admin.route.js |
+| `GET` | `/api/admin/revoked-tokens/stats` | getRevocationStats | admin.route.js |
+| `GET` | `/api/admin/users/:id/revocations` | getUserRevocationHistory | admin.route.js |
+| `POST` | `/api/admin/revoked-tokens/cleanup` | cleanupExpiredTokens | admin.route.js |
+| `POST` | `/api/admin/users/:id/expire-password` | expireUserPassword | admin.route.js |
+| `POST` | `/api/admin/firm/expire-all-passwords` | expireAllFirmPasswords | admin.route.js |
+| `GET` | `/api/admin/firm/password-stats` | getFirmPasswordStats | admin.route.js |
+| `GET` | `/api/admin/users/:id/claims` | getUserClaims | admin.route.js |
+| `PUT` | `/api/admin/users/:id/claims` | setUserClaims | admin.route.js |
+| `DELETE` | `/api/admin/users/:id/claims` | deleteUserClaims | admin.route.js |
+| `GET` | `/api/admin/users/:id/claims/preview` | previewTokenClaims | admin.route.js |
+| `POST` | `/api/admin/users/:id/claims/validate` | validateClaims | admin.route.js |
 
 ## adminApi
 
@@ -391,6 +508,17 @@
 | `GET` | `/api/analyticss/crm/revenue` | unknown | analytics.routes.js |
 | `GET` | `/api/analyticss/crm/forecast-accuracy` | unknown | analytics.routes.js |
 
+## answer
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `POST` | `/api/answer` | createAnswer | answer.route.js |
+| `GET` | `/api/answer/:questionId` | getAnswers | answer.route.js |
+| `PATCH` | `/api/answer/:_id` | updateAnswer | answer.route.js |
+| `DELETE` | `/api/answer/:_id` | deleteAnswer | answer.route.js |
+| `POST` | `/api/answer/like/:_id` | likeAnswer | answer.route.js |
+| `PATCH` | `/api/answer/verify/:_id` | verifyAnswer | answer.route.js |
+
 ## apiKey
 
 | Method | Path | Controller | File |
@@ -479,6 +607,17 @@
 | `PUT` | `/api/apps/:appId/settings` | unknown | apps.route.js |
 | `POST` | `/api/apps/:appId/sync` | unknown | apps.route.js |
 | `POST` | `/api/apps/:appId/test` | unknown | apps.route.js |
+
+## arAging
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/arAging/report` | getAgingReport | arAging.route.js |
+| `GET` | `/api/arAging/summary` | getAgingSummary | arAging.route.js |
+| `GET` | `/api/arAging/client/:clientId` | getAgingByClient | arAging.route.js |
+| `GET` | `/api/arAging/forecast` | getCollectionForecast | arAging.route.js |
+| `GET` | `/api/arAging/priority/:invoiceId` | getCollectionPriorityScore | arAging.route.js |
+| `GET` | `/api/arAging/export` | exportAgingReport | arAging.route.js |
 
 ## assetAssignment
 
@@ -615,6 +754,53 @@
 | `POST` | `/api/auditLog/archive/run` | unknown | auditLog.route.js |
 | `POST` | `/api/auditLog/archive/verify` | unknown | auditLog.route.js |
 
+## auth
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `POST` | `/api/auth/check-availability` | checkAvailability | auth.route.js |
+| `POST` | `/api/auth/register` | authRegister | auth.route.js |
+| `POST` | `/api/auth/anonymous` | anonymousLogin | auth.route.js |
+| `POST` | `/api/auth/anonymous/convert` | convertAnonymousUser | auth.route.js |
+| `POST` | `/api/auth/login` | authLogin | auth.route.js |
+| `POST` | `/api/auth/google/one-tap` | authenticateWithOneTap | auth.route.js |
+| `POST` | `/api/auth/logout` | authLogout | auth.route.js |
+| `POST` | `/api/auth/logout-all` | authLogoutAll | auth.route.js |
+| `POST` | `/api/auth/refresh` | refreshAccessToken | auth.route.js |
+| `GET` | `/api/auth/me` | authStatus | auth.route.js |
+| `GET` | `/api/auth/onboarding-status` | getOnboardingStatus | auth.route.js |
+| `POST` | `/api/auth/send-otp` | sendOTP | auth.route.js |
+| `POST` | `/api/auth/verify-otp` | verifyOTP | auth.route.js |
+| `POST` | `/api/auth/resend-otp` | resendOTP | auth.route.js |
+| `GET` | `/api/auth/otp-status` | checkOTPStatus | auth.route.js |
+| `POST` | `/api/auth/phone/send-otp` | sendPhoneOTP | auth.route.js |
+| `POST` | `/api/auth/phone/verify-otp` | verifyPhoneOTP | auth.route.js |
+| `POST` | `/api/auth/phone/resend-otp` | resendPhoneOTP | auth.route.js |
+| `GET` | `/api/auth/phone/otp-status` | checkPhoneOTPStatus | auth.route.js |
+| `POST` | `/api/auth/magic-link/send` | sendMagicLink | auth.route.js |
+| `POST` | `/api/auth/magic-link/verify` | verifyMagicLink | auth.route.js |
+| `POST` | `/api/auth/mfa/backup-codes/generate` | generateBackupCodes | auth.route.js |
+| `POST` | `/api/auth/mfa/backup-codes/verify` | verifyBackupCode | auth.route.js |
+| `POST` | `/api/auth/mfa/backup-codes/regenerate` | regenerateBackupCodes | auth.route.js |
+| `GET` | `/api/auth/mfa/backup-codes/count` | getBackupCodesCount | auth.route.js |
+| `GET` | `/api/auth/mfa/status` | getMFAStatus | auth.route.js |
+| `GET` | `/api/auth/sessions` | getActiveSessions | auth.route.js |
+| `GET` | `/api/auth/sessions/current` | getCurrentSession | auth.route.js |
+| `GET` | `/api/auth/sessions/stats` | getSessionStats | auth.route.js |
+| `DELETE` | `/api/auth/sessions/:id` | terminateSession | auth.route.js |
+| `DELETE` | `/api/auth/sessions` | terminateAllOtherSessions | auth.route.js |
+| `POST` | `/api/auth/change-password` | changePassword | auth.route.js |
+| `GET` | `/api/auth/password-status` | getPasswordStatus | auth.route.js |
+| `POST` | `/api/auth/forgot-password` | forgotPassword | auth.route.js |
+| `POST` | `/api/auth/reset-password` | resetPassword | auth.route.js |
+| `POST` | `/api/auth/verify-email` | verifyEmail | auth.route.js |
+| `POST` | `/api/auth/resend-verification` | resendVerificationEmail | auth.route.js |
+| `GET` | `/api/auth/csrf` | getCSRFToken | auth.route.js |
+| `POST` | `/api/auth/reauthenticate` | reauthenticate | auth.route.js |
+| `POST` | `/api/auth/reauthenticate/challenge` | createReauthChallenge | auth.route.js |
+| `POST` | `/api/auth/reauthenticate/verify` | verifyReauthChallenge | auth.route.js |
+| `GET` | `/api/auth/reauthenticate/status` | getReauthStatus | auth.route.js |
+
 ## automatedActions
 
 | Method | Path | Controller | File |
@@ -650,6 +836,113 @@
 | `GET` | `/api/automations/:id/stats` | unknown | automation.routes.js |
 | `GET` | `/api/automations/:id/logs` | unknown | automation.routes.js |
 
+## bankAccount
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `POST` | `/api/bankAccount` | createBankAccount | bankAccount.route.js |
+| `GET` | `/api/bankAccount` | getBankAccounts | bankAccount.route.js |
+| `GET` | `/api/bankAccount/summary` | getSummary | bankAccount.route.js |
+| `GET` | `/api/bankAccount/:id` | getBankAccount | bankAccount.route.js |
+| `PUT` | `/api/bankAccount/:id` | updateBankAccount | bankAccount.route.js |
+| `DELETE` | `/api/bankAccount/:id` | deleteBankAccount | bankAccount.route.js |
+| `POST` | `/api/bankAccount/:id/set-default` | setDefault | bankAccount.route.js |
+| `GET` | `/api/bankAccount/:id/balance-history` | getBalanceHistory | bankAccount.route.js |
+| `POST` | `/api/bankAccount/:id/sync` | syncAccount | bankAccount.route.js |
+| `POST` | `/api/bankAccount/:id/disconnect` | disconnectAccount | bankAccount.route.js |
+
+## bankReconciliation
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/bankReconciliation/feeds` | getBankFeeds | bankReconciliation.route.js |
+| `POST` | `/api/bankReconciliation/feeds` | createBankFeed | bankReconciliation.route.js |
+| `PUT` | `/api/bankReconciliation/feeds/:id` | updateBankFeed | bankReconciliation.route.js |
+| `DELETE` | `/api/bankReconciliation/feeds/:id` | deleteBankFeed | bankReconciliation.route.js |
+| `POST` | `/api/bankReconciliation/import/csv` | importCSV | bankReconciliation.route.js |
+| `POST` | `/api/bankReconciliation/import/ofx` | importOFX | bankReconciliation.route.js |
+| `GET` | `/api/bankReconciliation/import/template` | getCSVTemplate | bankReconciliation.route.js |
+| `GET` | `/api/bankReconciliation/suggestions/:accountId` | getMatchSuggestions | bankReconciliation.route.js |
+| `POST` | `/api/bankReconciliation/auto-match/:accountId` | autoMatch | bankReconciliation.route.js |
+| `POST` | `/api/bankReconciliation/match/confirm/:id` | confirmMatch | bankReconciliation.route.js |
+| `POST` | `/api/bankReconciliation/match/reject/:id` | rejectMatch | bankReconciliation.route.js |
+| `POST` | `/api/bankReconciliation/match/split` | createSplitMatch | bankReconciliation.route.js |
+| `DELETE` | `/api/bankReconciliation/match/:id` | unmatch | bankReconciliation.route.js |
+| `POST` | `/api/bankReconciliation/rules` | createRule | bankReconciliation.route.js |
+| `GET` | `/api/bankReconciliation/rules` | getRules | bankReconciliation.route.js |
+| `PUT` | `/api/bankReconciliation/rules/:id` | updateRule | bankReconciliation.route.js |
+| `DELETE` | `/api/bankReconciliation/rules/:id` | deleteRule | bankReconciliation.route.js |
+| `POST` | `/api/bankReconciliation` | createReconciliation | bankReconciliation.route.js |
+| `GET` | `/api/bankReconciliation` | getReconciliations | bankReconciliation.route.js |
+| `GET` | `/api/bankReconciliation/:id` | getReconciliation | bankReconciliation.route.js |
+| `POST` | `/api/bankReconciliation/:id/clear` | clearTransaction | bankReconciliation.route.js |
+| `POST` | `/api/bankReconciliation/:id/unclear` | unclearTransaction | bankReconciliation.route.js |
+| `POST` | `/api/bankReconciliation/:id/complete` | completeReconciliation | bankReconciliation.route.js |
+| `POST` | `/api/bankReconciliation/:id/cancel` | cancelReconciliation | bankReconciliation.route.js |
+| `GET` | `/api/bankReconciliation/status/:accountId` | getReconciliationStatus | bankReconciliation.route.js |
+| `GET` | `/api/bankReconciliation/unmatched/:accountId` | getUnmatchedTransactions | bankReconciliation.route.js |
+| `GET` | `/api/bankReconciliation/statistics/matches` | getMatchStatistics | bankReconciliation.route.js |
+| `GET` | `/api/bankReconciliation/statistics/rules` | getRuleStatistics | bankReconciliation.route.js |
+| `GET` | `/api/bankReconciliation/currency/rates` | getExchangeRates | bankReconciliation.route.js |
+| `POST` | `/api/bankReconciliation/currency/convert` | convertAmount | bankReconciliation.route.js |
+| `POST` | `/api/bankReconciliation/currency/rates` | setManualRate | bankReconciliation.route.js |
+| `GET` | `/api/bankReconciliation/currency/supported` | getSupportedCurrencies | bankReconciliation.route.js |
+| `POST` | `/api/bankReconciliation/currency/update` | updateRatesFromAPI | bankReconciliation.route.js |
+
+## bankTransaction
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `POST` | `/api/bankTransaction` | createTransaction | bankTransaction.route.js |
+| `GET` | `/api/bankTransaction` | getTransactions | bankTransaction.route.js |
+| `GET` | `/api/bankTransaction/:id` | getTransaction | bankTransaction.route.js |
+| `POST` | `/api/bankTransaction/:transactionId/match` | matchTransaction | bankTransaction.route.js |
+| `POST` | `/api/bankTransaction/:transactionId/unmatch` | unmatchTransaction | bankTransaction.route.js |
+| `POST` | `/api/bankTransaction/import/:accountId` | importTransactions | bankTransaction.route.js |
+
+## bankTransfer
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `POST` | `/api/bankTransfer` | createTransfer | bankTransfer.route.js |
+| `GET` | `/api/bankTransfer` | getTransfers | bankTransfer.route.js |
+| `GET` | `/api/bankTransfer/:id` | getTransfer | bankTransfer.route.js |
+| `POST` | `/api/bankTransfer/:id/cancel` | cancelTransfer | bankTransfer.route.js |
+
+## bill
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `POST` | `/api/bill` | createBill | bill.route.js |
+| `GET` | `/api/bill` | getBills | bill.route.js |
+| `GET` | `/api/bill/overdue` | getOverdueBills | bill.route.js |
+| `GET` | `/api/bill/summary` | getSummary | bill.route.js |
+| `GET` | `/api/bill/recurring` | getRecurringBills | bill.route.js |
+| `GET` | `/api/bill/reports/aging` | getAgingReport | bill.route.js |
+| `GET` | `/api/bill/export` | exportBills | bill.route.js |
+| `GET` | `/api/bill/:id` | getBill | bill.route.js |
+| `PUT` | `/api/bill/:id` | updateBill | bill.route.js |
+| `DELETE` | `/api/bill/:id` | deleteBill | bill.route.js |
+| `POST` | `/api/bill/:id/receive` | receiveBill | bill.route.js |
+| `POST` | `/api/bill/:id/cancel` | cancelBill | bill.route.js |
+| `POST` | `/api/bill/:id/duplicate` | duplicateBill | bill.route.js |
+| `POST` | `/api/bill/:id/stop-recurring` | stopRecurring | bill.route.js |
+| `POST` | `/api/bill/:id/generate-next` | generateNextBill | bill.route.js |
+| `POST` | `/api/bill/:id/approve` | approveBill | bill.route.js |
+| `POST` | `/api/bill/:id/pay` | payBill | bill.route.js |
+| `POST` | `/api/bill/:id/post-to-gl` | postToGL | bill.route.js |
+| `POST` | `/api/bill/:id/attachments` | uploadAttachment | bill.route.js |
+| `DELETE` | `/api/bill/:id/attachments/:attachmentId` | deleteAttachment | bill.route.js |
+
+## billPayment
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `POST` | `/api/billPayment` | createPayment | billPayment.route.js |
+| `GET` | `/api/billPayment` | getPayments | billPayment.route.js |
+| `GET` | `/api/billPayment/:id` | getPayment | billPayment.route.js |
+| `POST` | `/api/billPayment/:id/cancel` | cancelPayment | billPayment.route.js |
+
 ## billing
 
 | Method | Path | Controller | File |
@@ -670,6 +963,19 @@
 | `GET` | `/api/billing/invoices/:id/pdf` | unknown | billing.route.js |
 | `GET` | `/api/billing/usage` | unknown | billing.route.js |
 | `POST` | `/api/billing/webhook` | unknown | billing.route.js |
+
+## billingRate
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `POST` | `/api/billingRate` | createRate | billingRate.route.js |
+| `GET` | `/api/billingRate` | getRates | billingRate.route.js |
+| `GET` | `/api/billingRate/stats` | getRateStats | billingRate.route.js |
+| `GET` | `/api/billingRate/applicable` | getApplicableRate | billingRate.route.js |
+| `GET` | `/api/billingRate/:id` | getRate | billingRate.route.js |
+| `PUT` | `/api/billingRate/:id` | updateRate | billingRate.route.js |
+| `DELETE` | `/api/billingRate/:id` | deleteRate | billingRate.route.js |
+| `POST` | `/api/billingRate/standard` | setStandardRate | billingRate.route.js |
 
 ## biometric
 
@@ -767,6 +1073,22 @@
 | `POST` | `/api/buying/rfqs/:id/submit` | unknown | buying.route.js |
 | `DELETE` | `/api/buying/rfqs/:id` | unknown | buying.route.js |
 
+## calendar
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/calendar/sidebar-data` | getSidebarData | calendar.route.js |
+| `GET` | `/api/calendar/grid-summary` | getCalendarGridSummary | calendar.route.js |
+| `GET` | `/api/calendar/grid-items` | getCalendarGridItems | calendar.route.js |
+| `GET` | `/api/calendar/item/:type/:id` | getCalendarItemDetails | calendar.route.js |
+| `GET` | `/api/calendar/list` | getCalendarListView | calendar.route.js |
+| `GET` | `/api/calendar` | getCalendarView | calendar.route.js |
+| `GET` | `/api/calendar/upcoming` | getUpcomingItems | calendar.route.js |
+| `GET` | `/api/calendar/overdue` | getOverdueItems | calendar.route.js |
+| `GET` | `/api/calendar/stats` | getCalendarStats | calendar.route.js |
+| `GET` | `/api/calendar/date/:date` | getCalendarByDate | calendar.route.js |
+| `GET` | `/api/calendar/month/:year/:month` | getCalendarByMonth | calendar.route.js |
+
 ## campaigns
 
 | Method | Path | Controller | File |
@@ -791,6 +1113,65 @@
 | `POST` | `/api/captcha/verify-captcha` | verifyCaptcha | captcha.route.js |
 | `GET` | `/api/captcha/captcha/providers` | getEnabledProviders | captcha.route.js |
 | `GET` | `/api/captcha/captcha/status/:provider` | getProviderStatus | captcha.route.js |
+
+## case
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/case/overview` | unknown | case.route.js |
+| `GET` | `/api/case/statistics` | unknown | case.route.js |
+| `POST` | `/api/case` | unknown | case.route.js |
+| `GET` | `/api/case` | unknown | case.route.js |
+| `GET` | `/api/case/pipeline` | unknown | case.route.js |
+| `GET` | `/api/case/pipeline/statistics` | unknown | case.route.js |
+| `GET` | `/api/case/pipeline/stages/:category` | unknown | case.route.js |
+| `GET` | `/api/case/pipeline/grouped` | unknown | case.route.js |
+| `GET` | `/api/case/:_id/full` | unknown | case.route.js |
+| `GET` | `/api/case/:_id` | unknown | case.route.js |
+| `PATCH` | `/api/case/:_id` | unknown | case.route.js |
+| `DELETE` | `/api/case/:_id` | unknown | case.route.js |
+| `PATCH` | `/api/case/:_id/progress` | unknown | case.route.js |
+| `GET` | `/api/case/:_id/notes` | unknown | case.route.js |
+| `POST` | `/api/case/:_id/notes` | unknown | case.route.js |
+| `POST` | `/api/case/:_id/note` | unknown | case.route.js |
+| `PUT` | `/api/case/:_id/notes/:noteId` | unknown | case.route.js |
+| `PATCH` | `/api/case/:_id/notes/:noteId` | unknown | case.route.js |
+| `DELETE` | `/api/case/:_id/notes/:noteId` | unknown | case.route.js |
+| `POST` | `/api/case/:_id/documents/upload-url` | unknown | case.route.js |
+| `POST` | `/api/case/:_id/documents/confirm` | unknown | case.route.js |
+| `GET` | `/api/case/:_id/documents/:docId/download` | unknown | case.route.js |
+| `DELETE` | `/api/case/:_id/documents/:docId` | unknown | case.route.js |
+| `POST` | `/api/case/:_id/document` | unknown | case.route.js |
+| `DELETE` | `/api/case/:_id/document/:documentId` | unknown | case.route.js |
+| `POST` | `/api/case/:_id/hearing` | unknown | case.route.js |
+| `PATCH` | `/api/case/:_id/hearings/:hearingId` | unknown | case.route.js |
+| `DELETE` | `/api/case/:_id/hearings/:hearingId` | unknown | case.route.js |
+| `PATCH` | `/api/case/:_id/hearing/:hearingId` | unknown | case.route.js |
+| `DELETE` | `/api/case/:_id/hearing/:hearingId` | unknown | case.route.js |
+| `POST` | `/api/case/:_id/timeline` | unknown | case.route.js |
+| `PATCH` | `/api/case/:_id/timeline/:eventId` | unknown | case.route.js |
+| `DELETE` | `/api/case/:_id/timeline/:eventId` | unknown | case.route.js |
+| `POST` | `/api/case/:_id/claim` | unknown | case.route.js |
+| `PATCH` | `/api/case/:_id/claims/:claimId` | unknown | case.route.js |
+| `DELETE` | `/api/case/:_id/claims/:claimId` | unknown | case.route.js |
+| `DELETE` | `/api/case/:_id/claim/:claimId` | unknown | case.route.js |
+| `PATCH` | `/api/case/:_id/status` | unknown | case.route.js |
+| `PATCH` | `/api/case/:_id/outcome` | unknown | case.route.js |
+| `PUT` | `/api/case/:_id/close` | unknown | case.route.js |
+| `GET` | `/api/case/:_id/audit` | unknown | case.route.js |
+| `POST` | `/api/case/:_id/rich-documents` | unknown | case.route.js |
+| `GET` | `/api/case/:_id/rich-documents` | unknown | case.route.js |
+| `GET` | `/api/case/:_id/rich-documents/:docId` | unknown | case.route.js |
+| `PATCH` | `/api/case/:_id/rich-documents/:docId` | unknown | case.route.js |
+| `DELETE` | `/api/case/:_id/rich-documents/:docId` | unknown | case.route.js |
+| `GET` | `/api/case/:_id/rich-documents/:docId/versions` | unknown | case.route.js |
+| `POST` | `/api/case/:_id/rich-documents/:docId/versions/:versionNumber/restore` | unknown | case.route.js |
+| `GET` | `/api/case/:_id/rich-documents/:docId/export/pdf` | unknown | case.route.js |
+| `GET` | `/api/case/:_id/rich-documents/:docId/export/latex` | unknown | case.route.js |
+| `GET` | `/api/case/:_id/rich-documents/:docId/export/markdown` | unknown | case.route.js |
+| `GET` | `/api/case/:_id/rich-documents/:docId/preview` | unknown | case.route.js |
+| `PATCH` | `/api/case/:_id/stage` | unknown | case.route.js |
+| `PATCH` | `/api/case/:_id/end` | unknown | case.route.js |
 
 ## caseNotion
 
@@ -907,6 +1288,34 @@
 | `GET` | `/api/churn/reports/at-risk-export` | unknown | churn.route.js |
 | `GET` | `/api/churn/reports/executive-summary` | unknown | churn.route.js |
 
+## client
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `POST` | `/api/client` | unknown | client.route.js |
+| `GET` | `/api/client` | unknown | client.route.js |
+| `GET` | `/api/client/search` | unknown | client.route.js |
+| `GET` | `/api/client/stats` | unknown | client.route.js |
+| `GET` | `/api/client/top-revenue` | unknown | client.route.js |
+| `GET` | `/api/client/:id/full` | unknown | client.route.js |
+| `GET` | `/api/client/:id` | unknown | client.route.js |
+| `PUT` | `/api/client/:id` | unknown | client.route.js |
+| `DELETE` | `/api/client/:id` | unknown | client.route.js |
+| `GET` | `/api/client/:id/billing-info` | unknown | client.route.js |
+| `GET` | `/api/client/:id/cases` | unknown | client.route.js |
+| `GET` | `/api/client/:id/invoices` | unknown | client.route.js |
+| `GET` | `/api/client/:id/payments` | unknown | client.route.js |
+| `POST` | `/api/client/:id/verify/wathq` | unknown | client.route.js |
+| `GET` | `/api/client/:id/wathq/:dataType` | unknown | client.route.js |
+| `POST` | `/api/client/:id/verify/absher` | unknown | client.route.js |
+| `POST` | `/api/client/:id/verify/address` | unknown | client.route.js |
+| `POST` | `/api/client/:id/attachments` | unknown | client.route.js |
+| `DELETE` | `/api/client/:id/attachments/:attachmentId` | unknown | client.route.js |
+| `POST` | `/api/client/:id/conflict-check` | unknown | client.route.js |
+| `PATCH` | `/api/client/:id/status` | unknown | client.route.js |
+| `PATCH` | `/api/client/:id/flags` | unknown | client.route.js |
+| `DELETE` | `/api/client/bulk` | unknown | client.route.js |
+
 ## cloudStorages
 
 | Method | Path | Controller | File |
@@ -1004,6 +1413,19 @@
 | `GET` | `/api/complianceDashboard/contracts/expiring` | unknown | complianceDashboard.route.js |
 | `GET` | `/api/complianceDashboard/labor-law` | unknown | complianceDashboard.route.js |
 
+## conflictCheck
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `POST` | `/api/conflictCheck/quick` | quickConflictCheck | conflictCheck.route.js |
+| `GET` | `/api/conflictCheck/stats` | getConflictStats | conflictCheck.route.js |
+| `GET` | `/api/conflictCheck` | getConflictChecks | conflictCheck.route.js |
+| `POST` | `/api/conflictCheck` | runConflictCheck | conflictCheck.route.js |
+| `GET` | `/api/conflictCheck/:id` | getConflictCheck | conflictCheck.route.js |
+| `PATCH` | `/api/conflictCheck/:id` | updateConflictCheck | conflictCheck.route.js |
+| `DELETE` | `/api/conflictCheck/:id` | deleteConflictCheck | conflictCheck.route.js |
+| `POST` | `/api/conflictCheck/:id/matches/:matchIndex/resolve` | resolveMatch | conflictCheck.route.js |
+
 ## consent
 
 | Method | Path | Controller | File |
@@ -1064,6 +1486,15 @@
 | `GET` | `/api/contactLists/:id/members` | unknown | contactList.routes.js |
 | `POST` | `/api/contactLists/:id/refresh` | unknown | contactList.routes.js |
 | `POST` | `/api/contactLists/:id/duplicate` | unknown | contactList.routes.js |
+
+## conversation
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/conversation` | getConversations | conversation.route.js |
+| `POST` | `/api/conversation` | createConversation | conversation.route.js |
+| `GET` | `/api/conversation/single/:sellerID/:buyerID` | getSingleConversation | conversation.route.js |
+| `PATCH` | `/api/conversation/:conversationID` | updateConversation | conversation.route.js |
 
 ## conversations
 
@@ -1211,6 +1642,17 @@
 | `GET` | `/api/crmTransaction/forecast-trends` | getForecastTrends | crmTransaction.route.js |
 | `GET` | `/api/crmTransaction/forecast-by-category` | getForecastByCategory | crmTransaction.route.js |
 
+## currency
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/currency/settings` | getCurrencySettings | currency.route.js |
+| `GET` | `/api/currency/rates` | getExchangeRates | currency.route.js |
+| `POST` | `/api/currency/convert` | convertAmount | currency.route.js |
+| `POST` | `/api/currency/rates` | setManualRate | currency.route.js |
+| `GET` | `/api/currency/supported` | getSupportedCurrencies | currency.route.js |
+| `POST` | `/api/currency/update` | updateRatesFromAPI | currency.route.js |
+
 ## customFields
 
 | Method | Path | Controller | File |
@@ -1248,6 +1690,46 @@
 | `GET` | `/api/cycles/:id/burndown` | unknown | cycle.routes.js |
 | `POST` | `/api/cycles/:id/tasks/:taskId` | unknown | cycle.routes.js |
 | `DELETE` | `/api/cycles/:id/tasks/:taskId` | unknown | cycle.routes.js |
+
+## dashboard
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/dashboard/summary` | unknown | dashboard.route.js |
+| `GET` | `/api/dashboard/analytics` | unknown | dashboard.route.js |
+| `GET` | `/api/dashboard/reports` | unknown | dashboard.route.js |
+| `GET` | `/api/dashboard/hero-stats` | unknown | dashboard.route.js |
+| `GET` | `/api/dashboard/stats` | unknown | dashboard.route.js |
+| `GET` | `/api/dashboard/financial-summary` | unknown | dashboard.route.js |
+| `GET` | `/api/dashboard/today-events` | unknown | dashboard.route.js |
+| `GET` | `/api/dashboard/recent-messages` | unknown | dashboard.route.js |
+| `GET` | `/api/dashboard/activity` | unknown | dashboard.route.js |
+| `GET` | `/api/dashboard/crm-stats` | unknown | dashboard.route.js |
+| `GET` | `/api/dashboard/hr-stats` | unknown | dashboard.route.js |
+| `GET` | `/api/dashboard/finance-stats` | unknown | dashboard.route.js |
+
+## dataExport
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `POST` | `/api/dataExport/export` | createExportJob | dataExport.route.js |
+| `GET` | `/api/dataExport/jobs` | getExportJobs | dataExport.route.js |
+| `GET` | `/api/dataExport/jobs/:id` | getExportJobStatus | dataExport.route.js |
+| `GET` | `/api/dataExport/jobs/:id/download` | downloadExportFile | dataExport.route.js |
+| `POST` | `/api/dataExport/jobs/:id/cancel` | cancelExportJob | dataExport.route.js |
+| `DELETE` | `/api/dataExport/jobs/:id` | deleteExportJob | dataExport.route.js |
+| `POST` | `/api/dataExport/import` | createImportJob | dataExport.route.js |
+| `GET` | `/api/dataExport/imports` | getImportJobs | dataExport.route.js |
+| `GET` | `/api/dataExport/import/:id` | getImportJobStatus | dataExport.route.js |
+| `POST` | `/api/dataExport/import/:id/start` | startImportJob | dataExport.route.js |
+| `POST` | `/api/dataExport/import/:id/validate` | validateImportFile | dataExport.route.js |
+| `POST` | `/api/dataExport/import/:id/cancel` | cancelImportJob | dataExport.route.js |
+| `GET` | `/api/dataExport/templates` | getExportTemplates | dataExport.route.js |
+| `POST` | `/api/dataExport/templates` | createExportTemplate | dataExport.route.js |
+| `PATCH` | `/api/dataExport/templates/:id` | updateExportTemplate | dataExport.route.js |
+| `DELETE` | `/api/dataExport/templates/:id` | deleteExportTemplate | dataExport.route.js |
+| `GET` | `/api/dataExport/entity/:entityType` | exportEntity | dataExport.route.js |
+| `GET` | `/api/dataExport/report/:reportType` | exportReport | dataExport.route.js |
 
 ## dealHealths
 
@@ -1319,6 +1801,61 @@
 | `PUT` | `/api/discord/settings` | updateSettings | discord.route.js |
 | `POST` | `/api/discord/message` | sendMessage | discord.route.js |
 | `POST` | `/api/discord/webhook` | handleWebhook | discord.route.js |
+
+## dispute
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `POST` | `/api/dispute` | createDispute | dispute.route.js |
+| `GET` | `/api/dispute` | getDisputes | dispute.route.js |
+| `GET` | `/api/dispute/stats` | getDisputeStats | dispute.route.js |
+| `GET` | `/api/dispute/by-type` | getDisputesByType | dispute.route.js |
+| `GET` | `/api/dispute/:id` | getDisputeById | dispute.route.js |
+| `POST` | `/api/dispute/:id/respond` | lawyerRespond | dispute.route.js |
+| `POST` | `/api/dispute/:id/escalate` | escalateDispute | dispute.route.js |
+| `POST` | `/api/dispute/:id/resolve` | resolveDispute | dispute.route.js |
+| `POST` | `/api/dispute/:id/evidence` | addEvidence | dispute.route.js |
+| `POST` | `/api/dispute/:id/mediator-note` | addMediatorNote | dispute.route.js |
+
+## document
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `POST` | `/api/document/upload` | getUploadUrl | document.route.js |
+| `POST` | `/api/document/confirm` | confirmUpload | document.route.js |
+| `GET` | `/api/document/search` | searchDocuments | document.route.js |
+| `GET` | `/api/document/stats` | getDocumentStats | document.route.js |
+| `GET` | `/api/document/recent` | getRecentDocuments | document.route.js |
+| `GET` | `/api/document/case/:caseId` | getDocumentsByCase | document.route.js |
+| `GET` | `/api/document/client/:clientId` | getDocumentsByClient | document.route.js |
+| `POST` | `/api/document/bulk-delete` | bulkDeleteDocuments | document.route.js |
+| `GET` | `/api/document` | getDocuments | document.route.js |
+| `GET` | `/api/document/:id` | getDocument | document.route.js |
+| `PATCH` | `/api/document/:id` | updateDocument | document.route.js |
+| `DELETE` | `/api/document/:id` | deleteDocument | document.route.js |
+| `GET` | `/api/document/:id/download` | downloadDocument | document.route.js |
+| `GET` | `/api/document/:id/versions` | getVersionHistory | document.route.js |
+| `POST` | `/api/document/:id/versions` | uploadVersion | document.route.js |
+| `POST` | `/api/document/:id/versions/:versionId/restore` | restoreVersion | document.route.js |
+| `POST` | `/api/document/:id/share` | generateShareLink | document.route.js |
+| `POST` | `/api/document/:id/revoke-share` | revokeShareLink | document.route.js |
+| `POST` | `/api/document/:id/move` | moveDocument | document.route.js |
+
+## documentAnalysis
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/documentAnalysis/stats` | getStats | documentAnalysis.route.js |
+| `GET` | `/api/documentAnalysis/search` | semanticSearch | documentAnalysis.route.js |
+| `POST` | `/api/documentAnalysis/batch` | batchAnalyze | documentAnalysis.route.js |
+| `POST` | `/api/documentAnalysis/:documentId` | analyzeDocument | documentAnalysis.route.js |
+| `GET` | `/api/documentAnalysis/:documentId` | getAnalysis | documentAnalysis.route.js |
+| `DELETE` | `/api/documentAnalysis/:documentId` | deleteAnalysis | documentAnalysis.route.js |
+| `POST` | `/api/documentAnalysis/:documentId/reanalyze` | reanalyzeDocument | documentAnalysis.route.js |
+| `GET` | `/api/documentAnalysis/:documentId/status` | getAnalysisStatus | documentAnalysis.route.js |
+| `GET` | `/api/documentAnalysis/:documentId/history` | getAnalysisHistory | documentAnalysis.route.js |
+| `GET` | `/api/documentAnalysis/:documentId/similar` | findSimilar | documentAnalysis.route.js |
+| `GET` | `/api/documentAnalysis/:documentId/report` | generateReport | documentAnalysis.route.js |
 
 ## docusign
 
@@ -1550,6 +2087,62 @@
 | `GET` | `/api/employeeSelfService/payslips` | unknown | employeeSelfService.route.js |
 | `GET` | `/api/employeeSelfService/approvals/pending` | unknown | employeeSelfService.route.js |
 
+## event
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/event/stats` | getEventStats | event.route.js |
+| `GET` | `/api/event/calendar` | getCalendarEvents | event.route.js |
+| `GET` | `/api/event/upcoming` | getUpcomingEvents | event.route.js |
+| `GET` | `/api/event/month/:year/:month` | getEventsByMonth | event.route.js |
+| `GET` | `/api/event/date/:date` | getEventsByDate | event.route.js |
+| `POST` | `/api/event/availability` | checkAvailability | event.route.js |
+| `POST` | `/api/event/import/ics` | importEventsFromICS | event.route.js |
+| `GET` | `/api/event/conflicts` | getConflicts | event.route.js |
+| `GET` | `/api/event/search` | searchEvents | event.route.js |
+| `GET` | `/api/event/client/:clientId` | getEventsByClient | event.route.js |
+| `POST` | `/api/event/bulk` | bulkCreateEvents | event.route.js |
+| `PUT` | `/api/event/bulk` | bulkUpdateEvents | event.route.js |
+| `DELETE` | `/api/event/bulk` | bulkDeleteEvents | event.route.js |
+| `POST` | `/api/event/bulk/complete` | bulkCompleteEvents | event.route.js |
+| `POST` | `/api/event/bulk/archive` | bulkArchiveEvents | event.route.js |
+| `POST` | `/api/event/bulk/unarchive` | bulkUnarchiveEvents | event.route.js |
+| `GET` | `/api/event/ids` | getAllEventIds | event.route.js |
+| `GET` | `/api/event/archived` | getArchivedEvents | event.route.js |
+| `GET` | `/api/event/export` | exportEvents | event.route.js |
+| `PATCH` | `/api/event/reorder` | reorderEvents | event.route.js |
+| `GET` | `/api/event/case/:caseId` | getEventsByCase | event.route.js |
+| `GET` | `/api/event/location-triggers` | getEventsWithLocationTriggers | event.route.js |
+| `POST` | `/api/event/location/check` | bulkCheckLocationTriggers | event.route.js |
+| `POST` | `/api/event/parse` | createEventFromNaturalLanguage | event.route.js |
+| `POST` | `/api/event/voice` | createEventFromVoice | event.route.js |
+| `POST` | `/api/event` | createEvent | event.route.js |
+| `GET` | `/api/event` | getEvents | event.route.js |
+| `GET` | `/api/event/:id` | getEvent | event.route.js |
+| `GET` | `/api/event/:id/export/ics` | exportEventToICS | event.route.js |
+| `PUT` | `/api/event/:id` | updateEvent | event.route.js |
+| `PATCH` | `/api/event/:id` | updateEvent | event.route.js |
+| `DELETE` | `/api/event/:id` | deleteEvent | event.route.js |
+| `POST` | `/api/event/:id/complete` | completeEvent | event.route.js |
+| `POST` | `/api/event/:id/cancel` | cancelEvent | event.route.js |
+| `POST` | `/api/event/:id/postpone` | postponeEvent | event.route.js |
+| `POST` | `/api/event/:id/clone` | cloneEvent | event.route.js |
+| `POST` | `/api/event/:id/reschedule` | rescheduleEvent | event.route.js |
+| `GET` | `/api/event/:id/activity` | getEventActivity | event.route.js |
+| `POST` | `/api/event/:id/archive` | archiveEvent | event.route.js |
+| `POST` | `/api/event/:id/unarchive` | unarchiveEvent | event.route.js |
+| `PUT` | `/api/event/:id/location-trigger` | updateLocationTrigger | event.route.js |
+| `POST` | `/api/event/:id/location/check` | checkLocationTrigger | event.route.js |
+| `POST` | `/api/event/:id/attendees` | addAttendee | event.route.js |
+| `DELETE` | `/api/event/:id/attendees/:attendeeId` | removeAttendee | event.route.js |
+| `POST` | `/api/event/:id/rsvp` | rsvpEvent | event.route.js |
+| `POST` | `/api/event/:id/agenda` | addAgendaItem | event.route.js |
+| `PUT` | `/api/event/:id/agenda/:agendaId` | updateAgendaItem | event.route.js |
+| `DELETE` | `/api/event/:id/agenda/:agendaId` | deleteAgendaItem | event.route.js |
+| `POST` | `/api/event/:id/action-items` | addActionItem | event.route.js |
+| `PUT` | `/api/event/:id/action-items/:itemId` | updateActionItem | event.route.js |
+| `DELETE` | `/api/event/:id/action-items/:itemId` | deleteActionItem | event.route.js |
+
 ## exchangeRateRevaluation
 
 | Method | Path | Controller | File |
@@ -1563,6 +2156,28 @@
 | `DELETE` | `/api/exchangeRateRevaluation/:id` | deleteRevaluation | exchangeRateRevaluation.route.js |
 | `POST` | `/api/exchangeRateRevaluation/:id/post` | postRevaluation | exchangeRateRevaluation.route.js |
 | `POST` | `/api/exchangeRateRevaluation/:id/reverse` | reverseRevaluation | exchangeRateRevaluation.route.js |
+
+## expense
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/expense/new` | getNewExpenseDefaults | expense.route.js |
+| `POST` | `/api/expense/suggest-category` | suggestCategory | expense.route.js |
+| `GET` | `/api/expense/categories` | getExpenseCategories | expense.route.js |
+| `GET` | `/api/expense/stats` | getExpenseStats | expense.route.js |
+| `GET` | `/api/expense/by-category` | getExpensesByCategory | expense.route.js |
+| `POST` | `/api/expense/bulk-approve` | bulkApproveExpenses | expense.route.js |
+| `POST` | `/api/expense/bulk-delete` | bulkDeleteExpenses | expense.route.js |
+| `POST` | `/api/expense` | createExpense | expense.route.js |
+| `GET` | `/api/expense` | getExpenses | expense.route.js |
+| `GET` | `/api/expense/:id` | getExpense | expense.route.js |
+| `PUT` | `/api/expense/:id` | updateExpense | expense.route.js |
+| `DELETE` | `/api/expense/:id` | deleteExpense | expense.route.js |
+| `POST` | `/api/expense/:id/submit` | submitExpense | expense.route.js |
+| `POST` | `/api/expense/:id/approve` | approveExpense | expense.route.js |
+| `POST` | `/api/expense/:id/reject` | rejectExpense | expense.route.js |
+| `POST` | `/api/expense/:id/reimburse` | markAsReimbursed | expense.route.js |
+| `POST` | `/api/expense/:id/receipt` | uploadReceipt | expense.route.js |
 
 ## expenseClaim
 
@@ -1644,6 +2259,74 @@
 | `POST` | `/api/financeSetup/complete` | completeSetup | financeSetup.route.js |
 | `POST` | `/api/financeSetup/reset` | resetSetup | financeSetup.route.js |
 
+## firm
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/firm` | getFirms | firm.route.js |
+| `GET` | `/api/firm/roles` | getAvailableRoles | firm.route.js |
+| `POST` | `/api/firm` | createFirm | firm.route.js |
+| `GET` | `/api/firm/my` | getMyFirm | firm.route.js |
+| `POST` | `/api/firm/switch` | switchFirm | firm.route.js |
+| `GET` | `/api/firm/my/permissions` | getMyPermissions | firm.route.js |
+| `GET` | `/api/firm/tree` | getHierarchyTree | firm.route.js |
+| `GET` | `/api/firm/user/accessible` | getAccessibleCompanies | firm.route.js |
+| `GET` | `/api/firm/active` | getActiveCompany | firm.route.js |
+| `GET` | `/api/firm/:id` | getFirm | firm.route.js |
+| `GET` | `/api/firm/:_id` | getFirm | firm.route.js |
+| `PUT` | `/api/firm/:id` | updateFirm | firm.route.js |
+| `PATCH` | `/api/firm/:id` | updateFirm | firm.route.js |
+| `PATCH` | `/api/firm/:_id` | unknown | firm.route.js |
+| `DELETE` | `/api/firm/:id` | deleteFirm | firm.route.js |
+| `GET` | `/api/firm/:id/children` | getChildCompanies | firm.route.js |
+| `PUT` | `/api/firm/:id/move` | moveCompany | firm.route.js |
+| `GET` | `/api/firm/:id/access` | getCompanyAccessList | firm.route.js |
+| `POST` | `/api/firm/:id/access` | grantUserAccess | firm.route.js |
+| `PUT` | `/api/firm/:id/access/:userId` | updateUserAccess | firm.route.js |
+| `DELETE` | `/api/firm/:id/access/:userId` | revokeUserAccess | firm.route.js |
+| `PATCH` | `/api/firm/:id/billing` | updateBillingSettings | firm.route.js |
+| `GET` | `/api/firm/:id/team` | getTeam | firm.route.js |
+| `GET` | `/api/firm/:id/members` | getMembers | firm.route.js |
+| `GET` | `/api/firm/:id/departed` | getDepartedMembers | firm.route.js |
+| `POST` | `/api/firm/:id/members/invite` | inviteMember | firm.route.js |
+| `POST` | `/api/firm/:id/members/:memberId/depart` | processDeparture | firm.route.js |
+| `POST` | `/api/firm/:id/members/:memberId/reinstate` | reinstateMember | firm.route.js |
+| `PUT` | `/api/firm/:id/members/:memberId` | updateMember | firm.route.js |
+| `DELETE` | `/api/firm/:id/members/:memberId` | removeMember | firm.route.js |
+| `POST` | `/api/firm/:id/leave` | leaveFirmWithSolo | firm.route.js |
+| `POST` | `/api/firm/:id/transfer-ownership` | transferOwnership | firm.route.js |
+| `POST` | `/api/firm/:firmId/invitations` | createInvitation | firm.route.js |
+| `GET` | `/api/firm/:firmId/invitations` | getInvitations | firm.route.js |
+| `DELETE` | `/api/firm/:firmId/invitations/:invitationId` | cancelInvitation | firm.route.js |
+| `POST` | `/api/firm/:firmId/invitations/:invitationId/resend` | resendInvitation | firm.route.js |
+| `GET` | `/api/firm/:id/stats` | getFirmStats | firm.route.js |
+| `GET` | `/api/firm/:firmId/ip-whitelist` | getIPWhitelist | firm.route.js |
+| `POST` | `/api/firm/:firmId/ip-whitelist/test` | testIPAccess | firm.route.js |
+| `POST` | `/api/firm/:firmId/ip-whitelist/enable` | enableIPWhitelist | firm.route.js |
+| `POST` | `/api/firm/:firmId/ip-whitelist/disable` | disableIPWhitelist | firm.route.js |
+| `POST` | `/api/firm/:firmId/ip-whitelist` | addIPToWhitelist | firm.route.js |
+| `DELETE` | `/api/firm/:firmId/ip-whitelist/:ip` | removeIPFromWhitelist | firm.route.js |
+| `DELETE` | `/api/firm/:firmId/ip-whitelist/temporary/:allowanceId` | revokeTemporaryIP | firm.route.js |
+| `POST` | `/api/firm/lawyer/add` | addLawyer | firm.route.js |
+| `POST` | `/api/firm/lawyer/remove` | removeLawyer | firm.route.js |
+
+## fiscalPeriod
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/fiscalPeriod` | getFiscalPeriods | fiscalPeriod.route.js |
+| `GET` | `/api/fiscalPeriod/current` | getCurrentPeriod | fiscalPeriod.route.js |
+| `GET` | `/api/fiscalPeriod/can-post` | canPostToDate | fiscalPeriod.route.js |
+| `GET` | `/api/fiscalPeriod/years-summary` | getFiscalYearsSummary | fiscalPeriod.route.js |
+| `POST` | `/api/fiscalPeriod/create-year` | createFiscalYear | fiscalPeriod.route.js |
+| `GET` | `/api/fiscalPeriod/:id` | getFiscalPeriod | fiscalPeriod.route.js |
+| `GET` | `/api/fiscalPeriod/:id/balances` | calculateBalances | fiscalPeriod.route.js |
+| `POST` | `/api/fiscalPeriod/:id/open` | openPeriod | fiscalPeriod.route.js |
+| `POST` | `/api/fiscalPeriod/:id/close` | closePeriod | fiscalPeriod.route.js |
+| `POST` | `/api/fiscalPeriod/:id/reopen` | reopenPeriod | fiscalPeriod.route.js |
+| `POST` | `/api/fiscalPeriod/:id/lock` | lockPeriod | fiscalPeriod.route.js |
+| `POST` | `/api/fiscalPeriod/:id/year-end-closing` | yearEndClosing | fiscalPeriod.route.js |
+
 ## fleet
 
 | Method | Path | Controller | File |
@@ -1681,6 +2364,27 @@
 | `PATCH` | `/api/fleet/drivers/:id` | unknown | fleet.route.js |
 | `POST` | `/api/fleet/assignments` | unknown | fleet.route.js |
 | `POST` | `/api/fleet/assignments/:id/end` | unknown | fleet.route.js |
+
+## followup
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/followup/upcoming` | getUpcomingFollowups | followup.route.js |
+| `GET` | `/api/followup/overdue` | getOverdueFollowups | followup.route.js |
+| `GET` | `/api/followup/today` | getTodayFollowups | followup.route.js |
+| `GET` | `/api/followup/stats` | getFollowupStats | followup.route.js |
+| `GET` | `/api/followup/entity/:entityType/:entityId` | getFollowupsByEntity | followup.route.js |
+| `POST` | `/api/followup/bulk-complete` | bulkComplete | followup.route.js |
+| `POST` | `/api/followup/bulk-delete` | bulkDelete | followup.route.js |
+| `GET` | `/api/followup` | getFollowups | followup.route.js |
+| `POST` | `/api/followup` | createFollowup | followup.route.js |
+| `GET` | `/api/followup/:id` | getFollowup | followup.route.js |
+| `PATCH` | `/api/followup/:id` | updateFollowup | followup.route.js |
+| `DELETE` | `/api/followup/:id` | deleteFollowup | followup.route.js |
+| `POST` | `/api/followup/:id/complete` | completeFollowup | followup.route.js |
+| `POST` | `/api/followup/:id/cancel` | cancelFollowup | followup.route.js |
+| `POST` | `/api/followup/:id/reschedule` | rescheduleFollowup | followup.route.js |
+| `POST` | `/api/followup/:id/notes` | addNote | followup.route.js |
 
 ## gantt
 
@@ -1739,6 +2443,32 @@
 | `POST` | `/api/generalLedger/:id/void` | voidEntry | generalLedger.route.js |
 | `GET` | `/api/generalLedger` | getEntries | generalLedger.route.js |
 | `POST` | `/api/generalLedger/void/:id` | voidEntry | generalLedger.route.js |
+
+## gig
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `POST` | `/api/gig` | createGig | gig.route.js |
+| `DELETE` | `/api/gig/:_id` | deleteGig | gig.route.js |
+| `GET` | `/api/gig/single/:_id` | getGig | gig.route.js |
+| `GET` | `/api/gig` | getGigs | gig.route.js |
+
+## github
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/github/auth` | unknown | github.route.js |
+| `GET` | `/api/github/callback` | unknown | github.route.js |
+| `POST` | `/api/github/disconnect` | unknown | github.route.js |
+| `GET` | `/api/github/status` | unknown | github.route.js |
+| `GET` | `/api/github/repositories` | unknown | github.route.js |
+| `GET` | `/api/github/repositories/:owner/:repo` | unknown | github.route.js |
+| `GET` | `/api/github/repositories/:owner/:repo/issues` | unknown | github.route.js |
+| `POST` | `/api/github/repositories/:owner/:repo/issues` | unknown | github.route.js |
+| `GET` | `/api/github/repositories/:owner/:repo/pulls` | unknown | github.route.js |
+| `POST` | `/api/github/repositories/:owner/:repo/pulls/:prNumber/comments` | unknown | github.route.js |
+| `PUT` | `/api/github/settings` | unknown | github.route.js |
+| `POST` | `/api/github/webhook` | unknown | github.route.js |
 
 ## gmail
 
@@ -2106,6 +2836,14 @@
 | `GET` | `/api/investments/:id/transactions` | getTransactions | investments.route.js |
 | `DELETE` | `/api/investments/:id/transactions/:transactionId` | deleteTransaction | investments.route.js |
 
+## invitation
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/invitation/:code` | validateInvitationCode | invitation.route.js |
+| `GET` | `/api/invitation/:code/validate` | validateInvitationCode | invitation.route.js |
+| `POST` | `/api/invitation/:code/accept` | acceptInvitation | invitation.route.js |
+
 ## invoice
 
 | Method | Path | Controller | File |
@@ -2158,6 +2896,33 @@
 | `POST` | `/api/invoiceApproval/:id/reject` | rejectInvoice | invoiceApproval.route.js |
 | `POST` | `/api/invoiceApproval/:id/escalate` | escalateApproval | invoiceApproval.route.js |
 | `POST` | `/api/invoiceApproval/:id/cancel` | cancelApproval | invoiceApproval.route.js |
+
+## invoiceTemplate
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/invoiceTemplate/default` | getDefaultTemplate | invoiceTemplate.route.js |
+| `POST` | `/api/invoiceTemplate/import` | importTemplate | invoiceTemplate.route.js |
+| `GET` | `/api/invoiceTemplate` | getTemplates | invoiceTemplate.route.js |
+| `POST` | `/api/invoiceTemplate` | createTemplate | invoiceTemplate.route.js |
+| `GET` | `/api/invoiceTemplate/:id` | getTemplate | invoiceTemplate.route.js |
+| `PATCH` | `/api/invoiceTemplate/:id` | updateTemplate | invoiceTemplate.route.js |
+| `DELETE` | `/api/invoiceTemplate/:id` | deleteTemplate | invoiceTemplate.route.js |
+| `POST` | `/api/invoiceTemplate/:id/duplicate` | duplicateTemplate | invoiceTemplate.route.js |
+| `POST` | `/api/invoiceTemplate/:id/set-default` | setAsDefault | invoiceTemplate.route.js |
+| `GET` | `/api/invoiceTemplate/:id/preview` | previewTemplate | invoiceTemplate.route.js |
+| `GET` | `/api/invoiceTemplate/:id/export` | exportTemplate | invoiceTemplate.route.js |
+
+## job
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `POST` | `/api/job` | createJob | job.route.js |
+| `GET` | `/api/job` | getJobs | job.route.js |
+| `GET` | `/api/job/my-jobs` | getMyJobs | job.route.js |
+| `GET` | `/api/job/:_id` | getJob | job.route.js |
+| `PATCH` | `/api/job/:_id` | updateJob | job.route.js |
+| `DELETE` | `/api/job/:_id` | deleteJob | job.route.js |
 
 ## jobPosition
 
@@ -2238,6 +3003,14 @@
 | `POST` | `/api/kyc/review` | unknown | kyc.route.js |
 | `GET` | `/api/kyc/admin/pending` | unknown | kyc.route.js |
 | `GET` | `/api/kyc/admin/stats` | unknown | kyc.route.js |
+
+## lawyer
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/lawyer/team` | getTeamMembers | lawyer.route.js |
+| `GET` | `/api/lawyer` | getLawyers | lawyer.route.js |
+| `GET` | `/api/lawyer/:_id` | getLawyer | lawyer.route.js |
 
 ## ldap
 
@@ -2416,6 +3189,17 @@
 | `GET` | `/api/legalContract/:contractId/export/word` | exportToWord | legalContract.route.js |
 | `POST` | `/api/legalContract/:contractId/save-as-template` | saveAsTemplate | legalContract.route.js |
 
+## legalDocument
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `POST` | `/api/legalDocument` | createDocument | legalDocument.route.js |
+| `GET` | `/api/legalDocument` | getDocuments | legalDocument.route.js |
+| `GET` | `/api/legalDocument/:_id` | getDocument | legalDocument.route.js |
+| `PATCH` | `/api/legalDocument/:_id` | updateDocument | legalDocument.route.js |
+| `DELETE` | `/api/legalDocument/:_id` | deleteDocument | legalDocument.route.js |
+| `POST` | `/api/legalDocument/:_id/download` | incrementDownload | legalDocument.route.js |
+
 ## lifecycles
 
 | Method | Path | Controller | File |
@@ -2430,6 +3214,19 @@
 | `GET` | `/api/lifecycles/instance/:id/progress` | unknown | lifecycle.routes.js |
 | `POST` | `/api/lifecycles/instance/:id/advance` | unknown | lifecycle.routes.js |
 | `POST` | `/api/lifecycles/instance/:id/cancel` | unknown | lifecycle.routes.js |
+
+## lockDates
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `PATCH` | `/api/lockDates/fiscal-year` | updateFiscalYearEnd | lockDate.routes.js |
+| `GET` | `/api/lockDates/history` | getLockHistory | lockDate.routes.js |
+| `POST` | `/api/lockDates/check` | checkDate | lockDate.routes.js |
+| `GET` | `/api/lockDates/periods` | getFiscalPeriods | lockDate.routes.js |
+| `POST` | `/api/lockDates/periods/lock` | lockPeriod | lockDate.routes.js |
+| `POST` | `/api/lockDates/periods/reopen` | reopenPeriod | lockDate.routes.js |
+| `GET` | `/api/lockDates` | getLockDates | lockDate.routes.js |
+| `PATCH` | `/api/lockDates/:lockType` | updateLockDate | lockDate.routes.js |
 
 ## lostReason
 
@@ -2502,6 +3299,39 @@
 | `POST` | `/api/manufacturing/job-cards/:id/start` | startJobCard | manufacturing.route.js |
 | `POST` | `/api/manufacturing/job-cards/:id/complete` | completeJobCard | manufacturing.route.js |
 
+## matterBudget
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/matterBudget/alerts` | getBudgetAlerts | matterBudget.route.js |
+| `GET` | `/api/matterBudget/templates` | getTemplates | matterBudget.route.js |
+| `POST` | `/api/matterBudget/templates` | createTemplate | matterBudget.route.js |
+| `PATCH` | `/api/matterBudget/templates/:id` | updateTemplate | matterBudget.route.js |
+| `DELETE` | `/api/matterBudget/templates/:id` | deleteTemplate | matterBudget.route.js |
+| `GET` | `/api/matterBudget/case/:caseId` | getBudgetByCase | matterBudget.route.js |
+| `GET` | `/api/matterBudget` | getBudgets | matterBudget.route.js |
+| `POST` | `/api/matterBudget` | createBudget | matterBudget.route.js |
+| `GET` | `/api/matterBudget/:id` | getBudget | matterBudget.route.js |
+| `PATCH` | `/api/matterBudget/:id` | updateBudget | matterBudget.route.js |
+| `DELETE` | `/api/matterBudget/:id` | deleteBudget | matterBudget.route.js |
+| `GET` | `/api/matterBudget/:id/analysis` | getBudgetAnalysis | matterBudget.route.js |
+| `GET` | `/api/matterBudget/:id/entries` | getEntries | matterBudget.route.js |
+| `POST` | `/api/matterBudget/:id/entries` | addEntry | matterBudget.route.js |
+| `PATCH` | `/api/matterBudget/:id/entries/:entryId` | updateEntry | matterBudget.route.js |
+| `DELETE` | `/api/matterBudget/:id/entries/:entryId` | deleteEntry | matterBudget.route.js |
+| `POST` | `/api/matterBudget/:id/phases` | addPhase | matterBudget.route.js |
+| `PATCH` | `/api/matterBudget/:id/phases/:phaseId` | updatePhase | matterBudget.route.js |
+| `DELETE` | `/api/matterBudget/:id/phases/:phaseId` | deletePhase | matterBudget.route.js |
+
+## message
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `POST` | `/api/message` | createMessage | message.route.js |
+| `GET` | `/api/message/stats` | getMessageStats | message.route.js |
+| `GET` | `/api/message/:conversationID` | getMessages | message.route.js |
+| `PATCH` | `/api/message/:conversationID/read` | markAsRead | message.route.js |
+
 ## metrics
 
 | Method | Path | Controller | File |
@@ -2570,6 +3400,39 @@
 | `GET` | `/api/mlScoring/analytics/feature-importance` | unknown | mlScoring.route.js |
 | `GET` | `/api/mlScoring/analytics/score-distribution` | unknown | mlScoring.route.js |
 
+## notification
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/notification` | getNotifications | notification.route.js |
+| `GET` | `/api/notification/unread-count` | getUnreadCount | notification.route.js |
+| `PATCH` | `/api/notification/mark-all-read` | markAllAsRead | notification.route.js |
+| `PATCH` | `/api/notification/mark-multiple-read` | markMultipleAsRead | notification.route.js |
+| `DELETE` | `/api/notification/bulk-delete` | bulkDeleteNotifications | notification.route.js |
+| `DELETE` | `/api/notification/clear-read` | clearReadNotifications | notification.route.js |
+| `GET` | `/api/notification/by-type/:type` | getNotificationsByType | notification.route.js |
+| `POST` | `/api/notification` | createNotificationEndpoint | notification.route.js |
+| `GET` | `/api/notification/:id` | getNotification | notification.route.js |
+| `PATCH` | `/api/notification/:id/read` | markAsRead | notification.route.js |
+| `DELETE` | `/api/notification/:id` | deleteNotification | notification.route.js |
+
+## notificationPreference
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/notificationPreference/defaults` | getDefaults | notificationPreference.route.js |
+| `GET` | `/api/notificationPreference/stats` | getStats | notificationPreference.route.js |
+| `POST` | `/api/notificationPreference/reset` | resetToDefaults | notificationPreference.route.js |
+| `GET` | `/api/notificationPreference/quiet-hours/status` | checkQuietHours | notificationPreference.route.js |
+| `PUT` | `/api/notificationPreference/quiet-hours` | updateQuietHours | notificationPreference.route.js |
+| `POST` | `/api/notificationPreference/test` | testPreferences | notificationPreference.route.js |
+| `GET` | `/api/notificationPreference` | getPreferences | notificationPreference.route.js |
+| `PUT` | `/api/notificationPreference` | updatePreferences | notificationPreference.route.js |
+| `PUT` | `/api/notificationPreference/channels/:channel` | updateChannelSettings | notificationPreference.route.js |
+| `PUT` | `/api/notificationPreference/categories/:category` | updateCategoryPreferences | notificationPreference.route.js |
+| `POST` | `/api/notificationPreference/mute/:category` | muteCategory | notificationPreference.route.js |
+| `POST` | `/api/notificationPreference/unmute/:category` | unmuteCategory | notificationPreference.route.js |
+
 ## notificationSettings
 
 | Method | Path | Controller | File |
@@ -2580,6 +3443,26 @@
 | `POST` | `/api/notificationSettings/mute/:type` | unknown | notificationSettings.route.js |
 | `POST` | `/api/notificationSettings/unmute/:type` | unknown | notificationSettings.route.js |
 | `POST` | `/api/notificationSettings/reset` | unknown | notificationSettings.route.js |
+
+## oauth
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/oauth/providers` | getEnabledProviders | oauth.route.js |
+| `POST` | `/api/oauth/initiate` | initiateSSO | oauth.route.js |
+| `POST` | `/api/oauth/callback` | callbackPost | oauth.route.js |
+| `POST` | `/api/oauth/:provider/callback` | unknown | oauth.route.js |
+| `GET` | `/api/oauth/:providerType/authorize` | authorize | oauth.route.js |
+| `GET` | `/api/oauth/:providerType/callback` | callback | oauth.route.js |
+| `POST` | `/api/oauth/link` | linkAccount | oauth.route.js |
+| `DELETE` | `/api/oauth/unlink/:providerType` | unlinkAccount | oauth.route.js |
+| `GET` | `/api/oauth/linked` | getLinkedAccounts | oauth.route.js |
+| `POST` | `/api/oauth/detect` | detectProvider | oauth.route.js |
+| `GET` | `/api/oauth/domain/:domain` | getDomainConfig | oauth.route.js |
+| `POST` | `/api/oauth/domain/:domain/verify/generate` | generateVerificationToken | oauth.route.js |
+| `POST` | `/api/oauth/domain/:domain/verify` | verifyDomain | oauth.route.js |
+| `POST` | `/api/oauth/domain/:domain/verify/manual` | manualVerifyDomain | oauth.route.js |
+| `POST` | `/api/oauth/domain/:domain/cache/invalidate` | invalidateDomainCache | oauth.route.js |
 
 ## offboarding
 
@@ -2606,6 +3489,17 @@
 | `POST` | `/api/offboarding/:offboardingId/process-payment` | unknown | offboarding.route.js |
 | `POST` | `/api/offboarding/:offboardingId/issue-experience-certificate` | unknown | offboarding.route.js |
 | `PATCH` | `/api/offboarding/:offboardingId/rehire-eligibility` | unknown | offboarding.route.js |
+
+## offlineSyncs
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/offlineSyncs/manifest` | getSyncManifest | offlineSync.routes.js |
+| `GET` | `/api/offlineSyncs/data` | getOfflineData | offlineSync.routes.js |
+| `POST` | `/api/offlineSyncs/sync` | syncOfflineChanges | offlineSync.routes.js |
+| `GET` | `/api/offlineSyncs/changes` | getChangesSinceLastSync | offlineSync.routes.js |
+| `POST` | `/api/offlineSyncs/conflicts/resolve` | resolveConflicts | offlineSync.routes.js |
+| `GET` | `/api/offlineSyncs/status` | getSyncStatus | offlineSync.routes.js |
 
 ## okr
 
@@ -2653,6 +3547,17 @@
 | `POST` | `/api/onboarding/:onboardingId/checklist/categories` | unknown | onboarding.route.js |
 | `POST` | `/api/onboarding/:onboardingId/checklist/categories/:categoryId/tasks` | unknown | onboarding.route.js |
 | `POST` | `/api/onboarding/:onboardingId/feedback` | unknown | onboarding.route.js |
+
+## order
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/order` | getOrders | order.route.js |
+| `POST` | `/api/order/create-payment-intent/:_id` | paymentIntent | order.route.js |
+| `POST` | `/api/order/create-proposal-payment-intent/:_id` | proposalPaymentIntent | order.route.js |
+| `PATCH` | `/api/order` | updatePaymentStatus | order.route.js |
+| `POST` | `/api/order/create-test-contract/:_id` | createTestContract | order.route.js |
+| `POST` | `/api/order/create-test-proposal-contract/:_id` | createTestProposalContract | order.route.js |
 
 ## organization
 
@@ -2718,6 +3623,31 @@
 | `PATCH` | `/api/organizationalUnit/:id/leadership/:positionId` | unknown | organizationalUnit.route.js |
 | `DELETE` | `/api/organizationalUnit/:id/leadership/:positionId` | unknown | organizationalUnit.route.js |
 | `POST` | `/api/organizationalUnit/:id/documents` | unknown | organizationalUnit.route.js |
+
+## payment
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/payment/new` | getNewPaymentDefaults | payment.route.js |
+| `GET` | `/api/payment/stats` | getPaymentStats | payment.route.js |
+| `GET` | `/api/payment/summary` | getPaymentsSummary | payment.route.js |
+| `GET` | `/api/payment/unreconciled` | getUnreconciledPayments | payment.route.js |
+| `GET` | `/api/payment/pending-checks` | getPendingChecks | payment.route.js |
+| `DELETE` | `/api/payment/bulk` | bulkDeletePayments | payment.route.js |
+| `POST` | `/api/payment` | createPayment | payment.route.js |
+| `GET` | `/api/payment` | getPayments | payment.route.js |
+| `GET` | `/api/payment/:id` | getPayment | payment.route.js |
+| `PUT` | `/api/payment/:id` | updatePayment | payment.route.js |
+| `DELETE` | `/api/payment/:id` | deletePayment | payment.route.js |
+| `POST` | `/api/payment/:id/complete` | completePayment | payment.route.js |
+| `POST` | `/api/payment/:id/fail` | failPayment | payment.route.js |
+| `POST` | `/api/payment/:id/refund` | createRefund | payment.route.js |
+| `POST` | `/api/payment/:id/reconcile` | reconcilePayment | payment.route.js |
+| `PUT` | `/api/payment/:id/apply` | applyPaymentToInvoices | payment.route.js |
+| `DELETE` | `/api/payment/:id/unapply/:invoiceId` | unapplyPaymentFromInvoice | payment.route.js |
+| `PUT` | `/api/payment/:id/check-status` | updateCheckStatus | payment.route.js |
+| `POST` | `/api/payment/:id/send-receipt` | sendReceipt | payment.route.js |
+| `POST` | `/api/payment/:id/receipt` | sendReceipt | payment.route.js |
 
 ## paymentReceipt
 
@@ -2823,6 +3753,14 @@
 | `POST` | `/api/pdfme/generate/contract` | unknown | pdfme.route.js |
 | `POST` | `/api/pdfme/generate/receipt` | unknown | pdfme.route.js |
 | `GET` | `/api/pdfme/download/:fileName` | unknown | pdfme.route.js |
+
+## peerReview
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `POST` | `/api/peerReview` | createPeerReview | peerReview.route.js |
+| `GET` | `/api/peerReview/:lawyerId` | getPeerReviews | peerReview.route.js |
+| `PATCH` | `/api/peerReview/verify/:_id` | verifyPeerReview | peerReview.route.js |
 
 ## performanceReview
 
@@ -2960,6 +3898,18 @@
 | `DELETE` | `/api/preparedReport/:id` | deletePreparedReport | preparedReport.route.js |
 | `POST` | `/api/preparedReport/:id/refresh` | refreshPreparedReport | preparedReport.route.js |
 
+## priceLevel
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/priceLevel` | getPriceLevels | priceLevel.route.js |
+| `GET` | `/api/priceLevel/client-rate` | getClientRate | priceLevel.route.js |
+| `GET` | `/api/priceLevel/:id` | getPriceLevel | priceLevel.route.js |
+| `POST` | `/api/priceLevel` | createPriceLevel | priceLevel.route.js |
+| `PUT` | `/api/priceLevel/:id` | updatePriceLevel | priceLevel.route.js |
+| `DELETE` | `/api/priceLevel/:id` | deletePriceLevel | priceLevel.route.js |
+| `POST` | `/api/priceLevel/:id/set-default` | setDefault | priceLevel.route.js |
+
 ## products
 
 | Method | Path | Controller | File |
@@ -2973,6 +3923,17 @@
 | `GET` | `/api/products/:id` | getProductById | product.routes.js |
 | `PUT` | `/api/products/:id` | updateProduct | product.routes.js |
 | `DELETE` | `/api/products/:id` | deleteProduct | product.routes.js |
+
+## proposal
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `POST` | `/api/proposal` | createProposal | proposal.route.js |
+| `GET` | `/api/proposal/job/:jobId` | getJobProposals | proposal.route.js |
+| `GET` | `/api/proposal/my-proposals` | getMyProposals | proposal.route.js |
+| `PATCH` | `/api/proposal/accept/:_id` | acceptProposal | proposal.route.js |
+| `PATCH` | `/api/proposal/reject/:_id` | rejectProposal | proposal.route.js |
+| `PATCH` | `/api/proposal/withdraw/:_id` | withdrawProposal | proposal.route.js |
 
 ## quality
 
@@ -2997,6 +3958,16 @@
 | `GET` | `/api/quality/actions/:id` | unknown | quality.route.js |
 | `PUT` | `/api/quality/actions/:id` | unknown | quality.route.js |
 | `DELETE` | `/api/quality/actions/:id` | unknown | quality.route.js |
+
+## question
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `POST` | `/api/question` | createQuestion | question.route.js |
+| `GET` | `/api/question` | getQuestions | question.route.js |
+| `GET` | `/api/question/:_id` | getQuestion | question.route.js |
+| `PATCH` | `/api/question/:_id` | updateQuestion | question.route.js |
+| `DELETE` | `/api/question/:_id` | deleteQuestion | question.route.js |
 
 ## queue
 
@@ -3035,6 +4006,36 @@
 | `POST` | `/api/quotes/:id/items` | unknown | quote.routes.js |
 | `PUT` | `/api/quotes/:id/items/:itemId` | unknown | quote.routes.js |
 | `DELETE` | `/api/quotes/:id/items/:itemId` | unknown | quote.routes.js |
+
+## rateCard
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/rateCard/client/:clientId` | getRateCardForClient | rateCard.route.js |
+| `GET` | `/api/rateCard/case/:caseId` | getRateCardForCase | rateCard.route.js |
+| `POST` | `/api/rateCard/calculate` | calculateRate | rateCard.route.js |
+| `GET` | `/api/rateCard` | getRateCards | rateCard.route.js |
+| `POST` | `/api/rateCard` | createRateCard | rateCard.route.js |
+| `GET` | `/api/rateCard/:id` | getRateCard | rateCard.route.js |
+| `PATCH` | `/api/rateCard/:id` | updateRateCard | rateCard.route.js |
+| `DELETE` | `/api/rateCard/:id` | deleteRateCard | rateCard.route.js |
+| `POST` | `/api/rateCard/:id/rates` | addCustomRate | rateCard.route.js |
+| `PATCH` | `/api/rateCard/:id/rates/:rateId` | updateCustomRate | rateCard.route.js |
+| `DELETE` | `/api/rateCard/:id/rates/:rateId` | removeCustomRate | rateCard.route.js |
+
+## rateGroup
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/rateGroup/default` | getDefaultRateGroup | rateGroup.route.js |
+| `GET` | `/api/rateGroup` | getRateGroups | rateGroup.route.js |
+| `POST` | `/api/rateGroup` | createRateGroup | rateGroup.route.js |
+| `GET` | `/api/rateGroup/:id` | getRateGroup | rateGroup.route.js |
+| `PATCH` | `/api/rateGroup/:id` | updateRateGroup | rateGroup.route.js |
+| `DELETE` | `/api/rateGroup/:id` | deleteRateGroup | rateGroup.route.js |
+| `POST` | `/api/rateGroup/:id/rates` | addRateToGroup | rateGroup.route.js |
+| `DELETE` | `/api/rateGroup/:id/rates/:rateId` | removeRateFromGroup | rateGroup.route.js |
+| `POST` | `/api/rateGroup/:id/duplicate` | duplicateRateGroup | rateGroup.route.js |
 
 ## rateLimit
 
@@ -3115,6 +4116,21 @@
 | `POST` | `/api/recurringInvoice/:id/duplicate` | duplicateRecurringInvoice | recurringInvoice.route.js |
 | `DELETE` | `/api/recurringInvoice/:id` | deleteRecurringInvoice | recurringInvoice.route.js |
 
+## recurringTransaction
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/recurringTransaction` | getRecurringTransactions | recurringTransaction.route.js |
+| `GET` | `/api/recurringTransaction/upcoming` | getUpcomingTransactions | recurringTransaction.route.js |
+| `POST` | `/api/recurringTransaction/process-due` | processDueTransactions | recurringTransaction.route.js |
+| `GET` | `/api/recurringTransaction/:id` | getRecurringTransaction | recurringTransaction.route.js |
+| `POST` | `/api/recurringTransaction` | createRecurringTransaction | recurringTransaction.route.js |
+| `PUT` | `/api/recurringTransaction/:id` | updateRecurringTransaction | recurringTransaction.route.js |
+| `POST` | `/api/recurringTransaction/:id/pause` | pauseRecurringTransaction | recurringTransaction.route.js |
+| `POST` | `/api/recurringTransaction/:id/resume` | resumeRecurringTransaction | recurringTransaction.route.js |
+| `POST` | `/api/recurringTransaction/:id/cancel` | cancelRecurringTransaction | recurringTransaction.route.js |
+| `POST` | `/api/recurringTransaction/:id/generate` | generateTransaction | recurringTransaction.route.js |
+
 ## referral
 
 | Method | Path | Controller | File |
@@ -3161,6 +4177,85 @@
 | `GET` | `/api/regionalBanks/status/:accountId` | unknown | regionalBanks.route.js |
 | `POST` | `/api/regionalBanks/disconnect/:accountId` | unknown | regionalBanks.route.js |
 
+## reminder
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/reminder/location/summary` | getLocationRemindersSummary | reminder.route.js |
+| `GET` | `/api/reminder/location/locations` | getUserLocations | reminder.route.js |
+| `POST` | `/api/reminder/location` | createLocationReminder | reminder.route.js |
+| `POST` | `/api/reminder/location/check` | checkLocationTriggers | reminder.route.js |
+| `POST` | `/api/reminder/location/nearby` | getNearbyReminders | reminder.route.js |
+| `POST` | `/api/reminder/location/save` | saveUserLocation | reminder.route.js |
+| `POST` | `/api/reminder/location/distance` | calculateDistance | reminder.route.js |
+| `PUT` | `/api/reminder/location/locations/:locationId` | updateUserLocation | reminder.route.js |
+| `DELETE` | `/api/reminder/location/locations/:locationId` | deleteUserLocation | reminder.route.js |
+| `POST` | `/api/reminder/location/:reminderId/reset` | resetLocationTrigger | reminder.route.js |
+| `GET` | `/api/reminder/stats` | getReminderStats | reminder.route.js |
+| `GET` | `/api/reminder/upcoming` | getUpcomingReminders | reminder.route.js |
+| `GET` | `/api/reminder/overdue` | getOverdueReminders | reminder.route.js |
+| `GET` | `/api/reminder/snoozed-due` | getSnoozedDueReminders | reminder.route.js |
+| `GET` | `/api/reminder/delegated` | getDelegatedReminders | reminder.route.js |
+| `GET` | `/api/reminder/client/:clientId` | getRemindersByClient | reminder.route.js |
+| `GET` | `/api/reminder/case/:caseId` | getRemindersByCase | reminder.route.js |
+| `POST` | `/api/reminder/from-task/:taskId` | createReminderFromTask | reminder.route.js |
+| `POST` | `/api/reminder/from-event/:eventId` | createReminderFromEvent | reminder.route.js |
+| `POST` | `/api/reminder/parse` | createReminderFromNaturalLanguage | reminder.route.js |
+| `POST` | `/api/reminder/voice` | createReminderFromVoice | reminder.route.js |
+| `POST` | `/api/reminder/bulk` | bulkCreateReminders | reminder.route.js |
+| `PUT` | `/api/reminder/bulk` | bulkUpdateReminders | reminder.route.js |
+| `DELETE` | `/api/reminder/bulk` | bulkDeleteReminders | reminder.route.js |
+| `POST` | `/api/reminder/bulk/complete` | bulkCompleteReminders | reminder.route.js |
+| `POST` | `/api/reminder/bulk/archive` | bulkArchiveReminders | reminder.route.js |
+| `POST` | `/api/reminder/bulk/unarchive` | bulkUnarchiveReminders | reminder.route.js |
+| `GET` | `/api/reminder/export` | exportReminders | reminder.route.js |
+| `GET` | `/api/reminder/ids` | getAllReminderIds | reminder.route.js |
+| `GET` | `/api/reminder/archived` | getArchivedReminders | reminder.route.js |
+| `PATCH` | `/api/reminder/reorder` | reorderReminders | reminder.route.js |
+| `GET` | `/api/reminder/search` | searchReminders | reminder.route.js |
+| `GET` | `/api/reminder/conflicts` | getReminderConflicts | reminder.route.js |
+| `POST` | `/api/reminder` | createReminder | reminder.route.js |
+| `GET` | `/api/reminder` | getReminders | reminder.route.js |
+| `GET` | `/api/reminder/:id` | getReminder | reminder.route.js |
+| `PUT` | `/api/reminder/:id` | updateReminder | reminder.route.js |
+| `PATCH` | `/api/reminder/:id` | updateReminder | reminder.route.js |
+| `DELETE` | `/api/reminder/:id` | deleteReminder | reminder.route.js |
+| `POST` | `/api/reminder/:id/complete` | completeReminder | reminder.route.js |
+| `POST` | `/api/reminder/:id/dismiss` | dismissReminder | reminder.route.js |
+| `POST` | `/api/reminder/:id/snooze` | snoozeReminder | reminder.route.js |
+| `POST` | `/api/reminder/:id/delegate` | delegateReminder | reminder.route.js |
+| `POST` | `/api/reminder/:id/clone` | cloneReminder | reminder.route.js |
+| `POST` | `/api/reminder/:id/reschedule` | rescheduleReminder | reminder.route.js |
+| `GET` | `/api/reminder/:id/activity` | getReminderActivity | reminder.route.js |
+| `POST` | `/api/reminder/:id/archive` | archiveReminder | reminder.route.js |
+| `POST` | `/api/reminder/:id/unarchive` | unarchiveReminder | reminder.route.js |
+
+## report
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/report/profit-loss` | getProfitLossReport | report.route.js |
+| `GET` | `/api/report/balance-sheet` | getBalanceSheetReport | report.route.js |
+| `GET` | `/api/report/case-profitability` | getCaseProfitabilityReport | report.route.js |
+| `GET` | `/api/report/ar-aging` | getARAgingReport | report.route.js |
+| `GET` | `/api/report/trial-balance` | getTrialBalanceReport | report.route.js |
+| `GET` | `/api/report/budget-variance` | getBudgetVarianceReport | report.route.js |
+| `GET` | `/api/report/ap-aging` | getAPAgingReport | report.route.js |
+| `GET` | `/api/report/client-statement` | getClientStatement | report.route.js |
+| `GET` | `/api/report/vendor-ledger` | getVendorLedger | report.route.js |
+| `GET` | `/api/report/gross-profit` | getGrossProfitReport | report.route.js |
+| `GET` | `/api/report/cost-center` | getCostCenterReport | report.route.js |
+| `GET` | `/api/report/cases-chart` | getCasesChart | report.route.js |
+| `GET` | `/api/report/revenue-chart` | getRevenueChart | report.route.js |
+| `GET` | `/api/report/tasks-chart` | getTasksChart | report.route.js |
+| `POST` | `/api/report/export` | exportReport | report.route.js |
+| `POST` | `/api/report/generate` | createReport | report.route.js |
+| `GET` | `/api/report` | listReports | report.route.js |
+| `GET` | `/api/report/:id` | getReport | report.route.js |
+| `DELETE` | `/api/report/:id` | deleteReport | report.route.js |
+| `POST` | `/api/report/:id/execute` | executeReport | report.route.js |
+| `PUT` | `/api/report/:id/schedule` | updateSchedule | report.route.js |
+
 ## reports
 
 | Method | Path | Controller | File |
@@ -3175,6 +4270,29 @@
 | `POST` | `/api/reports/:id/clone` | unknown | report.routes.js |
 | `PUT` | `/api/reports/:id/schedule` | unknown | report.routes.js |
 | `GET` | `/api/reports/:id/export/:format` | unknown | report.routes.js |
+
+## retainer
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `POST` | `/api/retainer` | createRetainer | retainer.route.js |
+| `GET` | `/api/retainer` | getRetainers | retainer.route.js |
+| `GET` | `/api/retainer/stats` | getRetainerStats | retainer.route.js |
+| `GET` | `/api/retainer/low-balance` | getLowBalanceRetainers | retainer.route.js |
+| `GET` | `/api/retainer/:id` | getRetainer | retainer.route.js |
+| `PUT` | `/api/retainer/:id` | updateRetainer | retainer.route.js |
+| `POST` | `/api/retainer/:id/consume` | consumeRetainer | retainer.route.js |
+| `POST` | `/api/retainer/:id/replenish` | replenishRetainer | retainer.route.js |
+| `POST` | `/api/retainer/:id/refund` | refundRetainer | retainer.route.js |
+| `GET` | `/api/retainer/:id/history` | getRetainerHistory | retainer.route.js |
+
+## review
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `POST` | `/api/review` | createReview | review.route.js |
+| `GET` | `/api/review/:gigID` | getReview | review.route.js |
+| `DELETE` | `/api/review/:_id` | deleteReview | review.route.js |
 
 ## salesForecasts
 
@@ -3327,6 +4445,19 @@
 | `GET` | `/api/saless/commissions/by-salesperson` | unknown | sales.routes.js |
 | `GET` | `/api/saless/commissions/monthly-trend` | unknown | sales.routes.js |
 
+## saml
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/saml/metadata/:firmId` | getSPMetadata | saml.route.js |
+| `GET` | `/api/saml/login/:firmId` | initiateLogin | saml.route.js |
+| `POST` | `/api/saml/acs/:firmId` | assertionConsumerService | saml.route.js |
+| `GET` | `/api/saml/logout/:firmId` | initiateSingleLogout | saml.route.js |
+| `POST` | `/api/saml/sls/:firmId` | singleLogoutService | saml.route.js |
+| `GET` | `/api/saml/config` | getSAMLConfig | saml.route.js |
+| `PUT` | `/api/saml/config` | updateSAMLConfig | saml.route.js |
+| `POST` | `/api/saml/config/test` | testSAMLConfig | saml.route.js |
+
 ## sandboxs
 
 | Method | Path | Controller | File |
@@ -3393,6 +4524,34 @@
 | `POST` | `/api/savedFilters/:id/share` | unknown | savedFilter.routes.js |
 | `DELETE` | `/api/savedFilters/:id/share/:userId` | unknown | savedFilter.routes.js |
 | `POST` | `/api/savedFilters/:id/duplicate` | unknown | savedFilter.routes.js |
+
+## savedReport
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/savedReport/reports` | getReports | savedReport.route.js |
+| `POST` | `/api/savedReport/reports` | createReport | savedReport.route.js |
+| `GET` | `/api/savedReport/reports/:id` | getReport | savedReport.route.js |
+| `PATCH` | `/api/savedReport/reports/:id` | updateReport | savedReport.route.js |
+| `DELETE` | `/api/savedReport/reports/:id` | deleteReport | savedReport.route.js |
+| `POST` | `/api/savedReport/reports/:id/run` | runReport | savedReport.route.js |
+| `POST` | `/api/savedReport/reports/:id/duplicate` | duplicateReport | savedReport.route.js |
+| `GET` | `/api/savedReport/widgets/defaults` | getDefaultWidgets | savedReport.route.js |
+| `PATCH` | `/api/savedReport/widgets/layout` | updateLayout | savedReport.route.js |
+| `GET` | `/api/savedReport/widgets` | getWidgets | savedReport.route.js |
+| `POST` | `/api/savedReport/widgets` | createWidget | savedReport.route.js |
+| `GET` | `/api/savedReport/widgets/:id` | getWidget | savedReport.route.js |
+| `PATCH` | `/api/savedReport/widgets/:id` | updateWidget | savedReport.route.js |
+| `DELETE` | `/api/savedReport/widgets/:id` | deleteWidget | savedReport.route.js |
+| `GET` | `/api/savedReport/widgets/:id/data` | getWidgetData | savedReport.route.js |
+
+## score
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/score/:lawyerId` | getLawyerScore | score.route.js |
+| `POST` | `/api/score/recalculate/:lawyerId` | recalculateScore | score.route.js |
+| `GET` | `/api/score/top/lawyers` | getTopLawyers | score.route.js |
 
 ## security
 
@@ -3555,6 +4714,24 @@
 | `GET` | `/api/sloMonitorings/:id/history` | unknown | sloMonitoring.routes.js |
 | `GET` | `/api/sloMonitorings/:id/error-budget` | unknown | sloMonitoring.routes.js |
 
+## smartButton
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/smartButton/:model/:recordId/counts` | unknown | smartButton.route.js |
+| `POST` | `/api/smartButton/:model/batch-counts` | unknown | smartButton.route.js |
+
+## smartScheduling
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/smartScheduling/patterns` | getUserPatterns | smartScheduling.route.js |
+| `POST` | `/api/smartScheduling/suggest` | suggestBestTime | smartScheduling.route.js |
+| `POST` | `/api/smartScheduling/predict-duration` | predictDuration | smartScheduling.route.js |
+| `GET` | `/api/smartScheduling/workload` | analyzeWorkload | smartScheduling.route.js |
+| `GET` | `/api/smartScheduling/nudges` | getDailyNudges | smartScheduling.route.js |
+| `POST` | `/api/smartScheduling/auto-schedule` | autoScheduleTasks | smartScheduling.route.js |
+
 ## ssoConfig
 
 | Method | Path | Controller | File |
@@ -3578,6 +4755,18 @@
 | `PUT` | `/api/staff/:id` | updateStaff | staff.route.js |
 | `PATCH` | `/api/staff/:id` | unknown | staff.route.js |
 | `DELETE` | `/api/staff/:id` | deleteStaff | staff.route.js |
+
+## statement
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `POST` | `/api/statement` | generateStatement | statement.route.js |
+| `GET` | `/api/statement` | getStatements | statement.route.js |
+| `GET` | `/api/statement/:id` | getStatement | statement.route.js |
+| `DELETE` | `/api/statement/:id` | deleteStatement | statement.route.js |
+| `GET` | `/api/statement/:id/download` | downloadStatement | statement.route.js |
+| `POST` | `/api/statement/:id/send` | sendStatement | statement.route.js |
+| `POST` | `/api/statement/generate` | generateStatement | statement.route.js |
 
 ## status
 
@@ -3699,6 +4888,114 @@
 | `DELETE` | `/api/survey/:id` | unknown | survey.route.js |
 | `POST` | `/api/survey/:id/respond` | unknown | survey.route.js |
 
+## tag
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/tag/popular` | getPopularTags | tag.route.js |
+| `POST` | `/api/tag/merge` | mergeTags | tag.route.js |
+| `POST` | `/api/tag/bulk` | bulkCreate | tag.route.js |
+| `GET` | `/api/tag/entity/:entityType` | getTagsByEntity | tag.route.js |
+| `GET` | `/api/tag` | getTags | tag.route.js |
+| `POST` | `/api/tag` | createTag | tag.route.js |
+| `GET` | `/api/tag/:id` | getTagById | tag.route.js |
+| `PUT` | `/api/tag/:id` | updateTag | tag.route.js |
+| `DELETE` | `/api/tag/:id` | deleteTag | tag.route.js |
+
+## task
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/task/templates` | getTemplates | task.route.js |
+| `POST` | `/api/task/templates` | createTemplate | task.route.js |
+| `GET` | `/api/task/templates/:templateId` | getTemplate | task.route.js |
+| `PUT` | `/api/task/templates/:templateId` | updateTemplate | task.route.js |
+| `PATCH` | `/api/task/templates/:templateId` | updateTemplate | task.route.js |
+| `DELETE` | `/api/task/templates/:templateId` | deleteTemplate | task.route.js |
+| `POST` | `/api/task/templates/:templateId/create` | createFromTemplate | task.route.js |
+| `GET` | `/api/task/overview` | getTasksOverview | task.route.js |
+| `GET` | `/api/task/timers/active` | getActiveTimers | task.route.js |
+| `GET` | `/api/task/search` | searchTasks | task.route.js |
+| `GET` | `/api/task/conflicts` | getTaskConflicts | task.route.js |
+| `GET` | `/api/task/client/:clientId` | getTasksByClient | task.route.js |
+| `GET` | `/api/task/stats` | getTaskStats | task.route.js |
+| `GET` | `/api/task/upcoming` | getUpcomingTasks | task.route.js |
+| `GET` | `/api/task/overdue` | getOverdueTasks | task.route.js |
+| `GET` | `/api/task/due-today` | getTasksDueToday | task.route.js |
+| `GET` | `/api/task/case/:caseId` | getTasksByCase | task.route.js |
+| `POST` | `/api/task/bulk` | bulkCreateTasks | task.route.js |
+| `PUT` | `/api/task/bulk` | bulkUpdateTasks | task.route.js |
+| `DELETE` | `/api/task/bulk` | bulkDeleteTasks | task.route.js |
+| `POST` | `/api/task/bulk/complete` | bulkCompleteTasks | task.route.js |
+| `POST` | `/api/task/bulk/assign` | bulkAssignTasks | task.route.js |
+| `POST` | `/api/task/bulk/archive` | bulkArchiveTasks | task.route.js |
+| `POST` | `/api/task/bulk/unarchive` | bulkUnarchiveTasks | task.route.js |
+| `POST` | `/api/task/bulk/reopen` | bulkReopenTasks | task.route.js |
+| `GET` | `/api/task/export` | exportTasks | task.route.js |
+| `GET` | `/api/task/ids` | getAllTaskIds | task.route.js |
+| `GET` | `/api/task/archived` | getArchivedTasks | task.route.js |
+| `PATCH` | `/api/task/reorder` | reorderTasks | task.route.js |
+| `GET` | `/api/task/location-triggers` | getTasksWithLocationTriggers | task.route.js |
+| `POST` | `/api/task/location/check` | bulkCheckLocationTriggers | task.route.js |
+| `POST` | `/api/task/parse` | createTaskFromNaturalLanguage | task.route.js |
+| `POST` | `/api/task/voice` | createTaskFromVoice | task.route.js |
+| `GET` | `/api/task/smart-schedule` | getSmartScheduleSuggestions | task.route.js |
+| `POST` | `/api/task/auto-schedule` | autoScheduleTasks | task.route.js |
+| `POST` | `/api/task/voice-to-item` | processVoiceToItem | task.route.js |
+| `POST` | `/api/task/voice-to-item/batch` | batchProcessVoiceMemos | task.route.js |
+| `POST` | `/api/task` | createTask | task.route.js |
+| `GET` | `/api/task` | getTasks | task.route.js |
+| `GET` | `/api/task/:id/full` | getTaskFull | task.route.js |
+| `GET` | `/api/task/:id` | getTask | task.route.js |
+| `PUT` | `/api/task/:id` | updateTask | task.route.js |
+| `PATCH` | `/api/task/:id` | updateTask | task.route.js |
+| `DELETE` | `/api/task/:id` | deleteTask | task.route.js |
+| `POST` | `/api/task/:id/complete` | completeTask | task.route.js |
+| `POST` | `/api/task/:id/reopen` | reopenTask | task.route.js |
+| `POST` | `/api/task/:id/clone` | cloneTask | task.route.js |
+| `POST` | `/api/task/:id/reschedule` | rescheduleTask | task.route.js |
+| `GET` | `/api/task/:id/activity` | getTaskActivity | task.route.js |
+| `POST` | `/api/task/:id/convert-to-event` | convertTaskToEvent | task.route.js |
+| `POST` | `/api/task/:id/archive` | archiveTask | task.route.js |
+| `POST` | `/api/task/:id/unarchive` | unarchiveTask | task.route.js |
+| `PUT` | `/api/task/:id/location-trigger` | updateLocationTrigger | task.route.js |
+| `POST` | `/api/task/:id/location/check` | checkLocationTrigger | task.route.js |
+| `POST` | `/api/task/:id/subtasks` | addSubtask | task.route.js |
+| `PATCH` | `/api/task/:id/subtasks/:subtaskId/toggle` | toggleSubtask | task.route.js |
+| `DELETE` | `/api/task/:id/subtasks/:subtaskId` | deleteSubtask | task.route.js |
+| `POST` | `/api/task/:id/timer/start` | startTimer | task.route.js |
+| `POST` | `/api/task/:id/timer/stop` | stopTimer | task.route.js |
+| `PATCH` | `/api/task/:id/timer/pause` | pauseTimer | task.route.js |
+| `PATCH` | `/api/task/:id/timer/resume` | resumeTimer | task.route.js |
+| `POST` | `/api/task/:id/time` | addManualTime | task.route.js |
+| `DELETE` | `/api/task/:id/time-tracking/reset` | resetTimeTracking | task.route.js |
+| `POST` | `/api/task/:id/comments` | addComment | task.route.js |
+| `PUT` | `/api/task/:id/comments/:commentId` | updateComment | task.route.js |
+| `DELETE` | `/api/task/:id/comments/:commentId` | deleteComment | task.route.js |
+| `POST` | `/api/task/:id/save-as-template` | saveAsTemplate | task.route.js |
+| `POST` | `/api/task/:id/attachments` | addAttachment | task.route.js |
+| `GET` | `/api/task/:id/attachments/:attachmentId/download-url` | getAttachmentDownloadUrl | task.route.js |
+| `GET` | `/api/task/:id/attachments/:attachmentId/versions` | getAttachmentVersions | task.route.js |
+| `DELETE` | `/api/task/:id/attachments/:attachmentId` | deleteAttachment | task.route.js |
+| `POST` | `/api/task/:id/documents` | createDocument | task.route.js |
+| `GET` | `/api/task/:id/documents` | getDocuments | task.route.js |
+| `GET` | `/api/task/:id/documents/:documentId` | getDocument | task.route.js |
+| `PATCH` | `/api/task/:id/documents/:documentId` | updateDocument | task.route.js |
+| `GET` | `/api/task/:id/documents/:documentId/versions` | getDocumentVersions | task.route.js |
+| `GET` | `/api/task/:id/documents/:documentId/versions/:versionId` | getDocumentVersion | task.route.js |
+| `POST` | `/api/task/:id/documents/:documentId/versions/:versionId/restore` | restoreDocumentVersion | task.route.js |
+| `POST` | `/api/task/:id/voice-memos` | addVoiceMemo | task.route.js |
+| `PATCH` | `/api/task/:id/voice-memos/:memoId/transcription` | updateVoiceMemoTranscription | task.route.js |
+| `POST` | `/api/task/:id/dependencies` | addDependency | task.route.js |
+| `DELETE` | `/api/task/:id/dependencies/:dependencyTaskId` | removeDependency | task.route.js |
+| `PATCH` | `/api/task/:id/status` | updateTaskStatus | task.route.js |
+| `PATCH` | `/api/task/:id/progress` | updateProgress | task.route.js |
+| `POST` | `/api/task/:id/workflow-rules` | addWorkflowRule | task.route.js |
+| `PATCH` | `/api/task/:id/outcome` | updateOutcome | task.route.js |
+| `PATCH` | `/api/task/:id/estimate` | updateEstimate | task.route.js |
+| `GET` | `/api/task/:id/time-tracking/summary` | getTimeTrackingSummary | task.route.js |
+| `PATCH` | `/api/task/:id/subtasks/:subtaskId` | updateSubtask | task.route.js |
+
 ## team
 
 | Method | Path | Controller | File |
@@ -3807,6 +5104,21 @@
 | `PUT` | `/api/territorys/:id/move` | unknown | territory.routes.js |
 | `GET` | `/api/territorys/:id/stats` | unknown | territory.routes.js |
 
+## threadMessages
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/threadMessages/mentions` | getMyMentions | threadMessage.routes.js |
+| `GET` | `/api/threadMessages/starred` | getStarred | threadMessage.routes.js |
+| `GET` | `/api/threadMessages/search` | searchMessages | threadMessage.routes.js |
+| `GET` | `/api/threadMessages/thread/:model/:id` | getRecordThread | threadMessage.routes.js |
+| `POST` | `/api/threadMessages` | postMessage | threadMessage.routes.js |
+| `POST` | `/api/threadMessages/note` | postNote | threadMessage.routes.js |
+| `GET` | `/api/threadMessages` | getMessages | threadMessage.routes.js |
+| `GET` | `/api/threadMessages/:id` | getMessage | threadMessage.routes.js |
+| `POST` | `/api/threadMessages/:id/star` | starMessage | threadMessage.routes.js |
+| `DELETE` | `/api/threadMessages/:id` | deleteMessage | threadMessage.routes.js |
+
 ## timeTracking
 
 | Method | Path | Controller | File |
@@ -3910,6 +5222,21 @@
 | `POST` | `/api/training/:trainingId/evaluation` | unknown | training.route.js |
 | `POST` | `/api/training/:trainingId/payment` | unknown | training.route.js |
 
+## transaction
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `POST` | `/api/transaction` | createTransaction | transaction.route.js |
+| `GET` | `/api/transaction` | getTransactions | transaction.route.js |
+| `GET` | `/api/transaction/balance` | getBalance | transaction.route.js |
+| `GET` | `/api/transaction/summary` | getSummary | transaction.route.js |
+| `GET` | `/api/transaction/by-category` | getTransactionsByCategory | transaction.route.js |
+| `GET` | `/api/transaction/:id` | getTransaction | transaction.route.js |
+| `PUT` | `/api/transaction/:id` | updateTransaction | transaction.route.js |
+| `DELETE` | `/api/transaction/:id` | deleteTransaction | transaction.route.js |
+| `POST` | `/api/transaction/:id/cancel` | cancelTransaction | transaction.route.js |
+| `DELETE` | `/api/transaction/bulk` | bulkDeleteTransactions | transaction.route.js |
+
 ## trello
 
 | Method | Path | Controller | File |
@@ -3931,6 +5258,28 @@
 | `POST` | `/api/trello/sync` | syncWithTasks | trello.route.js |
 | `POST` | `/api/trello/webhook` | handleWebhook | trello.route.js |
 
+## trustAccount
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/trustAccount` | getTrustAccounts | trustAccount.route.js |
+| `POST` | `/api/trustAccount` | createTrustAccount | trustAccount.route.js |
+| `GET` | `/api/trustAccount/:id` | getTrustAccount | trustAccount.route.js |
+| `PATCH` | `/api/trustAccount/:id` | updateTrustAccount | trustAccount.route.js |
+| `DELETE` | `/api/trustAccount/:id` | deleteTrustAccount | trustAccount.route.js |
+| `GET` | `/api/trustAccount/:id/summary` | getAccountSummary | trustAccount.route.js |
+| `GET` | `/api/trustAccount/:id/transactions` | getTransactions | trustAccount.route.js |
+| `POST` | `/api/trustAccount/:id/transactions` | createTransaction | trustAccount.route.js |
+| `GET` | `/api/trustAccount/:id/transactions/:transactionId` | getTransaction | trustAccount.route.js |
+| `POST` | `/api/trustAccount/:id/transactions/:transactionId/void` | voidTransaction | trustAccount.route.js |
+| `GET` | `/api/trustAccount/:id/balances` | getClientBalances | trustAccount.route.js |
+| `GET` | `/api/trustAccount/:id/balances/:clientId` | getClientBalance | trustAccount.route.js |
+| `POST` | `/api/trustAccount/:id/transfer` | transferBetweenClients | trustAccount.route.js |
+| `GET` | `/api/trustAccount/:id/reconciliations` | getReconciliations | trustAccount.route.js |
+| `POST` | `/api/trustAccount/:id/reconciliations` | createReconciliation | trustAccount.route.js |
+| `GET` | `/api/trustAccount/:id/three-way-reconciliations` | getThreeWayReconciliations | trustAccount.route.js |
+| `POST` | `/api/trustAccount/:id/three-way-reconciliations` | createThreeWayReconciliation | trustAccount.route.js |
+
 ## unifiedData
 
 | Method | Path | Controller | File |
@@ -3941,6 +5290,46 @@
 | `GET` | `/api/unifiedData/client-portfolio/:clientId` | unknown | unifiedData.route.js |
 | `GET` | `/api/unifiedData/hr-dashboard` | unknown | unifiedData.route.js |
 | `GET` | `/api/unifiedData/case-financials/:caseId` | unknown | unifiedData.route.js |
+
+## user
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/user/lawyers` | getLawyers | user.route.js |
+| `GET` | `/api/user/team` | getTeamMembers | user.route.js |
+| `GET` | `/api/user/vapid-public-key` | getVapidPublicKey | user.route.js |
+| `GET` | `/api/user/push-subscription` | getPushSubscriptionStatus | user.route.js |
+| `POST` | `/api/user/push-subscription` | savePushSubscription | user.route.js |
+| `DELETE` | `/api/user/push-subscription` | deletePushSubscription | user.route.js |
+| `GET` | `/api/user/notification-preferences` | getPushSubscriptionStatus | user.route.js |
+| `PUT` | `/api/user/notification-preferences` | updateNotificationPreferences | user.route.js |
+| `POST` | `/api/user/convert-to-firm` | convertSoloToFirm | user.route.js |
+| `GET` | `/api/user/:_id` | getUserProfile | user.route.js |
+| `GET` | `/api/user/lawyer/:username` | getLawyerProfile | user.route.js |
+| `PATCH` | `/api/user/:_id` | updateUserProfile | user.route.js |
+| `DELETE` | `/api/user/:_id` | deleteUser | user.route.js |
+
+## userSettings
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/userSettings` | getSettings | userSettings.route.js |
+| `GET` | `/api/userSettings/view-mode/:module` | getModuleViewMode | userSettings.route.js |
+| `PUT` | `/api/userSettings/view-mode/:module` | updateModuleViewMode | userSettings.route.js |
+| `PUT` | `/api/userSettings/global-view-mode` | updateGlobalViewMode | userSettings.route.js |
+| `PUT` | `/api/userSettings/module/:module` | updateModuleSettings | userSettings.route.js |
+| `POST` | `/api/userSettings/toggle-section` | toggleSection | userSettings.route.js |
+
+## vendor
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `POST` | `/api/vendor` | createVendor | vendor.route.js |
+| `GET` | `/api/vendor` | getVendors | vendor.route.js |
+| `GET` | `/api/vendor/:id` | getVendor | vendor.route.js |
+| `PUT` | `/api/vendor/:id` | updateVendor | vendor.route.js |
+| `DELETE` | `/api/vendor/:id` | deleteVendor | vendor.route.js |
+| `GET` | `/api/vendor/:id/summary` | getVendorSummary | vendor.route.js |
 
 ## verify
 
@@ -4073,6 +5462,24 @@
 | `GET` | `/api/whosOut/upcoming` | unknown | whosOut.route.js |
 | `GET` | `/api/whosOut/departments` | unknown | whosOut.route.js |
 | `GET` | `/api/whosOut/coverage/:department` | unknown | whosOut.route.js |
+
+## workflow
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/workflow/templates` | listTemplates | workflow.route.js |
+| `POST` | `/api/workflow/templates` | createTemplate | workflow.route.js |
+| `GET` | `/api/workflow/templates/:id` | getTemplate | workflow.route.js |
+| `PUT` | `/api/workflow/templates/:id` | updateTemplate | workflow.route.js |
+| `DELETE` | `/api/workflow/templates/:id` | deleteTemplate | workflow.route.js |
+| `GET` | `/api/workflow/instances` | listInstances | workflow.route.js |
+| `POST` | `/api/workflow/instances` | startWorkflow | workflow.route.js |
+| `GET` | `/api/workflow/instances/:id` | getWorkflowStatus | workflow.route.js |
+| `POST` | `/api/workflow/instances/:id/pause` | pauseWorkflow | workflow.route.js |
+| `POST` | `/api/workflow/instances/:id/resume` | resumeWorkflow | workflow.route.js |
+| `POST` | `/api/workflow/instances/:id/cancel` | cancelWorkflow | workflow.route.js |
+| `POST` | `/api/workflow/instances/:id/advance` | advanceStep | workflow.route.js |
+| `GET` | `/api/workflow/entity/:entityType/:entityId` | getActiveWorkflows | workflow.route.js |
 
 ## workflows
 
@@ -4273,7 +5680,7 @@
 
 ## Quick Reference by Method
 
-### GET (1321)
+### GET (1737)
 
 <details>
 <summary>Click to expand</summary>
@@ -4283,8 +5690,24 @@ GET    /api/account
 GET    /api/account/:id
 GET    /api/account/:id/balance
 GET    /api/account/types
+GET    /api/activity
+GET    /api/activity/:id
+GET    /api/activity/entity/:entityType/:entityId
+GET    /api/activity/overview
+GET    /api/activity/summary
 GET    /api/activityPlans
 GET    /api/activityPlans/:id
+GET    /api/activitys
+GET    /api/activitys/:id
+GET    /api/activitys/my
+GET    /api/activitys/stats
+GET    /api/activitys/types
+GET    /api/admin/firm/password-stats
+GET    /api/admin/revoked-tokens
+GET    /api/admin/revoked-tokens/stats
+GET    /api/admin/users/:id/claims
+GET    /api/admin/users/:id/claims/preview
+GET    /api/admin/users/:id/revocations
 GET    /api/adminApi/audit/compliance-report
 GET    /api/adminApi/audit/export
 GET    /api/adminApi/audit/login-history
@@ -4355,6 +5778,7 @@ GET    /api/analyticss/crm/team-performance
 GET    /api/analyticss/crm/territory
 GET    /api/analyticss/crm/win-loss
 GET    /api/analyticss/events/counts
+GET    /api/answer/:questionId
 GET    /api/apiKey
 GET    /api/apiKey/:id
 GET    /api/apiKey/stats
@@ -4383,6 +5807,12 @@ GET    /api/apps/:appId
 GET    /api/apps/:appId/settings
 GET    /api/apps/categories
 GET    /api/apps/stats
+GET    /api/arAging/client/:clientId
+GET    /api/arAging/export
+GET    /api/arAging/forecast
+GET    /api/arAging/priority/:invoiceId
+GET    /api/arAging/report
+GET    /api/arAging/summary
 GET    /api/assetAssignment
 GET    /api/assetAssignment/:id
 GET    /api/assetAssignment/by-employee/:employeeId
@@ -4438,6 +5868,18 @@ GET    /api/auditLog/security-events
 GET    /api/auditLog/summary
 GET    /api/auditLog/suspicious
 GET    /api/auditLog/user/:id
+GET    /api/auth/csrf
+GET    /api/auth/me
+GET    /api/auth/mfa/backup-codes/count
+GET    /api/auth/mfa/status
+GET    /api/auth/onboarding-status
+GET    /api/auth/otp-status
+GET    /api/auth/password-status
+GET    /api/auth/phone/otp-status
+GET    /api/auth/reauthenticate/status
+GET    /api/auth/sessions
+GET    /api/auth/sessions/current
+GET    /api/auth/sessions/stats
 GET    /api/automatedActions
 GET    /api/automatedActions/:id
 GET    /api/automatedActions/:id/logs
@@ -4448,6 +5890,33 @@ GET    /api/automations
 GET    /api/automations/:id
 GET    /api/automations/:id/logs
 GET    /api/automations/:id/stats
+GET    /api/bankAccount
+GET    /api/bankAccount/:id
+GET    /api/bankAccount/:id/balance-history
+GET    /api/bankAccount/summary
+GET    /api/bankReconciliation
+GET    /api/bankReconciliation/:id
+GET    /api/bankReconciliation/currency/rates
+GET    /api/bankReconciliation/currency/supported
+GET    /api/bankReconciliation/feeds
+GET    /api/bankReconciliation/import/template
+GET    /api/bankReconciliation/rules
+GET    /api/bankReconciliation/statistics/matches
+GET    /api/bankReconciliation/statistics/rules
+GET    /api/bankReconciliation/status/:accountId
+GET    /api/bankReconciliation/suggestions/:accountId
+GET    /api/bankReconciliation/unmatched/:accountId
+GET    /api/bankTransaction
+GET    /api/bankTransaction/:id
+GET    /api/bankTransfer
+GET    /api/bankTransfer/:id
+GET    /api/bill
+GET    /api/bill/:id
+GET    /api/bill/export
+GET    /api/bill/overdue
+GET    /api/bill/recurring
+GET    /api/bill/reports/aging
+GET    /api/bill/summary
 GET    /api/billing/invoices
 GET    /api/billing/invoices/:id
 GET    /api/billing/invoices/:id/pdf
@@ -4455,6 +5924,12 @@ GET    /api/billing/payment-methods
 GET    /api/billing/plans
 GET    /api/billing/subscription
 GET    /api/billing/usage
+GET    /api/billingRate
+GET    /api/billingRate/:id
+GET    /api/billingRate/applicable
+GET    /api/billingRate/stats
+GET    /api/billPayment
+GET    /api/billPayment/:id
 GET    /api/biometric/devices
 GET    /api/biometric/devices/:id
 GET    /api/biometric/enrollments
@@ -4487,12 +5962,42 @@ GET    /api/buying/stats
 GET    /api/buying/supplier-groups
 GET    /api/buying/suppliers
 GET    /api/buying/suppliers/:id
+GET    /api/calendar
+GET    /api/calendar/date/:date
+GET    /api/calendar/grid-items
+GET    /api/calendar/grid-summary
+GET    /api/calendar/item/:type/:id
+GET    /api/calendar/list
+GET    /api/calendar/month/:year/:month
+GET    /api/calendar/overdue
+GET    /api/calendar/sidebar-data
+GET    /api/calendar/stats
+GET    /api/calendar/upcoming
 GET    /api/campaigns
 GET    /api/campaigns/:id
 GET    /api/campaigns/:id/leads
 GET    /api/campaigns/:id/stats
 GET    /api/captcha/captcha/providers
 GET    /api/captcha/captcha/status/:provider
+GET    /api/case
+GET    /api/case/:_id
+GET    /api/case/:_id/audit
+GET    /api/case/:_id/documents/:docId/download
+GET    /api/case/:_id/full
+GET    /api/case/:_id/notes
+GET    /api/case/:_id/rich-documents
+GET    /api/case/:_id/rich-documents/:docId
+GET    /api/case/:_id/rich-documents/:docId/export/latex
+GET    /api/case/:_id/rich-documents/:docId/export/markdown
+GET    /api/case/:_id/rich-documents/:docId/export/pdf
+GET    /api/case/:_id/rich-documents/:docId/preview
+GET    /api/case/:_id/rich-documents/:docId/versions
+GET    /api/case/overview
+GET    /api/case/pipeline
+GET    /api/case/pipeline/grouped
+GET    /api/case/pipeline/stages/:category
+GET    /api/case/pipeline/statistics
+GET    /api/case/statistics
 GET    /api/caseNotion/cases/:caseId/notion/blocks/:blockId/comments
 GET    /api/caseNotion/cases/:caseId/notion/blocks/:blockId/connections
 GET    /api/caseNotion/cases/:caseId/notion/frames/:frameId/children
@@ -4525,6 +6030,17 @@ GET    /api/churn/interventions/stats
 GET    /api/churn/reports/at-risk-export
 GET    /api/churn/reports/executive-summary
 GET    /api/churn/reports/generate
+GET    /api/client
+GET    /api/client/:id
+GET    /api/client/:id/billing-info
+GET    /api/client/:id/cases
+GET    /api/client/:id/full
+GET    /api/client/:id/invoices
+GET    /api/client/:id/payments
+GET    /api/client/:id/wathq/:dataType
+GET    /api/client/search
+GET    /api/client/stats
+GET    /api/client/top-revenue
 GET    /api/cloudStorages/:provider/auth
 GET    /api/cloudStorages/:provider/callback
 GET    /api/cloudStorages/:provider/files
@@ -4557,6 +6073,9 @@ GET    /api/complianceDashboard/labor-law
 GET    /api/complianceDashboard/nitaqat
 GET    /api/complianceDashboard/probation/ending
 GET    /api/complianceDashboard/wps
+GET    /api/conflictCheck
+GET    /api/conflictCheck/:id
+GET    /api/conflictCheck/stats
 GET    /api/consent
 GET    /api/consent/history
 GET    /api/consolidatedReports/auto-eliminations
@@ -4574,6 +6093,8 @@ GET    /api/contact/search
 GET    /api/contactLists
 GET    /api/contactLists/:id
 GET    /api/contactLists/:id/members
+GET    /api/conversation
+GET    /api/conversation/single/:sellerID/:buyerID
 GET    /api/conversations
 GET    /api/conversations/:id
 GET    /api/conversations/stats
@@ -4638,6 +6159,9 @@ GET    /api/crmTransaction/stale-leads/by-stage
 GET    /api/crmTransaction/stale-leads/summary
 GET    /api/crmTransaction/summary
 GET    /api/crmTransaction/user-activity/:userId
+GET    /api/currency/rates
+GET    /api/currency/settings
+GET    /api/currency/supported
 GET    /api/customFields
 GET    /api/customFields/:id
 GET    /api/customFields/:id/stats
@@ -4650,6 +6174,26 @@ GET    /api/cycles/:id/burndown
 GET    /api/cycles/:id/progress
 GET    /api/cycles/active
 GET    /api/cycles/stats
+GET    /api/dashboard/activity
+GET    /api/dashboard/analytics
+GET    /api/dashboard/crm-stats
+GET    /api/dashboard/finance-stats
+GET    /api/dashboard/financial-summary
+GET    /api/dashboard/hero-stats
+GET    /api/dashboard/hr-stats
+GET    /api/dashboard/recent-messages
+GET    /api/dashboard/reports
+GET    /api/dashboard/stats
+GET    /api/dashboard/summary
+GET    /api/dashboard/today-events
+GET    /api/dataExport/entity/:entityType
+GET    /api/dataExport/import/:id
+GET    /api/dataExport/imports
+GET    /api/dataExport/jobs
+GET    /api/dataExport/jobs/:id
+GET    /api/dataExport/jobs/:id/download
+GET    /api/dataExport/report/:reportType
+GET    /api/dataExport/templates
 GET    /api/dealHealths/:id
 GET    /api/dealHealths/attention
 GET    /api/dealHealths/distribution
@@ -4668,6 +6212,26 @@ GET    /api/discord/callback
 GET    /api/discord/guilds
 GET    /api/discord/guilds/:guildId/channels
 GET    /api/discord/status
+GET    /api/dispute
+GET    /api/dispute/:id
+GET    /api/dispute/by-type
+GET    /api/dispute/stats
+GET    /api/document
+GET    /api/document/:id
+GET    /api/document/:id/download
+GET    /api/document/:id/versions
+GET    /api/document/case/:caseId
+GET    /api/document/client/:clientId
+GET    /api/document/recent
+GET    /api/document/search
+GET    /api/document/stats
+GET    /api/documentAnalysis/:documentId
+GET    /api/documentAnalysis/:documentId/history
+GET    /api/documentAnalysis/:documentId/report
+GET    /api/documentAnalysis/:documentId/similar
+GET    /api/documentAnalysis/:documentId/status
+GET    /api/documentAnalysis/search
+GET    /api/documentAnalysis/stats
 GET    /api/docusign/auth-url
 GET    /api/docusign/callback
 GET    /api/docusign/envelopes
@@ -4738,10 +6302,33 @@ GET    /api/employeeSelfService/leave/requests
 GET    /api/employeeSelfService/loans
 GET    /api/employeeSelfService/payslips
 GET    /api/employeeSelfService/profile
+GET    /api/event
+GET    /api/event/:id
+GET    /api/event/:id/activity
+GET    /api/event/:id/export/ics
+GET    /api/event/archived
+GET    /api/event/calendar
+GET    /api/event/case/:caseId
+GET    /api/event/client/:clientId
+GET    /api/event/conflicts
+GET    /api/event/date/:date
+GET    /api/event/export
+GET    /api/event/ids
+GET    /api/event/location-triggers
+GET    /api/event/month/:year/:month
+GET    /api/event/search
+GET    /api/event/stats
+GET    /api/event/upcoming
 GET    /api/exchangeRateRevaluation
 GET    /api/exchangeRateRevaluation/:id
 GET    /api/exchangeRateRevaluation/accounts
 GET    /api/exchangeRateRevaluation/report
+GET    /api/expense
+GET    /api/expense/:id
+GET    /api/expense/by-category
+GET    /api/expense/categories
+GET    /api/expense/new
+GET    /api/expense/stats
 GET    /api/expenseClaim
 GET    /api/expenseClaim/:id
 GET    /api/expenseClaim/by-employee/:employeeId
@@ -4766,6 +6353,29 @@ GET    /api/fieldHistorys/user/:userId
 GET    /api/financeSetup
 GET    /api/financeSetup/status
 GET    /api/financeSetup/templates
+GET    /api/firm
+GET    /api/firm/:_id
+GET    /api/firm/:firmId/invitations
+GET    /api/firm/:firmId/ip-whitelist
+GET    /api/firm/:id
+GET    /api/firm/:id/access
+GET    /api/firm/:id/children
+GET    /api/firm/:id/departed
+GET    /api/firm/:id/members
+GET    /api/firm/:id/stats
+GET    /api/firm/:id/team
+GET    /api/firm/active
+GET    /api/firm/my
+GET    /api/firm/my/permissions
+GET    /api/firm/roles
+GET    /api/firm/tree
+GET    /api/firm/user/accessible
+GET    /api/fiscalPeriod
+GET    /api/fiscalPeriod/:id
+GET    /api/fiscalPeriod/:id/balances
+GET    /api/fiscalPeriod/can-post
+GET    /api/fiscalPeriod/current
+GET    /api/fiscalPeriod/years-summary
 GET    /api/fleet/driver-rankings
 GET    /api/fleet/drivers
 GET    /api/fleet/drivers/:id
@@ -4782,6 +6392,13 @@ GET    /api/fleet/trips
 GET    /api/fleet/vehicles
 GET    /api/fleet/vehicles/:id
 GET    /api/fleet/vehicles/:id/location-history
+GET    /api/followup
+GET    /api/followup/:id
+GET    /api/followup/entity/:entityType/:entityId
+GET    /api/followup/overdue
+GET    /api/followup/stats
+GET    /api/followup/today
+GET    /api/followup/upcoming
 GET    /api/gantt/baseline/:projectId
 GET    /api/gantt/baseline/:projectId/compare
 GET    /api/gantt/bottlenecks/:projectId
@@ -4814,6 +6431,15 @@ GET    /api/generalLedger/reference/:model/:id
 GET    /api/generalLedger/stats
 GET    /api/generalLedger/summary
 GET    /api/generalLedger/trial-balance
+GET    /api/gig
+GET    /api/gig/single/:_id
+GET    /api/github/auth
+GET    /api/github/callback
+GET    /api/github/repositories
+GET    /api/github/repositories/:owner/:repo
+GET    /api/github/repositories/:owner/:repo/issues
+GET    /api/github/repositories/:owner/:repo/pulls
+GET    /api/github/status
 GET    /api/gmail/auth
 GET    /api/gmail/callback
 GET    /api/gmail/drafts
@@ -4957,6 +6583,8 @@ GET    /api/investmentSearch/symbol/:symbol
 GET    /api/investmentSearch/symbols
 GET    /api/investmentSearch/type/:type
 GET    /api/investmentSearch/types
+GET    /api/invitation/:code
+GET    /api/invitation/:code/validate
 GET    /api/invoice
 GET    /api/invoice/:_id
 GET    /api/invoice/:id
@@ -4972,6 +6600,14 @@ GET    /api/invoiceApproval/:id
 GET    /api/invoiceApproval/needing-escalation
 GET    /api/invoiceApproval/pending
 GET    /api/invoiceApproval/stats
+GET    /api/invoiceTemplate
+GET    /api/invoiceTemplate/:id
+GET    /api/invoiceTemplate/:id/export
+GET    /api/invoiceTemplate/:id/preview
+GET    /api/invoiceTemplate/default
+GET    /api/job
+GET    /api/job/:_id
+GET    /api/job/my-jobs
 GET    /api/jobPosition
 GET    /api/jobPosition/:id
 GET    /api/jobPosition/:id/hierarchy
@@ -4993,6 +6629,9 @@ GET    /api/kyc/admin/pending
 GET    /api/kyc/admin/stats
 GET    /api/kyc/history
 GET    /api/kyc/status
+GET    /api/lawyer
+GET    /api/lawyer/:_id
+GET    /api/lawyer/team
 GET    /api/ldap/config
 GET    /api/lead
 GET    /api/lead/:id
@@ -5045,10 +6684,15 @@ GET    /api/legalContract/expiring
 GET    /api/legalContract/search
 GET    /api/legalContract/statistics
 GET    /api/legalContract/templates
+GET    /api/legalDocument
+GET    /api/legalDocument/:_id
 GET    /api/lifecycles/:entityType/:entityId
 GET    /api/lifecycles/instance/:id/progress
 GET    /api/lifecycles/workflows
 GET    /api/lifecycles/workflows/:id
+GET    /api/lockDates
+GET    /api/lockDates/history
+GET    /api/lockDates/periods
 GET    /api/lostReason
 GET    /api/lostReason/:id
 GET    /api/lostReason/categories
@@ -5070,6 +6714,15 @@ GET    /api/manufacturing/work-orders
 GET    /api/manufacturing/work-orders/:id
 GET    /api/manufacturing/workstations
 GET    /api/manufacturing/workstations/:id
+GET    /api/matterBudget
+GET    /api/matterBudget/:id
+GET    /api/matterBudget/:id/analysis
+GET    /api/matterBudget/:id/entries
+GET    /api/matterBudget/alerts
+GET    /api/matterBudget/case/:caseId
+GET    /api/matterBudget/templates
+GET    /api/message/:conversationID
+GET    /api/message/stats
 GET    /api/metrics
 GET    /api/metrics/json
 GET    /api/metrics/performance
@@ -5093,13 +6746,30 @@ GET    /api/mlScoring/scores/:leadId/explanation
 GET    /api/mlScoring/scores/:leadId/hybrid
 GET    /api/mlScoring/sla/breaches
 GET    /api/mlScoring/sla/metrics
+GET    /api/notification
+GET    /api/notification/:id
+GET    /api/notification/by-type/:type
+GET    /api/notification/unread-count
+GET    /api/notificationPreference
+GET    /api/notificationPreference/defaults
+GET    /api/notificationPreference/quiet-hours/status
+GET    /api/notificationPreference/stats
 GET    /api/notificationSettings
+GET    /api/oauth/:providerType/authorize
+GET    /api/oauth/:providerType/callback
+GET    /api/oauth/domain/:domain
+GET    /api/oauth/linked
+GET    /api/oauth/providers
 GET    /api/offboarding
 GET    /api/offboarding/:offboardingId
 GET    /api/offboarding/by-employee/:employeeId
 GET    /api/offboarding/pending-clearances
 GET    /api/offboarding/pending-settlements
 GET    /api/offboarding/stats
+GET    /api/offlineSyncs/changes
+GET    /api/offlineSyncs/data
+GET    /api/offlineSyncs/manifest
+GET    /api/offlineSyncs/status
 GET    /api/okr
 GET    /api/okr/:id
 GET    /api/okr/nine-box
@@ -5113,6 +6783,7 @@ GET    /api/onboarding/:onboardingId
 GET    /api/onboarding/by-employee/:employeeId
 GET    /api/onboarding/stats
 GET    /api/onboarding/upcoming-reviews
+GET    /api/order
 GET    /api/organization
 GET    /api/organization/:id
 GET    /api/organization/client/:clientId
@@ -5131,6 +6802,13 @@ GET    /api/organizationTemplate/admin/:id/compare/:firmId
 GET    /api/organizationTemplate/admin/stats
 GET    /api/organizationTemplate/available
 GET    /api/organizationTemplate/default
+GET    /api/payment
+GET    /api/payment/:id
+GET    /api/payment/new
+GET    /api/payment/pending-checks
+GET    /api/payment/stats
+GET    /api/payment/summary
+GET    /api/payment/unreconciled
 GET    /api/paymentReceipt
 GET    /api/paymentReceipt/:id
 GET    /api/paymentReceipt/:id/download
@@ -5155,6 +6833,7 @@ GET    /api/pdfme/download/:fileName
 GET    /api/pdfme/templates
 GET    /api/pdfme/templates/:id
 GET    /api/pdfme/templates/default/:category
+GET    /api/peerReview/:lawyerId
 GET    /api/performanceReview
 GET    /api/performanceReview/:id
 GET    /api/performanceReview/calibration-sessions
@@ -5201,11 +6880,16 @@ GET    /api/plugins/search
 GET    /api/preparedReport
 GET    /api/preparedReport/:id
 GET    /api/preparedReport/stats
+GET    /api/priceLevel
+GET    /api/priceLevel/:id
+GET    /api/priceLevel/client-rate
 GET    /api/products
 GET    /api/products/:id
 GET    /api/products/category/:category
 GET    /api/products/search
 GET    /api/products/stats
+GET    /api/proposal/job/:jobId
+GET    /api/proposal/my-proposals
 GET    /api/quality/actions
 GET    /api/quality/actions/:id
 GET    /api/quality/inspections
@@ -5214,6 +6898,8 @@ GET    /api/quality/settings
 GET    /api/quality/stats
 GET    /api/quality/templates
 GET    /api/quality/templates/:id
+GET    /api/question
+GET    /api/question/:_id
 GET    /api/queue
 GET    /api/queue/:name
 GET    /api/queue/:name/counts
@@ -5222,6 +6908,13 @@ GET    /api/queue/:name/jobs/:jobId
 GET    /api/quotes
 GET    /api/quotes/:id
 GET    /api/quotes/:id/pdf
+GET    /api/rateCard
+GET    /api/rateCard/:id
+GET    /api/rateCard/case/:caseId
+GET    /api/rateCard/client/:clientId
+GET    /api/rateGroup
+GET    /api/rateGroup/:id
+GET    /api/rateGroup/default
 GET    /api/rateLimit/config
 GET    /api/rateLimit/effective
 GET    /api/rateLimit/firms/:firmId
@@ -5246,6 +6939,9 @@ GET    /api/recurringInvoice/:id
 GET    /api/recurringInvoice/:id/history
 GET    /api/recurringInvoice/:id/preview
 GET    /api/recurringInvoice/stats
+GET    /api/recurringTransaction
+GET    /api/recurringTransaction/:id
+GET    /api/recurringTransaction/upcoming
 GET    /api/referral
 GET    /api/referral/:id
 GET    /api/referral/:id/calculate-fee
@@ -5263,10 +6959,49 @@ GET    /api/regionalBanks/countries/:countryCode/banks
 GET    /api/regionalBanks/find-by-iban
 GET    /api/regionalBanks/stats
 GET    /api/regionalBanks/status/:accountId
+GET    /api/reminder
+GET    /api/reminder/:id
+GET    /api/reminder/:id/activity
+GET    /api/reminder/archived
+GET    /api/reminder/case/:caseId
+GET    /api/reminder/client/:clientId
+GET    /api/reminder/conflicts
+GET    /api/reminder/delegated
+GET    /api/reminder/export
+GET    /api/reminder/ids
+GET    /api/reminder/location/locations
+GET    /api/reminder/location/summary
+GET    /api/reminder/overdue
+GET    /api/reminder/search
+GET    /api/reminder/snoozed-due
+GET    /api/reminder/stats
+GET    /api/reminder/upcoming
+GET    /api/report
+GET    /api/report/:id
+GET    /api/report/ap-aging
+GET    /api/report/ar-aging
+GET    /api/report/balance-sheet
+GET    /api/report/budget-variance
+GET    /api/report/case-profitability
+GET    /api/report/cases-chart
+GET    /api/report/client-statement
+GET    /api/report/cost-center
+GET    /api/report/gross-profit
+GET    /api/report/profit-loss
+GET    /api/report/revenue-chart
+GET    /api/report/tasks-chart
+GET    /api/report/trial-balance
+GET    /api/report/vendor-ledger
 GET    /api/reports
 GET    /api/reports/:id
 GET    /api/reports/:id/execute
 GET    /api/reports/:id/export/:format
+GET    /api/retainer
+GET    /api/retainer/:id
+GET    /api/retainer/:id/history
+GET    /api/retainer/low-balance
+GET    /api/retainer/stats
+GET    /api/review/:gigID
 GET    /api/salesForecasts
 GET    /api/salesForecasts/:id
 GET    /api/salesForecasts/by-period
@@ -5314,6 +7049,10 @@ GET    /api/salesTeams
 GET    /api/salesTeams/:id
 GET    /api/salesTeams/:id/leaderboard
 GET    /api/salesTeams/:id/stats
+GET    /api/saml/config
+GET    /api/saml/login/:firmId
+GET    /api/saml/logout/:firmId
+GET    /api/saml/metadata/:firmId
 GET    /api/sandboxs
 GET    /api/sandboxs/:id/check-limit
 GET    /api/sandboxs/stats
@@ -5337,6 +7076,14 @@ GET    /api/saudiBanking/wps/sarie-banks
 GET    /api/savedFilters
 GET    /api/savedFilters/:id
 GET    /api/savedFilters/popular/:entityType
+GET    /api/savedReport/reports
+GET    /api/savedReport/reports/:id
+GET    /api/savedReport/widgets
+GET    /api/savedReport/widgets/:id
+GET    /api/savedReport/widgets/:id/data
+GET    /api/savedReport/widgets/defaults
+GET    /api/score/:lawyerId
+GET    /api/score/top/lawyers
 GET    /api/security/dashboard
 GET    /api/security/incidents
 GET    /api/security/incidents/:id
@@ -5396,11 +7143,18 @@ GET    /api/sloMonitorings/metrics/availability
 GET    /api/sloMonitorings/metrics/latency
 GET    /api/sloMonitorings/report
 GET    /api/sloMonitorings/time-windows
+GET    /api/smartButton/:model/:recordId/counts
+GET    /api/smartScheduling/nudges
+GET    /api/smartScheduling/patterns
+GET    /api/smartScheduling/workload
 GET    /api/ssoConfig/:firmId/sso
 GET    /api/staff
 GET    /api/staff/:id
 GET    /api/staff/stats
 GET    /api/staff/team
+GET    /api/statement
+GET    /api/statement/:id
+GET    /api/statement/:id/download
 GET    /api/status
 GET    /api/status/admin/components
 GET    /api/status/admin/history
@@ -5439,6 +7193,38 @@ GET    /api/survey/my-surveys
 GET    /api/survey/stats
 GET    /api/survey/templates
 GET    /api/survey/templates/:id
+GET    /api/tag
+GET    /api/tag/:id
+GET    /api/tag/entity/:entityType
+GET    /api/tag/popular
+GET    /api/task
+GET    /api/task/:id
+GET    /api/task/:id/activity
+GET    /api/task/:id/attachments/:attachmentId/download-url
+GET    /api/task/:id/attachments/:attachmentId/versions
+GET    /api/task/:id/documents
+GET    /api/task/:id/documents/:documentId
+GET    /api/task/:id/documents/:documentId/versions
+GET    /api/task/:id/documents/:documentId/versions/:versionId
+GET    /api/task/:id/full
+GET    /api/task/:id/time-tracking/summary
+GET    /api/task/archived
+GET    /api/task/case/:caseId
+GET    /api/task/client/:clientId
+GET    /api/task/conflicts
+GET    /api/task/due-today
+GET    /api/task/export
+GET    /api/task/ids
+GET    /api/task/location-triggers
+GET    /api/task/overdue
+GET    /api/task/overview
+GET    /api/task/search
+GET    /api/task/smart-schedule
+GET    /api/task/stats
+GET    /api/task/templates
+GET    /api/task/templates/:templateId
+GET    /api/task/timers/active
+GET    /api/task/upcoming
 GET    /api/team
 GET    /api/team/:id
 GET    /api/team/:id/activity
@@ -5459,6 +7245,12 @@ GET    /api/territorys/:id
 GET    /api/territorys/:id/children
 GET    /api/territorys/:id/stats
 GET    /api/territorys/:id/tree
+GET    /api/threadMessages
+GET    /api/threadMessages/:id
+GET    /api/threadMessages/mentions
+GET    /api/threadMessages/search
+GET    /api/threadMessages/starred
+GET    /api/threadMessages/thread/:model/:id
 GET    /api/timelines/:entityType/:entityId
 GET    /api/timelines/:entityType/:entityId/summary
 GET    /api/timeTracking/activity-codes
@@ -5488,6 +7280,11 @@ GET    /api/training/policies
 GET    /api/training/providers
 GET    /api/training/stats
 GET    /api/training/upcoming
+GET    /api/transaction
+GET    /api/transaction/:id
+GET    /api/transaction/balance
+GET    /api/transaction/by-category
+GET    /api/transaction/summary
 GET    /api/trello/auth-url
 GET    /api/trello/boards
 GET    /api/trello/boards/:boardId
@@ -5496,12 +7293,33 @@ GET    /api/trello/callback
 GET    /api/trello/lists/:listId/cards
 GET    /api/trello/settings
 GET    /api/trello/status
+GET    /api/trustAccount
+GET    /api/trustAccount/:id
+GET    /api/trustAccount/:id/balances
+GET    /api/trustAccount/:id/balances/:clientId
+GET    /api/trustAccount/:id/reconciliations
+GET    /api/trustAccount/:id/summary
+GET    /api/trustAccount/:id/three-way-reconciliations
+GET    /api/trustAccount/:id/transactions
+GET    /api/trustAccount/:id/transactions/:transactionId
 GET    /api/unifiedData/billable-items
 GET    /api/unifiedData/case-financials/:caseId
 GET    /api/unifiedData/client-portfolio/:clientId
 GET    /api/unifiedData/financial-summary
 GET    /api/unifiedData/hr-dashboard
 GET    /api/unifiedData/open-invoices
+GET    /api/user/:_id
+GET    /api/user/lawyer/:username
+GET    /api/user/lawyers
+GET    /api/user/notification-preferences
+GET    /api/user/push-subscription
+GET    /api/user/team
+GET    /api/user/vapid-public-key
+GET    /api/userSettings
+GET    /api/userSettings/view-mode/:module
+GET    /api/vendor
+GET    /api/vendor/:id
+GET    /api/vendor/:id/summary
 GET    /api/verify/moj/attorney/:attorneyId
 GET    /api/verify/moj/license/:licenseNumber
 GET    /api/verify/moj/poa/:poaNumber
@@ -5544,6 +7362,11 @@ GET    /api/whosOut/month
 GET    /api/whosOut/today
 GET    /api/whosOut/upcoming
 GET    /api/whosOut/week
+GET    /api/workflow/entity/:entityType/:entityId
+GET    /api/workflow/instances
+GET    /api/workflow/instances/:id
+GET    /api/workflow/templates
+GET    /api/workflow/templates/:id
 GET    /api/workflows/activities/chain/:chainId/status
 GET    /api/workflows/activities/completion-rate
 GET    /api/workflows/activities/due-reminders
@@ -5604,7 +7427,7 @@ GET    /api/zoom/status
 
 </details>
 
-### POST (1300)
+### POST (1657)
 
 <details>
 <summary>Click to expand</summary>
@@ -5613,6 +7436,15 @@ GET    /api/zoom/status
 POST   /api/account
 POST   /api/activityPlans
 POST   /api/activityPlans/:id/duplicate
+POST   /api/activitys
+POST   /api/activitys/:id/cancel
+POST   /api/activitys/:id/done
+POST   /api/activitys/types
+POST   /api/admin/firm/expire-all-passwords
+POST   /api/admin/revoked-tokens/cleanup
+POST   /api/admin/users/:id/claims/validate
+POST   /api/admin/users/:id/expire-password
+POST   /api/admin/users/:id/revoke-tokens
 POST   /api/adminApi/users/:id/reset-password
 POST   /api/adminApi/users/:id/revoke-tokens
 POST   /api/adminTools/clear-cache
@@ -5655,6 +7487,8 @@ POST   /api/analyticsReport/:id/schedule
 POST   /api/analyticsReport/bulk-delete
 POST   /api/analyticsReport/from-template/:templateId
 POST   /api/analyticss/events
+POST   /api/answer
+POST   /api/answer/like/:_id
 POST   /api/apiKey
 POST   /api/apiKey/:id/regenerate
 POST   /api/appointment
@@ -5717,6 +7551,34 @@ POST   /api/auditLog/compliance/verify-integrity
 POST   /api/auditLog/log-bulk-action
 POST   /api/auditLog/log-security-event
 POST   /api/auditLog/log-with-diff
+POST   /api/auth/anonymous
+POST   /api/auth/anonymous/convert
+POST   /api/auth/change-password
+POST   /api/auth/check-availability
+POST   /api/auth/forgot-password
+POST   /api/auth/google/one-tap
+POST   /api/auth/login
+POST   /api/auth/logout
+POST   /api/auth/logout-all
+POST   /api/auth/magic-link/send
+POST   /api/auth/magic-link/verify
+POST   /api/auth/mfa/backup-codes/generate
+POST   /api/auth/mfa/backup-codes/regenerate
+POST   /api/auth/mfa/backup-codes/verify
+POST   /api/auth/phone/resend-otp
+POST   /api/auth/phone/send-otp
+POST   /api/auth/phone/verify-otp
+POST   /api/auth/reauthenticate
+POST   /api/auth/reauthenticate/challenge
+POST   /api/auth/reauthenticate/verify
+POST   /api/auth/refresh
+POST   /api/auth/register
+POST   /api/auth/resend-otp
+POST   /api/auth/resend-verification
+POST   /api/auth/reset-password
+POST   /api/auth/send-otp
+POST   /api/auth/verify-email
+POST   /api/auth/verify-otp
 POST   /api/automatedActions
 POST   /api/automatedActions/:id/duplicate
 POST   /api/automatedActions/:id/test
@@ -5727,11 +7589,51 @@ POST   /api/automations
 POST   /api/automations/:id/disable
 POST   /api/automations/:id/enable
 POST   /api/automations/:id/test
+POST   /api/bankAccount
+POST   /api/bankAccount/:id/disconnect
+POST   /api/bankAccount/:id/set-default
+POST   /api/bankAccount/:id/sync
+POST   /api/bankReconciliation
+POST   /api/bankReconciliation/:id/cancel
+POST   /api/bankReconciliation/:id/clear
+POST   /api/bankReconciliation/:id/complete
+POST   /api/bankReconciliation/:id/unclear
+POST   /api/bankReconciliation/auto-match/:accountId
+POST   /api/bankReconciliation/currency/convert
+POST   /api/bankReconciliation/currency/rates
+POST   /api/bankReconciliation/currency/update
+POST   /api/bankReconciliation/feeds
+POST   /api/bankReconciliation/import/csv
+POST   /api/bankReconciliation/import/ofx
+POST   /api/bankReconciliation/match/confirm/:id
+POST   /api/bankReconciliation/match/reject/:id
+POST   /api/bankReconciliation/match/split
+POST   /api/bankReconciliation/rules
+POST   /api/bankTransaction
+POST   /api/bankTransaction/:transactionId/match
+POST   /api/bankTransaction/:transactionId/unmatch
+POST   /api/bankTransaction/import/:accountId
+POST   /api/bankTransfer
+POST   /api/bankTransfer/:id/cancel
+POST   /api/bill
+POST   /api/bill/:id/approve
+POST   /api/bill/:id/attachments
+POST   /api/bill/:id/cancel
+POST   /api/bill/:id/duplicate
+POST   /api/bill/:id/generate-next
+POST   /api/bill/:id/pay
+POST   /api/bill/:id/post-to-gl
+POST   /api/bill/:id/receive
+POST   /api/bill/:id/stop-recurring
 POST   /api/billing/payment-methods
 POST   /api/billing/setup-intent
 POST   /api/billing/subscription
 POST   /api/billing/subscription/reactivate
 POST   /api/billing/webhook
+POST   /api/billingRate
+POST   /api/billingRate/standard
+POST   /api/billPayment
+POST   /api/billPayment/:id/cancel
 POST   /api/biometric/checkin-gps
 POST   /api/biometric/devices
 POST   /api/biometric/devices/:id/heartbeat
@@ -5771,6 +7673,17 @@ POST   /api/campaigns/:id/launch
 POST   /api/campaigns/:id/pause
 POST   /api/campaigns/:id/resume
 POST   /api/captcha/verify-captcha
+POST   /api/case
+POST   /api/case/:_id/claim
+POST   /api/case/:_id/document
+POST   /api/case/:_id/documents/confirm
+POST   /api/case/:_id/documents/upload-url
+POST   /api/case/:_id/hearing
+POST   /api/case/:_id/note
+POST   /api/case/:_id/notes
+POST   /api/case/:_id/rich-documents
+POST   /api/case/:_id/rich-documents/:docId/versions/:versionNumber/restore
+POST   /api/case/:_id/timeline
 POST   /api/caseNotion/cases/:caseId/notion/blocks/:blockId/comments
 POST   /api/caseNotion/cases/:caseId/notion/blocks/:blockId/create-task
 POST   /api/caseNotion/cases/:caseId/notion/blocks/:blockId/link-document
@@ -5814,6 +7727,12 @@ POST   /api/churn/events
 POST   /api/churn/events/:id/exit-survey
 POST   /api/churn/health-score/:firmId/recalculate
 POST   /api/churn/interventions/:firmId/trigger
+POST   /api/client
+POST   /api/client/:id/attachments
+POST   /api/client/:id/conflict-check
+POST   /api/client/:id/verify/absher
+POST   /api/client/:id/verify/address
+POST   /api/client/:id/verify/wathq
 POST   /api/cloudStorages/:provider/disconnect
 POST   /api/cloudStorages/:provider/files
 POST   /api/cloudStorages/:provider/files/:fileId/move
@@ -5837,6 +7756,9 @@ POST   /api/competitor
 POST   /api/competitors
 POST   /api/competitors/:id/record-loss
 POST   /api/competitors/:id/record-win
+POST   /api/conflictCheck
+POST   /api/conflictCheck/:id/matches/:matchIndex/resolve
+POST   /api/conflictCheck/quick
 POST   /api/consent
 POST   /api/consent/export
 POST   /api/consolidatedReports/eliminations
@@ -5850,6 +7772,7 @@ POST   /api/contactLists
 POST   /api/contactLists/:id/duplicate
 POST   /api/contactLists/:id/members
 POST   /api/contactLists/:id/refresh
+POST   /api/conversation
 POST   /api/conversations/:id/assign
 POST   /api/conversations/:id/close
 POST   /api/conversations/:id/messages
@@ -5879,6 +7802,9 @@ POST   /api/crmPipeline/:id/stages
 POST   /api/crmPipeline/:id/stages/reorder
 POST   /api/crmReports/export
 POST   /api/crmSettings/reset
+POST   /api/currency/convert
+POST   /api/currency/rates
+POST   /api/currency/update
 POST   /api/customFields
 POST   /api/customFields/:id/validate
 POST   /api/customFields/bulk-update
@@ -5890,6 +7816,13 @@ POST   /api/cycles
 POST   /api/cycles/:id/complete
 POST   /api/cycles/:id/start
 POST   /api/cycles/:id/tasks/:taskId
+POST   /api/dataExport/export
+POST   /api/dataExport/import
+POST   /api/dataExport/import/:id/cancel
+POST   /api/dataExport/import/:id/start
+POST   /api/dataExport/import/:id/validate
+POST   /api/dataExport/jobs/:id/cancel
+POST   /api/dataExport/templates
 POST   /api/dealHealths/:id/refresh
 POST   /api/dealHealths/:id/unstuck
 POST   /api/dealRooms/:id/access
@@ -5912,6 +7845,23 @@ POST   /api/discord/disconnect
 POST   /api/discord/message
 POST   /api/discord/test
 POST   /api/discord/webhook
+POST   /api/dispute
+POST   /api/dispute/:id/escalate
+POST   /api/dispute/:id/evidence
+POST   /api/dispute/:id/mediator-note
+POST   /api/dispute/:id/resolve
+POST   /api/dispute/:id/respond
+POST   /api/document/:id/move
+POST   /api/document/:id/revoke-share
+POST   /api/document/:id/share
+POST   /api/document/:id/versions
+POST   /api/document/:id/versions/:versionId/restore
+POST   /api/document/bulk-delete
+POST   /api/document/confirm
+POST   /api/document/upload
+POST   /api/documentAnalysis/:documentId
+POST   /api/documentAnalysis/:documentId/reanalyze
+POST   /api/documentAnalysis/batch
 POST   /api/docusign/disconnect
 POST   /api/docusign/envelopes
 POST   /api/docusign/envelopes/:envelopeId/resend
@@ -5996,10 +7946,41 @@ POST   /api/employeeLoan/bulk-delete
 POST   /api/employeeLoan/check-eligibility
 POST   /api/employeeSelfService/leave/request
 POST   /api/employeeSelfService/leave/request/:requestId/cancel
+POST   /api/event
+POST   /api/event/:id/action-items
+POST   /api/event/:id/agenda
+POST   /api/event/:id/archive
+POST   /api/event/:id/attendees
+POST   /api/event/:id/cancel
+POST   /api/event/:id/clone
+POST   /api/event/:id/complete
+POST   /api/event/:id/location/check
+POST   /api/event/:id/postpone
+POST   /api/event/:id/reschedule
+POST   /api/event/:id/rsvp
+POST   /api/event/:id/unarchive
+POST   /api/event/availability
+POST   /api/event/bulk
+POST   /api/event/bulk/archive
+POST   /api/event/bulk/complete
+POST   /api/event/bulk/unarchive
+POST   /api/event/import/ics
+POST   /api/event/location/check
+POST   /api/event/parse
+POST   /api/event/voice
 POST   /api/exchangeRateRevaluation
 POST   /api/exchangeRateRevaluation/:id/post
 POST   /api/exchangeRateRevaluation/:id/reverse
 POST   /api/exchangeRateRevaluation/preview
+POST   /api/expense
+POST   /api/expense/:id/approve
+POST   /api/expense/:id/receipt
+POST   /api/expense/:id/reimburse
+POST   /api/expense/:id/reject
+POST   /api/expense/:id/submit
+POST   /api/expense/bulk-approve
+POST   /api/expense/bulk-delete
+POST   /api/expense/suggest-category
 POST   /api/expenseClaim
 POST   /api/expenseClaim/:id/approve
 POST   /api/expenseClaim/:id/approve-exception
@@ -6027,6 +8008,28 @@ POST   /api/expensePolicy/create-default
 POST   /api/fieldHistorys/:historyId/revert
 POST   /api/financeSetup/complete
 POST   /api/financeSetup/reset
+POST   /api/firm
+POST   /api/firm/:firmId/invitations
+POST   /api/firm/:firmId/invitations/:invitationId/resend
+POST   /api/firm/:firmId/ip-whitelist
+POST   /api/firm/:firmId/ip-whitelist/disable
+POST   /api/firm/:firmId/ip-whitelist/enable
+POST   /api/firm/:firmId/ip-whitelist/test
+POST   /api/firm/:id/access
+POST   /api/firm/:id/leave
+POST   /api/firm/:id/members/:memberId/depart
+POST   /api/firm/:id/members/:memberId/reinstate
+POST   /api/firm/:id/members/invite
+POST   /api/firm/:id/transfer-ownership
+POST   /api/firm/lawyer/add
+POST   /api/firm/lawyer/remove
+POST   /api/firm/switch
+POST   /api/fiscalPeriod/:id/close
+POST   /api/fiscalPeriod/:id/lock
+POST   /api/fiscalPeriod/:id/open
+POST   /api/fiscalPeriod/:id/reopen
+POST   /api/fiscalPeriod/:id/year-end-closing
+POST   /api/fiscalPeriod/create-year
 POST   /api/fleet/assignments
 POST   /api/fleet/assignments/:id/end
 POST   /api/fleet/drivers
@@ -6038,6 +8041,13 @@ POST   /api/fleet/maintenance
 POST   /api/fleet/trips
 POST   /api/fleet/trips/:id/end
 POST   /api/fleet/vehicles
+POST   /api/followup
+POST   /api/followup/:id/cancel
+POST   /api/followup/:id/complete
+POST   /api/followup/:id/notes
+POST   /api/followup/:id/reschedule
+POST   /api/followup/bulk-complete
+POST   /api/followup/bulk-delete
 POST   /api/gantt/auto-schedule/:projectId
 POST   /api/gantt/baseline/:projectId
 POST   /api/gantt/collaboration/presence
@@ -6049,6 +8059,11 @@ POST   /api/gantt/resources/suggest
 POST   /api/gantt/task/reorder
 POST   /api/generalLedger/:id/void
 POST   /api/generalLedger/void/:id
+POST   /api/gig
+POST   /api/github/disconnect
+POST   /api/github/repositories/:owner/:repo/issues
+POST   /api/github/repositories/:owner/:repo/pulls/:prNumber/comments
+POST   /api/github/webhook
 POST   /api/gmail/disconnect
 POST   /api/gmail/drafts
 POST   /api/gmail/labels
@@ -6164,6 +8179,7 @@ POST   /api/investments/:id/refresh-price
 POST   /api/investments/:id/transactions
 POST   /api/investments/refresh-all
 POST   /api/investmentSearch/quotes
+POST   /api/invitation/:code/accept
 POST   /api/invoice
 POST   /api/invoice/:_id/payment
 POST   /api/invoice/:_id/payments
@@ -6187,6 +8203,11 @@ POST   /api/invoiceApproval/:id/approve
 POST   /api/invoiceApproval/:id/cancel
 POST   /api/invoiceApproval/:id/escalate
 POST   /api/invoiceApproval/:id/reject
+POST   /api/invoiceTemplate
+POST   /api/invoiceTemplate/:id/duplicate
+POST   /api/invoiceTemplate/:id/set-default
+POST   /api/invoiceTemplate/import
+POST   /api/job
 POST   /api/jobPosition
 POST   /api/jobPosition/:id/clone
 POST   /api/jobPosition/:id/documents
@@ -6275,10 +8296,15 @@ POST   /api/legalContract/:contractId/signatures/initiate
 POST   /api/legalContract/:contractId/versions
 POST   /api/legalContract/:contractId/versions/:versionNumber/revert
 POST   /api/legalContract/templates/:templateId/use
+POST   /api/legalDocument
+POST   /api/legalDocument/:_id/download
 POST   /api/lifecycles/initiate
 POST   /api/lifecycles/instance/:id/advance
 POST   /api/lifecycles/instance/:id/cancel
 POST   /api/lifecycles/workflows
+POST   /api/lockDates/check
+POST   /api/lockDates/periods/lock
+POST   /api/lockDates/periods/reopen
 POST   /api/lostReason
 POST   /api/lostReason/defaults
 POST   /api/lostReasons
@@ -6294,6 +8320,11 @@ POST   /api/manufacturing/work-orders/:id/complete
 POST   /api/manufacturing/work-orders/:id/start
 POST   /api/manufacturing/work-orders/:id/submit
 POST   /api/manufacturing/workstations
+POST   /api/matterBudget
+POST   /api/matterBudget/:id/entries
+POST   /api/matterBudget/:id/phases
+POST   /api/matterBudget/templates
+POST   /api/message
 POST   /api/metrics/reset
 POST   /api/mfa/backup-codes/generate
 POST   /api/mfa/backup-codes/regenerate
@@ -6316,9 +8347,23 @@ POST   /api/mlScoring/priority/:leadId/contact
 POST   /api/mlScoring/scores/:leadId/calculate
 POST   /api/mlScoring/scores/batch
 POST   /api/mlScoring/train
+POST   /api/notification
+POST   /api/notificationPreference/mute/:category
+POST   /api/notificationPreference/reset
+POST   /api/notificationPreference/test
+POST   /api/notificationPreference/unmute/:category
 POST   /api/notificationSettings/mute/:type
 POST   /api/notificationSettings/reset
 POST   /api/notificationSettings/unmute/:type
+POST   /api/oauth/:provider/callback
+POST   /api/oauth/callback
+POST   /api/oauth/detect
+POST   /api/oauth/domain/:domain/cache/invalidate
+POST   /api/oauth/domain/:domain/verify
+POST   /api/oauth/domain/:domain/verify/generate
+POST   /api/oauth/domain/:domain/verify/manual
+POST   /api/oauth/initiate
+POST   /api/oauth/link
 POST   /api/offboarding
 POST   /api/offboarding/:offboardingId/approve-settlement
 POST   /api/offboarding/:offboardingId/calculate-settlement
@@ -6329,6 +8374,8 @@ POST   /api/offboarding/:offboardingId/exit-interview
 POST   /api/offboarding/:offboardingId/issue-experience-certificate
 POST   /api/offboarding/:offboardingId/process-payment
 POST   /api/offboarding/bulk-delete
+POST   /api/offlineSyncs/conflicts/resolve
+POST   /api/offlineSyncs/sync
 POST   /api/okr
 POST   /api/okr/:id/activate
 POST   /api/okr/:id/check-in
@@ -6347,6 +8394,10 @@ POST   /api/onboarding/:onboardingId/feedback
 POST   /api/onboarding/:onboardingId/probation-reviews
 POST   /api/onboarding/:onboardingId/tasks/:taskId/complete
 POST   /api/onboarding/bulk-delete
+POST   /api/order/create-payment-intent/:_id
+POST   /api/order/create-proposal-payment-intent/:_id
+POST   /api/order/create-test-contract/:_id
+POST   /api/order/create-test-proposal-contract/:_id
 POST   /api/organization
 POST   /api/organization/:id/link-case
 POST   /api/organization/:id/link-client
@@ -6365,6 +8416,13 @@ POST   /api/organizationTemplate/admin
 POST   /api/organizationTemplate/admin/:id/apply/:firmId
 POST   /api/organizationTemplate/admin/:id/clone
 POST   /api/organizationTemplate/admin/:id/set-default
+POST   /api/payment
+POST   /api/payment/:id/complete
+POST   /api/payment/:id/fail
+POST   /api/payment/:id/receipt
+POST   /api/payment/:id/reconcile
+POST   /api/payment/:id/refund
+POST   /api/payment/:id/send-receipt
 POST   /api/paymentReceipt
 POST   /api/paymentReceipt/:id/email
 POST   /api/paymentReceipt/:id/void
@@ -6408,6 +8466,7 @@ POST   /api/pdfme/templates
 POST   /api/pdfme/templates/:id/clone
 POST   /api/pdfme/templates/:id/preview
 POST   /api/pdfme/templates/:id/set-default
+POST   /api/peerReview
 POST   /api/performanceReview
 POST   /api/performanceReview/:id/360-feedback/:providerId
 POST   /api/performanceReview/:id/360-feedback/request
@@ -6450,11 +8509,15 @@ POST   /api/plugins/register
 POST   /api/preparedReport/:id/refresh
 POST   /api/preparedReport/cleanup
 POST   /api/preparedReport/request
+POST   /api/priceLevel
+POST   /api/priceLevel/:id/set-default
 POST   /api/products
+POST   /api/proposal
 POST   /api/quality/actions
 POST   /api/quality/inspections
 POST   /api/quality/inspections/:id/submit
 POST   /api/quality/templates
+POST   /api/question
 POST   /api/queue/:name/clean
 POST   /api/queue/:name/empty
 POST   /api/queue/:name/jobs
@@ -6470,6 +8533,12 @@ POST   /api/quotes/:id/reject
 POST   /api/quotes/:id/revise
 POST   /api/quotes/:id/send
 POST   /api/quotes/:id/view
+POST   /api/rateCard
+POST   /api/rateCard/:id/rates
+POST   /api/rateCard/calculate
+POST   /api/rateGroup
+POST   /api/rateGroup/:id/duplicate
+POST   /api/rateGroup/:id/rates
 POST   /api/rateLimit/firms/:firmId/reset
 POST   /api/rateLimit/users/:userId/adjust
 POST   /api/rateLimit/users/:userId/reset
@@ -6498,6 +8567,12 @@ POST   /api/recurringInvoice/:id/duplicate
 POST   /api/recurringInvoice/:id/generate
 POST   /api/recurringInvoice/:id/pause
 POST   /api/recurringInvoice/:id/resume
+POST   /api/recurringTransaction
+POST   /api/recurringTransaction/:id/cancel
+POST   /api/recurringTransaction/:id/generate
+POST   /api/recurringTransaction/:id/pause
+POST   /api/recurringTransaction/:id/resume
+POST   /api/recurringTransaction/process-due
 POST   /api/referral
 POST   /api/referral/:id/leads
 POST   /api/referral/:id/leads/:leadId/convert
@@ -6510,9 +8585,40 @@ POST   /api/refund/request
 POST   /api/regionalBanks/connect
 POST   /api/regionalBanks/disconnect/:accountId
 POST   /api/regionalBanks/sync/:accountId
+POST   /api/reminder
+POST   /api/reminder/:id/archive
+POST   /api/reminder/:id/clone
+POST   /api/reminder/:id/complete
+POST   /api/reminder/:id/delegate
+POST   /api/reminder/:id/dismiss
+POST   /api/reminder/:id/reschedule
+POST   /api/reminder/:id/snooze
+POST   /api/reminder/:id/unarchive
+POST   /api/reminder/bulk
+POST   /api/reminder/bulk/archive
+POST   /api/reminder/bulk/complete
+POST   /api/reminder/bulk/unarchive
+POST   /api/reminder/from-event/:eventId
+POST   /api/reminder/from-task/:taskId
+POST   /api/reminder/location
+POST   /api/reminder/location/:reminderId/reset
+POST   /api/reminder/location/check
+POST   /api/reminder/location/distance
+POST   /api/reminder/location/nearby
+POST   /api/reminder/location/save
+POST   /api/reminder/parse
+POST   /api/reminder/voice
+POST   /api/report/:id/execute
+POST   /api/report/export
+POST   /api/report/generate
 POST   /api/reports
 POST   /api/reports/:id/clone
 POST   /api/reports/validate
+POST   /api/retainer
+POST   /api/retainer/:id/consume
+POST   /api/retainer/:id/refund
+POST   /api/retainer/:id/replenish
+POST   /api/review
 POST   /api/salesForecasts
 POST   /api/salesForecasts/:id/adjustments
 POST   /api/salesForecasts/:id/approve
@@ -6570,6 +8676,9 @@ POST   /api/salesStage/defaults
 POST   /api/salesTeams
 POST   /api/salesTeams/:id/default
 POST   /api/salesTeams/:id/members
+POST   /api/saml/acs/:firmId
+POST   /api/saml/config/test
+POST   /api/saml/sls/:firmId
 POST   /api/sandboxs
 POST   /api/sandboxs/:id/clone
 POST   /api/sandboxs/:id/extend
@@ -6593,6 +8702,11 @@ POST   /api/savedFilters
 POST   /api/savedFilters/:id/duplicate
 POST   /api/savedFilters/:id/set-default
 POST   /api/savedFilters/:id/share
+POST   /api/savedReport/reports
+POST   /api/savedReport/reports/:id/duplicate
+POST   /api/savedReport/reports/:id/run
+POST   /api/savedReport/widgets
+POST   /api/score/recalculate/:lawyerId
 POST   /api/security/detect/account-takeover
 POST   /api/security/detect/anomalous-activity
 POST   /api/security/detect/brute-force
@@ -6632,10 +8746,17 @@ POST   /api/sloMonitorings
 POST   /api/sloMonitorings/:id/measure
 POST   /api/sloMonitorings/check-alerts
 POST   /api/sloMonitorings/initialize-defaults
+POST   /api/smartButton/:model/batch-counts
+POST   /api/smartScheduling/auto-schedule
+POST   /api/smartScheduling/predict-duration
+POST   /api/smartScheduling/suggest
 POST   /api/ssoConfig/:firmId/sso/test
 POST   /api/ssoConfig/:firmId/sso/upload-metadata
 POST   /api/staff
 POST   /api/staff/bulk-delete
+POST   /api/statement
+POST   /api/statement/:id/send
+POST   /api/statement/generate
 POST   /api/status/admin/components
 POST   /api/status/admin/incidents
 POST   /api/status/admin/incidents/:id/resolve
@@ -6670,6 +8791,44 @@ POST   /api/survey/:id/close
 POST   /api/survey/:id/launch
 POST   /api/survey/:id/respond
 POST   /api/survey/templates
+POST   /api/tag
+POST   /api/tag/bulk
+POST   /api/tag/merge
+POST   /api/task
+POST   /api/task/:id/archive
+POST   /api/task/:id/attachments
+POST   /api/task/:id/clone
+POST   /api/task/:id/comments
+POST   /api/task/:id/complete
+POST   /api/task/:id/convert-to-event
+POST   /api/task/:id/dependencies
+POST   /api/task/:id/documents
+POST   /api/task/:id/documents/:documentId/versions/:versionId/restore
+POST   /api/task/:id/location/check
+POST   /api/task/:id/reopen
+POST   /api/task/:id/reschedule
+POST   /api/task/:id/save-as-template
+POST   /api/task/:id/subtasks
+POST   /api/task/:id/time
+POST   /api/task/:id/timer/start
+POST   /api/task/:id/timer/stop
+POST   /api/task/:id/unarchive
+POST   /api/task/:id/voice-memos
+POST   /api/task/:id/workflow-rules
+POST   /api/task/auto-schedule
+POST   /api/task/bulk
+POST   /api/task/bulk/archive
+POST   /api/task/bulk/assign
+POST   /api/task/bulk/complete
+POST   /api/task/bulk/reopen
+POST   /api/task/bulk/unarchive
+POST   /api/task/location/check
+POST   /api/task/parse
+POST   /api/task/templates
+POST   /api/task/templates/:templateId/create
+POST   /api/task/voice
+POST   /api/task/voice-to-item
+POST   /api/task/voice-to-item/batch
 POST   /api/team/:id/activate
 POST   /api/team/:id/depart
 POST   /api/team/:id/resend-invite
@@ -6705,6 +8864,9 @@ POST   /api/temporalOnboarding/:id/onboarding/skip-phase
 POST   /api/temporalOnboarding/:id/start-onboarding
 POST   /api/territory
 POST   /api/territorys
+POST   /api/threadMessages
+POST   /api/threadMessages/:id/star
+POST   /api/threadMessages/note
 POST   /api/timeTracking/entries
 POST   /api/timeTracking/entries/:id/approve
 POST   /api/timeTracking/entries/:id/lock
@@ -6743,12 +8905,24 @@ POST   /api/training/:trainingId/reject
 POST   /api/training/:trainingId/start
 POST   /api/training/:trainingId/submit
 POST   /api/training/bulk-delete
+POST   /api/transaction
+POST   /api/transaction/:id/cancel
 POST   /api/trello/cards
 POST   /api/trello/cards/:cardId/comments
 POST   /api/trello/cards/:cardId/move
 POST   /api/trello/disconnect
 POST   /api/trello/sync
 POST   /api/trello/webhook
+POST   /api/trustAccount
+POST   /api/trustAccount/:id/reconciliations
+POST   /api/trustAccount/:id/three-way-reconciliations
+POST   /api/trustAccount/:id/transactions
+POST   /api/trustAccount/:id/transactions/:transactionId/void
+POST   /api/trustAccount/:id/transfer
+POST   /api/user/convert-to-firm
+POST   /api/user/push-subscription
+POST   /api/userSettings/toggle-section
+POST   /api/vendor
 POST   /api/verify/moj/attorney
 POST   /api/verify/moj/poa
 POST   /api/verify/yakeen
@@ -6792,6 +8966,12 @@ POST   /api/whatsapp/send/media
 POST   /api/whatsapp/send/template
 POST   /api/whatsapp/send/text
 POST   /api/whatsapp/templates/:id/submit
+POST   /api/workflow/instances
+POST   /api/workflow/instances/:id/advance
+POST   /api/workflow/instances/:id/cancel
+POST   /api/workflow/instances/:id/pause
+POST   /api/workflow/instances/:id/resume
+POST   /api/workflow/templates
 POST   /api/workflows/activities/:id/cancel
 POST   /api/workflows/activities/:id/complete
 POST   /api/workflows/activities/:id/end-recurrence
@@ -6914,13 +9094,14 @@ POST   /api/zoom/webhook
 
 </details>
 
-### PUT (178)
+### PUT (226)
 
 <details>
 <summary>Click to expand</summary>
 
 ```
 PUT    /api/activityPlans/:id
+PUT    /api/admin/users/:id/claims
 PUT    /api/analyticsReport/:id
 PUT    /api/appointment/:id
 PUT    /api/appointment/:id/complete
@@ -6941,15 +9122,23 @@ PUT    /api/attendance/:id
 PUT    /api/attendance/:id/corrections/:correctionId
 PUT    /api/attendance/:id/violations/:violationIndex/resolve
 PUT    /api/automations/:id
+PUT    /api/bankAccount/:id
+PUT    /api/bankReconciliation/feeds/:id
+PUT    /api/bankReconciliation/rules/:id
+PUT    /api/bill/:id
 PUT    /api/billing/payment-methods/:id/default
 PUT    /api/billing/subscription
+PUT    /api/billingRate/:id
 PUT    /api/biometric/devices/:id
 PUT    /api/biometric/geofence/:id
 PUT    /api/buying/rfqs/:id
 PUT    /api/buying/settings
 PUT    /api/buying/suppliers/:id
 PUT    /api/campaigns/:id
+PUT    /api/case/:_id/close
+PUT    /api/case/:_id/notes/:noteId
 PUT    /api/churn/events/:id/reason
+PUT    /api/client/:id
 PUT    /api/compensationReward/:id
 PUT    /api/compensationReward/:id/allowances/:allowanceId
 PUT    /api/competitor/:id
@@ -6979,14 +9168,25 @@ PUT    /api/emailSettings/signatures/:id/default
 PUT    /api/emailSettings/smtp
 PUT    /api/emailSettings/templates/:id
 PUT    /api/emailTemplates/:id
+PUT    /api/event/:id
+PUT    /api/event/:id/action-items/:itemId
+PUT    /api/event/:id/agenda/:agendaId
+PUT    /api/event/:id/location-trigger
+PUT    /api/event/bulk
+PUT    /api/expense/:id
 PUT    /api/expensePolicy/:id
 PUT    /api/financeSetup
 PUT    /api/financeSetup/step/:step
+PUT    /api/firm/:id
+PUT    /api/firm/:id/access/:userId
+PUT    /api/firm/:id/members/:memberId
+PUT    /api/firm/:id/move
 PUT    /api/fleet/vehicles/:id/location
 PUT    /api/gantt/task/:id/dates
 PUT    /api/gantt/task/:id/duration
 PUT    /api/gantt/task/:id/parent
 PUT    /api/gantt/task/:id/progress
+PUT    /api/github/settings
 PUT    /api/gmail/settings
 PUT    /api/googleCalendar/calendars/:calendarId/events/:eventId
 PUT    /api/googleCalendar/settings/calendars
@@ -7032,10 +9232,17 @@ PUT    /api/manufacturing/work-orders/:id
 PUT    /api/manufacturing/workstations/:id
 PUT    /api/microsoftCalendar/events/:eventId
 PUT    /api/mlScoring/priority/:leadId/assign
+PUT    /api/notificationPreference
+PUT    /api/notificationPreference/categories/:category
+PUT    /api/notificationPreference/channels/:channel
+PUT    /api/notificationPreference/quiet-hours
 PUT    /api/notificationSettings
 PUT    /api/notificationSettings/preferences/:type
 PUT    /api/organization/:id
 PUT    /api/organizationTemplate/admin/:id
+PUT    /api/payment/:id
+PUT    /api/payment/:id/apply
+PUT    /api/payment/:id/check-status
 PUT    /api/paymentTerms/:id
 PUT    /api/payroll/:id
 PUT    /api/pdfme/templates/:id
@@ -7046,6 +9253,7 @@ PUT    /api/permission/ui/pages/:pageId/access
 PUT    /api/permission/ui/roles/:role/bulk
 PUT    /api/permission/ui/sidebar/:itemId/visibility
 PUT    /api/playbook/:id
+PUT    /api/priceLevel/:id
 PUT    /api/products/:id
 PUT    /api/products/bulk-prices
 PUT    /api/quality/actions/:id
@@ -7055,9 +9263,15 @@ PUT    /api/quality/templates/:id
 PUT    /api/quotes/:id
 PUT    /api/quotes/:id/items/:itemId
 PUT    /api/recurringInvoice/:id
+PUT    /api/recurringTransaction/:id
 PUT    /api/referral/:id
+PUT    /api/reminder/:id
+PUT    /api/reminder/bulk
+PUT    /api/reminder/location/locations/:locationId
+PUT    /api/report/:id/schedule
 PUT    /api/reports/:id
 PUT    /api/reports/:id/schedule
+PUT    /api/retainer/:id
 PUT    /api/salesForecasts/:id
 PUT    /api/salesPerson/:id
 PUT    /api/salesQuota/:id
@@ -7067,6 +9281,7 @@ PUT    /api/saless/orders/:id/items/:itemId
 PUT    /api/salesStage/:id
 PUT    /api/salesStage/reorder
 PUT    /api/salesTeams/:id
+PUT    /api/saml/config
 PUT    /api/savedFilters/:id
 PUT    /api/security/incidents/:id
 PUT    /api/slack/settings
@@ -7082,17 +9297,30 @@ PUT    /api/subcontracting/settings
 PUT    /api/support/settings
 PUT    /api/support/slas/:id
 PUT    /api/support/tickets/:id
+PUT    /api/tag/:id
+PUT    /api/task/:id
+PUT    /api/task/:id/comments/:commentId
+PUT    /api/task/:id/location-trigger
+PUT    /api/task/bulk
+PUT    /api/task/templates/:templateId
 PUT    /api/telegram/settings
 PUT    /api/territory/:id
 PUT    /api/territorys/:id
 PUT    /api/territorys/:id/move
 PUT    /api/timeTracking/entries/:id
+PUT    /api/transaction/:id
 PUT    /api/trello/cards/:cardId
 PUT    /api/trello/settings
+PUT    /api/user/notification-preferences
+PUT    /api/userSettings/global-view-mode
+PUT    /api/userSettings/module/:module
+PUT    /api/userSettings/view-mode/:module
+PUT    /api/vendor/:id
 PUT    /api/views/:id
 PUT    /api/walkthrough/admin/:id
 PUT    /api/webhook/:id
 PUT    /api/whatsapp/conversations/:id/assign
+PUT    /api/workflow/templates/:id
 PUT    /api/workflows/activities/:id/recurrence
 PUT    /api/workflows/activities/:id/reminder
 PUT    /api/zatca/config
@@ -7102,23 +9330,40 @@ PUT    /api/zoom/settings
 
 </details>
 
-### PATCH (109)
+### PATCH (180)
 
 <details>
 <summary>Click to expand</summary>
 
 ```
 PATCH  /api/account/:id
+PATCH  /api/activitys/:id/reassign
+PATCH  /api/activitys/:id/reschedule
+PATCH  /api/activitys/types/:id
 PATCH  /api/adminApi/firms/:id/plan
 PATCH  /api/adminApi/firms/:id/suspend
 PATCH  /api/adminApi/users/:id/status
 PATCH  /api/aiChat/conversations/:conversationId
 PATCH  /api/aiSettings/preferences
 PATCH  /api/analyticsReport/:id
+PATCH  /api/answer/:_id
+PATCH  /api/answer/verify/:_id
 PATCH  /api/apiKey/:id
 PATCH  /api/assetAssignment/:id
 PATCH  /api/automatedActions/:id
 PATCH  /api/brokers/:id
+PATCH  /api/case/:_id
+PATCH  /api/case/:_id/claims/:claimId
+PATCH  /api/case/:_id/end
+PATCH  /api/case/:_id/hearing/:hearingId
+PATCH  /api/case/:_id/hearings/:hearingId
+PATCH  /api/case/:_id/notes/:noteId
+PATCH  /api/case/:_id/outcome
+PATCH  /api/case/:_id/progress
+PATCH  /api/case/:_id/rich-documents/:docId
+PATCH  /api/case/:_id/stage
+PATCH  /api/case/:_id/status
+PATCH  /api/case/:_id/timeline/:eventId
 PATCH  /api/caseNotion/cases/:caseId/notion/blocks/:blockId
 PATCH  /api/caseNotion/cases/:caseId/notion/blocks/:blockId/color
 PATCH  /api/caseNotion/cases/:caseId/notion/blocks/:blockId/opacity
@@ -7135,31 +9380,56 @@ PATCH  /api/caseNotion/cases/:caseId/notion/pages/:pageId/batch-update
 PATCH  /api/caseNotion/cases/:caseId/notion/pages/:pageId/view-mode
 PATCH  /api/caseNotion/cases/:caseId/notion/pages/:pageId/whiteboard-config
 PATCH  /api/chatterFollowers/:model/:recordId/followers/:id/preferences
+PATCH  /api/client/:id/flags
+PATCH  /api/client/:id/status
 PATCH  /api/compensationReward/:id
 PATCH  /api/compensationReward/:id/allowances/:allowanceId
+PATCH  /api/conflictCheck/:id
 PATCH  /api/contact/:id
+PATCH  /api/conversation/:conversationID
 PATCH  /api/customFields/:id
+PATCH  /api/dataExport/templates/:id
+PATCH  /api/document/:id
 PATCH  /api/employeeAdvance/:advanceId
 PATCH  /api/employeeBenefit/:id
 PATCH  /api/employeeBenefit/:id/beneficiaries/:beneficiaryId
 PATCH  /api/employeeBenefit/:id/claims/:claimId
 PATCH  /api/employeeLoan/:loanId
 PATCH  /api/employeeSelfService/profile
+PATCH  /api/event/:id
+PATCH  /api/event/reorder
 PATCH  /api/expenseClaim/:id
 PATCH  /api/expenseClaim/:id/line-items/:lineItemId
+PATCH  /api/firm/:_id
+PATCH  /api/firm/:id
+PATCH  /api/firm/:id/billing
 PATCH  /api/fleet/drivers/:id
 PATCH  /api/fleet/incidents/:id
 PATCH  /api/fleet/maintenance/:id
 PATCH  /api/fleet/vehicles/:id
+PATCH  /api/followup/:id
 PATCH  /api/grievance/:id
 PATCH  /api/invoice/:_id
 PATCH  /api/invoice/:id
+PATCH  /api/invoiceTemplate/:id
+PATCH  /api/job/:_id
 PATCH  /api/jobPosition/:id
 PATCH  /api/journalEntry/:id
 PATCH  /api/leaveRequest/:id
 PATCH  /api/legalContract/:contractId
 PATCH  /api/legalContract/:contractId/enforcement
 PATCH  /api/legalContract/:contractId/parties/:partyIndex
+PATCH  /api/legalDocument/:_id
+PATCH  /api/lockDates/:lockType
+PATCH  /api/lockDates/fiscal-year
+PATCH  /api/matterBudget/:id
+PATCH  /api/matterBudget/:id/entries/:entryId
+PATCH  /api/matterBudget/:id/phases/:phaseId
+PATCH  /api/matterBudget/templates/:id
+PATCH  /api/message/:conversationID/read
+PATCH  /api/notification/:id/read
+PATCH  /api/notification/mark-all-read
+PATCH  /api/notification/mark-multiple-read
 PATCH  /api/offboarding/:offboardingId
 PATCH  /api/offboarding/:offboardingId/clearance/items/:itemId
 PATCH  /api/offboarding/:offboardingId/rehire-eligibility
@@ -7168,6 +9438,7 @@ PATCH  /api/okr/:id
 PATCH  /api/okr/:id/key-results/:keyResultId
 PATCH  /api/onboarding/:onboardingId
 PATCH  /api/onboarding/:onboardingId/status
+PATCH  /api/order
 PATCH  /api/organization/:id
 PATCH  /api/organizationalUnit/:id
 PATCH  /api/organizationalUnit/:id/budget
@@ -7175,10 +9446,18 @@ PATCH  /api/organizationalUnit/:id/headcount
 PATCH  /api/organizationalUnit/:id/kpis/:kpiId
 PATCH  /api/organizationalUnit/:id/leadership/:positionId
 PATCH  /api/payrollRun/:id
+PATCH  /api/peerReview/verify/:_id
 PATCH  /api/performanceReview/:id
 PATCH  /api/performanceReview/:id/development-plan/:itemId
 PATCH  /api/performanceReview/templates/:id
 PATCH  /api/plugins/installations/:installationId/settings
+PATCH  /api/proposal/accept/:_id
+PATCH  /api/proposal/reject/:_id
+PATCH  /api/proposal/withdraw/:_id
+PATCH  /api/question/:_id
+PATCH  /api/rateCard/:id
+PATCH  /api/rateCard/:id/rates/:rateId
+PATCH  /api/rateGroup/:id
 PATCH  /api/recruitment/applicants/:id
 PATCH  /api/recruitment/applicants/:id/assessments/:assessmentId
 PATCH  /api/recruitment/applicants/:id/background-check
@@ -7187,8 +9466,13 @@ PATCH  /api/recruitment/applicants/:id/offers/:offerId
 PATCH  /api/recruitment/applicants/:id/references/:referenceId
 PATCH  /api/recruitment/applicants/:id/talent-pool
 PATCH  /api/recruitment/jobs/:id
+PATCH  /api/reminder/:id
+PATCH  /api/reminder/reorder
 PATCH  /api/salesQuota/:id
 PATCH  /api/savedFilters/:id
+PATCH  /api/savedReport/reports/:id
+PATCH  /api/savedReport/widgets/:id
+PATCH  /api/savedReport/widgets/layout
 PATCH  /api/securityIncident/incidents/:id/status
 PATCH  /api/setupWizard/admin/sections/:sectionId
 PATCH  /api/setupWizard/admin/tasks/:taskId
@@ -7206,6 +9490,19 @@ PATCH  /api/successionPlan/:id/successors/:successorId/development
 PATCH  /api/successionPlan/:id/successors/:successorId/readiness
 PATCH  /api/survey/:id
 PATCH  /api/survey/templates/:id
+PATCH  /api/task/:id
+PATCH  /api/task/:id/documents/:documentId
+PATCH  /api/task/:id/estimate
+PATCH  /api/task/:id/outcome
+PATCH  /api/task/:id/progress
+PATCH  /api/task/:id/status
+PATCH  /api/task/:id/subtasks/:subtaskId
+PATCH  /api/task/:id/subtasks/:subtaskId/toggle
+PATCH  /api/task/:id/timer/pause
+PATCH  /api/task/:id/timer/resume
+PATCH  /api/task/:id/voice-memos/:memoId/transcription
+PATCH  /api/task/reorder
+PATCH  /api/task/templates/:templateId
 PATCH  /api/team/:id
 PATCH  /api/team/:id/permissions
 PATCH  /api/team/:id/role
@@ -7214,6 +9511,8 @@ PATCH  /api/timeTracking/entries/:id
 PATCH  /api/trades/:id
 PATCH  /api/tradingAccounts/:id
 PATCH  /api/training/:trainingId
+PATCH  /api/trustAccount/:id
+PATCH  /api/user/:_id
 PATCH  /api/views/:id
 PATCH  /api/webauthn/credentials/:id
 PATCH  /api/webhook/:id
@@ -7221,7 +9520,7 @@ PATCH  /api/webhook/:id
 
 </details>
 
-### DELETE (197)
+### DELETE (286)
 
 <details>
 <summary>Click to expand</summary>
@@ -7229,11 +9528,14 @@ PATCH  /api/webhook/:id
 ```
 DELETE /api/account/:id
 DELETE /api/activityPlans/:id
+DELETE /api/activitys/types/:id
+DELETE /api/admin/users/:id/claims
 DELETE /api/adminTools/users/:id/data
 DELETE /api/aiChat/conversations/:conversationId
 DELETE /api/aiSettings/keys/:provider
 DELETE /api/analyticsReport/:id
 DELETE /api/analyticsReport/:id/schedule
+DELETE /api/answer/:_id
 DELETE /api/apiKey/:id
 DELETE /api/appointment/:id
 DELETE /api/appointment/availability/:id
@@ -7243,11 +9545,20 @@ DELETE /api/assetAssignment/:id
 DELETE /api/assets/:id
 DELETE /api/assets/categories/:id
 DELETE /api/attendance/:id
+DELETE /api/auth/sessions
+DELETE /api/auth/sessions/:id
 DELETE /api/automatedActions/:id
 DELETE /api/automatedActions/bulk
 DELETE /api/automations/:id
+DELETE /api/bankAccount/:id
+DELETE /api/bankReconciliation/feeds/:id
+DELETE /api/bankReconciliation/match/:id
+DELETE /api/bankReconciliation/rules/:id
+DELETE /api/bill/:id
+DELETE /api/bill/:id/attachments/:attachmentId
 DELETE /api/billing/payment-methods/:id
 DELETE /api/billing/subscription
+DELETE /api/billingRate/:id
 DELETE /api/biometric/devices/:id
 DELETE /api/biometric/geofence/:id
 DELETE /api/brokers/:id
@@ -7255,6 +9566,16 @@ DELETE /api/buying/purchase-orders/:id
 DELETE /api/buying/rfqs/:id
 DELETE /api/buying/suppliers/:id
 DELETE /api/campaigns/:id
+DELETE /api/case/:_id
+DELETE /api/case/:_id/claim/:claimId
+DELETE /api/case/:_id/claims/:claimId
+DELETE /api/case/:_id/document/:documentId
+DELETE /api/case/:_id/documents/:docId
+DELETE /api/case/:_id/hearing/:hearingId
+DELETE /api/case/:_id/hearings/:hearingId
+DELETE /api/case/:_id/notes/:noteId
+DELETE /api/case/:_id/rich-documents/:docId
+DELETE /api/case/:_id/timeline/:eventId
 DELETE /api/caseNotion/cases/:caseId/notion/blocks/:blockId
 DELETE /api/caseNotion/cases/:caseId/notion/blocks/:blockId/unlink
 DELETE /api/caseNotion/cases/:caseId/notion/comments/:commentId
@@ -7263,12 +9584,16 @@ DELETE /api/caseNotion/cases/:caseId/notion/frames/:frameId/children/:elementId
 DELETE /api/caseNotion/cases/:caseId/notion/pages/:pageId
 DELETE /api/caseNotion/cases/:caseId/notion/pages/:pageId/bulk-delete
 DELETE /api/chatterFollowers/:model/:recordId/followers/:id
+DELETE /api/client/:id
+DELETE /api/client/:id/attachments/:attachmentId
+DELETE /api/client/bulk
 DELETE /api/cloudStorages/:provider/files/:fileId
 DELETE /api/commandPalettes/saved-searches/:name
 DELETE /api/compensationReward/:id
 DELETE /api/compensationReward/:id/allowances/:allowanceId
 DELETE /api/competitor/:id
 DELETE /api/competitors/:id
+DELETE /api/conflictCheck/:id
 DELETE /api/consent
 DELETE /api/contact/:id
 DELETE /api/contact/:id/unlink-case/:caseId
@@ -7285,9 +9610,13 @@ DELETE /api/customFields/:id
 DELETE /api/customFields/values/:entityType/:entityId
 DELETE /api/customFields/values/:entityType/:entityId/:fieldId
 DELETE /api/cycles/:id/tasks/:taskId
+DELETE /api/dataExport/jobs/:id
+DELETE /api/dataExport/templates/:id
 DELETE /api/dealRooms/:id/access/:token
 DELETE /api/dealRooms/:id/pages/:pageId
 DELETE /api/debitNote/:id
+DELETE /api/document/:id
+DELETE /api/documentAnalysis/:documentId
 DELETE /api/docusign/templates/defaults/:templateId
 DELETE /api/dunning/policies/:id
 DELETE /api/emailMarketing/campaigns/:id
@@ -7302,13 +9631,27 @@ DELETE /api/employeeBenefit/:id
 DELETE /api/employeeBenefit/:id/beneficiaries/:beneficiaryId
 DELETE /api/employeeBenefit/:id/dependents/:memberId
 DELETE /api/employeeLoan/:loanId
+DELETE /api/event/:id
+DELETE /api/event/:id/action-items/:itemId
+DELETE /api/event/:id/agenda/:agendaId
+DELETE /api/event/:id/attendees/:attendeeId
+DELETE /api/event/bulk
 DELETE /api/exchangeRateRevaluation/:id
+DELETE /api/expense/:id
 DELETE /api/expenseClaim/:id
 DELETE /api/expenseClaim/:id/line-items/:lineItemId
 DELETE /api/expenseClaim/:id/receipts/:receiptId
 DELETE /api/expensePolicy/:id
+DELETE /api/firm/:firmId/invitations/:invitationId
+DELETE /api/firm/:firmId/ip-whitelist/:ip
+DELETE /api/firm/:firmId/ip-whitelist/temporary/:allowanceId
+DELETE /api/firm/:id
+DELETE /api/firm/:id/access/:userId
+DELETE /api/firm/:id/members/:memberId
 DELETE /api/fleet/vehicles/:id
+DELETE /api/followup/:id
 DELETE /api/gantt/link/:source/:target
+DELETE /api/gig/:_id
 DELETE /api/gmail/watch
 DELETE /api/googleCalendar/calendars/:calendarId/events/:eventId
 DELETE /api/googleCalendar/watch/:channelId
@@ -7325,6 +9668,8 @@ DELETE /api/investments/:id
 DELETE /api/investments/:id/transactions/:transactionId
 DELETE /api/invoice/:_id
 DELETE /api/invoice/:id
+DELETE /api/invoiceTemplate/:id
+DELETE /api/job/:_id
 DELETE /api/jobPosition/:id
 DELETE /api/journalEntry/:id
 DELETE /api/keyboardShortcuts/:id
@@ -7336,6 +9681,7 @@ DELETE /api/leaveManagement/leave-policies/:id
 DELETE /api/leaveRequest/:id
 DELETE /api/legalContract/:contractId
 DELETE /api/legalContract/:contractId/parties/:partyIndex
+DELETE /api/legalDocument/:_id
 DELETE /api/lifecycles/workflows/:id
 DELETE /api/lostReason/:id
 DELETE /api/lostReasons/:id
@@ -7343,7 +9689,15 @@ DELETE /api/macros/:id
 DELETE /api/manufacturing/boms/:id
 DELETE /api/manufacturing/work-orders/:id
 DELETE /api/manufacturing/workstations/:id
+DELETE /api/matterBudget/:id
+DELETE /api/matterBudget/:id/entries/:entryId
+DELETE /api/matterBudget/:id/phases/:phaseId
+DELETE /api/matterBudget/templates/:id
 DELETE /api/microsoftCalendar/events/:eventId
+DELETE /api/notification/:id
+DELETE /api/notification/bulk-delete
+DELETE /api/notification/clear-read
+DELETE /api/oauth/unlink/:providerType
 DELETE /api/offboarding/:offboardingId
 DELETE /api/okr/:id
 DELETE /api/onboarding/:onboardingId
@@ -7353,6 +9707,9 @@ DELETE /api/organizationalUnit/:id
 DELETE /api/organizationalUnit/:id/kpis/:kpiId
 DELETE /api/organizationalUnit/:id/leadership/:positionId
 DELETE /api/organizationTemplate/admin/:id
+DELETE /api/payment/:id
+DELETE /api/payment/:id/unapply/:invoiceId
+DELETE /api/payment/bulk
 DELETE /api/paymentTerms/:id
 DELETE /api/payroll/:id
 DELETE /api/payrollRun/:id
@@ -7364,18 +9721,29 @@ DELETE /api/permission/ui/overrides/:userId
 DELETE /api/playbook/:id
 DELETE /api/plugins/:id/uninstall
 DELETE /api/preparedReport/:id
+DELETE /api/priceLevel/:id
 DELETE /api/products/:id
 DELETE /api/quality/actions/:id
 DELETE /api/quality/inspections/:id
 DELETE /api/quality/templates/:id
+DELETE /api/question/:_id
 DELETE /api/queue/:name/jobs/:jobId
 DELETE /api/quotes/:id
 DELETE /api/quotes/:id/items/:itemId
+DELETE /api/rateCard/:id
+DELETE /api/rateCard/:id/rates/:rateId
+DELETE /api/rateGroup/:id
+DELETE /api/rateGroup/:id/rates/:rateId
 DELETE /api/recruitment/applicants/:id
 DELETE /api/recruitment/jobs/:id
 DELETE /api/recurringInvoice/:id
 DELETE /api/referral/:id
+DELETE /api/reminder/:id
+DELETE /api/reminder/bulk
+DELETE /api/reminder/location/locations/:locationId
+DELETE /api/report/:id
 DELETE /api/reports/:id
+DELETE /api/review/:_id
 DELETE /api/salesForecasts/:id
 DELETE /api/salesPerson/:id
 DELETE /api/salesQuota/:id
@@ -7387,6 +9755,8 @@ DELETE /api/sandboxs/:id
 DELETE /api/saudiBanking/lean/entities/:entityId
 DELETE /api/savedFilters/:id
 DELETE /api/savedFilters/:id/share/:userId
+DELETE /api/savedReport/reports/:id
+DELETE /api/savedReport/widgets/:id
 DELETE /api/securityIncident/csp-violations
 DELETE /api/setupWizard/admin/sections/:sectionId
 DELETE /api/setupWizard/admin/tasks/:taskId
@@ -7399,6 +9769,7 @@ DELETE /api/slas/:id
 DELETE /api/sloMonitorings/:id
 DELETE /api/ssoConfig/:firmId/sso
 DELETE /api/staff/:id
+DELETE /api/statement/:id
 DELETE /api/status/admin/components/:id
 DELETE /api/subcontracting/orders/:id
 DELETE /api/successionPlan/:id
@@ -7407,22 +9778,39 @@ DELETE /api/support/slas/:id
 DELETE /api/support/tickets/:id
 DELETE /api/survey/:id
 DELETE /api/survey/templates/:id
+DELETE /api/tag/:id
+DELETE /api/task/:id
+DELETE /api/task/:id/attachments/:attachmentId
+DELETE /api/task/:id/comments/:commentId
+DELETE /api/task/:id/dependencies/:dependencyTaskId
+DELETE /api/task/:id/subtasks/:subtaskId
+DELETE /api/task/:id/time-tracking/reset
+DELETE /api/task/bulk
+DELETE /api/task/templates/:templateId
 DELETE /api/team/:id
 DELETE /api/team/:id/revoke-invite
 DELETE /api/temporalOnboarding/:id/onboarding/cancel
 DELETE /api/territory/:id
 DELETE /api/territorys/:id
+DELETE /api/threadMessages/:id
 DELETE /api/timeTracking/entries/:id
 DELETE /api/timeTracking/entries/bulk
 DELETE /api/trades/:id
 DELETE /api/trades/bulk
 DELETE /api/tradingAccounts/:id
 DELETE /api/training/:trainingId
+DELETE /api/transaction/:id
+DELETE /api/transaction/bulk
+DELETE /api/trustAccount/:id
+DELETE /api/user/:_id
+DELETE /api/user/push-subscription
+DELETE /api/vendor/:id
 DELETE /api/views/:id
 DELETE /api/walkthrough/admin/:id
 DELETE /api/webauthn/credentials/:id
 DELETE /api/webhook/:id
 DELETE /api/whatsapp/broadcasts/:id/recipients
+DELETE /api/workflow/templates/:id
 DELETE /api/zoom/meetings/:meetingId
 ```
 
