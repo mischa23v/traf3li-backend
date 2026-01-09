@@ -58,12 +58,40 @@ function extractEndpointsFromFile(filePath) {
 }
 
 /**
- * Get base path from index.js route registration
+ * Get base path from server.js route registration
+ * Parses app.use('/api/path', routeVariable) patterns from server.js
  */
 function getBasePaths() {
     const basePaths = {};
-    const indexPath = path.join(ROUTES_DIR, 'index.js');
+    const serverPath = path.join(__dirname, '../src/server.js');
 
+    if (fs.existsSync(serverPath)) {
+        const content = fs.readFileSync(serverPath, 'utf8');
+
+        // Match app.use('/api/path', [optional middleware,] routeVariable) patterns
+        // Handles: app.use('/api/tasks', taskRoute)
+        // Handles: app.use('/api/invoices', noCache, invoiceRoute)
+        // Handles: app.use('/api/email-marketing', emailMarketingRoute)
+        const useRegex = /app\.use\s*\(\s*['"`](\/api\/[^'"`]+)['"`]\s*,\s*(?:noCache\s*,\s*)?(\w+Route(?:s)?)\s*\)/gi;
+
+        let match;
+        while ((match = useRegex.exec(content)) !== null) {
+            const basePath = match[1];
+            const routeVariable = match[2];
+
+            // Convert variable name to module name
+            // taskRoute -> task, emailMarketingRoute -> emailMarketing
+            // tasksRoute -> tasks (handle both singular and plural)
+            const moduleName = routeVariable
+                .replace(/Routes?$/i, '')  // Remove Route or Routes suffix
+                .replace(/^([A-Z])/, (m) => m.toLowerCase());  // lowercase first char if needed
+
+            basePaths[moduleName] = basePath;
+        }
+    }
+
+    // Also try routes/index.js as fallback
+    const indexPath = path.join(ROUTES_DIR, 'index.js');
     if (fs.existsSync(indexPath)) {
         const content = fs.readFileSync(indexPath, 'utf8');
 
@@ -76,7 +104,10 @@ function getBasePaths() {
             const routeFile = match[2] || match[3];
             if (routeFile) {
                 const normalizedFile = routeFile.replace('.route', '').replace('.routes', '').replace(/^\.\//, '');
-                basePaths[normalizedFile] = basePath;
+                // Don't override if already found in server.js
+                if (!basePaths[normalizedFile]) {
+                    basePaths[normalizedFile] = basePath;
+                }
             }
         }
     }

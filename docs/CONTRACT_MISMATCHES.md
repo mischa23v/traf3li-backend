@@ -1,12 +1,12 @@
 # Frontend vs Backend Contract Mismatch Report
 
-> Generated: 2026-01-09T08:52:41.402Z
+> Generated: 2026-01-09T09:13:26.123Z
 
 ## Summary
 
 | Category | Frontend Only | Backend Only | Mismatches |
 |----------|--------------|--------------|------------|
-| API Endpoints | 2563 | 3672 | 17 |
+| API Endpoints | 1099 | 2253 | 117 |
 | Interfaces/Entities | 2871 | 154 | 0 |
 | Enums | 88 | 2138 | 0 |
 | Type Aliases | 167 | 0 | - |
@@ -17,335 +17,61 @@
 
 These endpoints are called by frontend but don't exist in backend - **will cause 404 errors**.
 
-### hr (637 missing)
+### hr (248 missing)
 
 | Method | Endpoint | Source File |
 |--------|----------|-------------|
 | GET | `/hr/analytics/dashboard` | hooks/useHrAnalytics.ts |
-| GET | `/hr/advances?${params.toString()}` | services/advancesService.ts |
-| GET | `/hr/advances/${advanceId}` | services/advancesService.ts |
-| POST | `/hr/advances` | services/advancesService.ts |
-| PATCH | `/hr/advances/${advanceId}` | services/advancesService.ts |
-| DELETE | `/hr/advances/${advanceId}` | services/advancesService.ts |
-| GET | `/hr/advances/stats` | services/advancesService.ts |
-| POST | `/hr/advances/check-eligibility` | services/advancesService.ts |
-| POST | `/hr/advances/${advanceId}/cancel` | services/advancesService.ts |
-| POST | `/hr/advances/${advanceId}/approve` | services/advancesService.ts |
-| POST | `/hr/advances/${advanceId}/reject` | services/advancesService.ts |
-| POST | `/hr/advances/${advanceId}/disburse` | services/advancesService.ts |
-| POST | `/hr/advances/${advanceId}/recover` | services/advancesService.ts |
-| POST | `/hr/advances/${advanceId}/payroll-deduction` | services/advancesService.ts |
-| POST | `/hr/advances/${advanceId}/early-recovery` | services/advancesService.ts |
-| POST | `/hr/advances/${advanceId}/write-off` | services/advancesService.ts |
-| POST | `/hr/advances/${advanceId}/issue-clearance` | services/advancesService.ts |
-| POST | `/hr/advances/${advanceId}/documents` | services/advancesService.ts |
-| POST | `/hr/advances/${advanceId}/communications` | services/advancesService.ts |
-| POST | `/hr/advances/bulk-delete` | services/advancesService.ts |
-| GET | `/hr/advances/by-employee/${employeeId}` | services/advancesService.ts |
-| GET | `/hr/advances/pending-approvals` | services/advancesService.ts |
-| GET | `/hr/advances/overdue-recoveries` | services/advancesService.ts |
-| GET | `/hr/advances/emergency` | services/advancesService.ts |
-| POST | `/hr/advances/:param` | services/advancesService.ts |
-| GET | `/hr/advances/:param/cancel` | services/advancesService.ts |
-| POST | `/hr/advances/by-employee/:param` | services/advancesService.ts |
-| GET | `/hr/asset-assignments?${params.toString()}` | services/assetAssignmentService.ts |
-| GET | `/hr/asset-assignments/${assignmentId}` | services/assetAssignmentService.ts |
-| POST | `/hr/asset-assignments` | services/assetAssignmentService.ts |
-| PATCH | `/hr/asset-assignments/${assignmentId}` | services/assetAssignmentService.ts |
-| DELETE | `/hr/asset-assignments/${assignmentId}` | services/assetAssignmentService.ts |
-| GET | `/hr/asset-assignments/stats` | services/assetAssignmentService.ts |
-| POST | `/hr/asset-assignments/${assignmentId}/acknowledge` | services/assetAssignmentService.ts |
-| POST | `/hr/asset-assignments/${assignmentId}/return/initiate` | services/assetAssignmentService.ts |
-| POST | `/hr/asset-assignments/${assignmentId}/return/complete` | services/assetAssignmentService.ts |
-| POST | `/hr/asset-assignments/${assignmentId}/maintenance` | services/assetAssignmentService.ts |
-| POST | `/hr/asset-assignments/${assignmentId}/incident` | services/assetAssignmentService.ts |
 | POST | `/hr/asset-assignments/${assignmentId}/incidents/${incidentId}/resolve` | services/assetAssignmentService.ts |
-| PUT | `/hr/asset-assignments/${assignmentId}/status` | services/assetAssignmentService.ts |
-| POST | `/hr/asset-assignments/bulk-delete` | services/assetAssignmentService.ts |
-| GET | `/hr/asset-assignments/by-employee/${employeeId}` | services/assetAssignmentService.ts |
-| GET | `/hr/asset-assignments/overdue` | services/assetAssignmentService.ts |
-| GET | `/hr/asset-assignments/maintenance-due` | services/assetAssignmentService.ts |
-| GET | `/hr/asset-assignments/export?${params.toString()}` | services/assetAssignmentService.ts |
-| POST | `/hr/asset-assignments/${assignmentId}/clearance` | services/assetAssignmentService.ts |
-| POST | `/hr/asset-assignments/${assignmentId}/transfer` | services/assetAssignmentService.ts |
-| POST | `/hr/asset-assignments/${assignmentId}/repair` | services/assetAssignmentService.ts |
-| PUT | `/hr/asset-assignments/${assignmentId}/repair/${repairId}` | services/assetAssignmentService.ts |
-| GET | `/hr/asset-assignments/warranty-expiring` | services/assetAssignmentService.ts |
-| ... | *587 more* | - |
-
-### tasks (78 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/tasks/${taskId}/full` | hooks/useTasks.ts |
-| POST | `/tasks/${taskId}/attachments` | services/storageService.ts |
-| DELETE | `/tasks/${taskId}/attachments/${attachmentId}` | services/storageService.ts |
-| POST | `/tasks/${taskId}/voice-memos` | services/storageService.ts |
-| GET | `/tasks` | services/tasksService.ts |
-| GET | `/tasks/${id}` | services/tasksService.ts |
-| POST | `/tasks` | services/tasksService.ts |
-| PUT | `/tasks/${id}` | services/tasksService.ts |
-| DELETE | `/tasks/${id}` | services/tasksService.ts |
-| PATCH | `/tasks/${id}/status` | services/tasksService.ts |
-| PATCH | `/tasks/${id}/progress` | services/tasksService.ts |
-| POST | `/tasks/${id}/complete` | services/tasksService.ts |
-| POST | `/tasks/${id}/reopen` | services/tasksService.ts |
-| POST | `/tasks/${taskId}/subtasks` | services/tasksService.ts |
-| PATCH | `/tasks/${taskId}/subtasks/${subtaskId}` | services/tasksService.ts |
-| PATCH | `/tasks/${taskId}/subtasks/${subtaskId}/toggle` | services/tasksService.ts |
-| POST | `/tasks/${taskId}/subtasks/${subtaskId}/toggle` | services/tasksService.ts |
-| DELETE | `/tasks/${taskId}/subtasks/${subtaskId}` | services/tasksService.ts |
-| PATCH | `/tasks/${taskId}/subtasks/reorder` | services/tasksService.ts |
-| POST | `/tasks/${taskId}/timer/start` | services/tasksService.ts |
-| POST | `/tasks/${taskId}/time-tracking/start` | services/tasksService.ts |
-| POST | `/tasks/${taskId}/timer/stop` | services/tasksService.ts |
-| POST | `/tasks/${taskId}/time-tracking/stop` | services/tasksService.ts |
-| POST | `/tasks/${taskId}/time` | services/tasksService.ts |
-| POST | `/tasks/${taskId}/time-tracking/manual` | services/tasksService.ts |
-| GET | `/tasks/${taskId}/time-tracking/summary` | services/tasksService.ts |
-| GET | `/tasks/${taskId}/time-tracking` | services/tasksService.ts |
-| DELETE | `/tasks/${taskId}/time-tracking/reset` | services/tasksService.ts |
-| POST | `/tasks/${taskId}/comments` | services/tasksService.ts |
-| PUT | `/tasks/${taskId}/comments/${commentId}` | services/tasksService.ts |
-| DELETE | `/tasks/${taskId}/comments/${commentId}` | services/tasksService.ts |
-| GET | `/tasks/${taskId}/attachments/${attachmentId}/download-url` | services/tasksService.ts |
-| GET | `/tasks/${taskId}/attachments/${attachmentId}/versions` | services/tasksService.ts |
-| POST | `/tasks/${taskId}/dependencies` | services/tasksService.ts |
-| DELETE | `/tasks/${taskId}/dependencies/${dependencyTaskId}` | services/tasksService.ts |
-| GET | `/tasks/${taskId}/available-dependencies` | services/tasksService.ts |
-| POST | `/tasks/${taskId}/workflow-rules` | services/tasksService.ts |
-| PATCH | `/tasks/${taskId}/workflow-rules/${ruleId}` | services/tasksService.ts |
-| DELETE | `/tasks/${taskId}/workflow-rules/${ruleId}` | services/tasksService.ts |
-| POST | `/tasks/${taskId}/workflow-rules/${ruleId}/toggle` | services/tasksService.ts |
-| PATCH | `/tasks/${taskId}/outcome` | services/tasksService.ts |
-| PATCH | `/tasks/${taskId}/estimate` | services/tasksService.ts |
-| GET | `/tasks/upcoming` | services/tasksService.ts |
-| GET | `/tasks/overdue` | services/tasksService.ts |
-| GET | `/tasks/due-today` | services/tasksService.ts |
-| GET | `/tasks/case/${caseId}` | services/tasksService.ts |
-| GET | `/tasks/my-tasks` | services/tasksService.ts |
-| GET | `/tasks/stats` | services/tasksService.ts |
-| GET | `/tasks/templates` | services/tasksService.ts |
-| GET | `/tasks/templates/${templateId}` | services/tasksService.ts |
-| ... | *28 more* | - |
-
-### events (59 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/events` | hooks/useRemindersAndEvents.ts |
-| GET | `/events/calendar` | services/eventsService.ts |
-| GET | `/events/${id}` | services/eventsService.ts |
-| POST | `/events` | services/eventsService.ts |
-| PUT | `/events/${id}` | services/eventsService.ts |
-| DELETE | `/events/${id}` | services/eventsService.ts |
-| POST | `/events/${id}/complete` | services/eventsService.ts |
-| POST | `/events/${id}/cancel` | services/eventsService.ts |
-| POST | `/events/${id}/postpone` | services/eventsService.ts |
-| POST | `/events/${id}/reschedule` | services/eventsService.ts |
-| POST | `/events/${id}/start` | services/eventsService.ts |
-| POST | `/events/${eventId}/attendees` | services/eventsService.ts |
-| PATCH | `/events/${eventId}/attendees/${attendeeId}` | services/eventsService.ts |
-| DELETE | `/events/${eventId}/attendees/${attendeeId}` | services/eventsService.ts |
-| POST | `/events/${eventId}/rsvp` | services/eventsService.ts |
-| POST | `/events/${eventId}/send-invitations` | services/eventsService.ts |
-| POST | `/events/${eventId}/attendees/${attendeeId}/check-in` | services/eventsService.ts |
-| POST | `/events/${eventId}/attendees/${attendeeId}/check-out` | services/eventsService.ts |
-| POST | `/events/${eventId}/agenda` | services/eventsService.ts |
-| PUT | `/events/${eventId}/agenda/${agendaId}` | services/eventsService.ts |
-| DELETE | `/events/${eventId}/agenda/${agendaId}` | services/eventsService.ts |
-| PATCH | `/events/${eventId}/notes` | services/eventsService.ts |
-| POST | `/events/${eventId}/action-items` | services/eventsService.ts |
-| PUT | `/events/${eventId}/action-items/${itemId}` | services/eventsService.ts |
-| POST | `/events/${eventId}/action-items/${actionItemId}/toggle` | services/eventsService.ts |
-| POST | `/events/${eventId}/attachments` | services/eventsService.ts |
-| DELETE | `/events/${eventId}/attachments/${attachmentId}` | services/eventsService.ts |
-| POST | `/events/${eventId}/comments` | services/eventsService.ts |
-| PATCH | `/events/${eventId}/comments/${commentId}` | services/eventsService.ts |
-| DELETE | `/events/${eventId}/comments/${commentId}` | services/eventsService.ts |
-| GET | `/events/upcoming` | services/eventsService.ts |
-| GET | `/events/today` | services/eventsService.ts |
-| GET | `/events/date/${date}` | services/eventsService.ts |
-| GET | `/events/month/${year}/${month}` | services/eventsService.ts |
-| GET | `/events/my-events` | services/eventsService.ts |
-| GET | `/events/pending-rsvp` | services/eventsService.ts |
-| GET | `/events/stats` | services/eventsService.ts |
-| POST | `/events/${eventId}/recurring/skip` | services/eventsService.ts |
-| POST | `/events/${eventId}/recurring/stop` | services/eventsService.ts |
-| GET | `/events/${eventId}/recurring/instances` | services/eventsService.ts |
-| PUT | `/events/${eventId}/recurring/instance/${instanceDate}` | services/eventsService.ts |
-| POST | `/events/${eventId}/calendar-sync` | services/eventsService.ts |
-| GET | `/events/${eventId}/export/ics` | services/eventsService.ts |
-| POST | `/events/import/ics` | services/eventsService.ts |
-| PUT | `/events/bulk` | services/eventsService.ts |
-| DELETE | `/events/bulk` | services/eventsService.ts |
-| POST | `/events/bulk/cancel` | services/eventsService.ts |
-| POST | `/events/bulk/complete` | services/eventsService.ts |
-| POST | `/events/bulk/archive` | services/eventsService.ts |
-| POST | `/events/bulk/unarchive` | services/eventsService.ts |
-| ... | *9 more* | - |
-
-### settings (55 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| PUT | `/settings/crm` | features/crm/components/crm-setup-wizard.tsx |
-| GET | `/settings/taxes` | services/billingSettingsService.ts |
-| POST | `/settings/taxes` | services/billingSettingsService.ts |
-| PUT | `/settings/taxes/${id}` | services/billingSettingsService.ts |
-| DELETE | `/settings/taxes/${id}` | services/billingSettingsService.ts |
-| PATCH | `/settings/taxes/${id}/default` | services/billingSettingsService.ts |
-| GET | `/settings/payment-modes` | services/billingSettingsService.ts |
-| POST | `/settings/payment-modes` | services/billingSettingsService.ts |
-| PUT | `/settings/payment-modes/${id}` | services/billingSettingsService.ts |
-| DELETE | `/settings/payment-modes/${id}` | services/billingSettingsService.ts |
-| PATCH | `/settings/payment-modes/${id}/default` | services/billingSettingsService.ts |
-| GET | `/settings/finance` | services/billingSettingsService.ts |
-| PUT | `/settings/finance` | services/billingSettingsService.ts |
-| GET | `/settings/email/smtp` | services/emailSettingsService.ts |
-| PUT | `/settings/email/smtp` | services/emailSettingsService.ts |
-| POST | `/settings/email/smtp/test-connection` | services/emailSettingsService.ts |
-| POST | `/settings/email/smtp/send-test` | services/emailSettingsService.ts |
-| GET | `/settings/email/signatures` | services/emailSettingsService.ts |
-| POST | `/settings/email/signatures` | services/emailSettingsService.ts |
-| PUT | `/settings/email/signatures/${id}` | services/emailSettingsService.ts |
-| DELETE | `/settings/email/signatures/${id}` | services/emailSettingsService.ts |
-| PATCH | `/settings/email/signatures/${id}/default` | services/emailSettingsService.ts |
-| GET | `/settings/email/templates` | services/emailSettingsService.ts |
-| GET | `/settings/email/templates/${id}` | services/emailSettingsService.ts |
-| POST | `/settings/email/templates` | services/emailSettingsService.ts |
-| PUT | `/settings/email/templates/${id}` | services/emailSettingsService.ts |
-| DELETE | `/settings/email/templates/${id}` | services/emailSettingsService.ts |
-| PATCH | `/settings/email/templates/${id}/toggle` | services/emailSettingsService.ts |
-| GET | `/settings/hr` | services/hrSettingsService.ts |
-| PATCH | `/settings/hr` | services/hrSettingsService.ts |
-| PATCH | `/settings/hr/employee` | services/hrSettingsService.ts |
-| PATCH | `/settings/hr/leave` | services/hrSettingsService.ts |
-| PATCH | `/settings/hr/attendance` | services/hrSettingsService.ts |
-| PATCH | `/settings/hr/payroll` | services/hrSettingsService.ts |
-| PATCH | `/settings/hr/expense` | services/hrSettingsService.ts |
-| GET | `/settings/payment-terms` | services/paymentTermsService.ts |
-| GET | `/settings/payment-terms/${id}` | services/paymentTermsService.ts |
-| POST | `/settings/payment-terms` | services/paymentTermsService.ts |
-| PUT | `/settings/payment-terms/${id}` | services/paymentTermsService.ts |
-| DELETE | `/settings/payment-terms/${id}` | services/paymentTermsService.ts |
-| PATCH | `/settings/payment-terms/${id}/default` | services/paymentTermsService.ts |
-| POST | `/settings/payment-terms/initialize` | services/paymentTermsService.ts |
-| GET | `/settings` | services/settingsService.ts |
-| PATCH | `/settings/account` | services/settingsService.ts |
-| PATCH | `/settings/appearance` | services/settingsService.ts |
-| PATCH | `/settings/display` | services/settingsService.ts |
-| PATCH | `/settings/notifications` | services/settingsService.ts |
-| GET | `/settings/sso` | services/ssoService.ts |
-| PATCH | `/settings/sso` | services/ssoService.ts |
-| GET | `/settings/sso/providers/available` | services/ssoService.ts |
-| ... | *5 more* | - |
-
-### email-marketing (50 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/email-marketing/templates` | services/crmAdvancedService.ts |
-| GET | `/email-marketing/templates/${id}` | services/crmAdvancedService.ts |
-| POST | `/email-marketing/templates` | services/crmAdvancedService.ts |
-| PUT | `/email-marketing/templates/${id}` | services/crmAdvancedService.ts |
-| DELETE | `/email-marketing/templates/${id}` | services/crmAdvancedService.ts |
-| POST | `/email-marketing/templates/${id}/preview` | services/crmAdvancedService.ts |
-| POST | `/email-marketing/templates/${id}/duplicate` | services/crmAdvancedService.ts |
-| GET | `/email-marketing/campaigns` | services/crmAdvancedService.ts |
-| GET | `/email-marketing/campaigns/${id}` | services/crmAdvancedService.ts |
-| POST | `/email-marketing/campaigns` | services/crmAdvancedService.ts |
-| PUT | `/email-marketing/campaigns/${id}` | services/crmAdvancedService.ts |
-| DELETE | `/email-marketing/campaigns/${id}` | services/crmAdvancedService.ts |
-| POST | `/email-marketing/campaigns/${id}/send` | services/crmAdvancedService.ts |
-| POST | `/email-marketing/campaigns/${id}/schedule` | services/crmAdvancedService.ts |
-| POST | `/email-marketing/campaigns/${id}/pause` | services/crmAdvancedService.ts |
-| POST | `/email-marketing/campaigns/${id}/resume` | services/crmAdvancedService.ts |
-| GET | `/email-marketing/campaigns/${id}/analytics` | services/crmAdvancedService.ts |
-| POST | `/email-marketing/campaigns/${id}/ab-test` | services/crmAdvancedService.ts |
-| GET | `/email-marketing/campaigns/${id}/ab-test/results` | services/crmAdvancedService.ts |
-| POST | `/email-marketing/campaigns/${id}/ab-test/pick-winner` | services/crmAdvancedService.ts |
-| GET | `/email-marketing/drip-campaigns` | services/crmAdvancedService.ts |
-| GET | `/email-marketing/drip-campaigns/${id}` | services/crmAdvancedService.ts |
-| POST | `/email-marketing/drip-campaigns` | services/crmAdvancedService.ts |
-| PUT | `/email-marketing/drip-campaigns/${id}` | services/crmAdvancedService.ts |
-| DELETE | `/email-marketing/drip-campaigns/${id}` | services/crmAdvancedService.ts |
-| POST | `/email-marketing/drip-campaigns/${id}/activate` | services/crmAdvancedService.ts |
-| POST | `/email-marketing/drip-campaigns/${id}/pause` | services/crmAdvancedService.ts |
-| POST | `/email-marketing/drip-campaigns/${id}/enroll` | services/crmAdvancedService.ts |
-| POST | `/email-marketing/drip-campaigns/${id}/remove` | services/crmAdvancedService.ts |
-| GET | `/email-marketing/subscribers` | services/crmAdvancedService.ts |
-| GET | `/email-marketing/subscribers/${id}` | services/crmAdvancedService.ts |
-| POST | `/email-marketing/subscribers` | services/crmAdvancedService.ts |
-| POST | `/email-marketing/subscribers/import` | services/crmAdvancedService.ts |
-| POST | `/email-marketing/subscribers/${id}/unsubscribe` | services/crmAdvancedService.ts |
-| POST | `/email-marketing/subscribers/${id}/tags` | services/crmAdvancedService.ts |
-| DELETE | `/email-marketing/subscribers/${id}/tags` | services/crmAdvancedService.ts |
-| GET | `/email-marketing/segments` | services/crmAdvancedService.ts |
-| GET | `/email-marketing/segments/${id}` | services/crmAdvancedService.ts |
-| POST | `/email-marketing/segments` | services/crmAdvancedService.ts |
-| PUT | `/email-marketing/segments/${id}` | services/crmAdvancedService.ts |
-| DELETE | `/email-marketing/segments/${id}` | services/crmAdvancedService.ts |
-| GET | `/email-marketing/segments/${id}/preview` | services/crmAdvancedService.ts |
-| POST | `/email-marketing/segments/${id}/refresh` | services/crmAdvancedService.ts |
-| POST | `/email-marketing/campaigns/${id}/duplicate` | services/emailMarketingService.ts |
-| POST | `/email-marketing/campaigns/${id}/cancel` | services/emailMarketingService.ts |
-| POST | `/email-marketing/campaigns/${id}/test` | services/emailMarketingService.ts |
-| GET | `/email-marketing/templates/public` | services/emailMarketingService.ts |
-| PUT | `/email-marketing/subscribers/${id}` | services/emailMarketingService.ts |
-| DELETE | `/email-marketing/subscribers/${id}` | services/emailMarketingService.ts |
-| POST | `/email-marketing/subscribers/export` | services/emailMarketingService.ts |
-
-### permissions (46 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/permissions/policies` | services/permissionService.ts |
-| GET | `/permissions/policies/${policyId}` | services/permissionService.ts |
-| POST | `/permissions/policies` | services/permissionService.ts |
-| PUT | `/permissions/policies/${policyId}` | services/permissionService.ts |
-| DELETE | `/permissions/policies/${policyId}` | services/permissionService.ts |
-| PATCH | `/permissions/policies/${policyId}/toggle` | services/permissionService.ts |
-| GET | `/permissions/config` | services/permissionService.ts |
-| PUT | `/permissions/config` | services/permissionService.ts |
-| GET | `/permissions/relations/stats` | services/permissionService.ts |
-| POST | `/permissions/relations` | services/permissionService.ts |
-| DELETE | `/permissions/relations` | services/permissionService.ts |
-| GET | `/permissions/relations/${namespace}/${object}` | services/permissionService.ts |
-| GET | `/permissions/relations` | services/permissionService.ts |
-| DELETE | `/permissions/relations/${relationId}` | services/permissionService.ts |
-| POST | `/permissions/relations/bulk` | services/permissionService.ts |
-| DELETE | `/permissions/relations/bulk` | services/permissionService.ts |
-| POST | `/permissions/check` | services/permissionService.ts |
-| POST | `/permissions/check-batch` | services/permissionService.ts |
-| GET | `/permissions/my-permissions` | services/permissionService.ts |
-| POST | `/permissions/relations/check` | services/permissionService.ts |
-| GET | `/permissions/expand/${namespace}/${resourceId}/${relation}` | services/permissionService.ts |
-| GET | `/permissions/user-resources/${userId}` | services/permissionService.ts |
-| GET | `/permissions/decisions` | services/permissionService.ts |
-| GET | `/permissions/decisions/${decisionId}` | services/permissionService.ts |
-| GET | `/permissions/decisions/stats` | services/permissionService.ts |
-| GET | `/permissions/decisions/denied` | services/permissionService.ts |
-| GET | `/permissions/decisions/compliance-report` | services/permissionService.ts |
-| GET | `/permissions/resources/${resourceType}/${resourceId}/access` | services/permissionService.ts |
-| POST | `/permissions/resources/${resourceType}/${resourceId}/access` | services/permissionService.ts |
-| DELETE | `/permissions/resources/${resourceType}/${resourceId}/access/${userId}` | services/permissionService.ts |
-| GET | `/permissions/users/${userId}/resources` | services/permissionService.ts |
-| GET | `/permissions/cache/stats` | services/permissionService.ts |
-| POST | `/permissions/cache/clear` | services/permissionService.ts |
-| GET | `/permissions/ui/sidebar` | services/permissionService.ts |
-| GET | `/permissions/ui/sidebar/all` | services/permissionService.ts |
-| PUT | `/permissions/ui/sidebar/${itemId}/visibility` | services/permissionService.ts |
-| POST | `/permissions/ui/check-page` | services/permissionService.ts |
-| GET | `/permissions/ui/pages/all` | services/permissionService.ts |
-| PUT | `/permissions/ui/pages/${pageId}/access` | services/permissionService.ts |
-| GET | `/permissions/ui/config` | services/permissionService.ts |
-| PUT | `/permissions/ui/config` | services/permissionService.ts |
-| GET | `/permissions/ui/matrix` | services/permissionService.ts |
-| PUT | `/permissions/ui/roles/${role}/bulk` | services/permissionService.ts |
-| POST | `/permissions/ui/overrides` | services/permissionService.ts |
-| DELETE | `/permissions/ui/overrides/${userId}` | services/permissionService.ts |
-| GET | `/permissions/ui/overrides` | services/uiAccessService.ts |
+| GET | `/hr/employee-incentives/${id}` | services/employeeIncentiveService.ts |
+| POST | `/hr/employee-incentives` | services/employeeIncentiveService.ts |
+| PATCH | `/hr/employee-incentives/${id}` | services/employeeIncentiveService.ts |
+| DELETE | `/hr/employee-incentives/${id}` | services/employeeIncentiveService.ts |
+| POST | `/hr/employee-incentives/bulk-delete` | services/employeeIncentiveService.ts |
+| POST | `/hr/employee-incentives/${id}/submit` | services/employeeIncentiveService.ts |
+| POST | `/hr/employee-incentives/${id}/approve` | services/employeeIncentiveService.ts |
+| POST | `/hr/employee-incentives/${id}/reject` | services/employeeIncentiveService.ts |
+| GET | `/hr/employee-incentives/payroll/${payrollDate}` | services/employeeIncentiveService.ts |
+| POST | `/hr/employee-incentives/${id}/process` | services/employeeIncentiveService.ts |
+| GET | `/hr/employee-incentives/employee/${employeeId}/history` | services/employeeIncentiveService.ts |
+| POST | `/hr/employee-incentives/bulk-create` | services/employeeIncentiveService.ts |
+| POST | `/hr/employee-incentives/bulk-approve` | services/employeeIncentiveService.ts |
+| GET | `/hr/employee-incentives/pending` | services/employeeIncentiveService.ts |
+| GET | `/hr/employee-incentives/awaiting-processing` | services/employeeIncentiveService.ts |
+| GET | `/hr/employee-promotions/${id}` | services/employeePromotionService.ts |
+| POST | `/hr/employee-promotions` | services/employeePromotionService.ts |
+| PATCH | `/hr/employee-promotions/${id}` | services/employeePromotionService.ts |
+| DELETE | `/hr/employee-promotions/${id}` | services/employeePromotionService.ts |
+| POST | `/hr/employee-promotions/bulk-delete` | services/employeePromotionService.ts |
+| POST | `/hr/employee-promotions/${id}/submit` | services/employeePromotionService.ts |
+| POST | `/hr/employee-promotions/${id}/approve` | services/employeePromotionService.ts |
+| POST | `/hr/employee-promotions/${id}/reject` | services/employeePromotionService.ts |
+| POST | `/hr/employee-promotions/${id}/cancel` | services/employeePromotionService.ts |
+| POST | `/hr/employee-promotions/${id}/apply` | services/employeePromotionService.ts |
+| GET | `/hr/employee-promotions/employee/${employeeId}/history` | services/employeePromotionService.ts |
+| GET | `/hr/employee-promotions/pending` | services/employeePromotionService.ts |
+| GET | `/hr/employee-promotions/awaiting-application` | services/employeePromotionService.ts |
+| POST | `/hr/employee-promotions/${id}/notify` | services/employeePromotionService.ts |
+| POST | `/hr/employee-promotions/${id}/acknowledge` | services/employeePromotionService.ts |
+| POST | `/hr/employee-promotions/:param` | services/employeePromotionService.ts |
+| GET | `/hr/employee-promotions/stats?:param` | services/employeePromotionService.ts |
+| GET | `/hr/employee-promotions/:param/notify` | services/employeePromotionService.ts |
+| GET | `/hr/skill-maps?${params.toString()}` | services/employeeSkillMapService.ts |
+| GET | `/hr/skill-maps/${employeeId}` | services/employeeSkillMapService.ts |
+| PUT | `/hr/skill-maps/${employeeId}/skills` | services/employeeSkillMapService.ts |
+| POST | `/hr/skill-maps/${employeeId}/skills` | services/employeeSkillMapService.ts |
+| PATCH | `/hr/skill-maps/${employeeId}/skills/${skillId}` | services/employeeSkillMapService.ts |
+| DELETE | `/hr/skill-maps/${employeeId}/skills/${skillId}` | services/employeeSkillMapService.ts |
+| POST | `/hr/skill-maps/${employeeId}/skills/${skillId}/evaluate` | services/employeeSkillMapService.ts |
+| GET | `/hr/skill-maps/matrix${params}` | services/employeeSkillMapService.ts |
+| POST | `/hr/skill-maps/${employeeId}/skill-gaps` | services/employeeSkillMapService.ts |
+| POST | `/hr/skill-maps/department/${departmentId}/skill-gaps` | services/employeeSkillMapService.ts |
+| GET | `/hr/skill-maps/find-by-skill/${skillId}${params}` | services/employeeSkillMapService.ts |
+| GET | `/hr/skill-maps/distribution/${skillId}` | services/employeeSkillMapService.ts |
+| GET | `/hr/skill-maps/${employeeId}/training-recommendations` | services/employeeSkillMapService.ts |
+| GET | `/hr/skill-maps/department/${departmentId}/summary` | services/employeeSkillMapService.ts |
+| POST | `/hr/skill-maps/compare` | services/employeeSkillMapService.ts |
+| ... | *198 more* | - |
 
 ### crm (45 missing)
 
@@ -397,145 +123,53 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | POST | `/crm/reports/schedule` | services/crmReportsService.ts |
 | GET | `/crm/reports/${reportType}/metadata` | services/crmReportsService.ts |
 
-### saudi-banking (44 missing)
+### settings (43 missing)
 
 | Method | Endpoint | Source File |
 |--------|----------|-------------|
-| GET | `/saudi-banking/lean/banks` | hooks/useSaudiBanking.ts |
-| GET | `/saudi-banking/lean/customers` | hooks/useSaudiBanking.ts |
-| GET | `/saudi-banking/lean/customers/${customerId}` | hooks/useSaudiBanking.ts |
-| POST | `/saudi-banking/lean/customers` | hooks/useSaudiBanking.ts |
-| GET | `/saudi-banking/lean/customers/${customerId}/token` | hooks/useSaudiBanking.ts |
-| GET | `/saudi-banking/lean/customers/${customerId}/entities` | hooks/useSaudiBanking.ts |
-| GET | `/saudi-banking/lean/accounts/${accountId}/transactions` | hooks/useSaudiBanking.ts |
-| GET | `/saudi-banking/lean/accounts/${accountId}/balance` | hooks/useSaudiBanking.ts |
-| DELETE | `/saudi-banking/lean/customers/${customerId}/entities/${entityId}` | hooks/useSaudiBanking.ts |
-| GET | `/saudi-banking/wps/files` | hooks/useSaudiBanking.ts |
-| GET | `/saudi-banking/wps/files/${fileId}` | hooks/useSaudiBanking.ts |
-| GET | `/saudi-banking/wps/sarie-banks` | hooks/useSaudiBanking.ts |
-| POST | `/saudi-banking/wps/validate` | hooks/useSaudiBanking.ts |
-| POST | `/saudi-banking/wps/generate` | hooks/useSaudiBanking.ts |
-| POST | `/saudi-banking/wps/download` | hooks/useSaudiBanking.ts |
-| GET | `/saudi-banking/sadad/billers` | hooks/useSaudiBanking.ts |
-| GET | `/saudi-banking/sadad/billers/search` | hooks/useSaudiBanking.ts |
-| POST | `/saudi-banking/sadad/bills/inquiry` | hooks/useSaudiBanking.ts |
-| POST | `/saudi-banking/sadad/bills/pay` | hooks/useSaudiBanking.ts |
-| GET | `/saudi-banking/sadad/payments/history` | hooks/useSaudiBanking.ts |
-| GET | `/saudi-banking/sadad/payments/${paymentId}` | hooks/useSaudiBanking.ts |
-| POST | `/saudi-banking/mudad/payroll/calculate` | hooks/useSaudiBanking.ts |
-| POST | `/saudi-banking/mudad/gosi/calculate` | hooks/useSaudiBanking.ts |
-| POST | `/saudi-banking/mudad/compliance/nitaqat` | hooks/useSaudiBanking.ts |
-| POST | `/saudi-banking/mudad/compliance/minimum-wage` | hooks/useSaudiBanking.ts |
-| POST | `/saudi-banking/mudad/gosi/report` | hooks/useSaudiBanking.ts |
-| GET | `/saudi-banking/mudad/payrolls` | hooks/useSaudiBanking.ts |
-| GET | `/saudi-banking/mudad/compliance` | hooks/useSaudiBanking.ts |
-| GET | `/saudi-banking/compliance/deadlines` | hooks/useSaudiBanking.ts |
-| GET | `/saudi-banking/compliance/status` | hooks/useSaudiBanking.ts |
-| GET | `/saudi-banking/compliance/deadlines/upcoming` | hooks/useSaudiBanking.ts |
-| GET | `/saudi-banking/mudad/submissions` | hooks/useSaudiBanking.ts |
-| GET | `/saudi-banking/mudad/submissions/${submissionId}/status` | hooks/useSaudiBanking.ts |
-| POST | `/saudi-banking/lean/customers/:param/token` | hooks/useSaudiBanking.ts |
-| POST | `/saudi-banking/mudad/submissions/:param/status` | hooks/useSaudiBanking.ts |
-| GET | `/saudi-banking/lean/entities/${entityId}/accounts` | services/saudiBankingService.ts |
-| GET | `/saudi-banking/lean/entities/${entityId}/identity` | services/saudiBankingService.ts |
-| POST | `/saudi-banking/lean/payments` | services/saudiBankingService.ts |
-| DELETE | `/saudi-banking/lean/entities/${entityId}` | services/saudiBankingService.ts |
-| GET | `/saudi-banking/sadad/payments/${transactionId}/status` | services/saudiBankingService.ts |
-| POST | `/saudi-banking/mudad/wps/generate` | services/saudiBankingService.ts |
-| POST | `/saudi-banking/mudad/payroll/submit` | services/saudiBankingService.ts |
-| POST | `/saudi-banking/lean/entities/:param` | services/saudiBankingService.ts |
-| POST | `/saudi-banking/sadad/payments/:param/status` | services/saudiBankingService.ts |
-
-### reminders (41 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/reminders` | hooks/useRemindersAndEvents.ts |
-| GET | `/reminders/${id}` | services/remindersService.ts |
-| POST | `/reminders` | services/remindersService.ts |
-| PUT | `/reminders/${id}` | services/remindersService.ts |
-| DELETE | `/reminders/${id}` | services/remindersService.ts |
-| POST | `/reminders/${id}/complete` | services/remindersService.ts |
-| POST | `/reminders/${id}/dismiss` | services/remindersService.ts |
-| POST | `/reminders/${id}/reopen` | services/remindersService.ts |
-| POST | `/reminders/${id}/snooze` | services/remindersService.ts |
-| POST | `/reminders/${id}/cancel-snooze` | services/remindersService.ts |
-| POST | `/reminders/${id}/delegate` | services/remindersService.ts |
-| GET | `/reminders/upcoming` | services/remindersService.ts |
-| GET | `/reminders/overdue` | services/remindersService.ts |
-| GET | `/reminders/today` | services/remindersService.ts |
-| GET | `/reminders/snoozed` | services/remindersService.ts |
-| GET | `/reminders/snoozed-due` | services/remindersService.ts |
-| GET | `/reminders/delegated` | services/remindersService.ts |
-| GET | `/reminders/my-reminders` | services/remindersService.ts |
-| GET | `/reminders/stats` | services/remindersService.ts |
-| POST | `/reminders/${id}/recurring/skip` | services/remindersService.ts |
-| POST | `/reminders/${id}/recurring/stop` | services/remindersService.ts |
-| GET | `/reminders/${id}/recurring/history` | services/remindersService.ts |
-| PATCH | `/reminders/${id}/notification` | services/remindersService.ts |
-| POST | `/reminders/${id}/notification/test` | services/remindersService.ts |
-| POST | `/reminders/${id}/acknowledge` | services/remindersService.ts |
-| PUT | `/reminders/bulk` | services/remindersService.ts |
-| DELETE | `/reminders/bulk` | services/remindersService.ts |
-| POST | `/reminders/bulk/complete` | services/remindersService.ts |
-| POST | `/reminders/bulk/snooze` | services/remindersService.ts |
-| POST | `/reminders/bulk/dismiss` | services/remindersService.ts |
-| POST | `/reminders/bulk/archive` | services/remindersService.ts |
-| POST | `/reminders/bulk/unarchive` | services/remindersService.ts |
-| POST | `/reminders/${id}/archive` | services/remindersService.ts |
-| POST | `/reminders/${id}/unarchive` | services/remindersService.ts |
-| GET | `/reminders/archived` | services/remindersService.ts |
-| GET | `/reminders/ids` | services/remindersService.ts |
-| POST | `/reminders/import` | services/remindersService.ts |
-| GET | `/reminders/export` | services/remindersService.ts |
-| GET | `/reminders/templates` | services/remindersService.ts |
-| POST | `/reminders/templates/${templateId}/create` | services/remindersService.ts |
-| POST | `/reminders/${id}/save-as-template` | services/remindersService.ts |
-
-### bank-reconciliation (40 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/bank-reconciliation/feeds` | services/bankReconciliationService.ts |
-| POST | `/bank-reconciliation/feeds` | services/bankReconciliationService.ts |
-| PUT | `/bank-reconciliation/feeds/${id}` | services/bankReconciliationService.ts |
-| DELETE | `/bank-reconciliation/feeds/${id}` | services/bankReconciliationService.ts |
-| POST | `/bank-reconciliation/import/csv` | services/bankReconciliationService.ts |
-| POST | `/bank-reconciliation/import/ofx` | services/bankReconciliationService.ts |
-| GET | `/bank-reconciliation/import/template` | services/bankReconciliationService.ts |
-| GET | `/bank-reconciliation/suggestions/${accountId}` | services/bankReconciliationService.ts |
-| POST | `/bank-reconciliation/auto-match/${accountId}` | services/bankReconciliationService.ts |
-| POST | `/bank-reconciliation/match/confirm/${id}` | services/bankReconciliationService.ts |
-| POST | `/bank-reconciliation/match/reject/${id}` | services/bankReconciliationService.ts |
-| POST | `/bank-reconciliation/match/split` | services/bankReconciliationService.ts |
-| DELETE | `/bank-reconciliation/match/${id}` | services/bankReconciliationService.ts |
-| POST | `/bank-reconciliation/rules` | services/bankReconciliationService.ts |
-| GET | `/bank-reconciliation/rules` | services/bankReconciliationService.ts |
-| PUT | `/bank-reconciliation/rules/${id}` | services/bankReconciliationService.ts |
-| DELETE | `/bank-reconciliation/rules/${id}` | services/bankReconciliationService.ts |
-| POST | `/bank-reconciliation` | services/bankReconciliationService.ts |
-| GET | `/bank-reconciliation` | services/bankReconciliationService.ts |
-| GET | `/bank-reconciliation/${id}` | services/bankReconciliationService.ts |
-| POST | `/bank-reconciliation/${id}/clear` | services/bankReconciliationService.ts |
-| POST | `/bank-reconciliation/${id}/unclear` | services/bankReconciliationService.ts |
-| POST | `/bank-reconciliation/${id}/complete` | services/bankReconciliationService.ts |
-| POST | `/bank-reconciliation/${id}/cancel` | services/bankReconciliationService.ts |
-| GET | `/bank-reconciliation/status/${accountId}` | services/bankReconciliationService.ts |
-| GET | `/bank-reconciliation/unmatched/${accountId}` | services/bankReconciliationService.ts |
-| GET | `/bank-reconciliation/statistics/matches` | services/bankReconciliationService.ts |
-| GET | `/bank-reconciliation/statistics/rules` | services/bankReconciliationService.ts |
-| GET | `/bank-reconciliation/currency/rates` | services/bankReconciliationService.ts |
-| POST | `/bank-reconciliation/currency/convert` | services/bankReconciliationService.ts |
-| POST | `/bank-reconciliation/currency/rates` | services/bankReconciliationService.ts |
-| GET | `/bank-reconciliation/currency/supported` | services/bankReconciliationService.ts |
-| POST | `/bank-reconciliation/currency/update` | services/bankReconciliationService.ts |
-| GET | `/bank-reconciliation/feeds/:param` | services/bankReconciliationService.ts |
-| POST | `/bank-reconciliation/suggestions/:param` | services/bankReconciliationService.ts |
-| POST | `/bank-reconciliation/match/:param` | services/bankReconciliationService.ts |
-| POST | `/bank-reconciliation/rules/:param` | services/bankReconciliationService.ts |
-| POST | `/bank-reconciliation/:param` | services/bankReconciliationService.ts |
-| POST | `/bank-reconciliation/feeds/${id}/fetch` | services/financeAdvancedService.ts |
-| GET | `/bank-reconciliation/feeds/${id}/transactions` | services/financeAdvancedService.ts |
+| PUT | `/settings/crm` | features/crm/components/crm-setup-wizard.tsx |
+| GET | `/settings/taxes` | services/billingSettingsService.ts |
+| POST | `/settings/taxes` | services/billingSettingsService.ts |
+| PUT | `/settings/taxes/${id}` | services/billingSettingsService.ts |
+| DELETE | `/settings/taxes/${id}` | services/billingSettingsService.ts |
+| PATCH | `/settings/taxes/${id}/default` | services/billingSettingsService.ts |
+| GET | `/settings/payment-modes` | services/billingSettingsService.ts |
+| POST | `/settings/payment-modes` | services/billingSettingsService.ts |
+| PUT | `/settings/payment-modes/${id}` | services/billingSettingsService.ts |
+| DELETE | `/settings/payment-modes/${id}` | services/billingSettingsService.ts |
+| PATCH | `/settings/payment-modes/${id}/default` | services/billingSettingsService.ts |
+| GET | `/settings/finance` | services/billingSettingsService.ts |
+| PUT | `/settings/finance` | services/billingSettingsService.ts |
+| POST | `/settings/email/smtp/test-connection` | services/emailSettingsService.ts |
+| POST | `/settings/email/smtp/send-test` | services/emailSettingsService.ts |
+| PATCH | `/settings/email/templates/${id}/toggle` | services/emailSettingsService.ts |
+| GET | `/settings/hr` | services/hrSettingsService.ts |
+| PATCH | `/settings/hr` | services/hrSettingsService.ts |
+| PATCH | `/settings/hr/employee` | services/hrSettingsService.ts |
+| PATCH | `/settings/hr/leave` | services/hrSettingsService.ts |
+| PATCH | `/settings/hr/attendance` | services/hrSettingsService.ts |
+| PATCH | `/settings/hr/payroll` | services/hrSettingsService.ts |
+| PATCH | `/settings/hr/expense` | services/hrSettingsService.ts |
+| GET | `/settings/payment-terms` | services/paymentTermsService.ts |
+| GET | `/settings/payment-terms/${id}` | services/paymentTermsService.ts |
+| POST | `/settings/payment-terms` | services/paymentTermsService.ts |
+| PUT | `/settings/payment-terms/${id}` | services/paymentTermsService.ts |
+| DELETE | `/settings/payment-terms/${id}` | services/paymentTermsService.ts |
+| PATCH | `/settings/payment-terms/${id}/default` | services/paymentTermsService.ts |
+| POST | `/settings/payment-terms/initialize` | services/paymentTermsService.ts |
+| GET | `/settings` | services/settingsService.ts |
+| PATCH | `/settings/account` | services/settingsService.ts |
+| PATCH | `/settings/appearance` | services/settingsService.ts |
+| PATCH | `/settings/display` | services/settingsService.ts |
+| PATCH | `/settings/notifications` | services/settingsService.ts |
+| GET | `/settings/sso` | services/ssoService.ts |
+| PATCH | `/settings/sso` | services/ssoService.ts |
+| GET | `/settings/sso/providers/available` | services/ssoService.ts |
+| GET | `/settings/sso/providers/${providerId}` | services/ssoService.ts |
+| POST | `/settings/sso/providers` | services/ssoService.ts |
+| PATCH | `/settings/sso/providers/${providerId}` | services/ssoService.ts |
+| DELETE | `/settings/sso/providers/${providerId}` | services/ssoService.ts |
+| POST | `/settings/sso/test-connection` | services/ssoService.ts |
 
 ### crm-reports (37 missing)
 
@@ -579,47 +213,37 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | GET | `/crm-reports/transactions/summary` | hooks/use-crm-reports.ts |
 | GET | `/crm-reports/transactions/export` | hooks/use-crm-reports.ts |
 
-### invoices (35 missing)
+### events (25 missing)
 
 | Method | Endpoint | Source File |
 |--------|----------|-------------|
-| GET | `/invoices` | hooks/useFinance.ts |
-| POST | `/invoices/${invoiceId}/post-to-gl` | services/accountingService.ts |
-| POST | `/invoices/${invoiceId}/record-payment` | services/accountingService.ts |
-| GET | `/invoices/${id}` | services/financeService.ts |
-| POST | `/invoices` | services/financeService.ts |
-| PATCH | `/invoices/${id}` | services/financeService.ts |
-| POST | `/invoices/${id}/send` | services/financeService.ts |
-| DELETE | `/invoices/${id}` | services/financeService.ts |
-| GET | `/invoices/overdue` | services/financeService.ts |
-| GET | `/invoices/stats` | services/financeService.ts |
-| GET | `/invoices/billable-items` | services/financeService.ts |
-| POST | `/invoices/${id}/void` | services/financeService.ts |
-| POST | `/invoices/${id}/duplicate` | services/financeService.ts |
-| POST | `/invoices/${id}/send-reminder` | services/financeService.ts |
-| POST | `/invoices/${id}/convert-to-credit-note` | services/financeService.ts |
-| POST | `/invoices/${id}/apply-retainer` | services/financeService.ts |
-| POST | `/invoices/${id}/submit-for-approval` | services/financeService.ts |
-| POST | `/invoices/${id}/approve` | services/financeService.ts |
-| POST | `/invoices/${id}/reject` | services/financeService.ts |
-| POST | `/invoices/${id}/zatca/submit` | services/financeService.ts |
-| GET | `/invoices/${id}/zatca/status` | services/financeService.ts |
-| GET | `/invoices/open/${clientId}` | services/financeService.ts |
-| GET | `/invoices/${id}/xml` | services/financeService.ts |
-| POST | `/invoices/${id}/payment` | services/financeService.ts |
-| PATCH | `/invoices/confirm-payment` | services/financeService.ts |
-| GET | `/invoices/${id}/pdf` | services/financeService.ts |
-| POST | `/invoices/${invoiceId}/payments` | services/financeService.ts |
-| GET | `/invoices/pending-approval` | services/financeService.ts |
-| POST | `/invoices/${invoiceId}/request-changes` | services/financeService.ts |
-| POST | `/invoices/${invoiceId}/escalate` | services/financeService.ts |
-| POST | `/invoices/bulk-approve` | services/financeService.ts |
-| GET | `/invoices/approval-config` | services/financeService.ts |
-| PUT | `/invoices/approval-config` | services/financeService.ts |
-| GET | `/invoices/pending-approvals-count` | services/financeService.ts |
-| POST | `/invoices/confirm-payment` | services/invoiceService.ts |
+| POST | `/events/${id}/start` | services/eventsService.ts |
+| POST | `/events/${eventId}/send-invitations` | services/eventsService.ts |
+| POST | `/events/${eventId}/attendees/${attendeeId}/check-in` | services/eventsService.ts |
+| POST | `/events/${eventId}/attendees/${attendeeId}/check-out` | services/eventsService.ts |
+| PATCH | `/events/${eventId}/notes` | services/eventsService.ts |
+| POST | `/events/${eventId}/action-items/${actionItemId}/toggle` | services/eventsService.ts |
+| POST | `/events/${eventId}/attachments` | services/eventsService.ts |
+| DELETE | `/events/${eventId}/attachments/${attachmentId}` | services/eventsService.ts |
+| POST | `/events/${eventId}/comments` | services/eventsService.ts |
+| PATCH | `/events/${eventId}/comments/${commentId}` | services/eventsService.ts |
+| DELETE | `/events/${eventId}/comments/${commentId}` | services/eventsService.ts |
+| GET | `/events/today` | services/eventsService.ts |
+| GET | `/events/my-events` | services/eventsService.ts |
+| GET | `/events/pending-rsvp` | services/eventsService.ts |
+| POST | `/events/${eventId}/recurring/skip` | services/eventsService.ts |
+| POST | `/events/${eventId}/recurring/stop` | services/eventsService.ts |
+| GET | `/events/${eventId}/recurring/instances` | services/eventsService.ts |
+| PUT | `/events/${eventId}/recurring/instance/${instanceDate}` | services/eventsService.ts |
+| POST | `/events/${eventId}/calendar-sync` | services/eventsService.ts |
+| POST | `/events/bulk/cancel` | services/eventsService.ts |
+| GET | `/events/templates` | services/eventsService.ts |
+| POST | `/events/templates/${templateId}/create` | services/eventsService.ts |
+| POST | `/events/${eventId}/save-as-template` | services/eventsService.ts |
+| POST | `/events/check-availability` | services/eventsService.ts |
+| POST | `/events/find-slots` | services/eventsService.ts |
 
-### auth (34 missing)
+### auth (24 missing)
 
 | Method | Endpoint | Source File |
 |--------|----------|-------------|
@@ -629,19 +253,9 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | GET | `/auth/captcha/settings` | services/captchaService.ts |
 | PUT | `/auth/captcha/settings` | services/captchaService.ts |
 | POST | `/auth/captcha/check-required` | services/captchaService.ts |
-| POST | `/auth/mfa/setup` | services/mfaService.ts |
-| POST | `/auth/mfa/verify-setup` | services/mfaService.ts |
-| POST | `/auth/mfa/verify` | services/mfaService.ts |
-| POST | `/auth/mfa/disable` | services/mfaService.ts |
 | POST | `/auth/mfa/sms/send` | services/mfaService.ts |
 | POST | `/auth/mfa/email/send` | services/mfaService.ts |
 | GET | `/auth/mfa/required` | services/mfaService.ts |
-| POST | `/auth/sso/initiate` | services/oauthService.ts |
-| POST | `/auth/sso/callback` | services/oauthService.ts |
-| POST | `/auth/sso/link` | services/oauthService.ts |
-| GET | `/auth/sso/providers` | services/oauthService.ts |
-| DELETE | `/auth/sso/unlink/${provider}` | services/oauthService.ts |
-| GET | `/auth/sso/unlink/:param` | services/oauthService.ts |
 | POST | `/auth/onboarding-progress` | services/onboardingWizardService.ts |
 | POST | `/auth/onboarding/company-info` | services/onboardingWizardService.ts |
 | POST | `/auth/onboarding/company-logo` | services/onboardingWizardService.ts |
@@ -658,93 +272,11 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | DELETE | `/auth/sessions/:param/report` | services/sessionService.ts |
 | GET | `/auth/reauthenticate/methods` | services/stepUpAuthService.ts |
 
-### documents (34 missing)
+### api (22 missing)
 
 | Method | Endpoint | Source File |
 |--------|----------|-------------|
-| GET | `/documents/${documentId}/versions` | services/documentVersionService.ts |
-| GET | `/documents/${documentId}/versions/${versionId}` | services/documentVersionService.ts |
-| POST | `/documents/${documentId}/versions` | services/documentVersionService.ts |
-| GET | `/documents/${documentId}/versions/${versionId}/download` | services/documentVersionService.ts |
-| GET | `/documents/${documentId}/versions/${versionId}/download-url` | services/documentVersionService.ts |
-| GET | `/documents/${documentId}/versions/${versionId}/preview-url` | services/documentVersionService.ts |
-| POST | `/documents/${documentId}/versions/${versionId}/restore` | services/documentVersionService.ts |
-| DELETE | `/documents/${documentId}/versions/${versionId}` | services/documentVersionService.ts |
-| POST | `/documents/${documentId}/versions/cleanup` | services/documentVersionService.ts |
-| GET | `/documents/${documentId}/versions/compare?v1=${versionId1}&v2=${versionId2}` | services/documentVersionService.ts |
-| GET | `/documents/${documentId}/versions/statistics` | services/documentVersionService.ts |
-| GET | `/documents/${documentId}/versions/diff?v1=${versionId1}&v2=${versionId2}` | services/documentVersionService.ts |
-| GET | `/documents/${documentId}/versions/${versionId}/content` | services/documentVersionService.ts |
-| PATCH | `/documents/${documentId}/versions/${versionId}` | services/documentVersionService.ts |
-| GET | `/documents/${id}` | services/documentsService.ts |
-| POST | `/documents/upload` | services/documentsService.ts |
-| POST | `/documents/confirm` | services/documentsService.ts |
-| PATCH | `/documents/${id}` | services/documentsService.ts |
-| DELETE | `/documents/${id}` | services/documentsService.ts |
-| GET | `/documents/case/${caseId}` | services/documentsService.ts |
-| GET | `/documents/client/${clientId}` | services/documentsService.ts |
-| GET | `/documents/stats` | services/documentsService.ts |
-| GET | `/documents/${id}/download` | services/documentsService.ts |
-| POST | `/documents/${id}/share` | services/documentsService.ts |
-| POST | `/documents/${id}/revoke-share` | services/documentsService.ts |
-| GET | `/documents/search?q=${encodeURIComponent(query)}` | services/documentsService.ts |
-| GET | `/documents/recent?limit=${limit}` | services/documentsService.ts |
-| POST | `/documents/bulk-delete` | services/documentsService.ts |
-| POST | `/documents/${documentId}/move` | services/documentsService.ts |
-| GET | `/documents/${id}/preview-url` | services/documentsService.ts |
-| GET | `/documents/${id}/download-url?disposition=${disposition}` | services/documentsService.ts |
-| POST | `/documents/${id}/encrypt` | services/documentsService.ts |
-| POST | `/documents/${id}/decrypt` | services/documentsService.ts |
-| POST | `/documents/:param` | services/documentsService.ts |
-
-### time-tracking (31 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| POST | `/time-tracking/entries/${id}/submit` | services/financeService.approval-methods.ts |
-| POST | `/time-tracking/entries/bulk-submit` | services/financeService.approval-methods.ts |
-| POST | `/time-tracking/entries/bulk-reject` | services/financeService.approval-methods.ts |
-| GET | `/time-tracking/entries/pending` | services/financeService.approval-methods.ts |
-| POST | `/time-tracking/entries/${id}/request-changes` | services/financeService.approval-methods.ts |
-| POST | `/time-tracking/timer/start` | services/financeService.ts |
-| POST | `/time-tracking/timer/pause` | services/financeService.ts |
-| POST | `/time-tracking/timer/resume` | services/financeService.ts |
-| POST | `/time-tracking/timer/stop` | services/financeService.ts |
-| GET | `/time-tracking/timer/status` | services/financeService.ts |
-| POST | `/time-tracking/entries` | services/financeService.ts |
-| GET | `/time-tracking/entries` | services/financeService.ts |
-| GET | `/time-tracking/entries/${id}` | services/financeService.ts |
-| GET | `/time-tracking/stats` | services/financeService.ts |
-| PUT | `/time-tracking/entries/${id}` | services/financeService.ts |
-| DELETE | `/time-tracking/entries/${id}` | services/financeService.ts |
-| GET | `/time-tracking/unbilled` | services/financeService.ts |
-| GET | `/time-tracking/activity-codes` | services/financeService.ts |
-| DELETE | `/time-tracking/entries/bulk` | services/financeService.ts |
-| POST | `/time-tracking/entries/bulk-approve` | services/financeService.ts |
-| POST | `/time-tracking/entries/${id}/write-off` | services/financeService.ts |
-| POST | `/time-tracking/entries/${id}/write-down` | services/financeService.ts |
-| POST | `/time-tracking/entries/${id}/approve` | services/financeService.ts |
-| POST | `/time-tracking/entries/${id}/reject` | services/financeService.ts |
-| POST | `/time-tracking/entries/${id}/lock` | services/financeService.ts |
-| POST | `/time-tracking/entries/${id}/unlock` | services/financeService.ts |
-| POST | `/time-tracking/entries/bulk-lock` | services/financeService.ts |
-| GET | `/time-tracking/entries/${id}/lock-status` | services/financeService.ts |
-| POST | `/time-tracking/entries/lock-by-date-range` | services/financeService.ts |
-| GET | `/time-tracking/weekly` | services/financeService.ts |
-| GET | `/time-tracking/entries/pending-approval?${params.toString()}` | services/timeTrackingService.ts |
-
-### api (29 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/api/inter-company/transactions` | services/interCompanyService.ts |
-| GET | `/api/inter-company/transactions/${id}` | services/interCompanyService.ts |
-| POST | `/api/inter-company/transactions` | services/interCompanyService.ts |
-| PUT | `/api/inter-company/transactions/${id}` | services/interCompanyService.ts |
-| DELETE | `/api/inter-company/transactions/${id}` | services/interCompanyService.ts |
 | POST | `/api/inter-company/transactions/${id}/post` | services/interCompanyService.ts |
-| POST | `/api/inter-company/transactions/${id}/cancel` | services/interCompanyService.ts |
-| GET | `/api/inter-company/balances` | services/interCompanyService.ts |
 | GET | `/api/inter-company/balances/between` | services/interCompanyService.ts |
 | GET | `/api/inter-company/transactions/between` | services/interCompanyService.ts |
 | GET | `/api/inter-company/reconciliations` | services/interCompanyService.ts |
@@ -766,156 +298,6 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | GET | `/api/settings/sales/export` | services/salesSettingsService.ts |
 | GET | `/api/settings/sales/import` | services/salesSettingsService.ts |
 | GET | `/api/settings/sales/validate` | services/salesSettingsService.ts |
-
-### succession-plans (28 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/succession-plans/${id}` | services/successionPlanningService.ts |
-| POST | `/succession-plans` | services/successionPlanningService.ts |
-| PATCH | `/succession-plans/${id}` | services/successionPlanningService.ts |
-| DELETE | `/succession-plans/${id}` | services/successionPlanningService.ts |
-| POST | `/succession-plans/bulk-delete` | services/successionPlanningService.ts |
-| GET | `/succession-plans/by-position/${positionId}` | services/successionPlanningService.ts |
-| GET | `/succession-plans/by-incumbent/${incumbentId}` | services/successionPlanningService.ts |
-| GET | `/succession-plans/review-due` | services/successionPlanningService.ts |
-| GET | `/succession-plans/high-risk` | services/successionPlanningService.ts |
-| GET | `/succession-plans/critical-without-successors` | services/successionPlanningService.ts |
-| POST | `/succession-plans/${planId}/successors` | services/successionPlanningService.ts |
-| PATCH | `/succession-plans/${planId}/successors/${successorId}` | services/successionPlanningService.ts |
-| DELETE | `/succession-plans/${planId}/successors/${successorId}` | services/successionPlanningService.ts |
-| POST | `/succession-plans/${id}/submit-for-approval` | services/successionPlanningService.ts |
-| POST | `/succession-plans/${id}/approve` | services/successionPlanningService.ts |
-| POST | `/succession-plans/${id}/reject` | services/successionPlanningService.ts |
-| POST | `/succession-plans/${id}/activate` | services/successionPlanningService.ts |
-| POST | `/succession-plans/${id}/archive` | services/successionPlanningService.ts |
-| PATCH | `/succession-plans/${planId}/successors/${successorId}/readiness` | services/successionPlanningService.ts |
-| PATCH | `/succession-plans/${planId}/successors/${successorId}/development` | services/successionPlanningService.ts |
-| POST | `/succession-plans/${planId}/reviews` | services/successionPlanningService.ts |
-| POST | `/succession-plans/${planId}/actions` | services/successionPlanningService.ts |
-| PATCH | `/succession-plans/${planId}/actions/${actionId}` | services/successionPlanningService.ts |
-| POST | `/succession-plans/${planId}/documents` | services/successionPlanningService.ts |
-| POST | `/succession-plans/:param` | services/successionPlanningService.ts |
-| POST | `/succession-plans/by-position/:param` | services/successionPlanningService.ts |
-| GET | `/succession-plans/:param/successors` | services/successionPlanningService.ts |
-| GET | `/succession-plans/stats?officeId=:param` | services/successionPlanningService.ts |
-
-### clients (26 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/clients` | services/clientService.ts |
-| GET | `/clients/${clientId}` | services/clientService.ts |
-| POST | `/clients` | services/clientService.ts |
-| PUT | `/clients/${clientId}` | services/clientService.ts |
-| DELETE | `/clients/${clientId}` | services/clientService.ts |
-| GET | `/clients/${clientId}/cases` | services/clientService.ts |
-| GET | `/clients/${clientId}/invoices` | services/clientService.ts |
-| GET | `/clients/${clientId}/quotes` | services/clientService.ts |
-| GET | `/clients/${clientId}/activities` | services/clientService.ts |
-| GET | `/clients/${clientId}/payments` | services/clientService.ts |
-| POST | `/clients/${clientId}/credit-status` | services/clientService.ts |
-| GET | `/clients/search` | services/clientsService.ts |
-| GET | `/clients/stats` | services/clientsService.ts |
-| GET | `/clients/top-revenue` | services/clientsService.ts |
-| DELETE | `/clients/bulk` | services/clientsService.ts |
-| GET | `/clients/${id}/billing-info` | services/clientsService.ts |
-| POST | `/clients/${id}/verify/wathq` | services/clientsService.ts |
-| GET | `/clients/${id}/wathq/${dataType}` | services/clientsService.ts |
-| POST | `/clients/${id}/verify/absher` | services/clientsService.ts |
-| POST | `/clients/${id}/verify/address` | services/clientsService.ts |
-| POST | `/clients/${id}/attachments` | services/clientsService.ts |
-| DELETE | `/clients/${id}/attachments/${attachmentId}` | services/clientsService.ts |
-| POST | `/clients/${id}/conflict-check` | services/clientsService.ts |
-| PATCH | `/clients/${id}/status` | services/clientsService.ts |
-| PATCH | `/clients/${id}/flags` | services/clientsService.ts |
-| GET | `/clients/regions` | services/clientsService.ts |
-
-### corporate-cards (26 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/corporate-cards` | services/corporateCardService.ts |
-| GET | `/corporate-cards/${id}` | services/corporateCardService.ts |
-| POST | `/corporate-cards` | services/corporateCardService.ts |
-| PATCH | `/corporate-cards/${id}` | services/corporateCardService.ts |
-| DELETE | `/corporate-cards/${id}` | services/corporateCardService.ts |
-| POST | `/corporate-cards/${id}/block` | services/corporateCardService.ts |
-| POST | `/corporate-cards/${id}/unblock` | services/corporateCardService.ts |
-| GET | `/corporate-cards/transactions` | services/corporateCardService.ts |
-| GET | `/corporate-cards/transactions/${id}` | services/corporateCardService.ts |
-| POST | `/corporate-cards/transactions` | services/corporateCardService.ts |
-| PATCH | `/corporate-cards/transactions/${id}` | services/corporateCardService.ts |
-| DELETE | `/corporate-cards/transactions/${id}` | services/corporateCardService.ts |
-| POST | `/corporate-cards/transactions/${data.transactionId}/reconcile` | services/corporateCardService.ts |
-| POST | `/corporate-cards/transactions/bulk-reconcile` | services/corporateCardService.ts |
-| POST | `/corporate-cards/transactions/${transactionId}/match` | services/corporateCardService.ts |
-| GET | `/corporate-cards/transactions/${transactionId}/potential-matches` | services/corporateCardService.ts |
-| POST | `/corporate-cards/transactions/${transactionId}/dispute` | services/corporateCardService.ts |
-| POST | `/corporate-cards/transactions/${transactionId}/resolve-dispute` | services/corporateCardService.ts |
-| POST | `/corporate-cards/transactions/import` | services/corporateCardService.ts |
-| GET | `/corporate-cards/transactions/csv-template` | services/corporateCardService.ts |
-| GET | `/corporate-cards/statistics` | services/corporateCardService.ts |
-| GET | `/corporate-cards/reports/reconciliation` | services/corporateCardService.ts |
-| GET | `/corporate-cards/reports/reconciliation/export` | services/corporateCardService.ts |
-| GET | `/corporate-cards/analytics/spending-by-category` | services/corporateCardService.ts |
-| GET | `/corporate-cards/analytics/spending-by-card` | services/corporateCardService.ts |
-| GET | `/corporate-cards/analytics/monthly-trend` | services/corporateCardService.ts |
-
-### payments (23 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/payments` | hooks/useFinance.ts |
-| POST | `/payments` | services/financeService.ts |
-| GET | `/payments/${id}` | services/financeService.ts |
-| POST | `/payments/${id}/complete` | services/financeService.ts |
-| GET | `/payments/summary` | services/financeService.ts |
-| GET | `/payments/new` | services/financeService.ts |
-| GET | `/payments/stats` | services/financeService.ts |
-| GET | `/payments/unreconciled` | services/financeService.ts |
-| GET | `/payments/pending-checks` | services/financeService.ts |
-| PUT | `/payments/${id}` | services/financeService.ts |
-| DELETE | `/payments/${id}` | services/financeService.ts |
-| DELETE | `/payments/bulk` | services/financeService.ts |
-| POST | `/payments/${id}/fail` | services/financeService.ts |
-| POST | `/payments/${id}/refund` | services/financeService.ts |
-| POST | `/payments/${id}/reconcile` | services/financeService.ts |
-| PUT | `/payments/${id}/apply` | services/financeService.ts |
-| DELETE | `/payments/${id}/unapply/${invoiceId}` | services/financeService.ts |
-| PUT | `/payments/${id}/check-status` | services/financeService.ts |
-| POST | `/payments/${id}/send-receipt` | services/financeService.ts |
-| POST | `/payments/${id}/generate-receipt` | services/financeService.ts |
-| GET | `/payments/${id}/receipt/download` | services/financeService.ts |
-| GET | `/payments/${id}/receipt` | services/financeService.ts |
-| POST | `/payments/${id}/receipt/send` | services/financeService.ts |
-
-### contacts (22 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/contacts` | services/contactService.ts |
-| GET | `/contacts/${contactId}` | services/contactService.ts |
-| POST | `/contacts` | services/contactService.ts |
-| PUT | `/contacts/${contactId}` | services/contactService.ts |
-| DELETE | `/contacts/${contactId}` | services/contactService.ts |
-| GET | `/contacts/${contactId}/cases` | services/contactService.ts |
-| GET | `/contacts/${contactId}/activities` | services/contactService.ts |
-| POST | `/contacts/${contactId}/conflict-check` | services/contactService.ts |
-| POST | `/contacts/${contactId}/conflict-status` | services/contactService.ts |
-| POST | `/contacts/${contactId}/link-case` | services/contactService.ts |
-| DELETE | `/contacts/${contactId}/unlink-case/${caseId}` | services/contactService.ts |
-| POST | `/contacts/${primaryId}/merge` | services/contactService.ts |
-| GET | `/contacts/${contactId}/stakeholder/${leadId}` | services/contactService.ts |
-| PATCH | `/contacts/${id}` | services/contactsService.ts |
-| DELETE | `/contacts/bulk` | services/contactsService.ts |
-| GET | `/contacts/search?q=${encodeURIComponent(query)}` | services/contactsService.ts |
-| GET | `/contacts/case/${caseId}` | services/contactsService.ts |
-| GET | `/contacts/client/${clientId}` | services/contactsService.ts |
-| POST | `/contacts/${contactId}/link-client` | services/contactsService.ts |
-| DELETE | `/contacts/${contactId}/unlink-client/${clientId}` | services/contactsService.ts |
-| POST | `/contacts/:param` | services/contactsService.ts |
-| DELETE | `/contacts/search?q=:param` | services/contactsService.ts |
 
 ### leave-encashments (22 missing)
 
@@ -943,33 +325,6 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | POST | `/leave-encashments/:param` | services/leaveEncashmentService.ts |
 | POST | `/leave-encashments/eligibility/:param` | services/leaveEncashmentService.ts |
 | POST | `/leave-encashments/export?:param` | services/leaveEncashmentService.ts |
-
-### matter-budgets (22 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/matter-budgets` | services/matterBudgetService.ts |
-| GET | `/matter-budgets/${id}` | services/matterBudgetService.ts |
-| GET | `/matter-budgets/case/${caseId}` | services/matterBudgetService.ts |
-| POST | `/matter-budgets` | services/matterBudgetService.ts |
-| PATCH | `/matter-budgets/${id}` | services/matterBudgetService.ts |
-| DELETE | `/matter-budgets/${id}` | services/matterBudgetService.ts |
-| GET | `/matter-budgets/${id}/analysis` | services/matterBudgetService.ts |
-| GET | `/matter-budgets/alerts` | services/matterBudgetService.ts |
-| POST | `/matter-budgets/${budgetId}/phases` | services/matterBudgetService.ts |
-| PATCH | `/matter-budgets/${budgetId}/phases/${phaseId}` | services/matterBudgetService.ts |
-| DELETE | `/matter-budgets/${budgetId}/phases/${phaseId}` | services/matterBudgetService.ts |
-| GET | `/matter-budgets/${budgetId}/entries` | services/matterBudgetService.ts |
-| POST | `/matter-budgets/${budgetId}/entries` | services/matterBudgetService.ts |
-| PATCH | `/matter-budgets/${budgetId}/entries/${entryId}` | services/matterBudgetService.ts |
-| DELETE | `/matter-budgets/${budgetId}/entries/${entryId}` | services/matterBudgetService.ts |
-| GET | `/matter-budgets/templates` | services/matterBudgetService.ts |
-| POST | `/matter-budgets/templates` | services/matterBudgetService.ts |
-| PATCH | `/matter-budgets/templates/${id}` | services/matterBudgetService.ts |
-| DELETE | `/matter-budgets/templates/${id}` | services/matterBudgetService.ts |
-| POST | `/matter-budgets/:param` | services/matterBudgetService.ts |
-| GET | `/matter-budgets/:param/phases` | services/matterBudgetService.ts |
-| GET | `/matter-budgets/templates/:param` | services/matterBudgetService.ts |
 
 ### products (22 missing)
 
@@ -1025,32 +380,6 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | GET | `/subscriptions/past-due` | services/subscriptionService.ts |
 | POST | `/subscriptions/:param` | services/subscriptionService.ts |
 
-### bills (21 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/bills` | services/accountingService.ts |
-| GET | `/bills/${id}` | services/accountingService.ts |
-| POST | `/bills` | services/accountingService.ts |
-| PUT | `/bills/${id}` | services/accountingService.ts |
-| POST | `/bills/${id}/approve` | services/accountingService.ts |
-| POST | `/bills/${id}/pay` | services/accountingService.ts |
-| POST | `/bills/${id}/post-to-gl` | services/accountingService.ts |
-| DELETE | `/bills/${id}` | services/accountingService.ts |
-| POST | `/bills/${id}/receive` | services/accountingService.ts |
-| POST | `/bills/${id}/cancel` | services/accountingService.ts |
-| POST | `/bills/${id}/duplicate` | services/accountingService.ts |
-| POST | `/bills/${id}/attachments` | services/accountingService.ts |
-| DELETE | `/bills/${id}/attachments/${attachmentId}` | services/accountingService.ts |
-| GET | `/bills/overdue` | services/accountingService.ts |
-| GET | `/bills/summary` | services/accountingService.ts |
-| GET | `/bills/recurring` | services/accountingService.ts |
-| POST | `/bills/${id}/stop-recurring` | services/accountingService.ts |
-| POST | `/bills/${id}/generate-next` | services/accountingService.ts |
-| GET | `/bills/reports/aging` | services/accountingService.ts |
-| GET | `/bills/export` | services/accountingService.ts |
-| GET | `/bills/${billId}/debit-notes` | services/accountingService.ts |
-
 ### compensatory-leave-requests (21 missing)
 
 | Method | Endpoint | Source File |
@@ -1077,109 +406,6 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | GET | `/compensatory-leave-requests/policy` | services/compensatoryLeaveService.ts |
 | POST | `/compensatory-leave-requests/:param` | services/compensatoryLeaveService.ts |
 
-### lead-scoring (21 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/lead-scoring/config` | services/crmAdvancedService.ts |
-| PUT | `/lead-scoring/config` | services/crmAdvancedService.ts |
-| POST | `/lead-scoring/calculate/${leadId}` | services/crmAdvancedService.ts |
-| POST | `/lead-scoring/calculate-all` | services/crmAdvancedService.ts |
-| POST | `/lead-scoring/calculate-batch` | services/crmAdvancedService.ts |
-| GET | `/lead-scoring/scores` | services/crmAdvancedService.ts |
-| GET | `/lead-scoring/leaderboard` | services/crmAdvancedService.ts |
-| GET | `/lead-scoring/distribution` | services/crmAdvancedService.ts |
-| GET | `/lead-scoring/top-leads` | services/crmAdvancedService.ts |
-| GET | `/lead-scoring/by-grade/${grade}` | services/crmAdvancedService.ts |
-| GET | `/lead-scoring/insights/${leadId}` | services/crmAdvancedService.ts |
-| GET | `/lead-scoring/trends` | services/crmAdvancedService.ts |
-| GET | `/lead-scoring/conversion-analysis` | services/crmAdvancedService.ts |
-| POST | `/lead-scoring/track/email-open` | services/crmAdvancedService.ts |
-| POST | `/lead-scoring/track/email-click` | services/crmAdvancedService.ts |
-| POST | `/lead-scoring/track/document-view` | services/crmAdvancedService.ts |
-| POST | `/lead-scoring/track/website-visit` | services/crmAdvancedService.ts |
-| POST | `/lead-scoring/track/form-submit` | services/crmAdvancedService.ts |
-| POST | `/lead-scoring/track/meeting` | services/crmAdvancedService.ts |
-| POST | `/lead-scoring/track/call` | services/crmAdvancedService.ts |
-| POST | `/lead-scoring/process-decay` | services/crmAdvancedService.ts |
-
-### transactions (21 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/transactions` | services/financeService.ts |
-| GET | `/transactions/${id}` | services/financeService.ts |
-| POST | `/transactions` | services/financeService.ts |
-| GET | `/transactions/balance` | services/financeService.ts |
-| GET | `/transactions/summary` | services/financeService.ts |
-| PATCH | `/transactions/${id}` | services/financeService.ts |
-| DELETE | `/transactions/${id}` | services/financeService.ts |
-| PUT | `/transactions/${id}` | services/transactionService.ts |
-| GET | `/transactions/by-category` | services/transactionService.ts |
-| POST | `/transactions/${id}/cancel` | services/transactionService.ts |
-| DELETE | `/transactions/bulk` | services/transactionService.ts |
-| POST | `/transactions/${id}/reconcile` | services/transactionService.ts |
-| POST | `/transactions/${id}/unreconcile` | services/transactionService.ts |
-| POST | `/transactions/${id}/attachments` | services/transactionService.ts |
-| DELETE | `/transactions/${id}/attachments/${attachmentId}` | services/transactionService.ts |
-| GET | `/transactions/categories` | services/transactionService.ts |
-| GET | `/transactions/export` | services/transactionService.ts |
-| GET | `/transactions/pending` | services/transactionService.ts |
-| GET | `/transactions/unreconciled` | services/transactionService.ts |
-| GET | `/transactions/search` | services/transactionService.ts |
-| GET | `/transactions/stats` | services/transactionService.ts |
-
-### hr-analytics (21 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/hr-analytics/dashboard` | services/hrAnalyticsService.ts |
-| GET | `/hr-analytics/demographics` | services/hrAnalyticsService.ts |
-| GET | `/hr-analytics/turnover` | services/hrAnalyticsService.ts |
-| GET | `/hr-analytics/absenteeism` | services/hrAnalyticsService.ts |
-| GET | `/hr-analytics/attendance` | services/hrAnalyticsService.ts |
-| GET | `/hr-analytics/performance` | services/hrAnalyticsService.ts |
-| GET | `/hr-analytics/recruitment` | services/hrAnalyticsService.ts |
-| GET | `/hr-analytics/compensation` | services/hrAnalyticsService.ts |
-| GET | `/hr-analytics/training` | services/hrAnalyticsService.ts |
-| GET | `/hr-analytics/leave` | services/hrAnalyticsService.ts |
-| GET | `/hr-analytics/saudization` | services/hrAnalyticsService.ts |
-| POST | `/hr-analytics/snapshot` | services/hrAnalyticsService.ts |
-| GET | `/hr-analytics/trends` | services/hrAnalyticsService.ts |
-| GET | `/hr-analytics/export` | services/hrAnalyticsService.ts |
-| GET | `/hr-analytics/predictions/attrition` | services/hrAnalyticsService.ts |
-| GET | `/hr-analytics/predictions/attrition/${employeeId}` | services/hrAnalyticsService.ts |
-| GET | `/hr-analytics/predictions/workforce` | services/hrAnalyticsService.ts |
-| GET | `/hr-analytics/predictions/high-potential` | services/hrAnalyticsService.ts |
-| GET | `/hr-analytics/predictions/flight-risk` | services/hrAnalyticsService.ts |
-| GET | `/hr-analytics/predictions/absence` | services/hrAnalyticsService.ts |
-| GET | `/hr-analytics/predictions/engagement` | services/hrAnalyticsService.ts |
-
-### leads (20 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| POST | `/leads` | hooks/useApiError.tsx |
-| GET | `/leads` | services/accountingService.ts |
-| GET | `/leads/${id}` | services/accountingService.ts |
-| PUT | `/leads/${id}` | services/accountingService.ts |
-| DELETE | `/leads/${id}` | services/accountingService.ts |
-| POST | `/leads/${id}/convert` | services/accountingService.ts |
-| PATCH | `/leads/${id}/stage` | services/accountingService.ts |
-| POST | `/leads/${id}/activity` | services/accountingService.ts |
-| GET | `/leads/stats` | services/accountingService.ts |
-| POST | `/leads/${id}/status` | services/crmService.ts |
-| POST | `/leads/${id}/move` | services/crmService.ts |
-| GET | `/leads/${id}/conversion-preview` | services/crmService.ts |
-| GET | `/leads/follow-up` | services/crmService.ts |
-| GET | `/leads/${id}/activities` | services/crmService.ts |
-| POST | `/leads/${id}/activities` | services/crmService.ts |
-| POST | `/leads/${id}/follow-up` | services/crmService.ts |
-| POST | `/leads/${id}/verify/wathq` | services/crmService.ts |
-| POST | `/leads/${id}/verify/absher` | services/crmService.ts |
-| POST | `/leads/${id}/verify/address` | services/crmService.ts |
-| POST | `/leads/${id}/conflict-check` | services/crmService.ts |
-
 ### leave-allocations (20 missing)
 
 | Method | Endpoint | Source File |
@@ -1205,103 +431,29 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | GET | `/leave-allocations/statistics?${params.toString()}` | services/leaveAllocationService.ts |
 | POST | `/leave-allocations/:param` | services/leaveAllocationService.ts |
 
-### ml (20 missing)
+### corporate-cards (19 missing)
 
 | Method | Endpoint | Source File |
 |--------|----------|-------------|
-| GET | `/ml/scores` | services/mlScoringApi.ts |
-| GET | `/ml/scores/${leadId}` | services/mlScoringApi.ts |
-| POST | `/ml/scores/${leadId}/calculate` | services/mlScoringApi.ts |
-| POST | `/ml/scores/batch` | services/mlScoringApi.ts |
-| GET | `/ml/scores/${leadId}/explanation` | services/mlScoringApi.ts |
-| GET | `/ml/scores/${leadId}/hybrid` | services/mlScoringApi.ts |
-| GET | `/ml/priority-queue` | services/mlScoringApi.ts |
-| GET | `/ml/priority-queue/workload` | services/mlScoringApi.ts |
-| POST | `/ml/priority/${leadId}/contact` | services/mlScoringApi.ts |
-| PUT | `/ml/priority/${leadId}/assign` | services/mlScoringApi.ts |
-| GET | `/ml/sla/metrics` | services/mlScoringApi.ts |
-| GET | `/ml/sla/breaches` | services/mlScoringApi.ts |
-| GET | `/ml/analytics/dashboard` | services/mlScoringApi.ts |
-| GET | `/ml/analytics/feature-importance` | services/mlScoringApi.ts |
-| GET | `/ml/analytics/score-distribution` | services/mlScoringApi.ts |
-| POST | `/ml/train` | services/mlScoringApi.ts |
-| GET | `/ml/model/metrics` | services/mlScoringApi.ts |
-| POST | `/ml/model/export` | services/mlScoringApi.ts |
-| POST | `/ml/scores/:param/explanation` | services/mlScoringApi.ts |
-| GET | `/ml/priority/:param/contact` | services/mlScoringApi.ts |
-
-### analytics-reports (20 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/analytics-reports/stats` | services/reportsService.ts |
-| GET | `/analytics-reports/favorites` | services/reportsService.ts |
-| GET | `/analytics-reports/pinned` | services/reportsService.ts |
-| GET | `/analytics-reports/templates` | services/reportsService.ts |
-| GET | `/analytics-reports/section/${section}` | services/reportsService.ts |
-| POST | `/analytics-reports/from-template/${templateId}` | services/reportsService.ts |
-| POST | `/analytics-reports` | services/reportsService.ts |
-| POST | `/analytics-reports/bulk-delete` | services/reportsService.ts |
-| GET | `/analytics-reports/${id}` | services/reportsService.ts |
-| PATCH | `/analytics-reports/${id}` | services/reportsService.ts |
-| PUT | `/analytics-reports/${id}` | services/reportsService.ts |
-| DELETE | `/analytics-reports/${id}` | services/reportsService.ts |
-| POST | `/analytics-reports/${id}/run` | services/reportsService.ts |
-| POST | `/analytics-reports/${id}/clone` | services/reportsService.ts |
-| POST | `/analytics-reports/${id}/export` | services/reportsService.ts |
-| POST | `/analytics-reports/${id}/favorite` | services/reportsService.ts |
-| POST | `/analytics-reports/${id}/pin` | services/reportsService.ts |
-| POST | `/analytics-reports/${id}/schedule` | services/reportsService.ts |
-| DELETE | `/analytics-reports/${id}/schedule` | services/reportsService.ts |
-| POST | `/analytics-reports/:param` | services/reportsService.ts |
-
-### data-export (19 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| POST | `/data-export/export` | services/dataExportService.ts |
-| GET | `/data-export/jobs/${jobId}` | services/dataExportService.ts |
-| GET | `/data-export/jobs` | services/dataExportService.ts |
-| GET | `/data-export/jobs/${jobId}/download` | services/dataExportService.ts |
-| POST | `/data-export/jobs/${jobId}/cancel` | services/dataExportService.ts |
-| DELETE | `/data-export/jobs/${jobId}` | services/dataExportService.ts |
-| POST | `/data-export/import` | services/dataExportService.ts |
-| POST | `/data-export/import/${jobId}/start` | services/dataExportService.ts |
-| POST | `/data-export/import/${jobId}/validate` | services/dataExportService.ts |
-| GET | `/data-export/import/${jobId}` | services/dataExportService.ts |
-| GET | `/data-export/imports` | services/dataExportService.ts |
-| POST | `/data-export/import/${jobId}/cancel` | services/dataExportService.ts |
-| GET | `/data-export/templates` | services/dataExportService.ts |
-| POST | `/data-export/templates` | services/dataExportService.ts |
-| PATCH | `/data-export/templates/${id}` | services/dataExportService.ts |
-| DELETE | `/data-export/templates/${id}` | services/dataExportService.ts |
-| POST | `/data-export/jobs/:param` | services/dataExportService.ts |
-| GET | `/data-export/import/:param/cancel` | services/dataExportService.ts |
-| GET | `/data-export/templates/:param` | services/dataExportService.ts |
-
-### leave-requests (19 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/leave-requests/${requestId}` | services/leaveService.ts |
-| POST | `/leave-requests` | services/leaveService.ts |
-| PATCH | `/leave-requests/${requestId}` | services/leaveService.ts |
-| DELETE | `/leave-requests/${requestId}` | services/leaveService.ts |
-| POST | `/leave-requests/${requestId}/submit` | services/leaveService.ts |
-| POST | `/leave-requests/${requestId}/approve` | services/leaveService.ts |
-| POST | `/leave-requests/${requestId}/reject` | services/leaveService.ts |
-| POST | `/leave-requests/${requestId}/cancel` | services/leaveService.ts |
-| POST | `/leave-requests/${requestId}/confirm-return` | services/leaveService.ts |
-| POST | `/leave-requests/${requestId}/request-extension` | services/leaveService.ts |
-| GET | `/leave-requests/balance/${employeeId}` | services/leaveService.ts |
-| GET | `/leave-requests/stats?${params.toString()}` | services/leaveService.ts |
-| GET | `/leave-requests/calendar?${params.toString()}` | services/leaveService.ts |
-| POST | `/leave-requests/check-conflicts` | services/leaveService.ts |
-| POST | `/leave-requests/${requestId}/documents` | services/leaveService.ts |
-| POST | `/leave-requests/${requestId}/complete-handover` | services/leaveService.ts |
-| GET | `/leave-requests/pending-approvals` | services/leaveService.ts |
-| GET | `/leave-requests/types` | services/leaveService.ts |
-| POST | `/leave-requests/:param` | services/leaveService.ts |
+| GET | `/corporate-cards/transactions` | services/corporateCardService.ts |
+| GET | `/corporate-cards/transactions/${id}` | services/corporateCardService.ts |
+| POST | `/corporate-cards/transactions` | services/corporateCardService.ts |
+| PATCH | `/corporate-cards/transactions/${id}` | services/corporateCardService.ts |
+| DELETE | `/corporate-cards/transactions/${id}` | services/corporateCardService.ts |
+| POST | `/corporate-cards/transactions/${data.transactionId}/reconcile` | services/corporateCardService.ts |
+| POST | `/corporate-cards/transactions/bulk-reconcile` | services/corporateCardService.ts |
+| POST | `/corporate-cards/transactions/${transactionId}/match` | services/corporateCardService.ts |
+| GET | `/corporate-cards/transactions/${transactionId}/potential-matches` | services/corporateCardService.ts |
+| POST | `/corporate-cards/transactions/${transactionId}/dispute` | services/corporateCardService.ts |
+| POST | `/corporate-cards/transactions/${transactionId}/resolve-dispute` | services/corporateCardService.ts |
+| POST | `/corporate-cards/transactions/import` | services/corporateCardService.ts |
+| GET | `/corporate-cards/transactions/csv-template` | services/corporateCardService.ts |
+| GET | `/corporate-cards/statistics` | services/corporateCardService.ts |
+| GET | `/corporate-cards/reports/reconciliation` | services/corporateCardService.ts |
+| GET | `/corporate-cards/reports/reconciliation/export` | services/corporateCardService.ts |
+| GET | `/corporate-cards/analytics/spending-by-category` | services/corporateCardService.ts |
+| GET | `/corporate-cards/analytics/spending-by-card` | services/corporateCardService.ts |
+| GET | `/corporate-cards/analytics/monthly-trend` | services/corporateCardService.ts |
 
 ### workflows (19 missing)
 
@@ -1326,29 +478,6 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | GET | `/workflows/cases/${caseId}/progress` | services/workflowService.ts |
 | POST | `/workflows/cases/${caseId}/move` | services/workflowService.ts |
 | POST | `/workflows/cases/${caseId}/requirements/${requirementId}/complete` | services/workflowService.ts |
-
-### trust-accounts (18 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/trust-accounts` | services/trustAccountService.ts |
-| GET | `/trust-accounts/${id}` | services/trustAccountService.ts |
-| POST | `/trust-accounts` | services/trustAccountService.ts |
-| PATCH | `/trust-accounts/${id}` | services/trustAccountService.ts |
-| DELETE | `/trust-accounts/${id}` | services/trustAccountService.ts |
-| GET | `/trust-accounts/${accountId}/balances` | services/trustAccountService.ts |
-| GET | `/trust-accounts/${accountId}/balances/${clientId}` | services/trustAccountService.ts |
-| GET | `/trust-accounts/${accountId}/transactions` | services/trustAccountService.ts |
-| GET | `/trust-accounts/${accountId}/transactions/${transactionId}` | services/trustAccountService.ts |
-| POST | `/trust-accounts/${accountId}/transactions` | services/trustAccountService.ts |
-| POST | `/trust-accounts/${fromAccountId}/transfer` | services/trustAccountService.ts |
-| POST | `/trust-accounts/${accountId}/transactions/${transactionId}/void` | services/trustAccountService.ts |
-| GET | `/trust-accounts/${accountId}/reconciliations` | services/trustAccountService.ts |
-| POST | `/trust-accounts/${accountId}/reconciliations` | services/trustAccountService.ts |
-| POST | `/trust-accounts/${accountId}/three-way-reconciliations` | services/trustAccountService.ts |
-| GET | `/trust-accounts/${accountId}/three-way-reconciliations` | services/trustAccountService.ts |
-| GET | `/trust-accounts/${id}/summary` | services/trustAccountService.ts |
-| POST | `/trust-accounts/:param` | services/trustAccountService.ts |
 
 ### activities (17 missing)
 
@@ -1394,70 +523,27 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | GET | `/chatter/attachments/${resModel}/${resId}` | services/chatterService.ts |
 | DELETE | `/chatter/attachments/${attachmentId}` | services/chatterService.ts |
 
-### expenses (17 missing)
+### reminders (17 missing)
 
 | Method | Endpoint | Source File |
 |--------|----------|-------------|
-| GET | `/expenses` | services/expenseService.ts |
-| GET | `/expenses/${id}` | services/expenseService.ts |
-| POST | `/expenses` | services/expenseService.ts |
-| PUT | `/expenses/${id}` | services/expenseService.ts |
-| DELETE | `/expenses/${id}` | services/expenseService.ts |
-| POST | `/expenses/${id}/reimburse` | services/expenseService.ts |
-| POST | `/expenses/${id}/receipt` | services/expenseService.ts |
-| GET | `/expenses/stats` | services/expenseService.ts |
-| GET | `/expenses/by-category` | services/expenseService.ts |
-| POST | `/expenses/${id}/submit` | services/expenseService.ts |
-| POST | `/expenses/${id}/approve` | services/expenseService.ts |
-| POST | `/expenses/${id}/reject` | services/expenseService.ts |
-| POST | `/expenses/bulk-approve` | services/expenseService.ts |
-| POST | `/expenses/bulk-delete` | services/expenseService.ts |
-| POST | `/expenses/suggest-category` | services/expenseService.ts |
-| GET | `/expenses/categories` | services/expenseService.ts |
-| GET | `/expenses/new` | services/expenseService.ts |
-
-### followups (17 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/followups/${id}` | services/followupsService.ts |
-| POST | `/followups` | services/followupsService.ts |
-| PATCH | `/followups/${id}` | services/followupsService.ts |
-| DELETE | `/followups/${id}` | services/followupsService.ts |
-| GET | `/followups/entity/${entityType}/${entityId}` | services/followupsService.ts |
-| GET | `/followups/stats` | services/followupsService.ts |
-| GET | `/followups/overdue` | services/followupsService.ts |
-| GET | `/followups/upcoming?days=${days}` | services/followupsService.ts |
-| GET | `/followups/today` | services/followupsService.ts |
-| POST | `/followups/${id}/complete` | services/followupsService.ts |
-| POST | `/followups/${id}/cancel` | services/followupsService.ts |
-| POST | `/followups/${id}/reschedule` | services/followupsService.ts |
-| POST | `/followups/${id}/notes` | services/followupsService.ts |
-| POST | `/followups/bulk-complete` | services/followupsService.ts |
-| POST | `/followups/bulk-delete` | services/followupsService.ts |
-| POST | `/followups/:param` | services/followupsService.ts |
-| GET | `/followups/:param/complete` | services/followupsService.ts |
-
-### journal-entries (16 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/journal-entries` | services/accountingService.ts |
-| GET | `/journal-entries/${id}` | services/accountingService.ts |
-| POST | `/journal-entries` | services/accountingService.ts |
-| POST | `/journal-entries/simple` | services/accountingService.ts |
-| PATCH | `/journal-entries/${id}` | services/accountingService.ts |
-| POST | `/journal-entries/${id}/post` | services/accountingService.ts |
-| POST | `/journal-entries/${id}/void` | services/accountingService.ts |
-| DELETE | `/journal-entries/${id}` | services/accountingService.ts |
-| POST | `/journal-entries/${id}/attachments` | services/journalEntryService.ts |
-| DELETE | `/journal-entries/${id}/attachments/${attachmentId}` | services/journalEntryService.ts |
-| GET | `/journal-entries/stats` | services/journalEntryService.ts |
-| POST | `/journal-entries/validate` | services/journalEntryService.ts |
-| GET | `/journal-entries/recent` | services/journalEntryService.ts |
-| POST | `/journal-entries/${id}/duplicate` | services/journalEntryService.ts |
-| GET | `/journal-entries/templates` | services/journalEntryService.ts |
-| POST | `/journal-entries/from-template/${templateId}` | services/journalEntryService.ts |
+| POST | `/reminders/${id}/reopen` | services/remindersService.ts |
+| POST | `/reminders/${id}/cancel-snooze` | services/remindersService.ts |
+| GET | `/reminders/today` | services/remindersService.ts |
+| GET | `/reminders/snoozed` | services/remindersService.ts |
+| GET | `/reminders/my-reminders` | services/remindersService.ts |
+| POST | `/reminders/${id}/recurring/skip` | services/remindersService.ts |
+| POST | `/reminders/${id}/recurring/stop` | services/remindersService.ts |
+| GET | `/reminders/${id}/recurring/history` | services/remindersService.ts |
+| PATCH | `/reminders/${id}/notification` | services/remindersService.ts |
+| POST | `/reminders/${id}/notification/test` | services/remindersService.ts |
+| POST | `/reminders/${id}/acknowledge` | services/remindersService.ts |
+| POST | `/reminders/bulk/snooze` | services/remindersService.ts |
+| POST | `/reminders/bulk/dismiss` | services/remindersService.ts |
+| POST | `/reminders/import` | services/remindersService.ts |
+| GET | `/reminders/templates` | services/remindersService.ts |
+| POST | `/reminders/templates/${templateId}/create` | services/remindersService.ts |
+| POST | `/reminders/${id}/save-as-template` | services/remindersService.ts |
 
 ### budgets (16 missing)
 
@@ -1480,47 +566,26 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | POST | `/budgets/${budgetId}/distribution` | services/budgetService.ts |
 | POST | `/budgets/${id}/duplicate` | services/budgetService.ts |
 
-### payroll-runs (16 missing)
+### email-marketing (16 missing)
 
 | Method | Endpoint | Source File |
 |--------|----------|-------------|
-| GET | `/payroll-runs/${runId}` | services/payrollRunService.ts |
-| POST | `/payroll-runs` | services/payrollRunService.ts |
-| PATCH | `/payroll-runs/${runId}` | services/payrollRunService.ts |
-| DELETE | `/payroll-runs/${runId}` | services/payrollRunService.ts |
-| POST | `/payroll-runs/${runId}/calculate` | services/payrollRunService.ts |
-| POST | `/payroll-runs/${runId}/validate` | services/payrollRunService.ts |
-| POST | `/payroll-runs/${runId}/approve` | services/payrollRunService.ts |
-| POST | `/payroll-runs/${runId}/process-payments` | services/payrollRunService.ts |
-| POST | `/payroll-runs/${runId}/generate-wps` | services/payrollRunService.ts |
-| POST | `/payroll-runs/${runId}/cancel` | services/payrollRunService.ts |
-| POST | `/payroll-runs/${runId}/send-notifications` | services/payrollRunService.ts |
-| GET | `/payroll-runs/stats` | services/payrollRunService.ts |
-| POST | `/payroll-runs/${runId}/employees/${empId}/hold` | services/payrollRunService.ts |
-| POST | `/payroll-runs/${runId}/employees/${empId}/unhold` | services/payrollRunService.ts |
-| POST | `/payroll-runs/:param` | services/payrollRunService.ts |
-| GET | `/payroll-runs/:param/employees/:param/hold` | services/payrollRunService.ts |
-
-### saved-reports (16 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/saved-reports/reports?${params.toString()}` | services/reportsService.ts |
-| POST | `/saved-reports/reports` | services/reportsService.ts |
-| GET | `/saved-reports/reports/${id}` | services/reportsService.ts |
-| PATCH | `/saved-reports/reports/${id}` | services/reportsService.ts |
-| DELETE | `/saved-reports/reports/${id}` | services/reportsService.ts |
-| POST | `/saved-reports/reports/${id}/run` | services/reportsService.ts |
-| POST | `/saved-reports/reports/${id}/duplicate` | services/reportsService.ts |
-| GET | `/saved-reports/widgets/defaults` | services/reportsService.ts |
-| PATCH | `/saved-reports/widgets/layout` | services/reportsService.ts |
-| GET | `/saved-reports/widgets` | services/reportsService.ts |
-| POST | `/saved-reports/widgets` | services/reportsService.ts |
-| GET | `/saved-reports/widgets/${id}` | services/reportsService.ts |
-| PATCH | `/saved-reports/widgets/${id}` | services/reportsService.ts |
-| DELETE | `/saved-reports/widgets/${id}` | services/reportsService.ts |
-| GET | `/saved-reports/widgets/${id}/data` | services/reportsService.ts |
-| POST | `/saved-reports/reports/:param` | services/reportsService.ts |
+| POST | `/email-marketing/templates/${id}/duplicate` | services/crmAdvancedService.ts |
+| POST | `/email-marketing/campaigns/${id}/ab-test` | services/crmAdvancedService.ts |
+| GET | `/email-marketing/campaigns/${id}/ab-test/results` | services/crmAdvancedService.ts |
+| POST | `/email-marketing/campaigns/${id}/ab-test/pick-winner` | services/crmAdvancedService.ts |
+| GET | `/email-marketing/drip-campaigns` | services/crmAdvancedService.ts |
+| GET | `/email-marketing/drip-campaigns/${id}` | services/crmAdvancedService.ts |
+| POST | `/email-marketing/drip-campaigns` | services/crmAdvancedService.ts |
+| PUT | `/email-marketing/drip-campaigns/${id}` | services/crmAdvancedService.ts |
+| DELETE | `/email-marketing/drip-campaigns/${id}` | services/crmAdvancedService.ts |
+| POST | `/email-marketing/drip-campaigns/${id}/activate` | services/crmAdvancedService.ts |
+| POST | `/email-marketing/drip-campaigns/${id}/pause` | services/crmAdvancedService.ts |
+| POST | `/email-marketing/drip-campaigns/${id}/enroll` | services/crmAdvancedService.ts |
+| POST | `/email-marketing/drip-campaigns/${id}/remove` | services/crmAdvancedService.ts |
+| POST | `/email-marketing/subscribers/${id}/tags` | services/crmAdvancedService.ts |
+| DELETE | `/email-marketing/subscribers/${id}/tags` | services/crmAdvancedService.ts |
+| GET | `/email-marketing/segments/${id}/preview` | services/crmAdvancedService.ts |
 
 ### shift-assignments (16 missing)
 
@@ -1543,105 +608,45 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | POST | `/shift-assignments/coverage-report?:param` | services/shiftAssignmentService.ts |
 | POST | `/shift-assignments/export?:param` | services/shiftAssignmentService.ts |
 
-### webhooks (16 missing)
+### documents (15 missing)
 
 | Method | Endpoint | Source File |
 |--------|----------|-------------|
-| GET | `/webhooks/stats` | services/webhookService.ts |
-| GET | `/webhooks/events` | services/webhookService.ts |
-| POST | `/webhooks` | services/webhookService.ts |
-| GET | `/webhooks` | services/webhookService.ts |
-| GET | `/webhooks/${id}` | services/webhookService.ts |
-| PUT | `/webhooks/${id}` | services/webhookService.ts |
-| PATCH | `/webhooks/${id}` | services/webhookService.ts |
-| DELETE | `/webhooks/${id}` | services/webhookService.ts |
-| POST | `/webhooks/${id}/test` | services/webhookService.ts |
-| POST | `/webhooks/${id}/enable` | services/webhookService.ts |
-| POST | `/webhooks/${id}/disable` | services/webhookService.ts |
-| GET | `/webhooks/${id}/secret` | services/webhookService.ts |
-| POST | `/webhooks/${id}/regenerate-secret` | services/webhookService.ts |
-| GET | `/webhooks/${id}/deliveries` | services/webhookService.ts |
-| GET | `/webhooks/${id}/deliveries/${deliveryId}` | services/webhookService.ts |
-| POST | `/webhooks/${id}/deliveries/${deliveryId}/retry` | services/webhookService.ts |
+| GET | `/documents/${documentId}/versions/${versionId}` | services/documentVersionService.ts |
+| GET | `/documents/${documentId}/versions/${versionId}/download` | services/documentVersionService.ts |
+| GET | `/documents/${documentId}/versions/${versionId}/download-url` | services/documentVersionService.ts |
+| GET | `/documents/${documentId}/versions/${versionId}/preview-url` | services/documentVersionService.ts |
+| DELETE | `/documents/${documentId}/versions/${versionId}` | services/documentVersionService.ts |
+| POST | `/documents/${documentId}/versions/cleanup` | services/documentVersionService.ts |
+| GET | `/documents/${documentId}/versions/compare?v1=${versionId1}&v2=${versionId2}` | services/documentVersionService.ts |
+| GET | `/documents/${documentId}/versions/statistics` | services/documentVersionService.ts |
+| GET | `/documents/${documentId}/versions/diff?v1=${versionId1}&v2=${versionId2}` | services/documentVersionService.ts |
+| GET | `/documents/${documentId}/versions/${versionId}/content` | services/documentVersionService.ts |
+| PATCH | `/documents/${documentId}/versions/${versionId}` | services/documentVersionService.ts |
+| GET | `/documents/${id}/preview-url` | services/documentsService.ts |
+| GET | `/documents/${id}/download-url?disposition=${disposition}` | services/documentsService.ts |
+| POST | `/documents/${id}/encrypt` | services/documentsService.ts |
+| POST | `/documents/${id}/decrypt` | services/documentsService.ts |
 
-### users (15 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| POST | `/users/push-subscription` | lib/push-notifications.ts |
-| DELETE | `/users/push-subscription` | lib/push-notifications.ts |
-| GET | `/users/team` | services/usersService.ts |
-| GET | `/users/lawyers` | services/usersService.ts |
-| GET | `/users/${userId}` | services/usersService.ts |
-| GET | `/users/lawyer/${username}` | services/usersService.ts |
-| PATCH | `/users/${userId}` | services/usersService.ts |
-| DELETE | `/users/${userId}` | services/usersService.ts |
-| GET | `/users/vapid-public-key` | services/usersService.ts |
-| GET | `/users/push-subscription` | services/usersService.ts |
-| GET | `/users/notification-preferences` | services/usersService.ts |
-| PUT | `/users/notification-preferences` | services/usersService.ts |
-| POST | `/users/convert-to-firm` | services/usersService.ts |
-| GET | `/users` | utils/retry.ts |
-| POST | `/users` | utils/retry.ts |
-
-### reports (15 missing)
+### tasks (15 missing)
 
 | Method | Endpoint | Source File |
 |--------|----------|-------------|
-| GET | `/reports/profit-loss` | services/accountingService.ts |
-| GET | `/reports/balance-sheet` | services/accountingService.ts |
-| GET | `/reports/trial-balance` | services/accountingService.ts |
-| GET | `/reports/ar-aging` | services/accountingService.ts |
-| GET | `/reports/case-profitability` | services/accountingService.ts |
-| DELETE | `/reports/consolidated/elimination-rules/${id}` | services/consolidatedReportService.ts |
-| POST | `/reports/consolidated/export` | services/consolidatedReportService.ts |
-| GET | `/reports/accounts-aging` | services/financeService.ts |
-| GET | `/reports/revenue-by-client` | services/financeService.ts |
-| GET | `/reports/outstanding-invoices` | services/financeService.ts |
-| GET | `/reports/time-entries` | services/financeService.ts |
-| GET | `/reports/${reportType}/export` | services/financeService.ts |
-| GET | `/reports/templates` | services/reportsService.ts |
-| POST | `/reports/generate` | services/reportsService.ts |
-| POST | `/reports/export` | services/reportsService.ts |
-
-### recurring-invoices (15 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/recurring-invoices` | services/recurringInvoiceService.ts |
-| GET | `/recurring-invoices/${id}` | services/recurringInvoiceService.ts |
-| POST | `/recurring-invoices` | services/recurringInvoiceService.ts |
-| PATCH | `/recurring-invoices/${id}` | services/recurringInvoiceService.ts |
-| DELETE | `/recurring-invoices/${id}` | services/recurringInvoiceService.ts |
-| POST | `/recurring-invoices/${id}/pause` | services/recurringInvoiceService.ts |
-| POST | `/recurring-invoices/${id}/resume` | services/recurringInvoiceService.ts |
-| POST | `/recurring-invoices/${id}/cancel` | services/recurringInvoiceService.ts |
-| POST | `/recurring-invoices/${id}/generate` | services/recurringInvoiceService.ts |
-| GET | `/recurring-invoices/${id}/preview` | services/recurringInvoiceService.ts |
-| GET | `/recurring-invoices/${id}/history` | services/recurringInvoiceService.ts |
-| GET | `/recurring-invoices/stats` | services/recurringInvoiceService.ts |
-| POST | `/recurring-invoices/${id}/duplicate` | services/recurringInvoiceService.ts |
-| POST | `/recurring-invoices/:param` | services/recurringInvoiceService.ts |
-| GET | `/recurring-invoices/:param/duplicate` | services/recurringInvoiceService.ts |
-
-### price-levels (14 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/price-levels` | services/accountingService.ts |
-| GET | `/price-levels/client-rate` | services/accountingService.ts |
-| GET | `/price-levels/${id}` | services/accountingService.ts |
-| POST | `/price-levels` | services/accountingService.ts |
-| PUT | `/price-levels/${id}` | services/accountingService.ts |
-| DELETE | `/price-levels/${id}` | services/accountingService.ts |
-| POST | `/price-levels/${id}/set-default` | services/accountingService.ts |
-| GET | `/price-levels/default` | services/priceLevelService.ts |
-| POST | `/price-levels/${id}/calculate` | services/priceLevelService.ts |
-| POST | `/price-levels/${id}/assign` | services/priceLevelService.ts |
-| GET | `/price-levels/${id}/clients` | services/priceLevelService.ts |
-| POST | `/price-levels/${id}/duplicate` | services/priceLevelService.ts |
-| POST | `/price-levels/${id}/archive` | services/priceLevelService.ts |
-| POST | `/price-levels/${id}/restore` | services/priceLevelService.ts |
+| PATCH | `/tasks/${taskId}/subtasks/reorder` | services/tasksService.ts |
+| POST | `/tasks/${taskId}/time-tracking/start` | services/tasksService.ts |
+| POST | `/tasks/${taskId}/time-tracking/stop` | services/tasksService.ts |
+| POST | `/tasks/${taskId}/time-tracking/manual` | services/tasksService.ts |
+| GET | `/tasks/${taskId}/time-tracking` | services/tasksService.ts |
+| GET | `/tasks/${taskId}/available-dependencies` | services/tasksService.ts |
+| PATCH | `/tasks/${taskId}/workflow-rules/${ruleId}` | services/tasksService.ts |
+| DELETE | `/tasks/${taskId}/workflow-rules/${ruleId}` | services/tasksService.ts |
+| POST | `/tasks/${taskId}/workflow-rules/${ruleId}/toggle` | services/tasksService.ts |
+| GET | `/tasks/my-tasks` | services/tasksService.ts |
+| POST | `/tasks/import` | services/tasksService.ts |
+| POST | `/tasks/${taskId}/recurring/skip` | services/tasksService.ts |
+| POST | `/tasks/${taskId}/recurring/stop` | services/tasksService.ts |
+| GET | `/tasks/${taskId}/recurring/history` | services/tasksService.ts |
+| DELETE | `/tasks/${taskId}/voice-memos/${memoId}` | services/tasksService.ts |
 
 ### assets (14 missing)
 
@@ -1681,25 +686,6 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | POST | `/automated-actions/bulk/disable` | services/automatedActionService.ts |
 | DELETE | `/automated-actions/bulk` | services/automatedActionService.ts |
 
-### crm-activities (14 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/crm-activities` | services/crmService.ts |
-| GET | `/crm-activities/${id}` | services/crmService.ts |
-| POST | `/crm-activities` | services/crmService.ts |
-| PUT | `/crm-activities/${id}` | services/crmService.ts |
-| DELETE | `/crm-activities/${id}` | services/crmService.ts |
-| GET | `/crm-activities/timeline` | services/crmService.ts |
-| GET | `/crm-activities/stats` | services/crmService.ts |
-| GET | `/crm-activities/entity/${entityType}/${entityId}` | services/crmService.ts |
-| GET | `/crm-activities/tasks/upcoming` | services/crmService.ts |
-| POST | `/crm-activities/${id}/complete` | services/crmService.ts |
-| POST | `/crm-activities/log/call` | services/crmService.ts |
-| POST | `/crm-activities/log/email` | services/crmService.ts |
-| POST | `/crm-activities/log/meeting` | services/crmService.ts |
-| POST | `/crm-activities/log/note` | services/crmService.ts |
-
 ### leave-periods (14 missing)
 
 | Method | Endpoint | Source File |
@@ -1737,162 +723,23 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | POST | `/attendance/${recordId}/violations/${violationId}/dismiss` | services/attendanceService.ts |
 | GET | `/attendance/compliance-report?${params.toString()}` | services/attendanceService.ts |
 
-### firms (13 missing)
+### workflow (13 missing)
 
 | Method | Endpoint | Source File |
 |--------|----------|-------------|
-| GET | `/firms/my` | services/billingSettingsService.ts |
-| PUT | `/firms/${cachedFirmId}` | services/billingSettingsService.ts |
-| POST | `/firms/${cachedFirmId}/logo` | services/billingSettingsService.ts |
-| PATCH | `/firms/${cachedFirmId}` | services/billingSettingsService.ts |
-| DELETE | `/firms/${id}` | services/companyService.ts |
-| DELETE | `/firms/${firmId}/access/${userId}` | services/companyService.ts |
-| DELETE | `/firms/${firmId}/members/${memberId}` | services/firmService.ts |
-| POST | `/firms/${firmId}/leave` | services/firmService.ts |
-| POST | `/firms/${firmId}/transfer-ownership` | services/firmService.ts |
-| DELETE | `/firms/${firmId}/invitations/${invitationId}` | services/firmService.ts |
-| POST | `/firms/${firmId}/invitations/${invitationId}/resend` | services/firmService.ts |
-| POST | `/firms/lawyer/add` | services/firmService.ts |
-| POST | `/firms/lawyer/remove` | services/firmService.ts |
-
-### credit-notes (13 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/credit-notes` | services/financeService.ts |
-| GET | `/credit-notes/${id}` | services/financeService.ts |
-| POST | `/credit-notes` | services/financeService.ts |
-| PATCH | `/credit-notes/${id}` | services/financeService.ts |
-| DELETE | `/credit-notes/${id}` | services/financeService.ts |
-| POST | `/credit-notes/${id}/issue` | services/financeService.ts |
-| POST | `/credit-notes/${id}/apply` | services/financeService.ts |
-| POST | `/credit-notes/${id}/void` | services/financeService.ts |
-| GET | `/credit-notes/invoice/${invoiceId}` | services/financeService.ts |
-| POST | `/credit-notes/${id}/zatca/submit` | services/financeService.ts |
-| GET | `/credit-notes/${id}/zatca/status` | services/financeService.ts |
-| GET | `/credit-notes/${id}/pdf` | services/financeService.ts |
-| GET | `/credit-notes/${id}/xml` | services/financeService.ts |
-
-### notifications (13 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/notifications` | services/notificationService.ts |
-| GET | `/notifications/${id}` | services/notificationService.ts |
-| GET | `/notifications/unread-count` | services/notificationService.ts |
-| PATCH | `/notifications/${id}/read` | services/notificationService.ts |
-| PATCH | `/notifications/mark-multiple-read` | services/notificationService.ts |
-| PATCH | `/notifications/mark-all-read` | services/notificationService.ts |
-| DELETE | `/notifications/${id}` | services/notificationService.ts |
-| DELETE | `/notifications/bulk-delete` | services/notificationService.ts |
-| DELETE | `/notifications/clear-read` | services/notificationService.ts |
-| GET | `/notifications/settings` | services/notificationService.ts |
-| PATCH | `/notifications/settings` | services/notificationService.ts |
-| POST | `/notifications` | services/notificationService.ts |
-| GET | `/notifications/by-type/${type}` | services/notificationService.ts |
-
-### queues (13 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/queues` | services/queueService.ts |
-| GET | `/queues/${name}` | services/queueService.ts |
-| GET | `/queues/${name}/jobs` | services/queueService.ts |
-| GET | `/queues/${name}/jobs/${jobId}` | services/queueService.ts |
-| GET | `/queues/${name}/counts` | services/queueService.ts |
-| POST | `/queues/${name}/retry/${jobId}` | services/queueService.ts |
-| DELETE | `/queues/${name}/jobs/${jobId}` | services/queueService.ts |
-| POST | `/queues/${name}/pause` | services/queueService.ts |
-| POST | `/queues/${name}/resume` | services/queueService.ts |
-| POST | `/queues/${name}/clean` | services/queueService.ts |
-| POST | `/queues/${name}/empty` | services/queueService.ts |
-| POST | `/queues/${name}/jobs` | services/queueService.ts |
-| POST | `/queues/${name}/jobs/bulk` | services/queueService.ts |
-
-### general-ledger (12 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/general-ledger/entries` | services/accountingService.ts |
-| GET | `/general-ledger/${id}` | services/accountingService.ts |
-| POST | `/general-ledger/${id}/void` | services/accountingService.ts |
-| GET | `/general-ledger/account-balance/${accountId}` | services/accountingService.ts |
-| GET | `/general-ledger/trial-balance` | services/accountingService.ts |
-| GET | `/general-ledger/profit-loss` | services/accountingService.ts |
-| GET | `/general-ledger/balance-sheet` | services/accountingService.ts |
-| GET | `/general-ledger/reference/${model}/${id}` | services/accountingService.ts |
-| GET | `/general-ledger/summary` | services/accountingService.ts |
-| GET | `/general-ledger/stats` | services/accountingService.ts |
-| GET | `/general-ledger` | services/generalLedgerService.ts |
-| POST | `/general-ledger/void/${id}` | services/generalLedgerService.ts |
-
-### fiscal-periods (12 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/fiscal-periods` | services/accountingService.ts |
-| GET | `/fiscal-periods/current` | services/accountingService.ts |
-| GET | `/fiscal-periods/can-post` | services/accountingService.ts |
-| GET | `/fiscal-periods/years-summary` | services/accountingService.ts |
-| POST | `/fiscal-periods/create-year` | services/accountingService.ts |
-| GET | `/fiscal-periods/${id}` | services/accountingService.ts |
-| GET | `/fiscal-periods/${id}/balances` | services/accountingService.ts |
-| POST | `/fiscal-periods/${id}/open` | services/accountingService.ts |
-| POST | `/fiscal-periods/${id}/close` | services/accountingService.ts |
-| POST | `/fiscal-periods/${id}/reopen` | services/accountingService.ts |
-| POST | `/fiscal-periods/${id}/lock` | services/accountingService.ts |
-| POST | `/fiscal-periods/${id}/year-end-closing` | services/accountingService.ts |
-
-### audit-logs (12 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/audit-logs` | services/auditLogService.ts |
-| GET | `/audit-logs/entity/${type}/${id}` | services/auditLogService.ts |
-| GET | `/audit-logs/user/${id}` | services/auditLogService.ts |
-| GET | `/audit-logs/security` | services/auditLogService.ts |
-| GET | `/audit-logs/export` | services/auditLogService.ts |
-| GET | `/audit-logs/failed-logins` | services/auditLogService.ts |
-| GET | `/audit-logs/suspicious` | services/auditLogService.ts |
-| POST | `/audit-logs/check-brute-force` | services/auditLogService.ts |
-| POST | `/audit-logs` | services/auditService.ts |
-| POST | `/audit-logs/batch` | services/auditService.ts |
-| GET | `/audit-logs/resource/${resource}/${resourceId}` | services/auditService.ts |
-| GET | `/audit-logs/stats` | services/auditService.ts |
-
-### crm-pipelines (12 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/crm-pipelines` | services/crmService.ts |
-| GET | `/crm-pipelines/${id}` | services/crmService.ts |
-| POST | `/crm-pipelines` | services/crmService.ts |
-| PUT | `/crm-pipelines/${id}` | services/crmService.ts |
-| DELETE | `/crm-pipelines/${id}` | services/crmService.ts |
-| POST | `/crm-pipelines/${id}/stages` | services/crmService.ts |
-| PUT | `/crm-pipelines/${id}/stages/${stageId}` | services/crmService.ts |
-| DELETE | `/crm-pipelines/${id}/stages/${stageId}` | services/crmService.ts |
-| POST | `/crm-pipelines/${id}/stages/reorder` | services/crmService.ts |
-| GET | `/crm-pipelines/${id}/stats` | services/crmService.ts |
-| POST | `/crm-pipelines/${id}/default` | services/crmService.ts |
-| POST | `/crm-pipelines/${id}/duplicate` | services/crmService.ts |
-
-### document-analysis (12 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| POST | `/document-analysis/${documentId}` | services/documentAnalysisService.ts |
-| GET | `/document-analysis/${documentId}` | services/documentAnalysisService.ts |
-| DELETE | `/document-analysis/${documentId}` | services/documentAnalysisService.ts |
-| POST | `/document-analysis/${documentId}/reanalyze` | services/documentAnalysisService.ts |
-| GET | `/document-analysis/${documentId}/status` | services/documentAnalysisService.ts |
-| GET | `/document-analysis/${documentId}/history` | services/documentAnalysisService.ts |
-| POST | `/document-analysis/batch` | services/documentAnalysisService.ts |
-| GET | `/document-analysis/search` | services/documentAnalysisService.ts |
-| GET | `/document-analysis/${documentId}/similar` | services/documentAnalysisService.ts |
-| GET | `/document-analysis/${documentId}/report` | services/documentAnalysisService.ts |
-| GET | `/document-analysis/stats` | services/documentAnalysisService.ts |
-| POST | `/document-analysis/:param/similar` | services/documentAnalysisService.ts |
+| GET | `/workflow/templates` | services/workflowService.ts |
+| POST | `/workflow/templates` | services/workflowService.ts |
+| GET | `/workflow/templates/${id}` | services/workflowService.ts |
+| PUT | `/workflow/templates/${id}` | services/workflowService.ts |
+| DELETE | `/workflow/templates/${id}` | services/workflowService.ts |
+| GET | `/workflow/instances` | services/workflowService.ts |
+| POST | `/workflow/instances` | services/workflowService.ts |
+| GET | `/workflow/instances/${id}` | services/workflowService.ts |
+| POST | `/workflow/instances/${id}/pause` | services/workflowService.ts |
+| POST | `/workflow/instances/${id}/resume` | services/workflowService.ts |
+| POST | `/workflow/instances/${id}/cancel` | services/workflowService.ts |
+| POST | `/workflow/instances/${id}/advance` | services/workflowService.ts |
+| GET | `/workflow/entity/${entityType}/${entityId}` | services/workflowService.ts |
 
 ### legal-documents (12 missing)
 
@@ -1911,149 +758,36 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | POST | `/legal-documents/${id}/duplicate` | services/legalDocumentService.ts |
 | GET | `/legal-documents/${id}/export` | services/legalDocumentService.ts |
 
-### organizations (12 missing)
+### payroll (11 missing)
 
 | Method | Endpoint | Source File |
 |--------|----------|-------------|
-| GET | `/organizations/${id}` | services/organizationsService.ts |
-| POST | `/organizations` | services/organizationsService.ts |
-| PATCH | `/organizations/${id}` | services/organizationsService.ts |
-| DELETE | `/organizations/${id}` | services/organizationsService.ts |
-| DELETE | `/organizations/bulk` | services/organizationsService.ts |
-| GET | `/organizations/search?q=${encodeURIComponent(query)}` | services/organizationsService.ts |
-| GET | `/organizations/client/${clientId}` | services/organizationsService.ts |
-| POST | `/organizations/${organizationId}/link-case` | services/organizationsService.ts |
-| POST | `/organizations/${organizationId}/link-client` | services/organizationsService.ts |
-| POST | `/organizations/${organizationId}/link-contact` | services/organizationsService.ts |
-| POST | `/organizations/:param` | services/organizationsService.ts |
-| DELETE | `/organizations/search?q=:param` | services/organizationsService.ts |
+| GET | `/payroll/${id}` | services/payrollService.ts |
+| POST | `/payroll` | services/payrollService.ts |
+| PUT | `/payroll/${id}` | services/payrollService.ts |
+| DELETE | `/payroll/${id}` | services/payrollService.ts |
+| POST | `/payroll/${id}/approve` | services/payrollService.ts |
+| POST | `/payroll/${id}/pay` | services/payrollService.ts |
+| GET | `/payroll/stats?${params.toString()}` | services/payrollService.ts |
+| POST | `/payroll/generate` | services/payrollService.ts |
+| POST | `/payroll/approve` | services/payrollService.ts |
+| POST | `/payroll/pay` | services/payrollService.ts |
+| POST | `/payroll/wps/submit` | services/payrollService.ts |
 
-### messages (11 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/messages/${conversationID}` | hooks/useChat.ts |
-| POST | `/messages` | hooks/useChat.ts |
-| PATCH | `/messages/${conversationID}/read` | hooks/useChat.ts |
-| POST | `/messages/note` | services/messageService.ts |
-| GET | `/messages/thread/${resModel}/${resId}` | services/messageService.ts |
-| GET | `/messages/mentions?${params.toString()}` | services/messageService.ts |
-| GET | `/messages/starred?${params.toString()}` | services/messageService.ts |
-| GET | `/messages/search?${params.toString()}` | services/messageService.ts |
-| POST | `/messages/${id}/star` | services/messageService.ts |
-| DELETE | `/messages/${id}` | services/messageService.ts |
-| PATCH | `/messages/${id}` | services/messageService.ts |
-
-### recurring-transactions (11 missing)
+### permissions (10 missing)
 
 | Method | Endpoint | Source File |
 |--------|----------|-------------|
-| GET | `/recurring-transactions` | services/accountingService.ts |
-| GET | `/recurring-transactions/upcoming` | services/accountingService.ts |
-| GET | `/recurring-transactions/${id}` | services/accountingService.ts |
-| POST | `/recurring-transactions` | services/accountingService.ts |
-| PUT | `/recurring-transactions/${id}` | services/accountingService.ts |
-| POST | `/recurring-transactions/${id}/pause` | services/accountingService.ts |
-| POST | `/recurring-transactions/${id}/resume` | services/accountingService.ts |
-| POST | `/recurring-transactions/${id}/cancel` | services/accountingService.ts |
-| POST | `/recurring-transactions/${id}/generate` | services/accountingService.ts |
-| POST | `/recurring-transactions/process-due` | services/accountingService.ts |
-| DELETE | `/recurring-transactions/${id}` | services/accountingService.ts |
-
-### approvals (11 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/approvals/rules` | services/approvalService.ts |
-| PUT | `/approvals/rules` | services/approvalService.ts |
-| POST | `/approvals/rules` | services/approvalService.ts |
-| DELETE | `/approvals/rules/${ruleId}` | services/approvalService.ts |
-| GET | `/approvals/templates` | services/approvalService.ts |
-| GET | `/approvals/my-requests` | services/approvalService.ts |
-| GET | `/approvals/stats` | services/approvalService.ts |
-| POST | `/approvals/check` | services/approvalService.ts |
-| GET | `/approvals/${id}` | services/approvalService.ts |
-| POST | `/approvals/${id}/approve` | services/approvalService.ts |
-| POST | `/approvals/${id}/reject` | services/approvalService.ts |
-
-### bank-accounts (11 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| POST | `/bank-accounts` | services/bankAccountService.ts |
-| GET | `/bank-accounts` | services/bankAccountService.ts |
-| GET | `/bank-accounts/summary` | services/bankAccountService.ts |
-| GET | `/bank-accounts/${id}` | services/bankAccountService.ts |
-| PUT | `/bank-accounts/${id}` | services/bankAccountService.ts |
-| DELETE | `/bank-accounts/${id}` | services/bankAccountService.ts |
-| POST | `/bank-accounts/${id}/set-default` | services/bankAccountService.ts |
-| GET | `/bank-accounts/${id}/balance-history` | services/bankAccountService.ts |
-| POST | `/bank-accounts/${id}/sync` | services/bankAccountService.ts |
-| POST | `/bank-accounts/${id}/disconnect` | services/bankAccountService.ts |
-| POST | `/bank-accounts/:param` | services/bankAccountService.ts |
-
-### referrals (11 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/referrals` | services/crmService.ts |
-| GET | `/referrals/${id}` | services/crmService.ts |
-| POST | `/referrals` | services/crmService.ts |
-| PUT | `/referrals/${id}` | services/crmService.ts |
-| DELETE | `/referrals/${id}` | services/crmService.ts |
-| GET | `/referrals/stats` | services/crmService.ts |
-| GET | `/referrals/top` | services/crmService.ts |
-| POST | `/referrals/${id}/leads` | services/crmService.ts |
-| POST | `/referrals/${id}/leads/${leadId}/convert` | services/crmService.ts |
-| POST | `/referrals/${id}/payments` | services/crmService.ts |
-| GET | `/referrals/${id}/calculate-fee` | services/crmService.ts |
-
-### invoice-templates (11 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/invoice-templates` | services/invoiceTemplatesService.ts |
-| GET | `/invoice-templates/${id}` | services/invoiceTemplatesService.ts |
-| GET | `/invoice-templates/default` | services/invoiceTemplatesService.ts |
-| POST | `/invoice-templates` | services/invoiceTemplatesService.ts |
-| PATCH | `/invoice-templates/${id}` | services/invoiceTemplatesService.ts |
-| DELETE | `/invoice-templates/${id}` | services/invoiceTemplatesService.ts |
-| POST | `/invoice-templates/${id}/duplicate` | services/invoiceTemplatesService.ts |
-| POST | `/invoice-templates/${id}/set-default` | services/invoiceTemplatesService.ts |
-| GET | `/invoice-templates/${id}/preview` | services/invoiceTemplatesService.ts |
-| GET | `/invoice-templates/${id}/export` | services/invoiceTemplatesService.ts |
-| POST | `/invoice-templates/import` | services/invoiceTemplatesService.ts |
-
-### tags (11 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/tags/${id}` | services/tagsService.ts |
-| POST | `/tags` | services/tagsService.ts |
-| PUT | `/tags/${id}` | services/tagsService.ts |
-| DELETE | `/tags/${id}` | services/tagsService.ts |
-| GET | `/tags/popular?${params.toString()}` | services/tagsService.ts |
-| POST | `/tags/${tagId}/attach` | services/tagsService.ts |
-| POST | `/tags/${tagId}/detach` | services/tagsService.ts |
-| GET | `/tags/entity/${entityType}` | services/tagsService.ts |
-| POST | `/tags/merge` | services/tagsService.ts |
-| POST | `/tags/bulk` | services/tagsService.ts |
-| POST | `/tags/:param` | services/tagsService.ts |
-
-### billing (10 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| DELETE | `/billing/rates/${id}` | services/billingRatesService.ts |
-| DELETE | `/billing/groups/${id}` | services/billingRatesService.ts |
-| DELETE | `/billing/time-entries/${id}` | services/billingRatesService.ts |
-| POST | `/billing/subscription/change-plan` | services/billingService.ts |
-| POST | `/billing/subscription/cancel` | services/billingService.ts |
-| GET | `/billing/subscription/upcoming-invoice` | services/billingService.ts |
-| PATCH | `/billing/payment-methods/${id}/set-default` | services/billingService.ts |
-| POST | `/billing/payment-methods/setup-intent` | services/billingService.ts |
-| GET | `/billing/invoices/${id}/download` | services/billingService.ts |
-| POST | `/billing/invoices/${id}/pay` | services/billingService.ts |
+| PATCH | `/permissions/policies/${policyId}/toggle` | services/permissionService.ts |
+| DELETE | `/permissions/relations/${relationId}` | services/permissionService.ts |
+| POST | `/permissions/relations/bulk` | services/permissionService.ts |
+| DELETE | `/permissions/relations/bulk` | services/permissionService.ts |
+| POST | `/permissions/relations/check` | services/permissionService.ts |
+| GET | `/permissions/decisions/${decisionId}` | services/permissionService.ts |
+| GET | `/permissions/resources/${resourceType}/${resourceId}/access` | services/permissionService.ts |
+| POST | `/permissions/resources/${resourceType}/${resourceId}/access` | services/permissionService.ts |
+| DELETE | `/permissions/resources/${resourceType}/${resourceId}/access/${userId}` | services/permissionService.ts |
+| GET | `/permissions/users/${userId}/resources` | services/permissionService.ts |
 
 ### shift-requests (10 missing)
 
@@ -2070,33 +804,34 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | POST | `/shift-requests/check-conflicts` | services/shiftAssignmentService.ts |
 | POST | `/shift-requests/:param` | services/shiftAssignmentService.ts |
 
-### debit-notes (9 missing)
+### transactions (10 missing)
 
 | Method | Endpoint | Source File |
 |--------|----------|-------------|
-| GET | `/debit-notes` | services/accountingService.ts |
-| GET | `/debit-notes/${id}` | services/accountingService.ts |
-| POST | `/debit-notes` | services/accountingService.ts |
-| PUT | `/debit-notes/${id}` | services/accountingService.ts |
-| POST | `/debit-notes/${id}/approve` | services/accountingService.ts |
-| POST | `/debit-notes/${id}/apply` | services/accountingService.ts |
-| POST | `/debit-notes/${id}/cancel` | services/accountingService.ts |
-| DELETE | `/debit-notes/${id}` | services/accountingService.ts |
-| GET | `/debit-notes/export` | services/accountingService.ts |
+| POST | `/transactions/${id}/reconcile` | services/transactionService.ts |
+| POST | `/transactions/${id}/unreconcile` | services/transactionService.ts |
+| POST | `/transactions/${id}/attachments` | services/transactionService.ts |
+| DELETE | `/transactions/${id}/attachments/${attachmentId}` | services/transactionService.ts |
+| GET | `/transactions/categories` | services/transactionService.ts |
+| GET | `/transactions/export` | services/transactionService.ts |
+| GET | `/transactions/pending` | services/transactionService.ts |
+| GET | `/transactions/unreconciled` | services/transactionService.ts |
+| GET | `/transactions/search` | services/transactionService.ts |
+| GET | `/transactions/stats` | services/transactionService.ts |
 
-### conflict-checks (9 missing)
+### saudi-banking (9 missing)
 
 | Method | Endpoint | Source File |
 |--------|----------|-------------|
-| POST | `/conflict-checks` | services/conflictCheckService.ts |
-| GET | `/conflict-checks/${id}` | services/conflictCheckService.ts |
-| GET | `/conflict-checks` | services/conflictCheckService.ts |
-| PATCH | `/conflict-checks/${id}` | services/conflictCheckService.ts |
-| DELETE | `/conflict-checks/${id}` | services/conflictCheckService.ts |
-| POST | `/conflict-checks/${checkId}/matches/${matchIndex}/resolve` | services/conflictCheckService.ts |
-| POST | `/conflict-checks/quick` | services/conflictCheckService.ts |
-| GET | `/conflict-checks/stats` | services/conflictCheckService.ts |
-| POST | `/conflict-checks/:param` | services/conflictCheckService.ts |
+| GET | `/saudi-banking/lean/customers/${customerId}` | hooks/useSaudiBanking.ts |
+| DELETE | `/saudi-banking/lean/customers/${customerId}/entities/${entityId}` | hooks/useSaudiBanking.ts |
+| GET | `/saudi-banking/wps/files/${fileId}` | hooks/useSaudiBanking.ts |
+| GET | `/saudi-banking/sadad/payments/${paymentId}` | hooks/useSaudiBanking.ts |
+| GET | `/saudi-banking/mudad/payrolls` | hooks/useSaudiBanking.ts |
+| GET | `/saudi-banking/mudad/compliance` | hooks/useSaudiBanking.ts |
+| GET | `/saudi-banking/compliance/status` | hooks/useSaudiBanking.ts |
+| GET | `/saudi-banking/compliance/deadlines/upcoming` | hooks/useSaudiBanking.ts |
+| GET | `/saudi-banking/mudad/submissions` | hooks/useSaudiBanking.ts |
 
 ### crm-settings (9 missing)
 
@@ -2112,32 +847,58 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | PUT | `/crm-settings/quote` | services/crmSettingsService.ts |
 | DELETE | `/crm-settings/reset` | services/crmSettingsService.ts |
 
-### investment-search (9 missing)
+### ldap (9 missing)
 
 | Method | Endpoint | Source File |
 |--------|----------|-------------|
-| GET | `/investment-search/symbols` | services/investmentSearchService.ts |
-| GET | `/investment-search/quote` | services/investmentSearchService.ts |
-| POST | `/investment-search/quotes` | services/investmentSearchService.ts |
-| GET | `/investment-search/markets` | services/investmentSearchService.ts |
-| GET | `/investment-search/types` | services/investmentSearchService.ts |
-| GET | `/investment-search/sectors` | services/investmentSearchService.ts |
-| GET | `/investment-search/market/${market}` | services/investmentSearchService.ts |
-| GET | `/investment-search/type/${type}` | services/investmentSearchService.ts |
-| GET | `/investment-search/symbol/${symbol}` | services/investmentSearchService.ts |
+| GET | `/ldap/config` | services/ldapService.ts |
+| POST | `/ldap/config` | services/ldapService.ts |
+| PUT | `/ldap/config` | services/ldapService.ts |
+| POST | `/ldap/test-connection` | services/ldapService.ts |
+| POST | `/ldap/test-user-lookup` | services/ldapService.ts |
+| POST | `/ldap/sync` | services/ldapService.ts |
+| GET | `/ldap/sync-status` | services/ldapService.ts |
+| DELETE | `/ldap/config` | services/ldapService.ts |
+| POST | `/ldap/login` | services/ldapService.ts |
 
-### cases (8 missing)
+### invoices (8 missing)
 
 | Method | Endpoint | Source File |
 |--------|----------|-------------|
-| DELETE | `/cases/${caseId}/notion/pages/${pageId}` | services/caseNotionService.ts |
-| DELETE | `/cases/${caseId}/notion/blocks/${blockId}` | services/caseNotionService.ts |
-| DELETE | `/cases/${caseId}/notion/comments/${commentId}` | services/caseNotionService.ts |
-| GET | `/cases/${caseId}/notion/pages/${pageId}/export/pdf` | services/caseNotionService.ts |
-| DELETE | `/cases/${caseId}/rich-documents/${docId}` | services/caseRichDocumentService.ts |
-| POST | `/cases/${caseId}/workflow/cancel` | services/caseWorkflowService.ts |
-| DELETE | `/cases/${caseId}/documents/${docId}` | services/casesService.ts |
-| POST | `/cases/${caseId}/documents/confirm-upload` | services/storageService.ts |
+| POST | `/invoices/${invoiceId}/post-to-gl` | services/accountingService.ts |
+| GET | `/invoices/pending-approval` | services/financeService.ts |
+| POST | `/invoices/${invoiceId}/request-changes` | services/financeService.ts |
+| POST | `/invoices/${invoiceId}/escalate` | services/financeService.ts |
+| POST | `/invoices/bulk-approve` | services/financeService.ts |
+| GET | `/invoices/approval-config` | services/financeService.ts |
+| PUT | `/invoices/approval-config` | services/financeService.ts |
+| GET | `/invoices/pending-approvals-count` | services/financeService.ts |
+
+### billing (8 missing)
+
+| Method | Endpoint | Source File |
+|--------|----------|-------------|
+| DELETE | `/billing/time-entries/${id}` | services/billingRatesService.ts |
+| POST | `/billing/subscription/change-plan` | services/billingService.ts |
+| POST | `/billing/subscription/cancel` | services/billingService.ts |
+| GET | `/billing/subscription/upcoming-invoice` | services/billingService.ts |
+| PATCH | `/billing/payment-methods/${id}/set-default` | services/billingService.ts |
+| POST | `/billing/payment-methods/setup-intent` | services/billingService.ts |
+| GET | `/billing/invoices/${id}/download` | services/billingService.ts |
+| POST | `/billing/invoices/${id}/pay` | services/billingService.ts |
+
+### reports (8 missing)
+
+| Method | Endpoint | Source File |
+|--------|----------|-------------|
+| DELETE | `/reports/consolidated/elimination-rules/${id}` | services/consolidatedReportService.ts |
+| POST | `/reports/consolidated/export` | services/consolidatedReportService.ts |
+| GET | `/reports/accounts-aging` | services/financeService.ts |
+| GET | `/reports/revenue-by-client` | services/financeService.ts |
+| GET | `/reports/outstanding-invoices` | services/financeService.ts |
+| GET | `/reports/time-entries` | services/financeService.ts |
+| GET | `/reports/${reportType}/export` | services/financeService.ts |
+| GET | `/reports/templates` | services/reportsService.ts |
 
 ### whatsapp (8 missing)
 
@@ -2204,18 +965,18 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | GET | `/income-tax-slabs/countries` | services/incomeTaxSlabsService.ts |
 | POST | `/income-tax-slabs/initialize-defaults` | services/incomeTaxSlabsService.ts |
 
-### proposals (8 missing)
+### journal-entries (8 missing)
 
 | Method | Endpoint | Source File |
 |--------|----------|-------------|
-| POST | `/proposals` | services/proposalService.ts |
-| GET | `/proposals/job/${jobId}` | services/proposalService.ts |
-| GET | `/proposals/my-proposals` | services/proposalService.ts |
-| PATCH | `/proposals/accept/${proposalId}` | services/proposalService.ts |
-| PATCH | `/proposals/reject/${proposalId}` | services/proposalService.ts |
-| PATCH | `/proposals/withdraw/${proposalId}` | services/proposalService.ts |
-| POST | `/proposals/job/:param` | services/proposalService.ts |
-| GET | `/proposals/accept/:param` | services/proposalService.ts |
+| POST | `/journal-entries/${id}/attachments` | services/journalEntryService.ts |
+| DELETE | `/journal-entries/${id}/attachments/${attachmentId}` | services/journalEntryService.ts |
+| GET | `/journal-entries/stats` | services/journalEntryService.ts |
+| POST | `/journal-entries/validate` | services/journalEntryService.ts |
+| GET | `/journal-entries/recent` | services/journalEntryService.ts |
+| POST | `/journal-entries/${id}/duplicate` | services/journalEntryService.ts |
+| GET | `/journal-entries/templates` | services/journalEntryService.ts |
+| POST | `/journal-entries/from-template/${templateId}` | services/journalEntryService.ts |
 
 ### subscription-plans (8 missing)
 
@@ -2229,43 +990,6 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | POST | `/subscription-plans/${id}/duplicate` | services/subscriptionService.ts |
 | POST | `/subscription-plans/${id}/toggle-active` | services/subscriptionService.ts |
 | POST | `/subscription-plans/:param` | services/subscriptionService.ts |
-
-### trading-accounts (8 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/trading-accounts` | services/tradingAccountsService.ts |
-| GET | `/trading-accounts/${id}` | services/tradingAccountsService.ts |
-| POST | `/trading-accounts` | services/tradingAccountsService.ts |
-| PATCH | `/trading-accounts/${id}` | services/tradingAccountsService.ts |
-| DELETE | `/trading-accounts/${id}` | services/tradingAccountsService.ts |
-| GET | `/trading-accounts/${id}/balance` | services/tradingAccountsService.ts |
-| POST | `/trading-accounts/${id}/set-default` | services/tradingAccountsService.ts |
-| POST | `/trading-accounts/${id}/transaction` | services/tradingAccountsService.ts |
-
-### accounts (7 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/accounts` | services/accountService.ts |
-| GET | `/accounts/${id}` | services/accountService.ts |
-| GET | `/accounts/${id}/balance` | services/accountService.ts |
-| GET | `/accounts/types` | services/accountService.ts |
-| POST | `/accounts` | services/accountService.ts |
-| PATCH | `/accounts/${id}` | services/accountService.ts |
-| DELETE | `/accounts/${id}` | services/accountService.ts |
-
-### bank-transactions (7 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| POST | `/bank-transactions` | services/bankTransactionService.ts |
-| GET | `/bank-transactions` | services/bankTransactionService.ts |
-| GET | `/bank-transactions/${id}` | services/bankTransactionService.ts |
-| POST | `/bank-transactions/${transactionId}/match` | services/bankTransactionService.ts |
-| POST | `/bank-transactions/${transactionId}/unmatch` | services/bankTransactionService.ts |
-| POST | `/bank-transactions/import/${accountId}` | services/bankTransactionService.ts |
-| POST | `/bank-transactions/:param` | services/bankTransactionService.ts |
 
 ### email-templates (7 missing)
 
@@ -2291,18 +1015,6 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | POST | `/exchange-rate-revaluation/${id}/reverse` | services/exchangeRateRevaluationService.ts |
 | GET | `/exchange-rate-revaluation/report?${params.toString()}` | services/exchangeRateRevaluationService.ts |
 
-### statements (7 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/statements` | services/financeService.ts |
-| GET | `/statements/${id}` | services/financeService.ts |
-| POST | `/statements` | services/financeService.ts |
-| PUT | `/statements/${id}` | services/financeService.ts |
-| DELETE | `/statements/${id}` | services/financeService.ts |
-| POST | `/statements/${id}/send` | services/financeService.ts |
-| GET | `/statements/${id}/download` | services/financeService.ts |
-
 ### integrations (7 missing)
 
 | Method | Endpoint | Source File |
@@ -2315,49 +1027,39 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | PUT | `/integrations/${id}/settings` | services/integrationsService.ts |
 | POST | `/integrations/${id}/test` | services/integrationsService.ts |
 
-### vendors (6 missing)
+### price-levels (7 missing)
 
 | Method | Endpoint | Source File |
 |--------|----------|-------------|
-| GET | `/vendors` | services/accountingService.ts |
-| GET | `/vendors/${id}` | services/accountingService.ts |
-| POST | `/vendors` | services/accountingService.ts |
-| PUT | `/vendors/${id}` | services/accountingService.ts |
-| DELETE | `/vendors/${id}` | services/accountingService.ts |
-| GET | `/vendors/${id}/summary` | services/vendorService.ts |
+| GET | `/price-levels/default` | services/priceLevelService.ts |
+| POST | `/price-levels/${id}/calculate` | services/priceLevelService.ts |
+| POST | `/price-levels/${id}/assign` | services/priceLevelService.ts |
+| GET | `/price-levels/${id}/clients` | services/priceLevelService.ts |
+| POST | `/price-levels/${id}/duplicate` | services/priceLevelService.ts |
+| POST | `/price-levels/${id}/archive` | services/priceLevelService.ts |
+| POST | `/price-levels/${id}/restore` | services/priceLevelService.ts |
 
-### retainers (6 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/retainers` | services/accountingService.ts |
-| GET | `/retainers/${id}` | services/accountingService.ts |
-| POST | `/retainers` | services/accountingService.ts |
-| POST | `/retainers/${id}/replenish` | services/accountingService.ts |
-| POST | `/retainers/${id}/consume` | services/accountingService.ts |
-| GET | `/retainers/${id}/history` | services/accountingService.ts |
-
-### answers (6 missing)
+### contacts (6 missing)
 
 | Method | Endpoint | Source File |
 |--------|----------|-------------|
-| POST | `/answers` | services/answerService.ts |
-| GET | `/answers/${questionId}` | services/answerService.ts |
-| PATCH | `/answers/${id}` | services/answerService.ts |
-| DELETE | `/answers/${id}` | services/answerService.ts |
-| POST | `/answers/like/${id}` | services/answerService.ts |
-| PATCH | `/answers/verify/${id}` | services/answerService.ts |
+| GET | `/contacts/${contactId}/cases` | services/contactService.ts |
+| GET | `/contacts/${contactId}/activities` | services/contactService.ts |
+| POST | `/contacts/${contactId}/conflict-check` | services/contactService.ts |
+| POST | `/contacts/${contactId}/conflict-status` | services/contactService.ts |
+| POST | `/contacts/${primaryId}/merge` | services/contactService.ts |
+| GET | `/contacts/${contactId}/stakeholder/${leadId}` | services/contactService.ts |
 
-### jobs (6 missing)
+### messages (6 missing)
 
 | Method | Endpoint | Source File |
 |--------|----------|-------------|
-| GET | `/jobs` | services/jobsService.ts |
-| GET | `/jobs/my-jobs` | services/jobsService.ts |
-| GET | `/jobs/${id}` | services/jobsService.ts |
-| POST | `/jobs` | services/jobsService.ts |
-| PATCH | `/jobs/${id}` | services/jobsService.ts |
-| DELETE | `/jobs/${id}` | services/jobsService.ts |
+| POST | `/messages/note` | services/messageService.ts |
+| GET | `/messages/thread/${resModel}/${resId}` | services/messageService.ts |
+| GET | `/messages/mentions?${params.toString()}` | services/messageService.ts |
+| GET | `/messages/starred?${params.toString()}` | services/messageService.ts |
+| GET | `/messages/search?${params.toString()}` | services/messageService.ts |
+| POST | `/messages/${id}/star` | services/messageService.ts |
 
 ### api-keys (5 missing)
 
@@ -2369,15 +1071,25 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | PATCH | `/api-keys/${keyId}` | services/apiKeysService.ts |
 | GET | `/api-keys/stats` | services/apiKeysService.ts |
 
-### bank-transfers (5 missing)
+### approvals (5 missing)
 
 | Method | Endpoint | Source File |
 |--------|----------|-------------|
-| POST | `/bank-transfers` | services/bankTransferService.ts |
-| GET | `/bank-transfers` | services/bankTransferService.ts |
-| GET | `/bank-transfers/${id}` | services/bankTransferService.ts |
-| POST | `/bank-transfers/${id}/cancel` | services/bankTransferService.ts |
-| POST | `/bank-transfers/:param` | services/bankTransferService.ts |
+| DELETE | `/approvals/rules/${ruleId}` | services/approvalService.ts |
+| GET | `/approvals/templates` | services/approvalService.ts |
+| GET | `/approvals/my-requests` | services/approvalService.ts |
+| GET | `/approvals/stats` | services/approvalService.ts |
+| POST | `/approvals/check` | services/approvalService.ts |
+
+### cases (5 missing)
+
+| Method | Endpoint | Source File |
+|--------|----------|-------------|
+| DELETE | `/cases/${caseId}/notion/pages/${pageId}` | services/caseNotionService.ts |
+| DELETE | `/cases/${caseId}/notion/blocks/${blockId}` | services/caseNotionService.ts |
+| DELETE | `/cases/${caseId}/notion/comments/${commentId}` | services/caseNotionService.ts |
+| GET | `/cases/${caseId}/notion/pages/${pageId}/export/pdf` | services/caseNotionService.ts |
+| POST | `/cases/${caseId}/documents/confirm-upload` | services/storageService.ts |
 
 ### lost-reasons (5 missing)
 
@@ -2429,23 +1141,23 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | PUT | `/brands/${brandId}` | services/productEnhancedService.ts |
 | DELETE | `/brands/${brandId}` | services/productEnhancedService.ts |
 
-### lawyers (4 missing)
+### clients (4 missing)
 
 | Method | Endpoint | Source File |
 |--------|----------|-------------|
-| POST | `/lawyers` | hooks/useStaff.ts |
-| PUT | `/lawyers/${id}` | hooks/useStaff.ts |
-| DELETE | `/lawyers/${id}` | hooks/useStaff.ts |
-| DELETE | `/lawyers/bulk` | hooks/useStaff.ts |
+| GET | `/clients/${clientId}/quotes` | services/clientService.ts |
+| GET | `/clients/${clientId}/activities` | services/clientService.ts |
+| POST | `/clients/${clientId}/credit-status` | services/clientService.ts |
+| GET | `/clients/regions` | services/clientsService.ts |
 
-### bill-payments (4 missing)
+### credit-notes (4 missing)
 
 | Method | Endpoint | Source File |
 |--------|----------|-------------|
-| POST | `/bill-payments` | services/billPaymentService.ts |
-| GET | `/bill-payments` | services/billPaymentService.ts |
-| GET | `/bill-payments/${id}` | services/billPaymentService.ts |
-| POST | `/bill-payments/${id}/cancel` | services/billPaymentService.ts |
+| POST | `/credit-notes/${id}/zatca/submit` | services/financeService.ts |
+| GET | `/credit-notes/${id}/zatca/status` | services/financeService.ts |
+| GET | `/credit-notes/${id}/pdf` | services/financeService.ts |
+| GET | `/credit-notes/${id}/xml` | services/financeService.ts |
 
 ### quotes (4 missing)
 
@@ -2474,13 +1186,36 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | GET | `/support/tickets/${ticketId}/communications` | services/supportService.ts |
 | POST | `/support/tickets/${ticketId}/communications` | services/supportService.ts |
 
-### ldap (3 missing)
+### audit-logs (3 missing)
 
 | Method | Endpoint | Source File |
 |--------|----------|-------------|
-| POST | `/ldap/test-connection` | services/ldapService.ts |
-| POST | `/ldap/test-user-lookup` | services/ldapService.ts |
-| GET | `/ldap/sync-status` | services/ldapService.ts |
+| POST | `/audit-logs/batch` | services/auditService.ts |
+| GET | `/audit-logs/resource/${resource}/${resourceId}` | services/auditService.ts |
+| GET | `/audit-logs/stats` | services/auditService.ts |
+
+### time-tracking (3 missing)
+
+| Method | Endpoint | Source File |
+|--------|----------|-------------|
+| GET | `/time-tracking/entries/pending` | services/financeService.approval-methods.ts |
+| GET | `/time-tracking/entries/${id}/lock-status` | services/financeService.ts |
+| POST | `/time-tracking/entries/lock-by-date-range` | services/financeService.ts |
+
+### payments (3 missing)
+
+| Method | Endpoint | Source File |
+|--------|----------|-------------|
+| POST | `/payments/${id}/generate-receipt` | services/financeService.ts |
+| GET | `/payments/${id}/receipt/download` | services/financeService.ts |
+| POST | `/payments/${id}/receipt/send` | services/financeService.ts |
+
+### leads (2 missing)
+
+| Method | Endpoint | Source File |
+|--------|----------|-------------|
+| PATCH | `/leads/${id}/stage` | services/accountingService.ts |
+| POST | `/leads/${id}/activity` | services/accountingService.ts |
 
 ### consolidated-reports (2 missing)
 
@@ -2488,6 +1223,27 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 |--------|----------|-------------|
 | GET | `/consolidated-reports/auto-eliminations?${params.toString()}` | services/consolidatedReportService.ts |
 | GET | `/consolidated-reports/full-statement?${queryParams.toString()}` | services/consolidatedReportService.ts |
+
+### lead-scoring (2 missing)
+
+| Method | Endpoint | Source File |
+|--------|----------|-------------|
+| GET | `/lead-scoring/config` | services/crmAdvancedService.ts |
+| PUT | `/lead-scoring/config` | services/crmAdvancedService.ts |
+
+### bank-reconciliation (2 missing)
+
+| Method | Endpoint | Source File |
+|--------|----------|-------------|
+| POST | `/bank-reconciliation/feeds/${id}/fetch` | services/financeAdvancedService.ts |
+| GET | `/bank-reconciliation/feeds/${id}/transactions` | services/financeAdvancedService.ts |
+
+### notifications (2 missing)
+
+| Method | Endpoint | Source File |
+|--------|----------|-------------|
+| GET | `/notifications/settings` | services/notificationService.ts |
+| PATCH | `/notifications/settings` | services/notificationService.ts |
 
 ### employees (2 missing)
 
@@ -2503,11 +1259,19 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | POST | `/security-incidents` | services/security-incident.service.ts |
 | GET | `/security-incidents/${incidentId}` | services/security-incident.service.ts |
 
-### conversations (1 missing)
+### tags (2 missing)
 
 | Method | Endpoint | Source File |
 |--------|----------|-------------|
-| GET | `/conversations/single/${sellerID}/${buyerID}` | hooks/useChat.ts |
+| POST | `/tags/${tagId}/attach` | services/tagsService.ts |
+| POST | `/tags/${tagId}/detach` | services/tagsService.ts |
+
+### users (2 missing)
+
+| Method | Endpoint | Source File |
+|--------|----------|-------------|
+| GET | `/users` | utils/retry.ts |
+| POST | `/users` | utils/retry.ts |
 
 ### finance (1 missing)
 
@@ -2521,11 +1285,29 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 |--------|----------|-------------|
 | POST | `/${entityType}s/${entityId}/counts` | hooks/useSmartButtonCounts.ts |
 
+### lawyers (1 missing)
+
+| Method | Endpoint | Source File |
+|--------|----------|-------------|
+| DELETE | `/lawyers/bulk` | hooks/useStaff.ts |
+
 ### admin (1 missing)
 
 | Method | Endpoint | Source File |
 |--------|----------|-------------|
 | GET | `/admin/dashboard` | hooks/useUIAccess.ts |
+
+### bills (1 missing)
+
+| Method | Endpoint | Source File |
+|--------|----------|-------------|
+| GET | `/bills/${billId}/debit-notes` | services/accountingService.ts |
+
+### debit-notes (1 missing)
+
+| Method | Endpoint | Source File |
+|--------|----------|-------------|
+| GET | `/debit-notes/export` | services/accountingService.ts |
 
 ### activities?${params.toString()} (1 missing)
 
@@ -2533,23 +1315,17 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 |--------|----------|-------------|
 | GET | `/activities?${params.toString()}` | services/activityService.ts |
 
-### appointments (1 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/appointments/${id}/calendar.ics` | services/appointmentsService.ts |
-
 ### automated-actions?${params.toString()} (1 missing)
 
 | Method | Endpoint | Source File |
 |--------|----------|-------------|
 | GET | `/automated-actions?${params.toString()}` | services/automatedActionService.ts |
 
-### rate-cards (1 missing)
+### firms (1 missing)
 
 | Method | Endpoint | Source File |
 |--------|----------|-------------|
-| DELETE | `/rate-cards/${id}` | services/billingRatesService.ts |
+| POST | `/firms/${cachedFirmId}/logo` | services/billingSettingsService.ts |
 
 ### campaigns (1 missing)
 
@@ -2581,23 +1357,11 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 |--------|----------|-------------|
 | GET | `/competitors/stats` | services/crmSettingsService.ts |
 
-### documents?${params.toString()} (1 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/documents?${params.toString()}` | services/documentsService.ts |
-
 ### exchange-rate-revaluation?${params.toString()} (1 missing)
 
 | Method | Endpoint | Source File |
 |--------|----------|-------------|
 | GET | `/exchange-rate-revaluation?${params.toString()}` | services/exchangeRateRevaluationService.ts |
-
-### followups?${params.toString()} (1 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/followups?${params.toString()}` | services/followupsService.ts |
 
 ### income-tax-slabs?${params.toString()} (1 missing)
 
@@ -2623,41 +1387,17 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 |--------|----------|-------------|
 | GET | `/leave-periods?${params.toString()}` | services/leavePeriodService.ts |
 
-### leave-requests?${params.toString()} (1 missing)
+### payroll?${params.toString()} (1 missing)
 
 | Method | Endpoint | Source File |
 |--------|----------|-------------|
-| GET | `/leave-requests?${params.toString()}` | services/leaveService.ts |
-
-### messages?${params.toString()} (1 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/messages?${params.toString()}` | services/messageService.ts |
-
-### organizations?${params.toString()} (1 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/organizations?${params.toString()}` | services/organizationsService.ts |
-
-### payroll-runs?${params.toString()} (1 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/payroll-runs?${params.toString()}` | services/payrollRunService.ts |
+| GET | `/payroll?${params.toString()}` | services/payrollService.ts |
 
 ### prepared-reports?${params.toString()} (1 missing)
 
 | Method | Endpoint | Source File |
 |--------|----------|-------------|
 | GET | `/prepared-reports?${params.toString()}` | services/preparedReportsService.ts |
-
-### analytics-reports?${params.toString()} (1 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/analytics-reports?${params.toString()}` | services/reportsService.ts |
 
 ### shift-assignments?${params.toString()} (1 missing)
 
@@ -2677,12 +1417,6 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 |--------|----------|-------------|
 | POST | `/storage/r2/files` | services/storageService.ts |
 
-### tags?${params.toString()} (1 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/tags?${params.toString()}` | services/tagsService.ts |
-
 ### endpoint (1 missing)
 
 | Method | Endpoint | Source File |
@@ -2700,6 +1434,42 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 ## 🟡 Backend Endpoints Not Used by Frontend
 
 These endpoints exist in backend but frontend doesn't call them - potentially dead code or undocumented features.
+
+### hr (227 unused)
+
+| Method | Endpoint |
+|--------|----------|
+| GET | `/api/hr/compensation-rewards/stats` |
+| GET | `/api/hr/compensation-rewards/export` |
+| GET | `/api/hr/compliance/dashboard` |
+| GET | `/api/hr/compliance/gosi` |
+| GET | `/api/hr/compliance/nitaqat` |
+| GET | `/api/hr/compliance/wps` |
+| GET | `/api/hr/compliance/documents/expiring` |
+| GET | `/api/hr/compliance/probation/ending` |
+| GET | `/api/hr/compliance/contracts/expiring` |
+| GET | `/api/hr/compliance/labor-law` |
+| GET | `/api/hr/self-service/dashboard` |
+| GET | `/api/hr/self-service/profile` |
+| PATCH | `/api/hr/self-service/profile` |
+| GET | `/api/hr/self-service/leave/balances` |
+| GET | `/api/hr/self-service/leave/requests` |
+| POST | `/api/hr/self-service/leave/request` |
+| POST | `/api/hr/self-service/leave/request/:requestId/cancel` |
+| GET | `/api/hr/self-service/loans` |
+| GET | `/api/hr/self-service/advances` |
+| GET | `/api/hr/self-service/payslips` |
+| GET | `/api/hr/self-service/approvals/pending` |
+| GET | `/api/hr/fleet/stats` |
+| GET | `/api/hr/fleet/expiring-documents` |
+| GET | `/api/hr/fleet/maintenance-due` |
+| GET | `/api/hr/fleet/driver-rankings` |
+| GET | `/api/hr/fleet/vehicles` |
+| GET | `/api/hr/fleet/vehicles/:id` |
+| POST | `/api/hr/fleet/vehicles` |
+| PATCH | `/api/hr/fleet/vehicles/:id` |
+| DELETE | `/api/hr/fleet/vehicles/:id` |
+| ... | *197 more* |
 
 ### workflows (154 unused)
 
@@ -2737,42 +1507,6 @@ These endpoints exist in backend but frontend doesn't call them - potentially de
 | GET | `/api/workflows/quotes/pending-approvals` |
 | ... | *124 more* |
 
-### task (89 unused)
-
-| Method | Endpoint |
-|--------|----------|
-| GET | `/api/task/templates` |
-| POST | `/api/task/templates` |
-| GET | `/api/task/templates/:templateId` |
-| PUT | `/api/task/templates/:templateId` |
-| PATCH | `/api/task/templates/:templateId` |
-| DELETE | `/api/task/templates/:templateId` |
-| POST | `/api/task/templates/:templateId/create` |
-| GET | `/api/task/overview` |
-| GET | `/api/task/timers/active` |
-| GET | `/api/task/search` |
-| GET | `/api/task/conflicts` |
-| GET | `/api/task/client/:clientId` |
-| GET | `/api/task/stats` |
-| GET | `/api/task/upcoming` |
-| GET | `/api/task/overdue` |
-| GET | `/api/task/due-today` |
-| GET | `/api/task/case/:caseId` |
-| POST | `/api/task/bulk` |
-| PUT | `/api/task/bulk` |
-| DELETE | `/api/task/bulk` |
-| POST | `/api/task/bulk/complete` |
-| POST | `/api/task/bulk/assign` |
-| POST | `/api/task/bulk/archive` |
-| POST | `/api/task/bulk/unarchive` |
-| POST | `/api/task/bulk/reopen` |
-| GET | `/api/task/export` |
-| GET | `/api/task/ids` |
-| GET | `/api/task/archived` |
-| PATCH | `/api/task/reorder` |
-| GET | `/api/task/location-triggers` |
-| ... | *59 more* |
-
 ### saless (75 unused)
 
 | Method | Endpoint |
@@ -2809,185 +1543,113 @@ These endpoints exist in backend but frontend doesn't call them - potentially de
 | POST | `/api/saless/deliveries/:id/complete-picking` |
 | ... | *45 more* |
 
-### caseNotion (73 unused)
+### case-notion (73 unused)
 
 | Method | Endpoint |
 |--------|----------|
-| GET | `/api/caseNotion/notion/cases` |
-| GET | `/api/caseNotion/cases/:caseId/notion/pages` |
-| GET | `/api/caseNotion/cases/:caseId/notion/pages/:pageId` |
-| POST | `/api/caseNotion/cases/:caseId/notion/pages` |
-| PATCH | `/api/caseNotion/cases/:caseId/notion/pages/:pageId` |
-| DELETE | `/api/caseNotion/cases/:caseId/notion/pages/:pageId` |
-| POST | `/api/caseNotion/cases/:caseId/notion/pages/:pageId/archive` |
-| POST | `/api/caseNotion/cases/:caseId/notion/pages/:pageId/restore` |
-| POST | `/api/caseNotion/cases/:caseId/notion/pages/:pageId/duplicate` |
-| POST | `/api/caseNotion/cases/:caseId/notion/pages/:pageId/favorite` |
-| POST | `/api/caseNotion/cases/:caseId/notion/pages/:pageId/pin` |
-| POST | `/api/caseNotion/cases/:caseId/notion/pages/merge` |
-| GET | `/api/caseNotion/cases/:caseId/notion/pages/:pageId/blocks` |
-| POST | `/api/caseNotion/cases/:caseId/notion/pages/:pageId/blocks` |
-| PATCH | `/api/caseNotion/cases/:caseId/notion/blocks/:blockId` |
-| DELETE | `/api/caseNotion/cases/:caseId/notion/blocks/:blockId` |
-| POST | `/api/caseNotion/cases/:caseId/notion/blocks/:blockId/move` |
-| POST | `/api/caseNotion/cases/:caseId/notion/blocks/:blockId/lock` |
-| POST | `/api/caseNotion/cases/:caseId/notion/blocks/:blockId/unlock` |
-| POST | `/api/caseNotion/cases/:caseId/notion/synced-blocks` |
-| GET | `/api/caseNotion/cases/:caseId/notion/synced-blocks/:blockId` |
-| POST | `/api/caseNotion/cases/:caseId/notion/synced-blocks/:blockId/unsync` |
-| GET | `/api/caseNotion/cases/:caseId/notion/blocks/:blockId/comments` |
-| POST | `/api/caseNotion/cases/:caseId/notion/blocks/:blockId/comments` |
-| POST | `/api/caseNotion/cases/:caseId/notion/comments/:commentId/resolve` |
-| DELETE | `/api/caseNotion/cases/:caseId/notion/comments/:commentId` |
-| GET | `/api/caseNotion/cases/:caseId/notion/pages/:pageId/activity` |
-| GET | `/api/caseNotion/cases/:caseId/notion/search` |
-| GET | `/api/caseNotion/cases/:caseId/notion/pages/:pageId/export/pdf` |
-| GET | `/api/caseNotion/cases/:caseId/notion/pages/:pageId/export/markdown` |
+| GET | `/api/case-notion/notion/cases` |
+| GET | `/api/case-notion/cases/:caseId/notion/pages` |
+| GET | `/api/case-notion/cases/:caseId/notion/pages/:pageId` |
+| POST | `/api/case-notion/cases/:caseId/notion/pages` |
+| PATCH | `/api/case-notion/cases/:caseId/notion/pages/:pageId` |
+| DELETE | `/api/case-notion/cases/:caseId/notion/pages/:pageId` |
+| POST | `/api/case-notion/cases/:caseId/notion/pages/:pageId/archive` |
+| POST | `/api/case-notion/cases/:caseId/notion/pages/:pageId/restore` |
+| POST | `/api/case-notion/cases/:caseId/notion/pages/:pageId/duplicate` |
+| POST | `/api/case-notion/cases/:caseId/notion/pages/:pageId/favorite` |
+| POST | `/api/case-notion/cases/:caseId/notion/pages/:pageId/pin` |
+| POST | `/api/case-notion/cases/:caseId/notion/pages/merge` |
+| GET | `/api/case-notion/cases/:caseId/notion/pages/:pageId/blocks` |
+| POST | `/api/case-notion/cases/:caseId/notion/pages/:pageId/blocks` |
+| PATCH | `/api/case-notion/cases/:caseId/notion/blocks/:blockId` |
+| DELETE | `/api/case-notion/cases/:caseId/notion/blocks/:blockId` |
+| POST | `/api/case-notion/cases/:caseId/notion/blocks/:blockId/move` |
+| POST | `/api/case-notion/cases/:caseId/notion/blocks/:blockId/lock` |
+| POST | `/api/case-notion/cases/:caseId/notion/blocks/:blockId/unlock` |
+| POST | `/api/case-notion/cases/:caseId/notion/synced-blocks` |
+| GET | `/api/case-notion/cases/:caseId/notion/synced-blocks/:blockId` |
+| POST | `/api/case-notion/cases/:caseId/notion/synced-blocks/:blockId/unsync` |
+| GET | `/api/case-notion/cases/:caseId/notion/blocks/:blockId/comments` |
+| POST | `/api/case-notion/cases/:caseId/notion/blocks/:blockId/comments` |
+| POST | `/api/case-notion/cases/:caseId/notion/comments/:commentId/resolve` |
+| DELETE | `/api/case-notion/cases/:caseId/notion/comments/:commentId` |
+| GET | `/api/case-notion/cases/:caseId/notion/pages/:pageId/activity` |
+| GET | `/api/case-notion/cases/:caseId/notion/search` |
+| GET | `/api/case-notion/cases/:caseId/notion/pages/:pageId/export/pdf` |
+| GET | `/api/case-notion/cases/:caseId/notion/pages/:pageId/export/markdown` |
 | ... | *43 more* |
 
-### case (54 unused)
+### cases (58 unused)
 
 | Method | Endpoint |
 |--------|----------|
-| GET | `/api/case/overview` |
-| GET | `/api/case/statistics` |
-| POST | `/api/case` |
-| GET | `/api/case` |
-| GET | `/api/case/pipeline` |
-| GET | `/api/case/pipeline/statistics` |
-| GET | `/api/case/pipeline/stages/:category` |
-| GET | `/api/case/pipeline/grouped` |
-| GET | `/api/case/:_id/full` |
-| GET | `/api/case/:_id` |
-| PATCH | `/api/case/:_id` |
-| DELETE | `/api/case/:_id` |
-| PATCH | `/api/case/:_id/progress` |
-| GET | `/api/case/:_id/notes` |
-| POST | `/api/case/:_id/notes` |
-| POST | `/api/case/:_id/note` |
-| PUT | `/api/case/:_id/notes/:noteId` |
-| PATCH | `/api/case/:_id/notes/:noteId` |
-| DELETE | `/api/case/:_id/notes/:noteId` |
-| POST | `/api/case/:_id/documents/upload-url` |
-| POST | `/api/case/:_id/documents/confirm` |
-| GET | `/api/case/:_id/documents/:docId/download` |
-| DELETE | `/api/case/:_id/documents/:docId` |
-| POST | `/api/case/:_id/document` |
-| DELETE | `/api/case/:_id/document/:documentId` |
-| POST | `/api/case/:_id/hearing` |
-| PATCH | `/api/case/:_id/hearings/:hearingId` |
-| DELETE | `/api/case/:_id/hearings/:hearingId` |
-| PATCH | `/api/case/:_id/hearing/:hearingId` |
-| DELETE | `/api/case/:_id/hearing/:hearingId` |
-| ... | *24 more* |
+| GET | `/api/cases/overview` |
+| GET | `/api/cases/statistics` |
+| POST | `/api/cases` |
+| GET | `/api/cases` |
+| GET | `/api/cases/pipeline` |
+| GET | `/api/cases/pipeline/statistics` |
+| GET | `/api/cases/pipeline/stages/:category` |
+| GET | `/api/cases/pipeline/grouped` |
+| GET | `/api/cases/:_id/full` |
+| GET | `/api/cases/:_id` |
+| PATCH | `/api/cases/:_id` |
+| DELETE | `/api/cases/:_id` |
+| PATCH | `/api/cases/:_id/progress` |
+| GET | `/api/cases/:_id/notes` |
+| POST | `/api/cases/:_id/notes` |
+| POST | `/api/cases/:_id/note` |
+| PUT | `/api/cases/:_id/notes/:noteId` |
+| PATCH | `/api/cases/:_id/notes/:noteId` |
+| DELETE | `/api/cases/:_id/notes/:noteId` |
+| POST | `/api/cases/:_id/documents/upload-url` |
+| POST | `/api/cases/:_id/documents/confirm` |
+| GET | `/api/cases/:_id/documents/:docId/download` |
+| POST | `/api/cases/:_id/document` |
+| DELETE | `/api/cases/:_id/document/:documentId` |
+| POST | `/api/cases/:_id/hearing` |
+| PATCH | `/api/cases/:_id/hearings/:hearingId` |
+| DELETE | `/api/cases/:_id/hearings/:hearingId` |
+| PATCH | `/api/cases/:_id/hearing/:hearingId` |
+| DELETE | `/api/cases/:_id/hearing/:hearingId` |
+| POST | `/api/cases/:_id/timeline` |
+| ... | *28 more* |
 
-### event (51 unused)
-
-| Method | Endpoint |
-|--------|----------|
-| GET | `/api/event/stats` |
-| GET | `/api/event/calendar` |
-| GET | `/api/event/upcoming` |
-| GET | `/api/event/month/:year/:month` |
-| GET | `/api/event/date/:date` |
-| POST | `/api/event/availability` |
-| POST | `/api/event/import/ics` |
-| GET | `/api/event/conflicts` |
-| GET | `/api/event/search` |
-| GET | `/api/event/client/:clientId` |
-| POST | `/api/event/bulk` |
-| PUT | `/api/event/bulk` |
-| DELETE | `/api/event/bulk` |
-| POST | `/api/event/bulk/complete` |
-| POST | `/api/event/bulk/archive` |
-| POST | `/api/event/bulk/unarchive` |
-| GET | `/api/event/ids` |
-| GET | `/api/event/archived` |
-| GET | `/api/event/export` |
-| PATCH | `/api/event/reorder` |
-| GET | `/api/event/case/:caseId` |
-| GET | `/api/event/location-triggers` |
-| POST | `/api/event/location/check` |
-| POST | `/api/event/parse` |
-| POST | `/api/event/voice` |
-| POST | `/api/event` |
-| GET | `/api/event` |
-| GET | `/api/event/:id` |
-| GET | `/api/event/:id/export/ics` |
-| PUT | `/api/event/:id` |
-| ... | *21 more* |
-
-### hrExtended (49 unused)
+### admin (49 unused)
 
 | Method | Endpoint |
 |--------|----------|
-| GET | `/api/hrExtended/leave-encashment` |
-| POST | `/api/hrExtended/leave-encashment` |
-| POST | `/api/hrExtended/leave-encashment/:id/approve` |
-| GET | `/api/hrExtended/compensatory-leave` |
-| POST | `/api/hrExtended/compensatory-leave` |
-| GET | `/api/hrExtended/compensatory-leave/balance/:employeeId` |
-| POST | `/api/hrExtended/compensatory-leave/:id/approve` |
-| GET | `/api/hrExtended/salary-components` |
-| POST | `/api/hrExtended/salary-components` |
-| POST | `/api/hrExtended/salary-components/create-defaults` |
-| PUT | `/api/hrExtended/salary-components/:id` |
-| GET | `/api/hrExtended/promotions` |
-| POST | `/api/hrExtended/promotions` |
-| POST | `/api/hrExtended/promotions/:id/approve` |
-| POST | `/api/hrExtended/promotions/:id/apply` |
-| GET | `/api/hrExtended/transfers` |
-| POST | `/api/hrExtended/transfers` |
-| POST | `/api/hrExtended/transfers/:id/approve` |
-| POST | `/api/hrExtended/transfers/:id/apply` |
-| GET | `/api/hrExtended/staffing-plans` |
-| POST | `/api/hrExtended/staffing-plans` |
-| GET | `/api/hrExtended/staffing-plans/vacancy-summary` |
-| GET | `/api/hrExtended/retention-bonuses` |
-| POST | `/api/hrExtended/retention-bonuses` |
-| POST | `/api/hrExtended/retention-bonuses/:id/vest/:milestone` |
-| GET | `/api/hrExtended/incentives` |
-| POST | `/api/hrExtended/incentives` |
-| GET | `/api/hrExtended/incentives/stats` |
-| GET | `/api/hrExtended/vehicles` |
-| POST | `/api/hrExtended/vehicles` |
+| POST | `/api/admin/users/:id/revoke-tokens` |
+| GET | `/api/admin/revoked-tokens` |
+| GET | `/api/admin/revoked-tokens/stats` |
+| GET | `/api/admin/users/:id/revocations` |
+| POST | `/api/admin/revoked-tokens/cleanup` |
+| POST | `/api/admin/users/:id/expire-password` |
+| POST | `/api/admin/firm/expire-all-passwords` |
+| GET | `/api/admin/firm/password-stats` |
+| GET | `/api/admin/users/:id/claims` |
+| PUT | `/api/admin/users/:id/claims` |
+| DELETE | `/api/admin/users/:id/claims` |
+| GET | `/api/admin/users/:id/claims/preview` |
+| POST | `/api/admin/users/:id/claims/validate` |
+| GET | `/api/admin/tools/users/:id/data` |
+| DELETE | `/api/admin/tools/users/:id/data` |
+| GET | `/api/admin/tools/firms/:id/export` |
+| POST | `/api/admin/tools/firms/:id/import` |
+| POST | `/api/admin/tools/users/merge` |
+| POST | `/api/admin/tools/clients/merge` |
+| POST | `/api/admin/tools/firms/:id/recalculate-invoices` |
+| POST | `/api/admin/tools/firms/:id/reindex` |
+| POST | `/api/admin/tools/firms/:id/cleanup-orphaned` |
+| GET | `/api/admin/tools/firms/:id/validate` |
+| POST | `/api/admin/tools/firms/:id/fix-currency` |
+| GET | `/api/admin/tools/stats` |
+| GET | `/api/admin/tools/activity-report` |
+| GET | `/api/admin/tools/storage-usage` |
+| POST | `/api/admin/tools/clear-cache` |
+| GET | `/api/admin/tools/diagnostics` |
+| GET | `/api/admin/tools/slow-queries` |
 | ... | *19 more* |
-
-### reminder (48 unused)
-
-| Method | Endpoint |
-|--------|----------|
-| GET | `/api/reminder/location/summary` |
-| GET | `/api/reminder/location/locations` |
-| POST | `/api/reminder/location` |
-| POST | `/api/reminder/location/check` |
-| POST | `/api/reminder/location/nearby` |
-| POST | `/api/reminder/location/save` |
-| POST | `/api/reminder/location/distance` |
-| PUT | `/api/reminder/location/locations/:locationId` |
-| DELETE | `/api/reminder/location/locations/:locationId` |
-| POST | `/api/reminder/location/:reminderId/reset` |
-| GET | `/api/reminder/stats` |
-| GET | `/api/reminder/upcoming` |
-| GET | `/api/reminder/overdue` |
-| GET | `/api/reminder/snoozed-due` |
-| GET | `/api/reminder/delegated` |
-| GET | `/api/reminder/client/:clientId` |
-| GET | `/api/reminder/case/:caseId` |
-| POST | `/api/reminder/from-task/:taskId` |
-| POST | `/api/reminder/from-event/:eventId` |
-| POST | `/api/reminder/parse` |
-| POST | `/api/reminder/voice` |
-| POST | `/api/reminder/bulk` |
-| PUT | `/api/reminder/bulk` |
-| DELETE | `/api/reminder/bulk` |
-| POST | `/api/reminder/bulk/complete` |
-| POST | `/api/reminder/bulk/archive` |
-| POST | `/api/reminder/bulk/unarchive` |
-| GET | `/api/reminder/export` |
-| GET | `/api/reminder/ids` |
-| GET | `/api/reminder/archived` |
-| ... | *18 more* |
 
 ### integrations (45 unused)
 
@@ -3025,401 +1687,410 @@ These endpoints exist in backend but frontend doesn't call them - potentially de
 | POST | `/api/integrations/xero/sync/payments` |
 | ... | *15 more* |
 
-### firm (44 unused)
+### auth (35 unused)
 
 | Method | Endpoint |
 |--------|----------|
-| GET | `/api/firm` |
-| GET | `/api/firm/roles` |
-| POST | `/api/firm` |
-| GET | `/api/firm/my` |
-| POST | `/api/firm/switch` |
-| GET | `/api/firm/my/permissions` |
-| GET | `/api/firm/tree` |
-| GET | `/api/firm/user/accessible` |
-| GET | `/api/firm/active` |
-| GET | `/api/firm/:id` |
-| PUT | `/api/firm/:id` |
-| PATCH | `/api/firm/:id` |
-| DELETE | `/api/firm/:id` |
-| GET | `/api/firm/:id/children` |
-| PUT | `/api/firm/:id/move` |
-| GET | `/api/firm/:id/access` |
-| POST | `/api/firm/:id/access` |
-| PUT | `/api/firm/:id/access/:userId` |
-| DELETE | `/api/firm/:id/access/:userId` |
-| PATCH | `/api/firm/:id/billing` |
-| GET | `/api/firm/:id/team` |
-| GET | `/api/firm/:id/members` |
-| GET | `/api/firm/:id/departed` |
-| POST | `/api/firm/:id/members/invite` |
-| POST | `/api/firm/:id/members/:memberId/depart` |
-| POST | `/api/firm/:id/members/:memberId/reinstate` |
-| PUT | `/api/firm/:id/members/:memberId` |
-| DELETE | `/api/firm/:id/members/:memberId` |
-| POST | `/api/firm/:id/leave` |
-| POST | `/api/firm/:id/transfer-ownership` |
-| ... | *14 more* |
+| POST | `/api/auth/google/one-tap` |
+| POST | `/api/auth/logout-all` |
+| POST | `/api/auth/refresh` |
+| POST | `/api/auth/mfa/backup-codes/verify` |
+| POST | `/api/auth/mfa/backup-codes/regenerate` |
+| GET | `/api/auth/sessions/stats` |
+| GET | `/api/auth/csrf` |
+| POST | `/api/auth/verify-captcha` |
+| GET | `/api/auth/captcha/providers` |
+| GET | `/api/auth/captcha/status/:provider` |
+| POST | `/api/auth/sso/:provider/callback` |
+| GET | `/api/auth/sso/:providerType/authorize` |
+| GET | `/api/auth/sso/:providerType/callback` |
+| GET | `/api/auth/sso/linked` |
+| POST | `/api/auth/sso/detect` |
+| GET | `/api/auth/sso/domain/:domain` |
+| POST | `/api/auth/sso/domain/:domain/verify/generate` |
+| POST | `/api/auth/sso/domain/:domain/verify` |
+| POST | `/api/auth/sso/domain/:domain/verify/manual` |
+| POST | `/api/auth/sso/domain/:domain/cache/invalidate` |
+| GET | `/api/auth/saml/metadata/:firmId` |
+| GET | `/api/auth/saml/login/:firmId` |
+| POST | `/api/auth/saml/acs/:firmId` |
+| GET | `/api/auth/saml/logout/:firmId` |
+| POST | `/api/auth/saml/sls/:firmId` |
+| GET | `/api/auth/saml/config` |
+| PUT | `/api/auth/saml/config` |
+| POST | `/api/auth/saml/config/test` |
+| POST | `/api/auth/webauthn/register/start` |
+| POST | `/api/auth/webauthn/register/finish` |
+| ... | *5 more* |
 
-### emailMarketing (39 unused)
-
-| Method | Endpoint |
-|--------|----------|
-| POST | `/api/emailMarketing/campaigns` |
-| GET | `/api/emailMarketing/campaigns` |
-| GET | `/api/emailMarketing/campaigns/:id` |
-| PUT | `/api/emailMarketing/campaigns/:id` |
-| DELETE | `/api/emailMarketing/campaigns/:id` |
-| POST | `/api/emailMarketing/campaigns/:id/duplicate` |
-| POST | `/api/emailMarketing/campaigns/:id/schedule` |
-| POST | `/api/emailMarketing/campaigns/:id/send` |
-| POST | `/api/emailMarketing/campaigns/:id/pause` |
-| POST | `/api/emailMarketing/campaigns/:id/resume` |
-| POST | `/api/emailMarketing/campaigns/:id/cancel` |
-| POST | `/api/emailMarketing/campaigns/:id/test` |
-| GET | `/api/emailMarketing/campaigns/:id/analytics` |
-| POST | `/api/emailMarketing/templates` |
-| GET | `/api/emailMarketing/templates` |
-| GET | `/api/emailMarketing/templates/public` |
-| GET | `/api/emailMarketing/templates/:id` |
-| PUT | `/api/emailMarketing/templates/:id` |
-| DELETE | `/api/emailMarketing/templates/:id` |
-| POST | `/api/emailMarketing/templates/:id/preview` |
-| POST | `/api/emailMarketing/subscribers` |
-| GET | `/api/emailMarketing/subscribers` |
-| PUT | `/api/emailMarketing/subscribers/:id` |
-| DELETE | `/api/emailMarketing/subscribers/:id` |
-| POST | `/api/emailMarketing/subscribers/import` |
-| POST | `/api/emailMarketing/subscribers/export` |
-| POST | `/api/emailMarketing/subscribers/:id/unsubscribe` |
-| POST | `/api/emailMarketing/segments` |
-| GET | `/api/emailMarketing/segments` |
-| GET | `/api/emailMarketing/segments/:id` |
-| ... | *9 more* |
-
-### recruitment (39 unused)
+### firms (34 unused)
 
 | Method | Endpoint |
 |--------|----------|
-| GET | `/api/recruitment/stats` |
-| GET | `/api/recruitment/talent-pool` |
-| GET | `/api/recruitment/jobs/nearing-deadline` |
-| GET | `/api/recruitment/jobs/stats` |
-| GET | `/api/recruitment/jobs` |
-| POST | `/api/recruitment/jobs` |
-| GET | `/api/recruitment/jobs/:id` |
-| PATCH | `/api/recruitment/jobs/:id` |
-| DELETE | `/api/recruitment/jobs/:id` |
-| POST | `/api/recruitment/jobs/:id/status` |
-| POST | `/api/recruitment/jobs/:id/publish` |
-| POST | `/api/recruitment/jobs/:id/clone` |
-| GET | `/api/recruitment/jobs/:id/pipeline` |
-| POST | `/api/recruitment/applicants/bulk-stage-update` |
-| POST | `/api/recruitment/applicants/bulk-reject` |
-| POST | `/api/recruitment/applicants/bulk-delete` |
-| GET | `/api/recruitment/applicants/stats` |
-| GET | `/api/recruitment/applicants` |
-| POST | `/api/recruitment/applicants` |
-| GET | `/api/recruitment/applicants/:id` |
-| PATCH | `/api/recruitment/applicants/:id` |
-| DELETE | `/api/recruitment/applicants/:id` |
-| POST | `/api/recruitment/applicants/:id/stage` |
-| POST | `/api/recruitment/applicants/:id/reject` |
-| POST | `/api/recruitment/applicants/:id/hire` |
-| PATCH | `/api/recruitment/applicants/:id/talent-pool` |
-| POST | `/api/recruitment/applicants/:id/interviews` |
-| PATCH | `/api/recruitment/applicants/:id/interviews/:interviewId` |
-| POST | `/api/recruitment/applicants/:id/interviews/:interviewId/feedback` |
-| POST | `/api/recruitment/applicants/:id/assessments` |
-| ... | *9 more* |
+| GET | `/api/firms` |
+| GET | `/api/firms/roles` |
+| POST | `/api/firms` |
+| POST | `/api/firms/switch` |
+| GET | `/api/firms/my/permissions` |
+| GET | `/api/firms/tree` |
+| GET | `/api/firms/user/accessible` |
+| GET | `/api/firms/active` |
+| GET | `/api/firms/:id/children` |
+| PUT | `/api/firms/:id/move` |
+| GET | `/api/firms/:id/access` |
+| POST | `/api/firms/:id/access` |
+| PATCH | `/api/firms/:id/billing` |
+| GET | `/api/firms/:id/team` |
+| GET | `/api/firms/:id/members` |
+| GET | `/api/firms/:id/departed` |
+| POST | `/api/firms/:id/members/invite` |
+| POST | `/api/firms/:id/members/:memberId/depart` |
+| POST | `/api/firms/:id/members/:memberId/reinstate` |
+| POST | `/api/firms/:firmId/invitations` |
+| GET | `/api/firms/:firmId/invitations` |
+| GET | `/api/firms/:id/stats` |
+| GET | `/api/firms/:firmId/ip-whitelist` |
+| POST | `/api/firms/:firmId/ip-whitelist/test` |
+| POST | `/api/firms/:firmId/ip-whitelist/enable` |
+| POST | `/api/firms/:firmId/ip-whitelist/disable` |
+| POST | `/api/firms/:firmId/ip-whitelist` |
+| DELETE | `/api/firms/:firmId/ip-whitelist/:ip` |
+| DELETE | `/api/firms/:firmId/ip-whitelist/temporary/:allowanceId` |
+| GET | `/api/firms/:firmId/sso` |
+| ... | *4 more* |
 
-### auditLog (33 unused)
+### contracts (33 unused)
 
 | Method | Endpoint |
 |--------|----------|
-| GET | `/api/auditLog` |
-| GET | `/api/auditLog/entity/:type/:id` |
-| GET | `/api/auditLog/user/:id` |
-| GET | `/api/auditLog/security` |
-| GET | `/api/auditLog/export` |
-| GET | `/api/auditLog/failed-logins` |
-| GET | `/api/auditLog/suspicious` |
-| POST | `/api/auditLog/check-brute-force` |
-| GET | `/api/auditLog/summary` |
-| GET | `/api/auditLog/security-events` |
-| GET | `/api/auditLog/compliance-report` |
-| GET | `/api/auditLog/archiving/stats` |
-| GET | `/api/auditLog/archiving/summary` |
-| POST | `/api/auditLog/archiving/run` |
-| POST | `/api/auditLog/archiving/verify` |
-| POST | `/api/auditLog/archiving/restore` |
-| POST | `/api/auditLog/log-with-diff` |
-| POST | `/api/auditLog/log-bulk-action` |
-| POST | `/api/auditLog/log-security-event` |
-| GET | `/api/auditLog/search` |
-| GET | `/api/auditLog/by-action/:action` |
-| GET | `/api/auditLog/by-date-range` |
-| GET | `/api/auditLog/analytics/activity-summary` |
-| GET | `/api/auditLog/analytics/top-users` |
-| GET | `/api/auditLog/analytics/top-actions` |
-| GET | `/api/auditLog/analytics/anomalies` |
-| POST | `/api/auditLog/compliance/generate-report` |
-| POST | `/api/auditLog/compliance/verify-integrity` |
-| POST | `/api/auditLog/compliance/export-for-audit` |
-| GET | `/api/auditLog/compliance/retention-status` |
+| GET | `/api/contracts/search` |
+| GET | `/api/contracts/expiring` |
+| GET | `/api/contracts/statistics` |
+| GET | `/api/contracts/client/:clientId` |
+| GET | `/api/contracts/templates` |
+| POST | `/api/contracts/templates/:templateId/use` |
+| GET | `/api/contracts` |
+| POST | `/api/contracts` |
+| GET | `/api/contracts/:contractId` |
+| PATCH | `/api/contracts/:contractId` |
+| DELETE | `/api/contracts/:contractId` |
+| POST | `/api/contracts/:contractId/parties` |
+| PATCH | `/api/contracts/:contractId/parties/:partyIndex` |
+| DELETE | `/api/contracts/:contractId/parties/:partyIndex` |
+| POST | `/api/contracts/:contractId/signatures/initiate` |
+| POST | `/api/contracts/:contractId/signatures/:partyIndex` |
+| GET | `/api/contracts/:contractId/signatures` |
+| POST | `/api/contracts/:contractId/amendments` |
+| GET | `/api/contracts/:contractId/amendments` |
+| POST | `/api/contracts/:contractId/versions` |
+| GET | `/api/contracts/:contractId/versions` |
+| POST | `/api/contracts/:contractId/versions/:versionNumber/revert` |
+| POST | `/api/contracts/:contractId/notarization` |
+| GET | `/api/contracts/:contractId/notarization/verify` |
+| POST | `/api/contracts/:contractId/breach` |
+| POST | `/api/contracts/:contractId/enforcement` |
+| PATCH | `/api/contracts/:contractId/enforcement` |
+| POST | `/api/contracts/:contractId/link-case` |
+| POST | `/api/contracts/:contractId/reminders` |
+| GET | `/api/contracts/:contractId/reminders` |
 | ... | *3 more* |
 
-### bankReconciliation (33 unused)
+### manufacturing (28 unused)
 
 | Method | Endpoint |
 |--------|----------|
-| GET | `/api/bankReconciliation/feeds` |
-| POST | `/api/bankReconciliation/feeds` |
-| PUT | `/api/bankReconciliation/feeds/:id` |
-| DELETE | `/api/bankReconciliation/feeds/:id` |
-| POST | `/api/bankReconciliation/import/csv` |
-| POST | `/api/bankReconciliation/import/ofx` |
-| GET | `/api/bankReconciliation/import/template` |
-| GET | `/api/bankReconciliation/suggestions/:accountId` |
-| POST | `/api/bankReconciliation/auto-match/:accountId` |
-| POST | `/api/bankReconciliation/match/confirm/:id` |
-| POST | `/api/bankReconciliation/match/reject/:id` |
-| POST | `/api/bankReconciliation/match/split` |
-| DELETE | `/api/bankReconciliation/match/:id` |
-| POST | `/api/bankReconciliation/rules` |
-| GET | `/api/bankReconciliation/rules` |
-| PUT | `/api/bankReconciliation/rules/:id` |
-| DELETE | `/api/bankReconciliation/rules/:id` |
-| POST | `/api/bankReconciliation` |
-| GET | `/api/bankReconciliation` |
-| GET | `/api/bankReconciliation/:id` |
-| POST | `/api/bankReconciliation/:id/clear` |
-| POST | `/api/bankReconciliation/:id/unclear` |
-| POST | `/api/bankReconciliation/:id/complete` |
-| POST | `/api/bankReconciliation/:id/cancel` |
-| GET | `/api/bankReconciliation/status/:accountId` |
-| GET | `/api/bankReconciliation/unmatched/:accountId` |
-| GET | `/api/bankReconciliation/statistics/matches` |
-| GET | `/api/bankReconciliation/statistics/rules` |
-| GET | `/api/bankReconciliation/currency/rates` |
-| POST | `/api/bankReconciliation/currency/convert` |
-| ... | *3 more* |
+| GET | `/api/manufacturing/stats` |
+| GET | `/api/manufacturing/settings` |
+| PUT | `/api/manufacturing/settings` |
+| GET | `/api/manufacturing/boms` |
+| GET | `/api/manufacturing/boms/:id` |
+| POST | `/api/manufacturing/boms` |
+| PUT | `/api/manufacturing/boms/:id` |
+| DELETE | `/api/manufacturing/boms/:id` |
+| GET | `/api/manufacturing/workstations` |
+| GET | `/api/manufacturing/workstations/:id` |
+| POST | `/api/manufacturing/workstations` |
+| PUT | `/api/manufacturing/workstations/:id` |
+| DELETE | `/api/manufacturing/workstations/:id` |
+| GET | `/api/manufacturing/work-orders` |
+| GET | `/api/manufacturing/work-orders/:id` |
+| POST | `/api/manufacturing/work-orders` |
+| PUT | `/api/manufacturing/work-orders/:id` |
+| DELETE | `/api/manufacturing/work-orders/:id` |
+| POST | `/api/manufacturing/work-orders/:id/submit` |
+| POST | `/api/manufacturing/work-orders/:id/start` |
+| POST | `/api/manufacturing/work-orders/:id/complete` |
+| POST | `/api/manufacturing/work-orders/:id/cancel` |
+| GET | `/api/manufacturing/job-cards` |
+| GET | `/api/manufacturing/job-cards/:id` |
+| POST | `/api/manufacturing/job-cards` |
+| PUT | `/api/manufacturing/job-cards/:id` |
+| POST | `/api/manufacturing/job-cards/:id/start` |
+| POST | `/api/manufacturing/job-cards/:id/complete` |
 
-### fleet (33 unused)
+### appointments (27 unused)
 
 | Method | Endpoint |
 |--------|----------|
-| GET | `/api/fleet/stats` |
-| GET | `/api/fleet/expiring-documents` |
-| GET | `/api/fleet/maintenance-due` |
-| GET | `/api/fleet/driver-rankings` |
-| GET | `/api/fleet/vehicles` |
-| GET | `/api/fleet/vehicles/:id` |
-| POST | `/api/fleet/vehicles` |
-| PATCH | `/api/fleet/vehicles/:id` |
-| DELETE | `/api/fleet/vehicles/:id` |
-| PUT | `/api/fleet/vehicles/:id/location` |
-| GET | `/api/fleet/vehicles/:id/location-history` |
-| GET | `/api/fleet/fuel-logs` |
-| POST | `/api/fleet/fuel-logs` |
-| POST | `/api/fleet/fuel-logs/:id/verify` |
-| GET | `/api/fleet/maintenance` |
-| POST | `/api/fleet/maintenance` |
-| PATCH | `/api/fleet/maintenance/:id` |
-| GET | `/api/fleet/inspections/checklist` |
-| GET | `/api/fleet/inspections` |
-| POST | `/api/fleet/inspections` |
-| GET | `/api/fleet/trips` |
-| POST | `/api/fleet/trips` |
-| POST | `/api/fleet/trips/:id/end` |
-| GET | `/api/fleet/incidents` |
-| GET | `/api/fleet/incidents/:id` |
-| POST | `/api/fleet/incidents` |
-| PATCH | `/api/fleet/incidents/:id` |
-| GET | `/api/fleet/drivers` |
-| GET | `/api/fleet/drivers/:id` |
-| POST | `/api/fleet/drivers` |
-| ... | *3 more* |
+| POST | `/api/appointments/book/:firmId` |
+| GET | `/api/appointments/available-slots` |
+| GET | `/api/appointments/availability` |
+| POST | `/api/appointments/availability` |
+| POST | `/api/appointments/availability/bulk` |
+| PUT | `/api/appointments/availability/:id` |
+| DELETE | `/api/appointments/availability/:id` |
+| GET | `/api/appointments/blocked-times` |
+| POST | `/api/appointments/blocked-times` |
+| DELETE | `/api/appointments/blocked-times/:id` |
+| GET | `/api/appointments/settings` |
+| PUT | `/api/appointments/settings` |
+| GET | `/api/appointments/stats` |
+| GET | `/api/appointments/debug` |
+| GET | `/api/appointments/calendar-status` |
+| GET | `/api/appointments/:id/calendar-links` |
+| POST | `/api/appointments/:id/sync-calendar` |
+| GET | `/api/appointments` |
+| GET | `/api/appointments/slots` |
+| GET | `/api/appointments/:id` |
+| POST | `/api/appointments` |
+| PUT | `/api/appointments/:id` |
+| PUT | `/api/appointments/:id/confirm` |
+| PUT | `/api/appointments/:id/complete` |
+| PUT | `/api/appointments/:id/no-show` |
+| POST | `/api/appointments/:id/reschedule` |
+| DELETE | `/api/appointments/:id` |
 
-### legalContract (33 unused)
+### crm-reports (27 unused)
 
 | Method | Endpoint |
 |--------|----------|
-| GET | `/api/legalContract/search` |
-| GET | `/api/legalContract/expiring` |
-| GET | `/api/legalContract/statistics` |
-| GET | `/api/legalContract/client/:clientId` |
-| GET | `/api/legalContract/templates` |
-| POST | `/api/legalContract/templates/:templateId/use` |
-| GET | `/api/legalContract` |
-| POST | `/api/legalContract` |
-| GET | `/api/legalContract/:contractId` |
-| PATCH | `/api/legalContract/:contractId` |
-| DELETE | `/api/legalContract/:contractId` |
-| POST | `/api/legalContract/:contractId/parties` |
-| PATCH | `/api/legalContract/:contractId/parties/:partyIndex` |
-| DELETE | `/api/legalContract/:contractId/parties/:partyIndex` |
-| POST | `/api/legalContract/:contractId/signatures/initiate` |
-| POST | `/api/legalContract/:contractId/signatures/:partyIndex` |
-| GET | `/api/legalContract/:contractId/signatures` |
-| POST | `/api/legalContract/:contractId/amendments` |
-| GET | `/api/legalContract/:contractId/amendments` |
-| POST | `/api/legalContract/:contractId/versions` |
-| GET | `/api/legalContract/:contractId/versions` |
-| POST | `/api/legalContract/:contractId/versions/:versionNumber/revert` |
-| POST | `/api/legalContract/:contractId/notarization` |
-| GET | `/api/legalContract/:contractId/notarization/verify` |
-| POST | `/api/legalContract/:contractId/breach` |
-| POST | `/api/legalContract/:contractId/enforcement` |
-| PATCH | `/api/legalContract/:contractId/enforcement` |
-| POST | `/api/legalContract/:contractId/link-case` |
-| POST | `/api/legalContract/:contractId/reminders` |
-| GET | `/api/legalContract/:contractId/reminders` |
-| ... | *3 more* |
+| GET | `/api/crm-reports/quick-stats` |
+| GET | `/api/crm-reports/recent-activity` |
+| GET | `/api/crm-reports/funnel/overview` |
+| GET | `/api/crm-reports/funnel/velocity` |
+| GET | `/api/crm-reports/funnel/bottlenecks` |
+| GET | `/api/crm-reports/aging/overview` |
+| GET | `/api/crm-reports/aging/by-stage` |
+| GET | `/api/crm-reports/leads-source/overview` |
+| GET | `/api/crm-reports/leads-source/trend` |
+| GET | `/api/crm-reports/win-loss/overview` |
+| GET | `/api/crm-reports/win-loss/reasons` |
+| GET | `/api/crm-reports/win-loss/trend` |
+| GET | `/api/crm-reports/activity/overview` |
+| GET | `/api/crm-reports/activity/by-day-of-week` |
+| GET | `/api/crm-reports/activity/by-hour` |
+| GET | `/api/crm-reports/activity/leaderboard` |
+| GET | `/api/crm-reports/forecast/overview` |
+| GET | `/api/crm-reports/forecast/by-month` |
+| GET | `/api/crm-reports/forecast/by-rep` |
+| POST | `/api/crm-reports/export` |
+| GET | `/api/crm-reports/campaign-efficiency` |
+| GET | `/api/crm-reports/lead-owner-efficiency` |
+| GET | `/api/crm-reports/first-response-time` |
+| GET | `/api/crm-reports/lost-opportunity` |
+| GET | `/api/crm-reports/sales-pipeline` |
+| GET | `/api/crm-reports/prospects-engaged` |
+| GET | `/api/crm-reports/lead-conversion-time` |
 
-### expenseClaim (32 unused)
+### analyticss (26 unused)
 
 | Method | Endpoint |
 |--------|----------|
-| GET | `/api/expenseClaim/stats` |
-| GET | `/api/expenseClaim/pending-approvals` |
-| GET | `/api/expenseClaim/pending-payments` |
-| GET | `/api/expenseClaim/mileage-rates` |
-| GET | `/api/expenseClaim/policies` |
-| GET | `/api/expenseClaim/export` |
-| POST | `/api/expenseClaim/bulk-delete` |
-| GET | `/api/expenseClaim/by-employee/:employeeId` |
-| GET | `/api/expenseClaim/corporate-card/:employeeId` |
-| GET | `/api/expenseClaim` |
-| POST | `/api/expenseClaim` |
-| GET | `/api/expenseClaim/:id` |
-| PATCH | `/api/expenseClaim/:id` |
-| DELETE | `/api/expenseClaim/:id` |
-| POST | `/api/expenseClaim/:id/submit` |
-| POST | `/api/expenseClaim/:id/approve` |
-| POST | `/api/expenseClaim/:id/reject` |
-| POST | `/api/expenseClaim/:id/request-changes` |
-| POST | `/api/expenseClaim/:id/process-payment` |
-| POST | `/api/expenseClaim/:id/confirm-payment` |
-| POST | `/api/expenseClaim/:id/line-items` |
-| PATCH | `/api/expenseClaim/:id/line-items/:lineItemId` |
-| DELETE | `/api/expenseClaim/:id/line-items/:lineItemId` |
-| POST | `/api/expenseClaim/:id/receipts` |
-| DELETE | `/api/expenseClaim/:id/receipts/:receiptId` |
-| POST | `/api/expenseClaim/:id/receipts/:receiptId/verify` |
-| POST | `/api/expenseClaim/:id/reconcile-card` |
-| POST | `/api/expenseClaim/:id/check-compliance` |
-| POST | `/api/expenseClaim/:id/approve-exception` |
-| POST | `/api/expenseClaim/:id/mark-billable` |
-| ... | *2 more* |
+| POST | `/api/analyticss/events` |
+| GET | `/api/analyticss/events/counts` |
+| GET | `/api/analyticss/app/dashboard` |
+| GET | `/api/analyticss/app/features` |
+| GET | `/api/analyticss/app/features/popular` |
+| GET | `/api/analyticss/app/engagement` |
+| GET | `/api/analyticss/app/retention` |
+| GET | `/api/analyticss/app/funnel` |
+| GET | `/api/analyticss/app/dropoff` |
+| GET | `/api/analyticss/app/users/:userId/journey` |
+| GET | `/api/analyticss/app/export` |
+| GET | `/api/analyticss/crm/dashboard` |
+| GET | `/api/analyticss/crm/pipeline` |
+| GET | `/api/analyticss/crm/sales-funnel` |
+| GET | `/api/analyticss/crm/forecast` |
+| GET | `/api/analyticss/crm/lead-sources` |
+| GET | `/api/analyticss/crm/win-loss` |
+| GET | `/api/analyticss/crm/activity` |
+| GET | `/api/analyticss/crm/team-performance` |
+| GET | `/api/analyticss/crm/territory` |
+| GET | `/api/analyticss/crm/campaign-roi` |
+| GET | `/api/analyticss/crm/first-response` |
+| GET | `/api/analyticss/crm/conversion-rates` |
+| GET | `/api/analyticss/crm/cohort` |
+| GET | `/api/analyticss/crm/revenue` |
+| GET | `/api/analyticss/crm/forecast-accuracy` |
 
-### permission (32 unused)
+### audit-logs (25 unused)
 
 | Method | Endpoint |
 |--------|----------|
-| POST | `/api/permission/check` |
-| POST | `/api/permission/check-batch` |
-| GET | `/api/permission/my-permissions` |
-| GET | `/api/permission/expand/:namespace/:resourceId/:relation` |
-| GET | `/api/permission/user-resources/:userId` |
-| GET | `/api/permission/config` |
-| PUT | `/api/permission/config` |
-| POST | `/api/permission/policies` |
-| PUT | `/api/permission/policies/:policyId` |
-| DELETE | `/api/permission/policies/:policyId` |
-| GET | `/api/permission/relations/stats` |
-| POST | `/api/permission/relations` |
-| DELETE | `/api/permission/relations` |
-| GET | `/api/permission/relations/:namespace/:object` |
-| GET | `/api/permission/decisions` |
-| GET | `/api/permission/decisions/stats` |
-| GET | `/api/permission/decisions/denied` |
-| GET | `/api/permission/decisions/compliance-report` |
-| GET | `/api/permission/cache/stats` |
-| POST | `/api/permission/cache/clear` |
-| GET | `/api/permission/ui/sidebar` |
-| GET | `/api/permission/ui/sidebar/all` |
-| PUT | `/api/permission/ui/sidebar/:itemId/visibility` |
-| POST | `/api/permission/ui/check-page` |
-| GET | `/api/permission/ui/pages/all` |
-| PUT | `/api/permission/ui/pages/:pageId/access` |
-| GET | `/api/permission/ui/config` |
-| PUT | `/api/permission/ui/config` |
-| GET | `/api/permission/ui/matrix` |
-| PUT | `/api/permission/ui/roles/:role/bulk` |
-| ... | *2 more* |
+| GET | `/api/audit-logs/summary` |
+| GET | `/api/audit-logs/security-events` |
+| GET | `/api/audit-logs/compliance-report` |
+| GET | `/api/audit-logs/archiving/stats` |
+| GET | `/api/audit-logs/archiving/summary` |
+| POST | `/api/audit-logs/archiving/run` |
+| POST | `/api/audit-logs/archiving/verify` |
+| POST | `/api/audit-logs/archiving/restore` |
+| POST | `/api/audit-logs/log-with-diff` |
+| POST | `/api/audit-logs/log-bulk-action` |
+| POST | `/api/audit-logs/log-security-event` |
+| GET | `/api/audit-logs/search` |
+| GET | `/api/audit-logs/by-action/:action` |
+| GET | `/api/audit-logs/by-date-range` |
+| GET | `/api/audit-logs/analytics/activity-summary` |
+| GET | `/api/audit-logs/analytics/top-users` |
+| GET | `/api/audit-logs/analytics/top-actions` |
+| GET | `/api/audit-logs/analytics/anomalies` |
+| POST | `/api/audit-logs/compliance/generate-report` |
+| POST | `/api/audit-logs/compliance/verify-integrity` |
+| POST | `/api/audit-logs/compliance/export-for-audit` |
+| GET | `/api/audit-logs/compliance/retention-status` |
+| GET | `/api/audit-logs/archive/stats` |
+| POST | `/api/audit-logs/archive/run` |
+| POST | `/api/audit-logs/archive/verify` |
 
-### saudiBanking (32 unused)
+### dunning (24 unused)
 
 | Method | Endpoint |
 |--------|----------|
-| GET | `/api/saudiBanking/lean/banks` |
-| GET | `/api/saudiBanking/lean/customers` |
-| POST | `/api/saudiBanking/lean/customers` |
-| GET | `/api/saudiBanking/lean/customers/:customerId/token` |
-| GET | `/api/saudiBanking/lean/customers/:customerId/entities` |
-| GET | `/api/saudiBanking/lean/entities/:entityId/accounts` |
-| GET | `/api/saudiBanking/lean/accounts/:accountId/balance` |
-| GET | `/api/saudiBanking/lean/accounts/:accountId/transactions` |
-| GET | `/api/saudiBanking/lean/entities/:entityId/identity` |
-| POST | `/api/saudiBanking/lean/payments` |
-| DELETE | `/api/saudiBanking/lean/entities/:entityId` |
-| POST | `/api/saudiBanking/lean/webhook` |
-| POST | `/api/saudiBanking/wps/generate` |
-| POST | `/api/saudiBanking/wps/download` |
-| POST | `/api/saudiBanking/wps/validate` |
-| GET | `/api/saudiBanking/wps/files` |
-| GET | `/api/saudiBanking/wps/sarie-banks` |
-| GET | `/api/saudiBanking/sadad/billers` |
-| GET | `/api/saudiBanking/sadad/billers/search` |
-| POST | `/api/saudiBanking/sadad/bills/inquiry` |
-| POST | `/api/saudiBanking/sadad/bills/pay` |
-| GET | `/api/saudiBanking/sadad/payments/:transactionId/status` |
-| GET | `/api/saudiBanking/sadad/payments/history` |
-| POST | `/api/saudiBanking/mudad/payroll/calculate` |
-| POST | `/api/saudiBanking/mudad/gosi/calculate` |
-| POST | `/api/saudiBanking/mudad/wps/generate` |
-| POST | `/api/saudiBanking/mudad/payroll/submit` |
-| GET | `/api/saudiBanking/mudad/submissions/:submissionId/status` |
-| POST | `/api/saudiBanking/mudad/gosi/report` |
-| POST | `/api/saudiBanking/mudad/compliance/nitaqat` |
-| ... | *2 more* |
+| GET | `/api/dunning/dashboard` |
+| GET | `/api/dunning/stats` |
+| GET | `/api/dunning/report` |
+| GET | `/api/dunning/report/export` |
+| GET | `/api/dunning/overdue-invoices` |
+| GET | `/api/dunning/upcoming-actions` |
+| GET | `/api/dunning/paused-invoices` |
+| GET | `/api/dunning/policies` |
+| GET | `/api/dunning/policies/default` |
+| POST | `/api/dunning/policies` |
+| GET | `/api/dunning/policies/:id` |
+| PUT | `/api/dunning/policies/:id` |
+| DELETE | `/api/dunning/policies/:id` |
+| POST | `/api/dunning/policies/:id/set-default` |
+| POST | `/api/dunning/policies/:id/toggle-status` |
+| POST | `/api/dunning/policies/:id/duplicate` |
+| POST | `/api/dunning/policies/:id/test` |
+| POST | `/api/dunning/policies/:id/apply` |
+| GET | `/api/dunning/history` |
+| GET | `/api/dunning/history/invoice/:invoiceId` |
+| POST | `/api/dunning/history` |
+| POST | `/api/dunning/history/:invoiceId/pause` |
+| POST | `/api/dunning/history/:invoiceId/resume` |
+| POST | `/api/dunning/history/:invoiceId/escalate` |
 
-### skillMatrix (32 unused)
+### tasks (24 unused)
 
 | Method | Endpoint |
 |--------|----------|
-| GET | `/api/skillMatrix/sfia-levels` |
-| GET | `/api/skillMatrix/types` |
-| POST | `/api/skillMatrix/types` |
-| PATCH | `/api/skillMatrix/types/:id` |
-| GET | `/api/skillMatrix/competencies` |
-| GET | `/api/skillMatrix/competencies/:id` |
-| POST | `/api/skillMatrix/competencies` |
-| PATCH | `/api/skillMatrix/competencies/:id` |
-| DELETE | `/api/skillMatrix/competencies/:id` |
-| GET | `/api/skillMatrix/assessments` |
-| GET | `/api/skillMatrix/assessments/:id` |
-| POST | `/api/skillMatrix/assessments` |
-| PATCH | `/api/skillMatrix/assessments/:id` |
-| POST | `/api/skillMatrix/assessments/:id/self-assessment` |
-| GET | `/api/skillMatrix/expiring-certifications` |
-| GET | `/api/skillMatrix/cpd-non-compliant` |
-| GET | `/api/skillMatrix/needing-review` |
-| GET | `/api/skillMatrix/by-category` |
-| GET | `/api/skillMatrix/stats` |
-| GET | `/api/skillMatrix/matrix` |
-| GET | `/api/skillMatrix/gap-analysis` |
-| GET | `/api/skillMatrix` |
-| GET | `/api/skillMatrix/:id` |
-| POST | `/api/skillMatrix` |
-| PATCH | `/api/skillMatrix/:id` |
-| DELETE | `/api/skillMatrix/:id` |
-| POST | `/api/skillMatrix/assign` |
-| DELETE | `/api/skillMatrix/assign/:employeeId/:skillId` |
-| GET | `/api/skillMatrix/employee/:employeeId` |
-| GET | `/api/skillMatrix/:skillId/employees` |
-| ... | *2 more* |
+| GET | `/api/tasks/overview` |
+| GET | `/api/tasks/timers/active` |
+| GET | `/api/tasks/search` |
+| GET | `/api/tasks/conflicts` |
+| GET | `/api/tasks/client/:clientId` |
+| POST | `/api/tasks/bulk/reopen` |
+| GET | `/api/tasks/archived` |
+| GET | `/api/tasks/location-triggers` |
+| POST | `/api/tasks/location/check` |
+| POST | `/api/tasks/parse` |
+| POST | `/api/tasks/voice` |
+| GET | `/api/tasks/smart-schedule` |
+| POST | `/api/tasks/auto-schedule` |
+| POST | `/api/tasks/voice-to-item` |
+| POST | `/api/tasks/voice-to-item/batch` |
+| GET | `/api/tasks/:id/activity` |
+| POST | `/api/tasks/:id/convert-to-event` |
+| PUT | `/api/tasks/:id/location-trigger` |
+| POST | `/api/tasks/:id/location/check` |
+| PATCH | `/api/tasks/:id/timer/pause` |
+| PATCH | `/api/tasks/:id/timer/resume` |
+| GET | `/api/tasks/:id/documents/:documentId/versions` |
+| GET | `/api/tasks/:id/documents/:documentId/versions/:versionId` |
+| POST | `/api/tasks/:id/documents/:documentId/versions/:versionId/restore` |
+
+### admin-api (22 unused)
+
+| Method | Endpoint |
+|--------|----------|
+| GET | `/api/admin-api/dashboard/summary` |
+| GET | `/api/admin-api/dashboard/revenue` |
+| GET | `/api/admin-api/dashboard/active-users` |
+| GET | `/api/admin-api/dashboard/system-health` |
+| GET | `/api/admin-api/dashboard/pending-approvals` |
+| GET | `/api/admin-api/dashboard/recent-activity` |
+| GET | `/api/admin-api/users` |
+| GET | `/api/admin-api/users/export` |
+| GET | `/api/admin-api/users/:id` |
+| PATCH | `/api/admin-api/users/:id/status` |
+| POST | `/api/admin-api/users/:id/revoke-tokens` |
+| POST | `/api/admin-api/users/:id/reset-password` |
+| GET | `/api/admin-api/audit/logs` |
+| GET | `/api/admin-api/audit/security-events` |
+| GET | `/api/admin-api/audit/compliance-report` |
+| GET | `/api/admin-api/audit/export` |
+| GET | `/api/admin-api/audit/login-history` |
+| GET | `/api/admin-api/firms` |
+| GET | `/api/admin-api/firms/:id` |
+| GET | `/api/admin-api/firms/:id/usage` |
+| PATCH | `/api/admin-api/firms/:id/plan` |
+| PATCH | `/api/admin-api/firms/:id/suspend` |
+
+### reports (22 unused)
+
+| Method | Endpoint |
+|--------|----------|
+| GET | `/api/reports/consolidated/profit-loss` |
+| GET | `/api/reports/consolidated/balance-sheet` |
+| GET | `/api/reports/consolidated/cash-flow` |
+| GET | `/api/reports/consolidated/comparison` |
+| GET | `/api/reports/consolidated/eliminations` |
+| POST | `/api/reports/consolidated/eliminations` |
+| GET | `/api/reports/consolidated/auto-eliminations` |
+| GET | `/api/reports/consolidated/full-statement` |
+| GET | `/api/reports/budget-variance` |
+| GET | `/api/reports/ap-aging` |
+| GET | `/api/reports/client-statement` |
+| GET | `/api/reports/vendor-ledger` |
+| GET | `/api/reports/gross-profit` |
+| GET | `/api/reports/cost-center` |
+| GET | `/api/reports/cases-chart` |
+| GET | `/api/reports/revenue-chart` |
+| GET | `/api/reports/tasks-chart` |
+| POST | `/api/reports/:id/execute` |
+| POST | `/api/reports/validate` |
+| GET | `/api/reports/:id/execute` |
+| POST | `/api/reports/:id/clone` |
+| GET | `/api/reports/:id/export/:format` |
+
+### reminders (22 unused)
+
+| Method | Endpoint |
+|--------|----------|
+| GET | `/api/reminders/location/summary` |
+| GET | `/api/reminders/location/locations` |
+| POST | `/api/reminders/location` |
+| POST | `/api/reminders/location/check` |
+| POST | `/api/reminders/location/nearby` |
+| POST | `/api/reminders/location/save` |
+| POST | `/api/reminders/location/distance` |
+| PUT | `/api/reminders/location/locations/:locationId` |
+| DELETE | `/api/reminders/location/locations/:locationId` |
+| POST | `/api/reminders/location/:reminderId/reset` |
+| GET | `/api/reminders/client/:clientId` |
+| GET | `/api/reminders/case/:caseId` |
+| POST | `/api/reminders/from-task/:taskId` |
+| POST | `/api/reminders/from-event/:eventId` |
+| POST | `/api/reminders/parse` |
+| POST | `/api/reminders/voice` |
+| PATCH | `/api/reminders/reorder` |
+| GET | `/api/reminders/search` |
+| GET | `/api/reminders/conflicts` |
+| POST | `/api/reminders/:id/clone` |
+| POST | `/api/reminders/:id/reschedule` |
+| GET | `/api/reminders/:id/activity` |
 
 ---
 
@@ -3429,23 +2100,123 @@ Frontend calls with different HTTP method than backend expects.
 
 | Path | Frontend Method | Backend Method |
 |------|-----------------|----------------|
-| `/conversations` | POST | GET |
-| `/conversations/${conversationID}` | PATCH | GET |
+| `/saudi-banking/lean/customers/:param/token` | POST | GET |
+| `/saudi-banking/mudad/submissions/:param/status` | POST | GET |
+| `/lawyers` | POST | GET |
+| `/lawyers/${id}` | PUT | GET |
+| `/lawyers/${id}` | DELETE | GET |
+| `/recurring-transactions/${id}` | DELETE | GET |
+| `/hr/advances/:param` | POST | GET |
+| `/hr/advances/:param/cancel` | GET | POST |
+| `/hr/advances/by-employee/:param` | POST | GET |
 | `/auth/anonymous` | DELETE | POST |
+| `/approvals/rules` | POST | GET |
+| `/hr/asset-assignments/:param` | POST | GET |
+| `/hr/asset-assignments/:param/acknowledge` | GET | POST |
+| `/hr/asset-assignments/by-employee/:param` | POST | GET |
 | `/assets/${id}/submit` | PATCH | POST |
 | `/assets/:param` | POST | GET |
 | `/assets/categories/:param` | POST | GET |
 | `/attendance/${recordId}/breaks` | POST | GET |
 | `/attendance/${recordId}/violations` | GET | POST |
 | `/attendance/:param` | POST | GET |
+| `/audit-logs` | POST | GET |
+| `/bank-accounts/:param` | POST | GET |
+| `/bank-reconciliation/feeds/:param` | GET | PUT |
+| `/bank-reconciliation/suggestions/:param` | POST | GET |
+| `/bank-reconciliation/match/:param` | POST | DELETE |
+| `/bank-reconciliation/rules/:param` | POST | PUT |
+| `/bank-reconciliation/:param` | POST | GET |
+| `/bank-transactions/:param` | POST | GET |
+| `/bank-transfers/:param` | POST | GET |
+| `/hr/employee-benefits/:param` | POST | GET |
+| `/hr/compensation-rewards/:param` | POST | GET |
+| `/conflict-checks/:param` | POST | GET |
+| `/contacts/:param` | POST | GET |
+| `/contacts/search?q=:param` | DELETE | GET |
+| `/corporate-cards/${id}` | PATCH | GET |
+| `/email-marketing/subscribers/${id}` | GET | PUT |
 | `/whatsapp/conversations/${conversationId}/assign` | POST | PUT |
-| `/ldap/config` | PUT | GET |
-| `/ldap/config` | DELETE | GET |
+| `/data-export/jobs/:param` | POST | GET |
+| `/data-export/import/:param/cancel` | GET | POST |
+| `/data-export/templates/:param` | GET | PATCH |
+| `/document-analysis/:param/similar` | POST | GET |
+| `/documents/:param` | POST | GET |
+| `/settings/email/signatures/${id}/default` | PATCH | PUT |
+| `/events/${eventId}/attendees/${attendeeId}` | PATCH | DELETE |
+| `/hr/expense-claims/:param` | POST | GET |
+| `/hr/expense-claims/:param/submit` | GET | POST |
+| `/hr/expense-claims/by-employee/:param` | POST | GET |
+| `/invoices/confirm-payment` | PATCH | POST |
+| `/credit-notes/${id}` | PATCH | GET |
+| `/payments/${id}/receipt` | GET | POST |
+| `/transactions/${id}` | PATCH | GET |
+| `/statements/${id}` | PUT | GET |
+| `/followups/:param` | POST | GET |
+| `/followups/:param/complete` | GET | POST |
+| `/hr/grievances/:param` | POST | GET |
+| `/hr/grievances/:param/acknowledge` | GET | POST |
+| `/api/inter-company/transactions/${id}` | DELETE | GET |
+| `/leave-requests/:param` | POST | GET |
+| `/hr/employee-loans/:param` | POST | GET |
+| `/hr/employee-loans/:param/submit` | GET | POST |
+| `/hr/employee-loans/by-employee/:param` | POST | GET |
+| `/matter-budgets/:param` | POST | GET |
+| `/matter-budgets/:param/phases` | GET | POST |
+| `/matter-budgets/templates/:param` | GET | PATCH |
+| `/messages?${params.toString()}` | GET | POST |
+| `/messages/${id}` | DELETE | GET |
+| `/messages/${id}` | PATCH | GET |
+| `/ml/scores/:param/explanation` | POST | GET |
+| `/ml/priority/:param/contact` | GET | POST |
+| `/auth/sso/unlink/:param` | GET | DELETE |
+| `/hr/offboarding/:param` | POST | GET |
+| `/hr/offboarding/:param/status` | GET | PATCH |
+| `/hr/offboarding/by-employee/:param` | POST | GET |
+| `/hr/offboarding/:param/rehire-eligibility` | GET | PATCH |
+| `/hr/onboarding/:param` | POST | GET |
+| `/hr/onboarding/:param/status` | GET | PATCH |
+| `/hr/onboarding/by-employee/:param` | POST | GET |
+| `/hr/organizational-structure/:param` | POST | GET |
+| `/organizations/:param` | POST | GET |
+| `/organizations/search?q=:param` | DELETE | GET |
+| `/payroll-runs/:param` | POST | GET |
+| `/payroll-runs/:param/employees/:param/hold` | GET | POST |
+| `/hr/performance-reviews/:param` | POST | GET |
+| `/hr/performance-reviews/templates/:param` | GET | PATCH |
+| `/hr/performance-reviews/calibration-sessions/:param/complete` | GET | POST |
+| `/permissions/policies` | GET | POST |
+| `/permissions/policies/${policyId}` | GET | PUT |
+| `/permissions/relations` | GET | POST |
+| `/proposals/job/:param` | POST | GET |
+| `/proposals/accept/:param` | GET | PATCH |
+| `/hr/recruitment/jobs/:param` | POST | GET |
+| `/hr/recruitment/jobs/:param/status` | GET | POST |
+| `/hr/recruitment/applicants/:param` | POST | GET |
+| `/recurring-invoices/${id}` | PATCH | GET |
+| `/recurring-invoices/:param` | POST | GET |
+| `/recurring-invoices/:param/duplicate` | GET | POST |
 | `/reports/${id}/schedule` | POST | PUT |
 | `/reports/${id}/schedule` | DELETE | PUT |
+| `/analytics-reports/:param` | POST | GET |
+| `/saved-reports/reports/:param` | POST | GET |
+| `/saudi-banking/lean/entities/:param` | POST | DELETE |
+| `/saudi-banking/sadad/payments/:param/status` | POST | GET |
 | `/auth/sessions/:param` | GET | DELETE |
+| `/hr/skills/:param` | POST | GET |
+| `/succession-plans/:param` | POST | GET |
+| `/succession-plans/by-position/:param` | POST | GET |
+| `/succession-plans/:param/successors` | GET | POST |
 | `/support/tickets/:param` | POST | GET |
 | `/support/slas/:param` | POST | GET |
+| `/tags/:param` | POST | GET |
+| `/tasks/${taskId}/subtasks/${subtaskId}/toggle` | POST | PATCH |
+| `/tasks/reorder` | POST | PATCH |
+| `/hr/trainings/:param` | POST | GET |
+| `/hr/trainings/:param/submit` | GET | POST |
+| `/hr/trainings/by-employee/:param` | POST | GET |
+| `/trust-accounts/:param` | POST | GET |
+| `/permissions/ui/overrides` | GET | POST |
 
 
 ---
@@ -3847,13 +2618,13 @@ Enums in backend models not exposed to frontend.
 ## Action Items
 
 ### 🔴 Critical (Will Break App)
-1. Add 2563 missing backend endpoints
-2. Fix 17 HTTP method mismatches
+1. Add 1099 missing backend endpoints
+2. Fix 117 HTTP method mismatches
 3. Sync 0 enum value differences
 
 ### 🟡 Important (May Cause Issues)
 1. Review 2871 frontend-only interfaces
-2. Document 3672 unused backend endpoints
+2. Document 2253 unused backend endpoints
 
 ### 📝 Housekeeping
 1. Remove dead code or add tests for unused endpoints
