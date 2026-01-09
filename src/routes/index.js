@@ -341,6 +341,16 @@ const automatedActionsExtendedRoute = require('./automatedActionsExtended.route'
 const budgetsRoute = require('./budgets.route');
 const auditLogsExtendedRoute = require('./auditLogsExtended.route');
 
+// Batch 9 Routes (HR staffing plans, vehicles, shift types extended)
+const hrStaffingPlansRoute = require('./hrStaffingPlans.route');
+const hrVehiclesRoute = require('./hrVehicles.route');
+const hrShiftTypesExtendedRoute = require('./hrShiftTypesExtended.route');
+
+// Batch 10 Routes (tasks extended, documents extended, drip campaigns)
+const tasksExtendedRoute = require('./tasksExtended.route');
+const documentsExtendedRoute = require('./documentsExtended.route');
+const dripCampaignsRoute = require('./dripCampaigns.route');
+
 // Who's Out Calendar & Compliance Dashboard Routes
 const whosOutRoute = require('./whosOut.route');
 const complianceDashboardRoute = require('./complianceDashboard.route');
@@ -797,6 +807,16 @@ module.exports = {
     automatedActionsExtendedRoute,
     budgetsRoute,
     auditLogsExtendedRoute,
+
+    // Batch 9 Routes (HR staffing plans, vehicles, shift types extended)
+    hrStaffingPlansRoute,
+    hrVehiclesRoute,
+    hrShiftTypesExtendedRoute,
+
+    // Batch 10 Routes (tasks extended, documents extended, drip campaigns)
+    tasksExtendedRoute,
+    documentsExtendedRoute,
+    dripCampaignsRoute,
 
     // Who's Out Calendar & Compliance Dashboard
     whosOutRoute,

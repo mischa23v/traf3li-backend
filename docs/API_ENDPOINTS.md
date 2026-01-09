@@ -99,7 +99,9 @@
 - [dispute](#dispute) (10 endpoints)
 - [document](#document) (19 endpoints)
 - [documentAnalysis](#documentanalysis) (11 endpoints)
+- [documentsExtended](#documentsextended) (11 endpoints)
 - [docusign](#docusign) (17 endpoints)
+- [dripCampaigns](#dripcampaigns) (9 endpoints)
 - [dunning](#dunning) (24 endpoints)
 - [emailMarketing](#emailmarketing) (39 endpoints)
 - [emailSettings](#emailsettings) (14 endpoints)
@@ -144,6 +146,9 @@
 - [hrRetentionBonus](#hrretentionbonus) (16 endpoints)
 - [hrSalaryComponents](#hrsalarycomponents) (11 endpoints)
 - [hrSetup](#hrsetup) (27 endpoints)
+- [hrShiftTypesExtended](#hrshifttypesextended) (13 endpoints)
+- [hrStaffingPlans](#hrstaffingplans) (26 endpoints)
+- [hrVehicles](#hrvehicles) (16 endpoints)
 - [incomeTaxSlab](#incometaxslab) (9 endpoints)
 - [integrations](#integrations) (45 endpoints)
 - [interCompany](#intercompany) (10 endpoints)
@@ -271,6 +276,7 @@
 - [survey](#survey) (16 endpoints)
 - [tag](#tag) (9 endpoints)
 - [task](#task) (89 endpoints)
+- [tasksExtended](#tasksextended) (13 endpoints)
 - [team](#team) (15 endpoints)
 - [telegram](#telegram) (11 endpoints)
 - [temporalCase](#temporalcase) (9 endpoints)
@@ -312,8 +318,8 @@
 
 | Metric | Count |
 |--------|-------|
-| Total Endpoints | 4723 |
-| Total Modules | 299 |
+| Total Endpoints | 4811 |
+| Total Modules | 305 |
 
 ---
 
@@ -2189,6 +2195,22 @@
 | `GET` | `/api/document-analysis/:documentId/similar` | findSimilar | documentAnalysis.route.js |
 | `GET` | `/api/document-analysis/:documentId/report` | generateReport | documentAnalysis.route.js |
 
+## documentsExtended
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/documents/:documentId/versions/:versionId` | unknown | documentsExtended.route.js |
+| `GET` | `/api/documents/:documentId/versions/:versionId/download` | unknown | documentsExtended.route.js |
+| `GET` | `/api/documents/:documentId/versions/:versionId/download-url` | unknown | documentsExtended.route.js |
+| `GET` | `/api/documents/:documentId/versions/:versionId/preview-url` | unknown | documentsExtended.route.js |
+| `POST` | `/api/documents/:documentId/versions/:versionId/restore` | unknown | documentsExtended.route.js |
+| `DELETE` | `/api/documents/:documentId/versions/:versionId` | unknown | documentsExtended.route.js |
+| `POST` | `/api/documents/:documentId/versions/:versionId/compare` | unknown | documentsExtended.route.js |
+| `GET` | `/api/documents/:id/preview-url` | unknown | documentsExtended.route.js |
+| `GET` | `/api/documents/:id/download-url` | unknown | documentsExtended.route.js |
+| `POST` | `/api/documents/:id/encrypt` | unknown | documentsExtended.route.js |
+| `POST` | `/api/documents/:id/decrypt` | unknown | documentsExtended.route.js |
+
 ## docusign
 
 | Method | Path | Controller | File |
@@ -2210,6 +2232,20 @@
 | `DELETE` | `/api/docusign/templates/defaults/:templateId` | removeDefaultTemplate | docusign.route.js |
 | `PUT` | `/api/docusign/settings` | updateSettings | docusign.route.js |
 | `POST` | `/api/docusign/webhook` | handleWebhook | docusign.route.js |
+
+## dripCampaigns
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/email-marketing/drip-campaigns` | unknown | dripCampaigns.route.js |
+| `GET` | `/api/email-marketing/drip-campaigns/:id` | unknown | dripCampaigns.route.js |
+| `POST` | `/api/email-marketing/drip-campaigns` | unknown | dripCampaigns.route.js |
+| `PUT` | `/api/email-marketing/drip-campaigns/:id` | unknown | dripCampaigns.route.js |
+| `DELETE` | `/api/email-marketing/drip-campaigns/:id` | unknown | dripCampaigns.route.js |
+| `POST` | `/api/email-marketing/drip-campaigns/:id/start` | unknown | dripCampaigns.route.js |
+| `POST` | `/api/email-marketing/drip-campaigns/:id/pause` | unknown | dripCampaigns.route.js |
+| `POST` | `/api/email-marketing/drip-campaigns/:id/stop` | unknown | dripCampaigns.route.js |
+| `GET` | `/api/email-marketing/drip-campaigns/:id/analytics` | unknown | dripCampaigns.route.js |
 
 ## dunning
 
@@ -3273,6 +3309,76 @@
 | `DELETE` | `/api/hr/shift-types/:id` | unknown | hrSetup.route.js |
 | `PATCH` | `/api/hr/shift-types/:id/default` | unknown | hrSetup.route.js |
 | `GET` | `/api/hr/analytics/dashboard` | unknown | hrSetup.route.js |
+
+## hrShiftTypesExtended
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/hr/shift-types/stats` | unknown | hrShiftTypesExtended.route.js |
+| `GET` | `/api/hr/shift-types/default` | unknown | hrShiftTypesExtended.route.js |
+| `GET` | `/api/hr/shift-types/export` | unknown | hrShiftTypesExtended.route.js |
+| `GET` | `/api/hr/shift-types/:shiftTypeId/assignments` | unknown | hrShiftTypesExtended.route.js |
+| `GET` | `/api/hr/shift-types/:shiftTypeId/schedule` | unknown | hrShiftTypesExtended.route.js |
+| `POST` | `/api/hr/shift-types/:shiftTypeId/set-default` | unknown | hrShiftTypesExtended.route.js |
+| `POST` | `/api/hr/shift-types/:shiftTypeId/activate` | unknown | hrShiftTypesExtended.route.js |
+| `POST` | `/api/hr/shift-types/:shiftTypeId/deactivate` | unknown | hrShiftTypesExtended.route.js |
+| `POST` | `/api/hr/shift-types/:shiftTypeId/duplicate` | unknown | hrShiftTypesExtended.route.js |
+| `POST` | `/api/hr/shift-types/bulk-activate` | unknown | hrShiftTypesExtended.route.js |
+| `POST` | `/api/hr/shift-types/bulk-deactivate` | unknown | hrShiftTypesExtended.route.js |
+| `POST` | `/api/hr/shift-types/bulk-delete` | unknown | hrShiftTypesExtended.route.js |
+| `POST` | `/api/hr/shift-types/import` | unknown | hrShiftTypesExtended.route.js |
+
+## hrStaffingPlans
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/hr/staffing-plans` | unknown | hrStaffingPlans.route.js |
+| `GET` | `/api/hr/staffing-plans/analytics` | unknown | hrStaffingPlans.route.js |
+| `GET` | `/api/hr/staffing-plans/forecast` | unknown | hrStaffingPlans.route.js |
+| `GET` | `/api/hr/staffing-plans/gaps` | unknown | hrStaffingPlans.route.js |
+| `GET` | `/api/hr/staffing-plans/export` | unknown | hrStaffingPlans.route.js |
+| `GET` | `/api/hr/staffing-plans/:planId` | unknown | hrStaffingPlans.route.js |
+| `GET` | `/api/hr/staffing-plans/:planId/progress` | unknown | hrStaffingPlans.route.js |
+| `GET` | `/api/hr/staffing-plans/:planId/budget` | unknown | hrStaffingPlans.route.js |
+| `GET` | `/api/hr/staffing-plans/:planId/timeline` | unknown | hrStaffingPlans.route.js |
+| `GET` | `/api/hr/staffing-plans/:planId/positions/open` | unknown | hrStaffingPlans.route.js |
+| `GET` | `/api/hr/staffing-plans/:planId/positions/filled` | unknown | hrStaffingPlans.route.js |
+| `POST` | `/api/hr/staffing-plans` | unknown | hrStaffingPlans.route.js |
+| `PATCH` | `/api/hr/staffing-plans/:planId` | unknown | hrStaffingPlans.route.js |
+| `DELETE` | `/api/hr/staffing-plans/:planId` | unknown | hrStaffingPlans.route.js |
+| `POST` | `/api/hr/staffing-plans/:planId/positions` | unknown | hrStaffingPlans.route.js |
+| `PATCH` | `/api/hr/staffing-plans/:planId/positions/:posId` | unknown | hrStaffingPlans.route.js |
+| `DELETE` | `/api/hr/staffing-plans/:planId/positions/:posId` | unknown | hrStaffingPlans.route.js |
+| `POST` | `/api/hr/staffing-plans/:planId/approve` | unknown | hrStaffingPlans.route.js |
+| `POST` | `/api/hr/staffing-plans/:planId/reject` | unknown | hrStaffingPlans.route.js |
+| `POST` | `/api/hr/staffing-plans/:planId/submit` | unknown | hrStaffingPlans.route.js |
+| `POST` | `/api/hr/staffing-plans/:planId/activate` | unknown | hrStaffingPlans.route.js |
+| `POST` | `/api/hr/staffing-plans/:planId/archive` | unknown | hrStaffingPlans.route.js |
+| `POST` | `/api/hr/staffing-plans/:planId/duplicate` | unknown | hrStaffingPlans.route.js |
+| `POST` | `/api/hr/staffing-plans/:planId/fill/:posId` | unknown | hrStaffingPlans.route.js |
+| `POST` | `/api/hr/staffing-plans/bulk-delete` | unknown | hrStaffingPlans.route.js |
+| `POST` | `/api/hr/staffing-plans/bulk-archive` | unknown | hrStaffingPlans.route.js |
+
+## hrVehicles
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `GET` | `/api/hr/vehicles` | unknown | hrVehicles.route.js |
+| `GET` | `/api/hr/vehicles/available` | unknown | hrVehicles.route.js |
+| `GET` | `/api/hr/vehicles/assigned` | unknown | hrVehicles.route.js |
+| `GET` | `/api/hr/vehicles/stats` | unknown | hrVehicles.route.js |
+| `GET` | `/api/hr/vehicles/export` | unknown | hrVehicles.route.js |
+| `GET` | `/api/hr/vehicles/:vehicleId` | unknown | hrVehicles.route.js |
+| `GET` | `/api/hr/vehicles/:vehicleId/assignments` | unknown | hrVehicles.route.js |
+| `GET` | `/api/hr/vehicles/:vehicleId/maintenance` | unknown | hrVehicles.route.js |
+| `GET` | `/api/hr/vehicles/:vehicleId/expenses` | unknown | hrVehicles.route.js |
+| `POST` | `/api/hr/vehicles` | unknown | hrVehicles.route.js |
+| `PATCH` | `/api/hr/vehicles/:vehicleId` | unknown | hrVehicles.route.js |
+| `DELETE` | `/api/hr/vehicles/:vehicleId` | unknown | hrVehicles.route.js |
+| `POST` | `/api/hr/vehicles/:vehicleId/assign` | unknown | hrVehicles.route.js |
+| `POST` | `/api/hr/vehicles/:vehicleId/unassign` | unknown | hrVehicles.route.js |
+| `POST` | `/api/hr/vehicles/:vehicleId/maintenance` | unknown | hrVehicles.route.js |
+| `POST` | `/api/hr/vehicles/:vehicleId/expenses` | unknown | hrVehicles.route.js |
 
 ## incomeTaxSlab
 
@@ -5814,6 +5920,24 @@
 | `GET` | `/api/tasks/:id/time-tracking/summary` | getTimeTrackingSummary | task.route.js |
 | `PATCH` | `/api/tasks/:id/subtasks/:subtaskId` | updateSubtask | task.route.js |
 
+## tasksExtended
+
+| Method | Path | Controller | File |
+|--------|------|------------|------|
+| `PATCH` | `/api/tasks/:taskId/subtasks/reorder` | unknown | tasksExtended.route.js |
+| `POST` | `/api/tasks/:taskId/time-tracking/start` | unknown | tasksExtended.route.js |
+| `POST` | `/api/tasks/:taskId/time-tracking/stop` | unknown | tasksExtended.route.js |
+| `POST` | `/api/tasks/:taskId/time-tracking/manual` | unknown | tasksExtended.route.js |
+| `GET` | `/api/tasks/:taskId/time-tracking` | unknown | tasksExtended.route.js |
+| `DELETE` | `/api/tasks/:taskId/time-tracking/:entryId` | unknown | tasksExtended.route.js |
+| `POST` | `/api/tasks/:taskId/watchers` | unknown | tasksExtended.route.js |
+| `DELETE` | `/api/tasks/:taskId/watchers/:userId` | unknown | tasksExtended.route.js |
+| `POST` | `/api/tasks/:taskId/dependencies` | unknown | tasksExtended.route.js |
+| `DELETE` | `/api/tasks/:taskId/dependencies/:depId` | unknown | tasksExtended.route.js |
+| `POST` | `/api/tasks/:taskId/recurring` | unknown | tasksExtended.route.js |
+| `DELETE` | `/api/tasks/:taskId/recurring` | unknown | tasksExtended.route.js |
+| `POST` | `/api/tasks/:taskId/convert-to-case` | unknown | tasksExtended.route.js |
+
 ## team
 
 | Method | Path | Controller | File |
@@ -6539,7 +6663,7 @@
 
 ## Quick Reference by Method
 
-### GET (2020)
+### GET (2055)
 
 <details>
 <summary>Click to expand</summary>
@@ -7210,8 +7334,14 @@ GET    /api/document-analysis/:documentId/status
 GET    /api/document-analysis/search
 GET    /api/document-analysis/stats
 GET    /api/documents
+GET    /api/documents/:documentId/versions/:versionId
+GET    /api/documents/:documentId/versions/:versionId/download
+GET    /api/documents/:documentId/versions/:versionId/download-url
+GET    /api/documents/:documentId/versions/:versionId/preview-url
 GET    /api/documents/:id
 GET    /api/documents/:id/download
+GET    /api/documents/:id/download-url
+GET    /api/documents/:id/preview-url
 GET    /api/documents/:id/versions
 GET    /api/documents/case/:caseId
 GET    /api/documents/client/:clientId
@@ -7242,6 +7372,9 @@ GET    /api/email-marketing/analytics/trends
 GET    /api/email-marketing/campaigns
 GET    /api/email-marketing/campaigns/:id
 GET    /api/email-marketing/campaigns/:id/analytics
+GET    /api/email-marketing/drip-campaigns
+GET    /api/email-marketing/drip-campaigns/:id
+GET    /api/email-marketing/drip-campaigns/:id/analytics
 GET    /api/email-marketing/segments
 GET    /api/email-marketing/segments/:id
 GET    /api/email-marketing/segments/:id/subscribers
@@ -7655,6 +7788,11 @@ GET    /api/hr/self-service/payslips
 GET    /api/hr/self-service/profile
 GET    /api/hr/shift-types
 GET    /api/hr/shift-types/:id
+GET    /api/hr/shift-types/:shiftTypeId/assignments
+GET    /api/hr/shift-types/:shiftTypeId/schedule
+GET    /api/hr/shift-types/default
+GET    /api/hr/shift-types/export
+GET    /api/hr/shift-types/stats
 GET    /api/hr/shifts/shift-assignments
 GET    /api/hr/shifts/shift-assignments/:id
 GET    /api/hr/shifts/shift-assignments/employee/:employeeId
@@ -7693,6 +7831,17 @@ GET    /api/hr/skills/needing-review
 GET    /api/hr/skills/sfia-levels
 GET    /api/hr/skills/stats
 GET    /api/hr/skills/types
+GET    /api/hr/staffing-plans
+GET    /api/hr/staffing-plans/:planId
+GET    /api/hr/staffing-plans/:planId/budget
+GET    /api/hr/staffing-plans/:planId/positions/filled
+GET    /api/hr/staffing-plans/:planId/positions/open
+GET    /api/hr/staffing-plans/:planId/progress
+GET    /api/hr/staffing-plans/:planId/timeline
+GET    /api/hr/staffing-plans/analytics
+GET    /api/hr/staffing-plans/export
+GET    /api/hr/staffing-plans/forecast
+GET    /api/hr/staffing-plans/gaps
 GET    /api/hr/surveys
 GET    /api/hr/surveys/:id
 GET    /api/hr/surveys/:id/results
@@ -7718,6 +7867,15 @@ GET    /api/hr/transfers/history/:employeeId
 GET    /api/hr/transfers/pending-approvals
 GET    /api/hr/transfers/pending-handovers
 GET    /api/hr/transfers/stats
+GET    /api/hr/vehicles
+GET    /api/hr/vehicles/:vehicleId
+GET    /api/hr/vehicles/:vehicleId/assignments
+GET    /api/hr/vehicles/:vehicleId/expenses
+GET    /api/hr/vehicles/:vehicleId/maintenance
+GET    /api/hr/vehicles/assigned
+GET    /api/hr/vehicles/available
+GET    /api/hr/vehicles/export
+GET    /api/hr/vehicles/stats
 GET    /api/hr/whos-out/coverage/:department
 GET    /api/hr/whos-out/departments
 GET    /api/hr/whos-out/month
@@ -8349,6 +8507,7 @@ GET    /api/tasks/:id/documents/:documentId/versions
 GET    /api/tasks/:id/documents/:documentId/versions/:versionId
 GET    /api/tasks/:id/full
 GET    /api/tasks/:id/time-tracking/summary
+GET    /api/tasks/:taskId/time-tracking
 GET    /api/tasks/archived
 GET    /api/tasks/case/:caseId
 GET    /api/tasks/client/:clientId
@@ -8569,7 +8728,7 @@ GET    /api/zoom/status
 
 </details>
 
-### POST (1904)
+### POST (1943)
 
 <details>
 <summary>Click to expand</summary>
@@ -9108,6 +9267,10 @@ POST   /api/disputes/:id/respond
 POST   /api/document-analysis/:documentId
 POST   /api/document-analysis/:documentId/reanalyze
 POST   /api/document-analysis/batch
+POST   /api/documents/:documentId/versions/:versionId/compare
+POST   /api/documents/:documentId/versions/:versionId/restore
+POST   /api/documents/:id/decrypt
+POST   /api/documents/:id/encrypt
 POST   /api/documents/:id/move
 POST   /api/documents/:id/revoke-share
 POST   /api/documents/:id/share
@@ -9142,6 +9305,10 @@ POST   /api/email-marketing/campaigns/:id/resume
 POST   /api/email-marketing/campaigns/:id/schedule
 POST   /api/email-marketing/campaigns/:id/send
 POST   /api/email-marketing/campaigns/:id/test
+POST   /api/email-marketing/drip-campaigns
+POST   /api/email-marketing/drip-campaigns/:id/pause
+POST   /api/email-marketing/drip-campaigns/:id/start
+POST   /api/email-marketing/drip-campaigns/:id/stop
 POST   /api/email-marketing/segments
 POST   /api/email-marketing/segments/:id/refresh
 POST   /api/email-marketing/subscribers
@@ -9588,7 +9755,15 @@ POST   /api/hr/salary-components/initialize-defaults
 POST   /api/hr/self-service/leave/request
 POST   /api/hr/self-service/leave/request/:requestId/cancel
 POST   /api/hr/shift-types
+POST   /api/hr/shift-types/:shiftTypeId/activate
+POST   /api/hr/shift-types/:shiftTypeId/deactivate
+POST   /api/hr/shift-types/:shiftTypeId/duplicate
+POST   /api/hr/shift-types/:shiftTypeId/set-default
 POST   /api/hr/shift-types/bulk
+POST   /api/hr/shift-types/bulk-activate
+POST   /api/hr/shift-types/bulk-deactivate
+POST   /api/hr/shift-types/bulk-delete
+POST   /api/hr/shift-types/import
 POST   /api/hr/shifts/shift-assignments
 POST   /api/hr/shifts/shift-assignments/bulk
 POST   /api/hr/shifts/shift-types
@@ -9612,6 +9787,17 @@ POST   /api/hr/skills/competencies
 POST   /api/hr/skills/endorse
 POST   /api/hr/skills/types
 POST   /api/hr/skills/verify
+POST   /api/hr/staffing-plans
+POST   /api/hr/staffing-plans/:planId/activate
+POST   /api/hr/staffing-plans/:planId/approve
+POST   /api/hr/staffing-plans/:planId/archive
+POST   /api/hr/staffing-plans/:planId/duplicate
+POST   /api/hr/staffing-plans/:planId/fill/:posId
+POST   /api/hr/staffing-plans/:planId/positions
+POST   /api/hr/staffing-plans/:planId/reject
+POST   /api/hr/staffing-plans/:planId/submit
+POST   /api/hr/staffing-plans/bulk-archive
+POST   /api/hr/staffing-plans/bulk-delete
 POST   /api/hr/surveys
 POST   /api/hr/surveys/:id/close
 POST   /api/hr/surveys/:id/launch
@@ -9640,6 +9826,11 @@ POST   /api/hr/transfers/:id/handover
 POST   /api/hr/transfers/:id/notify
 POST   /api/hr/transfers/:id/reject
 POST   /api/hr/transfers/bulk-delete
+POST   /api/hr/vehicles
+POST   /api/hr/vehicles/:vehicleId/assign
+POST   /api/hr/vehicles/:vehicleId/expenses
+POST   /api/hr/vehicles/:vehicleId/maintenance
+POST   /api/hr/vehicles/:vehicleId/unassign
 POST   /api/incomeTaxSlab
 POST   /api/incomeTaxSlab/:id/calculate
 POST   /api/incomeTaxSlab/calculate-by-country
@@ -10220,6 +10411,13 @@ POST   /api/tasks/:id/timer/stop
 POST   /api/tasks/:id/unarchive
 POST   /api/tasks/:id/voice-memos
 POST   /api/tasks/:id/workflow-rules
+POST   /api/tasks/:taskId/convert-to-case
+POST   /api/tasks/:taskId/dependencies
+POST   /api/tasks/:taskId/recurring
+POST   /api/tasks/:taskId/time-tracking/manual
+POST   /api/tasks/:taskId/time-tracking/start
+POST   /api/tasks/:taskId/time-tracking/stop
+POST   /api/tasks/:taskId/watchers
 POST   /api/tasks/auto-schedule
 POST   /api/tasks/bulk
 POST   /api/tasks/bulk/archive
@@ -10483,7 +10681,7 @@ POST   /api/zoom/webhook
 
 </details>
 
-### PUT (254)
+### PUT (255)
 
 <details>
 <summary>Click to expand</summary>
@@ -10556,6 +10754,7 @@ PUT    /api/discord/settings
 PUT    /api/docusign/settings
 PUT    /api/dunning/policies/:id
 PUT    /api/email-marketing/campaigns/:id
+PUT    /api/email-marketing/drip-campaigns/:id
 PUT    /api/email-marketing/segments/:id
 PUT    /api/email-marketing/subscribers/:id
 PUT    /api/email-marketing/templates/:id
@@ -10747,7 +10946,7 @@ PUT    /api/zoom/settings
 
 </details>
 
-### PATCH (219)
+### PATCH (223)
 
 <details>
 <summary>Click to expand</summary>
@@ -10879,12 +11078,15 @@ PATCH  /api/hr/skills/:id
 PATCH  /api/hr/skills/assessments/:id
 PATCH  /api/hr/skills/competencies/:id
 PATCH  /api/hr/skills/types/:id
+PATCH  /api/hr/staffing-plans/:planId
+PATCH  /api/hr/staffing-plans/:planId/positions/:posId
 PATCH  /api/hr/surveys/:id
 PATCH  /api/hr/surveys/templates/:id
 PATCH  /api/hr/trainings/:trainingId
 PATCH  /api/hr/transfers/:id/approvals/:stepIndex
 PATCH  /api/hr/transfers/:id/handover/:itemIndex
 PATCH  /api/hr/transfers/:id/status
+PATCH  /api/hr/vehicles/:vehicleId
 PATCH  /api/invoice-templates/:id
 PATCH  /api/invoices/:_id
 PATCH  /api/invoices/:id
@@ -10958,6 +11160,7 @@ PATCH  /api/tasks/:id/subtasks/:subtaskId/toggle
 PATCH  /api/tasks/:id/timer/pause
 PATCH  /api/tasks/:id/timer/resume
 PATCH  /api/tasks/:id/voice-memos/:memoId/transcription
+PATCH  /api/tasks/:taskId/subtasks/reorder
 PATCH  /api/tasks/reorder
 PATCH  /api/tasks/templates/:templateId
 PATCH  /api/team/:id
@@ -10976,7 +11179,7 @@ PATCH  /api/webhooks/:id
 
 </details>
 
-### DELETE (326)
+### DELETE (335)
 
 <details>
 <summary>Click to expand</summary>
@@ -11086,10 +11289,12 @@ DELETE /api/dealRooms/:id/access/:token
 DELETE /api/dealRooms/:id/pages/:pageId
 DELETE /api/debit-notes/:id
 DELETE /api/document-analysis/:documentId
+DELETE /api/documents/:documentId/versions/:versionId
 DELETE /api/documents/:id
 DELETE /api/docusign/templates/defaults/:templateId
 DELETE /api/dunning/policies/:id
 DELETE /api/email-marketing/campaigns/:id
+DELETE /api/email-marketing/drip-campaigns/:id
 DELETE /api/email-marketing/segments/:id
 DELETE /api/email-marketing/subscribers/:id
 DELETE /api/email-marketing/templates/:id
@@ -11164,10 +11369,13 @@ DELETE /api/hr/skill-maps/:employeeId/skills/:skillId
 DELETE /api/hr/skills/:id
 DELETE /api/hr/skills/assign/:employeeId/:skillId
 DELETE /api/hr/skills/competencies/:id
+DELETE /api/hr/staffing-plans/:planId
+DELETE /api/hr/staffing-plans/:planId/positions/:posId
 DELETE /api/hr/surveys/:id
 DELETE /api/hr/surveys/templates/:id
 DELETE /api/hr/trainings/:trainingId
 DELETE /api/hr/transfers/:id
+DELETE /api/hr/vehicles/:vehicleId
 DELETE /api/incomeTaxSlab/:id
 DELETE /api/interestAreas/:id
 DELETE /api/inventory/items/:id
@@ -11280,6 +11488,10 @@ DELETE /api/tasks/:id/comments/:commentId
 DELETE /api/tasks/:id/dependencies/:dependencyTaskId
 DELETE /api/tasks/:id/subtasks/:subtaskId
 DELETE /api/tasks/:id/time-tracking/reset
+DELETE /api/tasks/:taskId/dependencies/:depId
+DELETE /api/tasks/:taskId/recurring
+DELETE /api/tasks/:taskId/time-tracking/:entryId
+DELETE /api/tasks/:taskId/watchers/:userId
 DELETE /api/tasks/bulk
 DELETE /api/tasks/templates/:templateId
 DELETE /api/team/:id

@@ -536,44 +536,8 @@
         "source": "services/crmAdvancedService.ts"
       },
       {
-        "method": "GET",
-        "endpoint": "/email-marketing/drip-campaigns",
-        "responseType": null,
-        "source": "services/crmAdvancedService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/email-marketing/drip-campaigns/${id}",
-        "responseType": null,
-        "source": "services/crmAdvancedService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/email-marketing/drip-campaigns",
-        "responseType": null,
-        "source": "services/crmAdvancedService.ts"
-      },
-      {
-        "method": "PUT",
-        "endpoint": "/email-marketing/drip-campaigns/${id}",
-        "responseType": null,
-        "source": "services/crmAdvancedService.ts"
-      },
-      {
-        "method": "DELETE",
-        "endpoint": "/email-marketing/drip-campaigns/${id}",
-        "responseType": null,
-        "source": "services/crmAdvancedService.ts"
-      },
-      {
         "method": "POST",
         "endpoint": "/email-marketing/drip-campaigns/${id}/activate",
-        "responseType": null,
-        "source": "services/crmAdvancedService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/email-marketing/drip-campaigns/${id}/pause",
         "responseType": null,
         "source": "services/crmAdvancedService.ts"
       },
@@ -1010,36 +974,6 @@
         "source": "services/crmSettingsService.ts"
       },
       {
-        "method": "GET",
-        "endpoint": "/documents/${documentId}/versions/${versionId}",
-        "responseType": null,
-        "source": "services/documentVersionService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/documents/${documentId}/versions/${versionId}/download",
-        "responseType": null,
-        "source": "services/documentVersionService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/documents/${documentId}/versions/${versionId}/download-url",
-        "responseType": null,
-        "source": "services/documentVersionService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/documents/${documentId}/versions/${versionId}/preview-url",
-        "responseType": null,
-        "source": "services/documentVersionService.ts"
-      },
-      {
-        "method": "DELETE",
-        "endpoint": "/documents/${documentId}/versions/${versionId}",
-        "responseType": null,
-        "source": "services/documentVersionService.ts"
-      },
-      {
         "method": "POST",
         "endpoint": "/documents/${documentId}/versions/cleanup",
         "responseType": null,
@@ -1068,36 +1002,6 @@
         "endpoint": "/documents/${documentId}/versions/${versionId}/content",
         "responseType": null,
         "source": "services/documentVersionService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/documents/${documentId}/versions/${versionId}",
-        "responseType": null,
-        "source": "services/documentVersionService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/documents/${id}/preview-url",
-        "responseType": null,
-        "source": "services/documentsService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/documents/${id}/download-url?disposition=${disposition}",
-        "responseType": null,
-        "source": "services/documentsService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/documents/${id}/encrypt",
-        "responseType": null,
-        "source": "services/documentsService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/documents/${id}/decrypt",
-        "responseType": null,
-        "source": "services/documentsService.ts"
       },
       {
         "method": "POST",
@@ -2390,36 +2294,6 @@
         "source": "services/setupOrchestrationService.ts"
       },
       {
-        "method": "GET",
-        "endpoint": "/hr/shift-types/stats",
-        "responseType": "ShiftTypeStats",
-        "source": "services/shiftTypeService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/shift-types/default",
-        "responseType": "ShiftType",
-        "source": "services/shiftTypeService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/shift-types/${shiftTypeId}/set-default",
-        "responseType": "ShiftType",
-        "source": "services/shiftTypeService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/shift-types/${shiftTypeId}/activate",
-        "responseType": "ShiftType",
-        "source": "services/shiftTypeService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/shift-types/${shiftTypeId}/deactivate",
-        "responseType": "ShiftType",
-        "source": "services/shiftTypeService.ts"
-      },
-      {
         "method": "POST",
         "endpoint": "/hr/shift-types/${shiftTypeId}/clone",
         "responseType": "ShiftType",
@@ -2453,18 +2327,6 @@
         "method": "POST",
         "endpoint": "/hr/shift-types/validate-times",
         "responseType": "{\n    valid: boolean\n    errors?: string[]\n    warnings?: string[]\n    calculatedDuration?: number\n  }",
-        "source": "services/shiftTypeService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/shift-types/bulk-delete",
-        "responseType": null,
-        "source": "services/shiftTypeService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/shift-types/export",
-        "responseType": null,
         "source": "services/shiftTypeService.ts"
       },
       {
@@ -2534,30 +2396,6 @@
         "source": "services/ssoService.ts"
       },
       {
-        "method": "GET",
-        "endpoint": "/hr/staffing-plans",
-        "responseType": "{ data: StaffingPlan[]; total: number; page: number; limit: number }",
-        "source": "services/staffingPlanService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/staffing-plans/${planId}",
-        "responseType": "StaffingPlan",
-        "source": "services/staffingPlanService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/staffing-plans",
-        "responseType": "StaffingPlan",
-        "source": "services/staffingPlanService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/hr/staffing-plans/${planId}",
-        "responseType": "StaffingPlan",
-        "source": "services/staffingPlanService.ts"
-      },
-      {
         "method": "POST",
         "endpoint": "/hr/staffing-plans/${planId}/details",
         "responseType": "StaffingPlan",
@@ -2594,12 +2432,6 @@
         "source": "services/staffingPlanService.ts"
       },
       {
-        "method": "GET",
-        "endpoint": "/hr/staffing-plans/${planId}/progress",
-        "responseType": "PlanProgress",
-        "source": "services/staffingPlanService.ts"
-      },
-      {
         "method": "POST",
         "endpoint": "/hr/staffing-plans/${planId}/details/${detailId}/create-job-opening",
         "responseType": "{ jobOpening: any; updatedPlan: StaffingPlan }",
@@ -2619,19 +2451,7 @@
       },
       {
         "method": "POST",
-        "endpoint": "/hr/staffing-plans/${planId}/activate",
-        "responseType": "StaffingPlan",
-        "source": "services/staffingPlanService.ts"
-      },
-      {
-        "method": "POST",
         "endpoint": "/hr/staffing-plans/${planId}/close",
-        "responseType": "StaffingPlan",
-        "source": "services/staffingPlanService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/staffing-plans/${planId}/approve",
         "responseType": "StaffingPlan",
         "source": "services/staffingPlanService.ts"
       },
@@ -2660,34 +2480,10 @@
         "source": "services/staffingPlanService.ts"
       },
       {
-        "method": "POST",
-        "endpoint": "/hr/staffing-plans/${planId}/duplicate",
-        "responseType": "StaffingPlan",
-        "source": "services/staffingPlanService.ts"
-      },
-      {
-        "method": "DELETE",
-        "endpoint": "/hr/staffing-plans/${planId}",
-        "responseType": null,
-        "source": "services/staffingPlanService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/staffing-plans/export",
-        "responseType": null,
-        "source": "services/staffingPlanService.ts"
-      },
-      {
         "method": "GET",
         "endpoint": "/hr/staffing-plans/vacancies-report",
         "responseType": null,
         "source": "services/staffingPlanService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/staffing-plans/:param",
-        "source": "services/staffingPlanService.ts",
-        "dynamic": true
       },
       {
         "method": "GET",
@@ -2798,36 +2594,6 @@
         "source": "services/tagsService.ts"
       },
       {
-        "method": "PATCH",
-        "endpoint": "/tasks/${taskId}/subtasks/reorder",
-        "responseType": null,
-        "source": "services/tasksService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/tasks/${taskId}/time-tracking/start",
-        "responseType": null,
-        "source": "services/tasksService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/tasks/${taskId}/time-tracking/stop",
-        "responseType": null,
-        "source": "services/tasksService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/tasks/${taskId}/time-tracking/manual",
-        "responseType": null,
-        "source": "services/tasksService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/tasks/${taskId}/time-tracking",
-        "responseType": null,
-        "source": "services/tasksService.ts"
-      },
-      {
         "method": "GET",
         "endpoint": "/tasks/${taskId}/available-dependencies",
         "responseType": null,
@@ -2889,48 +2655,6 @@
       },
       {
         "method": "GET",
-        "endpoint": "/hr/vehicles?${params.toString()}",
-        "responseType": null,
-        "source": "services/vehicleService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/vehicles/${vehicleId}",
-        "responseType": null,
-        "source": "services/vehicleService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/vehicles",
-        "responseType": null,
-        "source": "services/vehicleService.ts"
-      },
-      {
-        "method": "PATCH",
-        "endpoint": "/hr/vehicles/${vehicleId}",
-        "responseType": null,
-        "source": "services/vehicleService.ts"
-      },
-      {
-        "method": "DELETE",
-        "endpoint": "/hr/vehicles/${vehicleId}",
-        "responseType": null,
-        "source": "services/vehicleService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/vehicles/${vehicleId}/assign",
-        "responseType": null,
-        "source": "services/vehicleService.ts"
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/vehicles/${vehicleId}/unassign",
-        "responseType": null,
-        "source": "services/vehicleService.ts"
-      },
-      {
-        "method": "GET",
         "endpoint": "/hr/vehicle-logs?${params.toString()}",
         "responseType": null,
         "source": "services/vehicleService.ts"
@@ -2938,12 +2662,6 @@
       {
         "method": "POST",
         "endpoint": "/hr/vehicle-logs",
-        "responseType": null,
-        "source": "services/vehicleService.ts"
-      },
-      {
-        "method": "GET",
-        "endpoint": "/hr/vehicles/${vehicleId}/expenses?${params.toString()}",
         "responseType": null,
         "source": "services/vehicleService.ts"
       },
@@ -2966,12 +2684,6 @@
         "source": "services/vehicleService.ts"
       },
       {
-        "method": "GET",
-        "endpoint": "/hr/vehicles/stats",
-        "responseType": null,
-        "source": "services/vehicleService.ts"
-      },
-      {
         "method": "PATCH",
         "endpoint": "/hr/vehicle-logs/${logId}/reimbursement",
         "responseType": null,
@@ -2985,37 +2697,13 @@
       },
       {
         "method": "GET",
-        "endpoint": "/hr/vehicles/export?${params.toString()}",
-        "responseType": null,
-        "source": "services/vehicleService.ts"
-      },
-      {
-        "method": "GET",
         "endpoint": "/hr/vehicle-logs/export?${params.toString()}",
         "responseType": null,
         "source": "services/vehicleService.ts"
       },
       {
-        "method": "POST",
-        "endpoint": "/hr/vehicles/:param",
-        "source": "services/vehicleService.ts",
-        "dynamic": true
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/vehicles/:param/expenses?:param",
-        "source": "services/vehicleService.ts",
-        "dynamic": true
-      },
-      {
         "method": "GET",
         "endpoint": "/hr/vehicle-logs/:param/reimbursement",
-        "source": "services/vehicleService.ts",
-        "dynamic": true
-      },
-      {
-        "method": "POST",
-        "endpoint": "/hr/vehicles/export?:param",
         "source": "services/vehicleService.ts",
         "dynamic": true
       },
@@ -8408,6 +8096,14 @@
         "module": "dispute"
       },
       {
+        "method": "POST",
+        "path": "/:documentId/versions/:versionId/compare",
+        "controller": "unknown",
+        "file": "documentsExtended.route.js",
+        "fullPath": "/api/documents/:documentId/versions/:versionId/compare",
+        "module": "documentsExtended"
+      },
+      {
         "method": "GET",
         "path": "/auth-url",
         "controller": "getAuthUrl",
@@ -8542,6 +8238,30 @@
         "file": "docusign.route.js",
         "fullPath": "/api/docusign/webhook",
         "module": "docusign"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/start",
+        "controller": "unknown",
+        "file": "dripCampaigns.route.js",
+        "fullPath": "/api/email-marketing/drip-campaigns/:id/start",
+        "module": "dripCampaigns"
+      },
+      {
+        "method": "POST",
+        "path": "/:id/stop",
+        "controller": "unknown",
+        "file": "dripCampaigns.route.js",
+        "fullPath": "/api/email-marketing/drip-campaigns/:id/stop",
+        "module": "dripCampaigns"
+      },
+      {
+        "method": "GET",
+        "path": "/:id/analytics",
+        "controller": "unknown",
+        "file": "dripCampaigns.route.js",
+        "fullPath": "/api/email-marketing/drip-campaigns/:id/analytics",
+        "module": "dripCampaigns"
       },
       {
         "method": "GET",
@@ -11078,6 +10798,222 @@
         "file": "hrSetup.route.js",
         "fullPath": "/api/hr/shift-types/:id/default",
         "module": "hrSetup"
+      },
+      {
+        "method": "GET",
+        "path": "/:shiftTypeId/assignments",
+        "controller": "unknown",
+        "file": "hrShiftTypesExtended.route.js",
+        "fullPath": "/api/hr/shift-types/:shiftTypeId/assignments",
+        "module": "hrShiftTypesExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/:shiftTypeId/schedule",
+        "controller": "unknown",
+        "file": "hrShiftTypesExtended.route.js",
+        "fullPath": "/api/hr/shift-types/:shiftTypeId/schedule",
+        "module": "hrShiftTypesExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:shiftTypeId/duplicate",
+        "controller": "unknown",
+        "file": "hrShiftTypesExtended.route.js",
+        "fullPath": "/api/hr/shift-types/:shiftTypeId/duplicate",
+        "module": "hrShiftTypesExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/bulk-activate",
+        "controller": "unknown",
+        "file": "hrShiftTypesExtended.route.js",
+        "fullPath": "/api/hr/shift-types/bulk-activate",
+        "module": "hrShiftTypesExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/bulk-deactivate",
+        "controller": "unknown",
+        "file": "hrShiftTypesExtended.route.js",
+        "fullPath": "/api/hr/shift-types/bulk-deactivate",
+        "module": "hrShiftTypesExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/import",
+        "controller": "unknown",
+        "file": "hrShiftTypesExtended.route.js",
+        "fullPath": "/api/hr/shift-types/import",
+        "module": "hrShiftTypesExtended"
+      },
+      {
+        "method": "GET",
+        "path": "/analytics",
+        "controller": "unknown",
+        "file": "hrStaffingPlans.route.js",
+        "fullPath": "/api/hr/staffing-plans/analytics",
+        "module": "hrStaffingPlans"
+      },
+      {
+        "method": "GET",
+        "path": "/forecast",
+        "controller": "unknown",
+        "file": "hrStaffingPlans.route.js",
+        "fullPath": "/api/hr/staffing-plans/forecast",
+        "module": "hrStaffingPlans"
+      },
+      {
+        "method": "GET",
+        "path": "/gaps",
+        "controller": "unknown",
+        "file": "hrStaffingPlans.route.js",
+        "fullPath": "/api/hr/staffing-plans/gaps",
+        "module": "hrStaffingPlans"
+      },
+      {
+        "method": "GET",
+        "path": "/:planId/budget",
+        "controller": "unknown",
+        "file": "hrStaffingPlans.route.js",
+        "fullPath": "/api/hr/staffing-plans/:planId/budget",
+        "module": "hrStaffingPlans"
+      },
+      {
+        "method": "GET",
+        "path": "/:planId/timeline",
+        "controller": "unknown",
+        "file": "hrStaffingPlans.route.js",
+        "fullPath": "/api/hr/staffing-plans/:planId/timeline",
+        "module": "hrStaffingPlans"
+      },
+      {
+        "method": "GET",
+        "path": "/:planId/positions/open",
+        "controller": "unknown",
+        "file": "hrStaffingPlans.route.js",
+        "fullPath": "/api/hr/staffing-plans/:planId/positions/open",
+        "module": "hrStaffingPlans"
+      },
+      {
+        "method": "GET",
+        "path": "/:planId/positions/filled",
+        "controller": "unknown",
+        "file": "hrStaffingPlans.route.js",
+        "fullPath": "/api/hr/staffing-plans/:planId/positions/filled",
+        "module": "hrStaffingPlans"
+      },
+      {
+        "method": "POST",
+        "path": "/:planId/positions",
+        "controller": "unknown",
+        "file": "hrStaffingPlans.route.js",
+        "fullPath": "/api/hr/staffing-plans/:planId/positions",
+        "module": "hrStaffingPlans"
+      },
+      {
+        "method": "PATCH",
+        "path": "/:planId/positions/:posId",
+        "controller": "unknown",
+        "file": "hrStaffingPlans.route.js",
+        "fullPath": "/api/hr/staffing-plans/:planId/positions/:posId",
+        "module": "hrStaffingPlans"
+      },
+      {
+        "method": "DELETE",
+        "path": "/:planId/positions/:posId",
+        "controller": "unknown",
+        "file": "hrStaffingPlans.route.js",
+        "fullPath": "/api/hr/staffing-plans/:planId/positions/:posId",
+        "module": "hrStaffingPlans"
+      },
+      {
+        "method": "POST",
+        "path": "/:planId/reject",
+        "controller": "unknown",
+        "file": "hrStaffingPlans.route.js",
+        "fullPath": "/api/hr/staffing-plans/:planId/reject",
+        "module": "hrStaffingPlans"
+      },
+      {
+        "method": "POST",
+        "path": "/:planId/submit",
+        "controller": "unknown",
+        "file": "hrStaffingPlans.route.js",
+        "fullPath": "/api/hr/staffing-plans/:planId/submit",
+        "module": "hrStaffingPlans"
+      },
+      {
+        "method": "POST",
+        "path": "/:planId/archive",
+        "controller": "unknown",
+        "file": "hrStaffingPlans.route.js",
+        "fullPath": "/api/hr/staffing-plans/:planId/archive",
+        "module": "hrStaffingPlans"
+      },
+      {
+        "method": "POST",
+        "path": "/:planId/fill/:posId",
+        "controller": "unknown",
+        "file": "hrStaffingPlans.route.js",
+        "fullPath": "/api/hr/staffing-plans/:planId/fill/:posId",
+        "module": "hrStaffingPlans"
+      },
+      {
+        "method": "POST",
+        "path": "/bulk-delete",
+        "controller": "unknown",
+        "file": "hrStaffingPlans.route.js",
+        "fullPath": "/api/hr/staffing-plans/bulk-delete",
+        "module": "hrStaffingPlans"
+      },
+      {
+        "method": "POST",
+        "path": "/bulk-archive",
+        "controller": "unknown",
+        "file": "hrStaffingPlans.route.js",
+        "fullPath": "/api/hr/staffing-plans/bulk-archive",
+        "module": "hrStaffingPlans"
+      },
+      {
+        "method": "GET",
+        "path": "/available",
+        "controller": "unknown",
+        "file": "hrVehicles.route.js",
+        "fullPath": "/api/hr/vehicles/available",
+        "module": "hrVehicles"
+      },
+      {
+        "method": "GET",
+        "path": "/assigned",
+        "controller": "unknown",
+        "file": "hrVehicles.route.js",
+        "fullPath": "/api/hr/vehicles/assigned",
+        "module": "hrVehicles"
+      },
+      {
+        "method": "GET",
+        "path": "/:vehicleId/assignments",
+        "controller": "unknown",
+        "file": "hrVehicles.route.js",
+        "fullPath": "/api/hr/vehicles/:vehicleId/assignments",
+        "module": "hrVehicles"
+      },
+      {
+        "method": "GET",
+        "path": "/:vehicleId/maintenance",
+        "controller": "unknown",
+        "file": "hrVehicles.route.js",
+        "fullPath": "/api/hr/vehicles/:vehicleId/maintenance",
+        "module": "hrVehicles"
+      },
+      {
+        "method": "POST",
+        "path": "/:vehicleId/maintenance",
+        "controller": "unknown",
+        "file": "hrVehicles.route.js",
+        "fullPath": "/api/hr/vehicles/:vehicleId/maintenance",
+        "module": "hrVehicles"
       },
       {
         "method": "GET",
@@ -18696,6 +18632,54 @@
         "module": "task"
       },
       {
+        "method": "DELETE",
+        "path": "/:taskId/time-tracking/:entryId",
+        "controller": "unknown",
+        "file": "tasksExtended.route.js",
+        "fullPath": "/api/tasks/:taskId/time-tracking/:entryId",
+        "module": "tasksExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:taskId/watchers",
+        "controller": "unknown",
+        "file": "tasksExtended.route.js",
+        "fullPath": "/api/tasks/:taskId/watchers",
+        "module": "tasksExtended"
+      },
+      {
+        "method": "DELETE",
+        "path": "/:taskId/watchers/:userId",
+        "controller": "unknown",
+        "file": "tasksExtended.route.js",
+        "fullPath": "/api/tasks/:taskId/watchers/:userId",
+        "module": "tasksExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:taskId/recurring",
+        "controller": "unknown",
+        "file": "tasksExtended.route.js",
+        "fullPath": "/api/tasks/:taskId/recurring",
+        "module": "tasksExtended"
+      },
+      {
+        "method": "DELETE",
+        "path": "/:taskId/recurring",
+        "controller": "unknown",
+        "file": "tasksExtended.route.js",
+        "fullPath": "/api/tasks/:taskId/recurring",
+        "module": "tasksExtended"
+      },
+      {
+        "method": "POST",
+        "path": "/:taskId/convert-to-case",
+        "controller": "unknown",
+        "file": "tasksExtended.route.js",
+        "fullPath": "/api/tasks/:taskId/convert-to-case",
+        "module": "tasksExtended"
+      },
+      {
         "method": "GET",
         "path": "/stats",
         "controller": "getTeamStats",
@@ -21934,6 +21918,11 @@
         "backendMethod": "GET"
       },
       {
+        "path": "/documents/${documentId}/versions/${versionId}",
+        "frontendMethod": "PATCH",
+        "backendMethod": "GET"
+      },
+      {
         "path": "/documents/:param",
         "frontendMethod": "POST",
         "backendMethod": "GET"
@@ -22344,6 +22333,11 @@
         "backendMethod": "GET"
       },
       {
+        "path": "/hr/staffing-plans/:param",
+        "frontendMethod": "POST",
+        "backendMethod": "GET"
+      },
+      {
         "path": "/subscriptions/:param",
         "frontendMethod": "POST",
         "backendMethod": "GET"
@@ -22412,6 +22406,16 @@
         "path": "/permissions/ui/overrides",
         "frontendMethod": "GET",
         "backendMethod": "POST"
+      },
+      {
+        "path": "/hr/vehicles/:param",
+        "frontendMethod": "POST",
+        "backendMethod": "GET"
+      },
+      {
+        "path": "/hr/vehicles/export?:param",
+        "frontendMethod": "POST",
+        "backendMethod": "GET"
       },
       {
         "path": "/workflow/templates",

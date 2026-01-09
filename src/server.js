@@ -454,6 +454,16 @@ const {
     budgetsRoute,
     auditLogsExtendedRoute,
 
+    // Batch 9 Routes (HR staffing plans, vehicles, shift types extended)
+    hrStaffingPlansRoute,
+    hrVehiclesRoute,
+    hrShiftTypesExtendedRoute,
+
+    // Batch 10 Routes (tasks extended, documents extended, drip campaigns)
+    tasksExtendedRoute,
+    documentsExtendedRoute,
+    dripCampaignsRoute,
+
     // Unified Data Flow
     unifiedDataRoute,
 
@@ -1392,6 +1402,16 @@ app.use('/api/attendance', noCache, attendanceExtendedRoute); // Extended attend
 app.use('/api/automated-actions', noCache, automatedActionsExtendedRoute); // Extended automated actions
 app.use('/api/budgets', noCache, budgetsRoute); // Budget management
 app.use('/api/audit-logs', noCache, auditLogsExtendedRoute); // Extended audit log operations
+
+// Batch 9 Routes (HR staffing plans, vehicles, shift types extended)
+app.use('/api/hr/staffing-plans', noCache, hrStaffingPlansRoute); // Workforce planning
+app.use('/api/hr/vehicles', noCache, hrVehiclesRoute); // Fleet/vehicle management
+app.use('/api/hr/shift-types', noCache, hrShiftTypesExtendedRoute); // Extended shift type operations
+
+// Batch 10 Routes (tasks extended, documents extended, drip campaigns)
+app.use('/api/tasks', noCache, tasksExtendedRoute); // Extended task operations
+app.use('/api/documents', noCache, documentsExtendedRoute); // Extended document operations
+app.use('/api/email-marketing/drip-campaigns', noCache, dripCampaignsRoute); // Drip campaign management
 
 // ============================================
 // UNIFIED DATA FLOW ROUTES

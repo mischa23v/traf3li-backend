@@ -1,12 +1,12 @@
 # Frontend vs Backend Contract Mismatch Report
 
-> Generated: 2026-01-09T11:26:52.534Z
+> Generated: 2026-01-09T11:36:54.285Z
 
 ## Summary
 
 | Category | Frontend Only | Backend Only | Mismatches |
 |----------|--------------|--------------|------------|
-| API Endpoints | 526 | 2314 | 152 |
+| API Endpoints | 474 | 2351 | 156 |
 | Interfaces/Entities | 2871 | 154 | 0 |
 | Enums | 88 | 2138 | 0 |
 | Type Aliases | 167 | 0 | - |
@@ -17,7 +17,7 @@
 
 These endpoints are called by frontend but don't exist in backend - **will cause 404 errors**.
 
-### hr (87 missing)
+### hr (56 missing)
 
 | Method | Endpoint | Source File |
 |--------|----------|-------------|
@@ -42,36 +42,36 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | POST | `/hr/salary-components/validate-formula` | services/salaryComponentService.ts |
 | GET | `/hr/salary-components/${id}/usage` | services/salaryComponentService.ts |
 | GET | `/hr/salary-components/stats` | services/salaryComponentService.ts |
-| GET | `/hr/shift-types/stats` | services/shiftTypeService.ts |
-| GET | `/hr/shift-types/default` | services/shiftTypeService.ts |
-| POST | `/hr/shift-types/${shiftTypeId}/set-default` | services/shiftTypeService.ts |
-| POST | `/hr/shift-types/${shiftTypeId}/activate` | services/shiftTypeService.ts |
-| POST | `/hr/shift-types/${shiftTypeId}/deactivate` | services/shiftTypeService.ts |
 | POST | `/hr/shift-types/${shiftTypeId}/clone` | services/shiftTypeService.ts |
 | POST | `/hr/shift-types/${shiftTypeId}/calculate-hours` | services/shiftTypeService.ts |
 | GET | `/hr/shift-types/by-day/${day}` | services/shiftTypeService.ts |
 | GET | `/hr/shift-types/active` | services/shiftTypeService.ts |
 | GET | `/hr/shift-types/ramadan` | services/shiftTypeService.ts |
 | POST | `/hr/shift-types/validate-times` | services/shiftTypeService.ts |
-| POST | `/hr/shift-types/bulk-delete` | services/shiftTypeService.ts |
-| GET | `/hr/shift-types/export` | services/shiftTypeService.ts |
 | GET | `/hr/skills/by-category/${category}` | services/skillService.ts |
 | POST | `/hr/skills/bulk-delete` | services/skillService.ts |
 | GET | `/hr/skills/export?${params.toString()}` | services/skillService.ts |
-| GET | `/hr/staffing-plans` | services/staffingPlanService.ts |
-| GET | `/hr/staffing-plans/${planId}` | services/staffingPlanService.ts |
-| POST | `/hr/staffing-plans` | services/staffingPlanService.ts |
-| PATCH | `/hr/staffing-plans/${planId}` | services/staffingPlanService.ts |
 | POST | `/hr/staffing-plans/${planId}/details` | services/staffingPlanService.ts |
 | PATCH | `/hr/staffing-plans/${planId}/details/${detailId}` | services/staffingPlanService.ts |
 | DELETE | `/hr/staffing-plans/${planId}/details/${detailId}` | services/staffingPlanService.ts |
 | GET | `/hr/staffing-plans/headcount` | services/staffingPlanService.ts |
 | POST | `/hr/staffing-plans/${planId}/calculate-vacancies` | services/staffingPlanService.ts |
 | GET | `/hr/staffing-plans/vacancies-summary` | services/staffingPlanService.ts |
-| GET | `/hr/staffing-plans/${planId}/progress` | services/staffingPlanService.ts |
 | POST | `/hr/staffing-plans/${planId}/details/${detailId}/create-job-opening` | services/staffingPlanService.ts |
 | POST | `/hr/staffing-plans/${planId}/details/${detailId}/link-job-opening` | services/staffingPlanService.ts |
-| ... | *37 more* | - |
+| POST | `/hr/staffing-plans/${planId}/details/${detailId}/unlink-job-opening` | services/staffingPlanService.ts |
+| POST | `/hr/staffing-plans/${planId}/close` | services/staffingPlanService.ts |
+| GET | `/hr/staffing-plans/active` | services/staffingPlanService.ts |
+| GET | `/hr/staffing-plans/department/${departmentId}` | services/staffingPlanService.ts |
+| POST | `/hr/staffing-plans/${planId}/bulk-update-details` | services/staffingPlanService.ts |
+| POST | `/hr/staffing-plans/${planId}/bulk-create-job-openings` | services/staffingPlanService.ts |
+| GET | `/hr/staffing-plans/vacancies-report` | services/staffingPlanService.ts |
+| GET | `/hr/staffing-plans/:param/calculate-vacancies` | services/staffingPlanService.ts |
+| GET | `/hr/staffing-plans/:param/bulk-update-details` | services/staffingPlanService.ts |
+| GET | `/hr/vehicle-logs?${params.toString()}` | services/vehicleService.ts |
+| POST | `/hr/vehicle-logs` | services/vehicleService.ts |
+| GET | `/hr/vehicles/service-due` | services/vehicleService.ts |
+| ... | *6 more* | - |
 
 ### workflows (19 missing)
 
@@ -164,67 +164,6 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | POST | `/reminders/templates/${templateId}/create` | services/remindersService.ts |
 | POST | `/reminders/${id}/save-as-template` | services/remindersService.ts |
 
-### email-marketing (16 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| POST | `/email-marketing/templates/${id}/duplicate` | services/crmAdvancedService.ts |
-| POST | `/email-marketing/campaigns/${id}/ab-test` | services/crmAdvancedService.ts |
-| GET | `/email-marketing/campaigns/${id}/ab-test/results` | services/crmAdvancedService.ts |
-| POST | `/email-marketing/campaigns/${id}/ab-test/pick-winner` | services/crmAdvancedService.ts |
-| GET | `/email-marketing/drip-campaigns` | services/crmAdvancedService.ts |
-| GET | `/email-marketing/drip-campaigns/${id}` | services/crmAdvancedService.ts |
-| POST | `/email-marketing/drip-campaigns` | services/crmAdvancedService.ts |
-| PUT | `/email-marketing/drip-campaigns/${id}` | services/crmAdvancedService.ts |
-| DELETE | `/email-marketing/drip-campaigns/${id}` | services/crmAdvancedService.ts |
-| POST | `/email-marketing/drip-campaigns/${id}/activate` | services/crmAdvancedService.ts |
-| POST | `/email-marketing/drip-campaigns/${id}/pause` | services/crmAdvancedService.ts |
-| POST | `/email-marketing/drip-campaigns/${id}/enroll` | services/crmAdvancedService.ts |
-| POST | `/email-marketing/drip-campaigns/${id}/remove` | services/crmAdvancedService.ts |
-| POST | `/email-marketing/subscribers/${id}/tags` | services/crmAdvancedService.ts |
-| DELETE | `/email-marketing/subscribers/${id}/tags` | services/crmAdvancedService.ts |
-| GET | `/email-marketing/segments/${id}/preview` | services/crmAdvancedService.ts |
-
-### documents (15 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| GET | `/documents/${documentId}/versions/${versionId}` | services/documentVersionService.ts |
-| GET | `/documents/${documentId}/versions/${versionId}/download` | services/documentVersionService.ts |
-| GET | `/documents/${documentId}/versions/${versionId}/download-url` | services/documentVersionService.ts |
-| GET | `/documents/${documentId}/versions/${versionId}/preview-url` | services/documentVersionService.ts |
-| DELETE | `/documents/${documentId}/versions/${versionId}` | services/documentVersionService.ts |
-| POST | `/documents/${documentId}/versions/cleanup` | services/documentVersionService.ts |
-| GET | `/documents/${documentId}/versions/compare?v1=${versionId1}&v2=${versionId2}` | services/documentVersionService.ts |
-| GET | `/documents/${documentId}/versions/statistics` | services/documentVersionService.ts |
-| GET | `/documents/${documentId}/versions/diff?v1=${versionId1}&v2=${versionId2}` | services/documentVersionService.ts |
-| GET | `/documents/${documentId}/versions/${versionId}/content` | services/documentVersionService.ts |
-| PATCH | `/documents/${documentId}/versions/${versionId}` | services/documentVersionService.ts |
-| GET | `/documents/${id}/preview-url` | services/documentsService.ts |
-| GET | `/documents/${id}/download-url?disposition=${disposition}` | services/documentsService.ts |
-| POST | `/documents/${id}/encrypt` | services/documentsService.ts |
-| POST | `/documents/${id}/decrypt` | services/documentsService.ts |
-
-### tasks (15 missing)
-
-| Method | Endpoint | Source File |
-|--------|----------|-------------|
-| PATCH | `/tasks/${taskId}/subtasks/reorder` | services/tasksService.ts |
-| POST | `/tasks/${taskId}/time-tracking/start` | services/tasksService.ts |
-| POST | `/tasks/${taskId}/time-tracking/stop` | services/tasksService.ts |
-| POST | `/tasks/${taskId}/time-tracking/manual` | services/tasksService.ts |
-| GET | `/tasks/${taskId}/time-tracking` | services/tasksService.ts |
-| GET | `/tasks/${taskId}/available-dependencies` | services/tasksService.ts |
-| PATCH | `/tasks/${taskId}/workflow-rules/${ruleId}` | services/tasksService.ts |
-| DELETE | `/tasks/${taskId}/workflow-rules/${ruleId}` | services/tasksService.ts |
-| POST | `/tasks/${taskId}/workflow-rules/${ruleId}/toggle` | services/tasksService.ts |
-| GET | `/tasks/my-tasks` | services/tasksService.ts |
-| POST | `/tasks/import` | services/tasksService.ts |
-| POST | `/tasks/${taskId}/recurring/skip` | services/tasksService.ts |
-| POST | `/tasks/${taskId}/recurring/stop` | services/tasksService.ts |
-| GET | `/tasks/${taskId}/recurring/history` | services/tasksService.ts |
-| DELETE | `/tasks/${taskId}/voice-memos/${memoId}` | services/tasksService.ts |
-
 ### crm-reports (14 missing)
 
 | Method | Endpoint | Source File |
@@ -296,6 +235,21 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | POST | `/payroll/pay` | services/payrollService.ts |
 | POST | `/payroll/wps/submit` | services/payrollService.ts |
 
+### email-marketing (10 missing)
+
+| Method | Endpoint | Source File |
+|--------|----------|-------------|
+| POST | `/email-marketing/templates/${id}/duplicate` | services/crmAdvancedService.ts |
+| POST | `/email-marketing/campaigns/${id}/ab-test` | services/crmAdvancedService.ts |
+| GET | `/email-marketing/campaigns/${id}/ab-test/results` | services/crmAdvancedService.ts |
+| POST | `/email-marketing/campaigns/${id}/ab-test/pick-winner` | services/crmAdvancedService.ts |
+| POST | `/email-marketing/drip-campaigns/${id}/activate` | services/crmAdvancedService.ts |
+| POST | `/email-marketing/drip-campaigns/${id}/enroll` | services/crmAdvancedService.ts |
+| POST | `/email-marketing/drip-campaigns/${id}/remove` | services/crmAdvancedService.ts |
+| POST | `/email-marketing/subscribers/${id}/tags` | services/crmAdvancedService.ts |
+| DELETE | `/email-marketing/subscribers/${id}/tags` | services/crmAdvancedService.ts |
+| GET | `/email-marketing/segments/${id}/preview` | services/crmAdvancedService.ts |
+
 ### permissions (10 missing)
 
 | Method | Endpoint | Source File |
@@ -310,6 +264,21 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | POST | `/permissions/resources/${resourceType}/${resourceId}/access` | services/permissionService.ts |
 | DELETE | `/permissions/resources/${resourceType}/${resourceId}/access/${userId}` | services/permissionService.ts |
 | GET | `/permissions/users/${userId}/resources` | services/permissionService.ts |
+
+### tasks (10 missing)
+
+| Method | Endpoint | Source File |
+|--------|----------|-------------|
+| GET | `/tasks/${taskId}/available-dependencies` | services/tasksService.ts |
+| PATCH | `/tasks/${taskId}/workflow-rules/${ruleId}` | services/tasksService.ts |
+| DELETE | `/tasks/${taskId}/workflow-rules/${ruleId}` | services/tasksService.ts |
+| POST | `/tasks/${taskId}/workflow-rules/${ruleId}/toggle` | services/tasksService.ts |
+| GET | `/tasks/my-tasks` | services/tasksService.ts |
+| POST | `/tasks/import` | services/tasksService.ts |
+| POST | `/tasks/${taskId}/recurring/skip` | services/tasksService.ts |
+| POST | `/tasks/${taskId}/recurring/stop` | services/tasksService.ts |
+| GET | `/tasks/${taskId}/recurring/history` | services/tasksService.ts |
+| DELETE | `/tasks/${taskId}/voice-memos/${memoId}` | services/tasksService.ts |
 
 ### saudi-banking (9 missing)
 
@@ -615,6 +584,16 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 | DELETE | `/crm-tags/${id}` | services/crmSettingsService.ts |
 | POST | `/crm-tags/merge` | services/crmSettingsService.ts |
 
+### documents (5 missing)
+
+| Method | Endpoint | Source File |
+|--------|----------|-------------|
+| POST | `/documents/${documentId}/versions/cleanup` | services/documentVersionService.ts |
+| GET | `/documents/${documentId}/versions/compare?v1=${versionId1}&v2=${versionId2}` | services/documentVersionService.ts |
+| GET | `/documents/${documentId}/versions/statistics` | services/documentVersionService.ts |
+| GET | `/documents/${documentId}/versions/diff?v1=${versionId1}&v2=${versionId2}` | services/documentVersionService.ts |
+| GET | `/documents/${documentId}/versions/${versionId}/content` | services/documentVersionService.ts |
+
 ### prepared-reports (5 missing)
 
 | Method | Endpoint | Source File |
@@ -898,7 +877,7 @@ These endpoints are called by frontend but don't exist in backend - **will cause
 
 These endpoints exist in backend but frontend doesn't call them - potentially dead code or undocumented features.
 
-### hr (270 unused)
+### hr (297 unused)
 
 | Method | Endpoint |
 |--------|----------|
@@ -932,7 +911,7 @@ These endpoints exist in backend but frontend doesn't call them - potentially de
 | GET | `/api/hr/fleet/vehicles` |
 | GET | `/api/hr/fleet/vehicles/:id` |
 | POST | `/api/hr/fleet/vehicles` |
-| ... | *240 more* |
+| ... | *267 more* |
 
 ### workflows (154 unused)
 
@@ -1258,6 +1237,41 @@ These endpoints exist in backend but frontend doesn't call them - potentially de
 | GET | `/api/contracts/:contractId/reminders` |
 | ... | *3 more* |
 
+### tasks (30 unused)
+
+| Method | Endpoint |
+|--------|----------|
+| GET | `/api/tasks/overview` |
+| GET | `/api/tasks/timers/active` |
+| GET | `/api/tasks/search` |
+| GET | `/api/tasks/conflicts` |
+| GET | `/api/tasks/client/:clientId` |
+| POST | `/api/tasks/bulk/reopen` |
+| GET | `/api/tasks/archived` |
+| GET | `/api/tasks/location-triggers` |
+| POST | `/api/tasks/location/check` |
+| POST | `/api/tasks/parse` |
+| POST | `/api/tasks/voice` |
+| GET | `/api/tasks/smart-schedule` |
+| POST | `/api/tasks/auto-schedule` |
+| POST | `/api/tasks/voice-to-item` |
+| POST | `/api/tasks/voice-to-item/batch` |
+| GET | `/api/tasks/:id/activity` |
+| POST | `/api/tasks/:id/convert-to-event` |
+| PUT | `/api/tasks/:id/location-trigger` |
+| POST | `/api/tasks/:id/location/check` |
+| PATCH | `/api/tasks/:id/timer/pause` |
+| PATCH | `/api/tasks/:id/timer/resume` |
+| GET | `/api/tasks/:id/documents/:documentId/versions` |
+| GET | `/api/tasks/:id/documents/:documentId/versions/:versionId` |
+| POST | `/api/tasks/:id/documents/:documentId/versions/:versionId/restore` |
+| DELETE | `/api/tasks/:taskId/time-tracking/:entryId` |
+| POST | `/api/tasks/:taskId/watchers` |
+| DELETE | `/api/tasks/:taskId/watchers/:userId` |
+| POST | `/api/tasks/:taskId/recurring` |
+| DELETE | `/api/tasks/:taskId/recurring` |
+| POST | `/api/tasks/:taskId/convert-to-case` |
+
 ### crm-reports (28 unused)
 
 | Method | Endpoint |
@@ -1447,35 +1461,6 @@ These endpoints exist in backend but frontend doesn't call them - potentially de
 | POST | `/api/dunning/history/:invoiceId/resume` |
 | POST | `/api/dunning/history/:invoiceId/escalate` |
 
-### tasks (24 unused)
-
-| Method | Endpoint |
-|--------|----------|
-| GET | `/api/tasks/overview` |
-| GET | `/api/tasks/timers/active` |
-| GET | `/api/tasks/search` |
-| GET | `/api/tasks/conflicts` |
-| GET | `/api/tasks/client/:clientId` |
-| POST | `/api/tasks/bulk/reopen` |
-| GET | `/api/tasks/archived` |
-| GET | `/api/tasks/location-triggers` |
-| POST | `/api/tasks/location/check` |
-| POST | `/api/tasks/parse` |
-| POST | `/api/tasks/voice` |
-| GET | `/api/tasks/smart-schedule` |
-| POST | `/api/tasks/auto-schedule` |
-| POST | `/api/tasks/voice-to-item` |
-| POST | `/api/tasks/voice-to-item/batch` |
-| GET | `/api/tasks/:id/activity` |
-| POST | `/api/tasks/:id/convert-to-event` |
-| PUT | `/api/tasks/:id/location-trigger` |
-| POST | `/api/tasks/:id/location/check` |
-| PATCH | `/api/tasks/:id/timer/pause` |
-| PATCH | `/api/tasks/:id/timer/resume` |
-| GET | `/api/tasks/:id/documents/:documentId/versions` |
-| GET | `/api/tasks/:id/documents/:documentId/versions/:versionId` |
-| POST | `/api/tasks/:id/documents/:documentId/versions/:versionId/restore` |
-
 ### admin-api (22 unused)
 
 | Method | Endpoint |
@@ -1617,6 +1602,7 @@ Frontend calls with different HTTP method than backend expects.
 | `/data-export/import/:param/cancel` | GET | POST |
 | `/data-export/templates/:param` | GET | PATCH |
 | `/document-analysis/:param/similar` | POST | GET |
+| `/documents/${documentId}/versions/${versionId}` | PATCH | GET |
 | `/documents/:param` | POST | GET |
 | `/settings/email/signatures/${id}/default` | PATCH | PUT |
 | `/hr/employee-promotions/:param` | POST | GET |
@@ -1699,6 +1685,7 @@ Frontend calls with different HTTP method than backend expects.
 | `/shift-assignments/export?:param` | POST | GET |
 | `/hr/shift-types/${shiftTypeId}` | PATCH | GET |
 | `/hr/skills/:param` | POST | GET |
+| `/hr/staffing-plans/:param` | POST | GET |
 | `/subscriptions/:param` | POST | GET |
 | `/succession-plans/:param` | POST | GET |
 | `/succession-plans/by-position/:param` | POST | GET |
@@ -1713,6 +1700,8 @@ Frontend calls with different HTTP method than backend expects.
 | `/hr/trainings/by-employee/:param` | POST | GET |
 | `/trust-accounts/:param` | POST | GET |
 | `/permissions/ui/overrides` | GET | POST |
+| `/hr/vehicles/:param` | POST | GET |
+| `/hr/vehicles/export?:param` | POST | GET |
 | `/workflow/templates` | POST | GET |
 | `/workflow/templates/${id}` | PUT | GET |
 | `/workflow/templates/${id}` | DELETE | GET |
@@ -2118,13 +2107,13 @@ Enums in backend models not exposed to frontend.
 ## Action Items
 
 ### 🔴 Critical (Will Break App)
-1. Add 526 missing backend endpoints
-2. Fix 152 HTTP method mismatches
+1. Add 474 missing backend endpoints
+2. Fix 156 HTTP method mismatches
 3. Sync 0 enum value differences
 
 ### 🟡 Important (May Cause Issues)
 1. Review 2871 frontend-only interfaces
-2. Document 2314 unused backend endpoints
+2. Document 2351 unused backend endpoints
 
 ### 📝 Housekeeping
 1. Remove dead code or add tests for unused endpoints
