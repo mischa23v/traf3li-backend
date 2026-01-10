@@ -234,10 +234,25 @@ reauthChallengeSchema.statics.checkRateLimit = async function(userId, purpose) {
 
   // Limit: 5 challenge requests per hour per user
   if (count >= 5) {
+    // Calculate actual wait time until oldest challenge in window expires
+    const oldestChallenge = await this.findOne({
+      userId,
+      purpose,
+      createdAt: { $gte: oneHourAgo },
+    }).sort({ createdAt: 1 }); // Oldest first
+
+    const calculatedWait = oldestChallenge
+      ? Math.ceil((oldestChallenge.createdAt.getTime() + 60 * 60 * 1000 - Date.now()) / 1000)
+      : 3600;
+    // Ensure waitSeconds is always positive (minimum 60 seconds)
+    const waitSeconds = Math.max(calculatedWait, 60);
+    const waitMinutes = Math.ceil(waitSeconds / 60);
+
     return {
       limited: true,
-      message: 'Too many reauthentication requests. Please try again later.',
-      messageAr: 'تم تجاوز عدد الطلبات المسموح بها. يرجى المحاولة لاحقاً',
+      message: `Too many reauthentication requests. Please try again in ${waitMinutes} minute${waitMinutes > 1 ? 's' : ''}.`,
+      messageAr: `تم تجاوز عدد الطلبات المسموح بها. يرجى المحاولة بعد ${waitMinutes} دقيقة`,
+      waitTime: waitSeconds,
     };
   }
 
