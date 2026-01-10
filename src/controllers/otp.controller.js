@@ -139,31 +139,36 @@ const sendOTP = async (req, res) => {
 /**
  * Verify OTP
  * POST /api/auth/verify-otp
- * Body: { email, otp, purpose }
+ *
+ * GOLD STANDARD API Design (AWS Cognito, Auth0, Google pattern):
+ * - For login purpose: Only requires { otp, loginSessionToken }
+ *   Email is EXTRACTED from the cryptographically signed loginSessionToken
+ *   Frontend does NOT need to send email (reduces attack surface, cleaner API)
+ *
+ * - For other purposes: Requires { email, otp }
+ *   Email is validated and used directly
+ *
+ * Body: { otp, purpose?, loginSessionToken? } OR { email, otp, purpose? }
  */
 const verifyOTP = async (req, res) => {
   try {
-    const { email, otp, purpose = 'login' } = req.body;
+    const { otp, purpose = 'login', loginSessionToken } = req.body;
+    let { email } = req.body;
 
-    // Validate input
-    if (!email || !otp) {
+    const ipAddress = req.ip || req.headers['x-forwarded-for'];
+    const userAgent = req.headers['user-agent'] || 'unknown';
+
+    // ═══════════════════════════════════════════════════════════════
+    // STEP 1: Validate OTP format (required for all purposes)
+    // ═══════════════════════════════════════════════════════════════
+    if (!otp) {
       return res.status(400).json({
         success: false,
-        error: 'Email and OTP are required',
-        errorAr: 'البريد الإلكتروني ورمز التحقق مطلوبان'
+        error: 'OTP is required',
+        errorAr: 'رمز التحقق مطلوب'
       });
     }
 
-    // Validate email format
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid email address',
-        errorAr: 'عنوان البريد الإلكتروني غير صالح'
-      });
-    }
-
-    // Validate OTP format - must be exactly 6 numeric digits
     if (typeof otp !== 'string' || !/^\d{6}$/.test(otp)) {
       return res.status(400).json({
         success: false,
@@ -172,7 +177,9 @@ const verifyOTP = async (req, res) => {
       });
     }
 
-    // Validate purpose
+    // ═══════════════════════════════════════════════════════════════
+    // STEP 2: Validate purpose
+    // ═══════════════════════════════════════════════════════════════
     const validPurposes = ['login', 'registration', 'password_reset', 'email_verification', 'transaction'];
     if (!validPurposes.includes(purpose)) {
       return res.status(400).json({
@@ -182,8 +189,108 @@ const verifyOTP = async (req, res) => {
       });
     }
 
-    // Rate limiting for verification attempts (IP-based protection against brute force)
-    const ipAddress = req.ip || req.headers['x-forwarded-for'];
+    // ═══════════════════════════════════════════════════════════════
+    // STEP 3: Get email based on purpose (GOLD STANDARD)
+    // ═══════════════════════════════════════════════════════════════
+    //
+    // For LOGIN purpose: Extract email from loginSessionToken
+    // - The token is HMAC-SHA256 signed by the server
+    // - It contains the verified email from password authentication
+    // - This is the source of truth (not client-provided email)
+    // - Prevents email substitution attacks
+    //
+    // For OTHER purposes: Require email in request body
+    // - These flows don't have a prior authentication step
+    // ═══════════════════════════════════════════════════════════════
+
+    let sessionData = null;
+
+    if (purpose === 'login') {
+      // LOGIN PURPOSE: Verify loginSessionToken FIRST to get email
+      if (!loginSessionToken) {
+        logger.warn('OTP verification attempted without loginSessionToken', {
+          ipAddress,
+          purpose
+        });
+        return res.status(400).json({
+          success: false,
+          error: 'Login session token is required for login verification',
+          errorAr: 'رمز جلسة تسجيل الدخول مطلوب',
+          code: 'LOGIN_SESSION_TOKEN_REQUIRED'
+        });
+      }
+
+      // Verify and consume the login session token
+      try {
+        sessionData = await LoginSession.verifyAndConsumeToken(loginSessionToken, {
+          ipAddress,
+          userAgent
+        });
+      } catch (sessionError) {
+        const errorMessages = {
+          'INVALID_TOKEN_FORMAT': { en: 'Invalid login session token format', ar: 'تنسيق رمز الجلسة غير صالح' },
+          'INVALID_TOKEN_ENCODING': { en: 'Invalid login session token encoding', ar: 'ترميز رمز الجلسة غير صالح' },
+          'INVALID_TOKEN_PAYLOAD': { en: 'Invalid login session token data', ar: 'بيانات رمز الجلسة غير صالحة' },
+          'INVALID_TOKEN_SIGNATURE': { en: 'Invalid login session token', ar: 'رمز جلسة تسجيل الدخول غير صالح' },
+          'TOKEN_ALREADY_USED': { en: 'Login session already used. Please sign in again.', ar: 'تم استخدام جلسة تسجيل الدخول بالفعل. يرجى تسجيل الدخول مرة أخرى.' },
+          'TOKEN_EXPIRED': { en: 'Login session expired. Please sign in again.', ar: 'انتهت صلاحية جلسة تسجيل الدخول. يرجى تسجيل الدخول مرة أخرى.' },
+          'TOKEN_INVALIDATED': { en: 'Login session invalidated. Please sign in again.', ar: 'تم إبطال جلسة تسجيل الدخول. يرجى تسجيل الدخول مرة أخرى.' },
+          'TOKEN_NOT_FOUND': { en: 'Login session not found. Please sign in again.', ar: 'جلسة تسجيل الدخول غير موجودة. يرجى تسجيل الدخول مرة أخرى.' }
+        };
+
+        const errorMsg = errorMessages[sessionError.message] || { en: 'Invalid login session', ar: 'جلسة تسجيل دخول غير صالحة' };
+
+        logger.warn('Login session validation failed', {
+          error: sessionError.message,
+          ipAddress
+        });
+
+        return res.status(401).json({
+          success: false,
+          error: errorMsg.en,
+          errorAr: errorMsg.ar,
+          code: sessionError.message || 'INVALID_LOGIN_SESSION'
+        });
+      }
+
+      // GOLD STANDARD: Extract email from verified session (source of truth)
+      email = sessionData.email;
+
+      // Belt-and-suspenders: If frontend also sent email, log if it doesn't match
+      // (This is for backwards compatibility and security monitoring)
+      if (req.body.email && req.body.email.toLowerCase() !== email) {
+        logger.warn('Email mismatch detected (using session email)', {
+          sessionEmail: email,
+          providedEmail: req.body.email.toLowerCase(),
+          ipAddress
+        });
+        // Use session email (source of truth), don't fail
+      }
+
+    } else {
+      // NON-LOGIN PURPOSE: Require email in request body
+      if (!email) {
+        return res.status(400).json({
+          success: false,
+          error: 'Email is required',
+          errorAr: 'البريد الإلكتروني مطلوب'
+        });
+      }
+
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid email address',
+          errorAr: 'عنوان البريد الإلكتروني غير صالح'
+        });
+      }
+
+      email = email.toLowerCase();
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // STEP 4: Rate limiting for verification attempts
+    // ═══════════════════════════════════════════════════════════════
     const verificationRateLimit = await EmailOTP.checkVerificationRateLimit(ipAddress, email);
 
     if (verificationRateLimit.limited) {
@@ -195,7 +302,9 @@ const verifyOTP = async (req, res) => {
       });
     }
 
-    // Verify OTP with timing-safe comparison
+    // ═══════════════════════════════════════════════════════════════
+    // STEP 5: Verify OTP with timing-safe comparison
+    // ═══════════════════════════════════════════════════════════════
     const result = await EmailOTP.verifyOTP(email, otp, purpose, ipAddress);
 
     if (!result.success) {
@@ -207,7 +316,10 @@ const verifyOTP = async (req, res) => {
       });
     }
 
-    // Handle different purposes
+    // ═══════════════════════════════════════════════════════════════
+    // STEP 6: Handle different purposes
+    // ═══════════════════════════════════════════════════════════════
+
     if (purpose === 'registration' || purpose === 'email_verification') {
       // For registration, just confirm OTP is valid
       // User creation happens in separate registration endpoint
@@ -216,7 +328,7 @@ const verifyOTP = async (req, res) => {
         verified: true,
         message: 'OTP verified. Proceed with registration.',
         messageAr: 'تم التحقق من الرمز. أكمل التسجيل.',
-        email: email.toLowerCase()
+        email: email
       });
     }
 
@@ -228,7 +340,7 @@ const verifyOTP = async (req, res) => {
 
       // Store hashed token in DB with 30-min expiry (same as email flow)
       await User.findOneAndUpdate(
-        { email: email.toLowerCase() },
+        { email: email },
         {
           passwordResetToken: hashedToken,
           passwordResetExpires: new Date(Date.now() + 30 * 60 * 1000), // 30 minutes
@@ -237,7 +349,7 @@ const verifyOTP = async (req, res) => {
         { bypassFirmFilter: true }
       );
 
-      logger.info('Password reset token generated via OTP flow', { email: email.toLowerCase() });
+      logger.info('Password reset token generated via OTP flow', { email: email });
 
       return res.status(200).json({
         success: true,
@@ -249,79 +361,28 @@ const verifyOTP = async (req, res) => {
       });
     }
 
+    if (purpose === 'transaction') {
+      // Transaction purpose: Step-up authentication for sensitive operations
+      // Returns verification status - calling code handles the transaction
+      return res.status(200).json({
+        success: true,
+        verified: true,
+        message: 'OTP verified for transaction.',
+        messageAr: 'تم التحقق من الرمز للمعاملة.',
+        email: email,
+        purpose: 'transaction',
+        verifiedAt: new Date().toISOString()
+      });
+    }
+
     // ═══════════════════════════════════════════════════════════════
-    // LOGIN PURPOSE: Requires LoginSession Token (Proof of Password)
+    // LOGIN PURPOSE: Complete authentication
     // ═══════════════════════════════════════════════════════════════
-    // This ensures that:
-    // 1. Password was actually verified (not just OTP)
-    // 2. Same client that verified password is verifying OTP
-    // 3. IP/device binding for session continuity
-    // 4. Breach info is consistent (from session, not stale user record)
-
-    const { loginSessionToken } = req.body;
-    const userAgent = req.headers['user-agent'] || 'unknown';
-
-    // Validate login session token is provided
-    if (!loginSessionToken) {
-      logger.warn('OTP verification attempted without loginSessionToken', {
-        email: email.toLowerCase(),
-        ipAddress
-      });
-      return res.status(400).json({
-        success: false,
-        error: 'Login session token is required for login verification',
-        errorAr: 'رمز جلسة تسجيل الدخول مطلوب',
-        code: 'LOGIN_SESSION_TOKEN_REQUIRED'
-      });
-    }
-
-    // Verify and consume the login session token
-    let sessionData;
-    try {
-      sessionData = await LoginSession.verifyAndConsumeToken(loginSessionToken, {
-        ipAddress,
-        userAgent
-      });
-    } catch (sessionError) {
-      const errorMessages = {
-        'INVALID_TOKEN_FORMAT': { en: 'Invalid login session token format', ar: 'تنسيق رمز الجلسة غير صالح' },
-        'INVALID_TOKEN_SIGNATURE': { en: 'Invalid login session token', ar: 'رمز جلسة تسجيل الدخول غير صالح' },
-        'TOKEN_ALREADY_USED': { en: 'Login session already used. Please sign in again.', ar: 'تم استخدام جلسة تسجيل الدخول بالفعل. يرجى تسجيل الدخول مرة أخرى.' },
-        'TOKEN_EXPIRED': { en: 'Login session expired. Please sign in again.', ar: 'انتهت صلاحية جلسة تسجيل الدخول. يرجى تسجيل الدخول مرة أخرى.' },
-        'TOKEN_INVALIDATED': { en: 'Login session invalidated. Please sign in again.', ar: 'تم إبطال جلسة تسجيل الدخول. يرجى تسجيل الدخول مرة أخرى.' },
-        'TOKEN_NOT_FOUND': { en: 'Login session not found. Please sign in again.', ar: 'جلسة تسجيل الدخول غير موجودة. يرجى تسجيل الدخول مرة أخرى.' }
-      };
-
-      const errorMsg = errorMessages[sessionError.message] || { en: 'Invalid login session', ar: 'جلسة تسجيل دخول غير صالحة' };
-
-      logger.warn('Login session validation failed', {
-        error: sessionError.message,
-        email: email.toLowerCase(),
-        ipAddress
-      });
-
-      return res.status(401).json({
-        success: false,
-        error: errorMsg.en,
-        errorAr: errorMsg.ar,
-        code: sessionError.message || 'INVALID_LOGIN_SESSION'
-      });
-    }
-
-    // Validate email matches session
-    if (sessionData.email !== email.toLowerCase()) {
-      logger.warn('Email mismatch in OTP verification', {
-        sessionEmail: sessionData.email,
-        providedEmail: email.toLowerCase(),
-        ipAddress
-      });
-      return res.status(400).json({
-        success: false,
-        error: 'Email does not match login session',
-        errorAr: 'البريد الإلكتروني لا يتطابق مع جلسة تسجيل الدخول',
-        code: 'EMAIL_MISMATCH'
-      });
-    }
+    // At this point:
+    // - loginSessionToken is verified (password was authenticated)
+    // - Email is extracted from session (source of truth)
+    // - OTP is verified
+    // - Ready to issue tokens
 
     // Fetch user for token generation
     const user = await User.findById(sessionData.userId)
