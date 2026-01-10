@@ -2368,22 +2368,37 @@ const forgotPassword = async (request, response) => {
         }
 
         // RATE LIMITING: Check if user has requested reset recently (max 3 per hour)
+        // Use passwordResetAttempts array to track multiple attempts within the hour
         const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-        if (user.passwordResetRequestedAt && user.passwordResetRequestedAt > oneHourAgo) {
-            const resetCount = await User.countDocuments({
-                _id: user._id,
-                passwordResetRequestedAt: { $gte: oneHourAgo }
-            });
 
-            if (resetCount >= 3) {
-                logger.warn('Password reset rate limit exceeded', { userId: user._id, email, ipAddress });
-                return response.status(429).json({
-                    error: true,
-                    message: 'تم تجاوز الحد الأقصى لطلبات إعادة تعيين كلمة المرور. يرجى المحاولة لاحقاً',
-                    messageEn: 'Too many password reset requests. Please try again later',
-                    code: 'RATE_LIMIT_EXCEEDED'
-                });
-            }
+        // Get fresh user data with reset attempts array
+        const userWithAttempts = await User.findById(user._id)
+            .select('passwordResetAttempts')
+            .setOptions({ bypassFirmFilter: true })
+            .lean();
+
+        // Count attempts within the last hour
+        const recentAttempts = (userWithAttempts?.passwordResetAttempts || [])
+            .filter(timestamp => new Date(timestamp) > oneHourAgo);
+
+        if (recentAttempts.length >= 3) {
+            // Calculate wait time until oldest attempt expires
+            const oldestAttempt = new Date(Math.min(...recentAttempts.map(t => new Date(t).getTime())));
+            const waitSeconds = Math.ceil((oldestAttempt.getTime() + 60 * 60 * 1000 - Date.now()) / 1000);
+
+            logger.warn('Password reset rate limit exceeded', {
+                userId: user._id,
+                email,
+                ipAddress,
+                attemptCount: recentAttempts.length
+            });
+            return response.status(429).json({
+                error: true,
+                message: 'تم تجاوز الحد الأقصى لطلبات إعادة تعيين كلمة المرور. يرجى المحاولة لاحقاً',
+                messageEn: 'Too many password reset requests. Please try again later',
+                code: 'RATE_LIMIT_EXCEEDED',
+                waitTime: Math.max(waitSeconds, 60)
+            });
         }
 
         // Generate secure reset token (32 bytes = 64 hex characters)
@@ -2398,10 +2413,26 @@ const forgotPassword = async (request, response) => {
 
         // Update user with reset token and expiration
         // NOTE: Bypass firmIsolation filter - password reset needs to work for solo lawyers without firmId
+        // Also track this attempt and clean up old attempts (older than 1 hour)
         await User.findByIdAndUpdate(user._id, {
-            passwordResetToken: hashedToken,
-            passwordResetExpires: expiresAt,
-            passwordResetRequestedAt: new Date()
+            $set: {
+                passwordResetToken: hashedToken,
+                passwordResetExpires: expiresAt,
+                passwordResetRequestedAt: new Date()
+            },
+            $push: {
+                passwordResetAttempts: {
+                    $each: [new Date()],
+                    $slice: -10 // Keep only last 10 attempts to prevent unbounded growth
+                }
+            }
+        }, { bypassFirmFilter: true });
+
+        // Clean up attempts older than 1 hour (separate update to prevent conflicts with $push)
+        await User.findByIdAndUpdate(user._id, {
+            $pull: {
+                passwordResetAttempts: { $lt: oneHourAgo }
+            }
         }, { bypassFirmFilter: true });
 
         // Send password reset email

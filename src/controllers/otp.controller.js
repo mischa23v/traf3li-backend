@@ -55,32 +55,42 @@ const sendOTP = async (req, res) => {
       });
     }
 
-    // For login, check if user exists (bypass firmFilter for auth)
-    if (purpose === 'login') {
-      const existingUser = await User.findOne({ email: email.toLowerCase() })
-        .setOptions({ bypassFirmFilter: true });
-      if (!existingUser) {
-        return res.status(404).json({
-          success: false,
-          error: 'User not found. Please register first.',
-          errorAr: 'المستخدم غير موجود. يرجى التسجيل أولاً.'
-        });
-      }
+    // Get user for login/password_reset (bypass firmFilter for auth)
+    const user = await User.findOne({ email: email.toLowerCase() })
+      .setOptions({ bypassFirmFilter: true });
+
+    // SECURITY: For login purpose, if user doesn't exist, return success to prevent enumeration
+    // but don't actually send an OTP (prevents resource abuse while hiding valid emails)
+    const expiryMinutes = parseInt(process.env.OTP_EXPIRY_MINUTES) || 5;
+
+    if (purpose === 'login' && !user) {
+      // Log for security monitoring but return success to prevent enumeration
+      logger.warn('OTP requested for non-existent user (login purpose)', {
+        email: email.toLowerCase(),
+        ipAddress: req.ip || req.headers['x-forwarded-for'],
+        userAgent: req.headers['user-agent']
+      });
+
+      // Return identical response structure to successful OTP send
+      // This prevents attackers from distinguishing valid vs invalid emails
+      return res.status(200).json({
+        success: true,
+        message: 'OTP sent successfully',
+        messageAr: 'تم إرسال رمز التحقق بنجاح',
+        expiresIn: expiryMinutes * 60, // seconds
+        email: email.toLowerCase()
+      });
     }
 
     // Generate OTP
     const otpCode = generateOTP(6);
 
     // Store OTP in database (hashed)
-    const expiryMinutes = parseInt(process.env.OTP_EXPIRY_MINUTES) || 5;
     await EmailOTP.createOTP(email, otpCode, purpose, expiryMinutes, {
       ipAddress: req.ip || req.headers['x-forwarded-for'],
       userAgent: req.headers['user-agent']
     });
 
-    // Get user name if exists (bypass firmFilter for auth)
-    const user = await User.findOne({ email: email.toLowerCase() })
-      .setOptions({ bypassFirmFilter: true });
     const userName = user ? `${user.firstName} ${user.lastName}` : 'User';
 
     // Send OTP email

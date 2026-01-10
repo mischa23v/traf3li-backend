@@ -93,6 +93,12 @@ const userSchema = new mongoose.Schema({
         required: false,
         default: null
     },
+    // Track password reset attempts for rate limiting (max 3 per hour)
+    passwordResetAttempts: {
+        type: [Date],
+        required: false,
+        default: []
+    },
 
     firstName: {
         type: String,
