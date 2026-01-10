@@ -332,6 +332,15 @@ const authenticateWithOneTap = async (request, response) => {
                 accessToken: accessToken,
                 refreshToken: refreshToken,
                 user: userData,
+                // Email verification context for frontend (SSO users are auto-verified)
+                emailVerification: {
+                    isVerified: user.isEmailVerified || false,
+                    requiresVerification: !user.isEmailVerified,
+                    emailVerifiedAt: user.emailVerifiedAt || null,
+                    // Features allowed without email verification (SSO users have full access)
+                    allowedFeatures: ['tasks', 'reminders', 'events', 'gantt', 'calendar', 'notifications', 'profile-view'],
+                    blockedFeatures: user.isEmailVerified ? [] : ['cases', 'clients', 'billing', 'invoices', 'documents', 'integrations', 'team', 'reports', 'analytics', 'hr', 'crm-write']
+                },
                 isNewUser,
                 accountLinked
             });

@@ -469,7 +469,24 @@ const authenticatedApi = async (req, res, next) => {
             }
         }
 
-        // 5. Validate firm context for routes that require tenant isolation
+        // 5. Set email verification context (Gold Standard - Feature-Based Blocking)
+        // This is used by emailVerificationRequired middleware to block sensitive routes
+        if (req.jwtClaims) {
+            // Use JWT claims for stateless verification (email_verified claim)
+            req.isEmailVerified = req.jwtClaims.email_verified === true;
+            req.emailVerifiedAt = req.jwtClaims.email_verified_at || null;
+        } else {
+            // Default to false if no claims available
+            req.isEmailVerified = false;
+            req.emailVerifiedAt = null;
+        }
+        // Add flag for frontend to know if user needs to verify email
+        req.requiresEmailVerification = !req.isEmailVerified;
+
+        // Set header for frontend to detect verification status
+        res.setHeader('X-Email-Verification-Required', req.requiresEmailVerification ? 'true' : 'false');
+
+        // 6. Validate firm context for routes that require tenant isolation
         // If firmQuery is empty (no firmId or lawyerId), check if route requires it
         // Use explicit boolean check to avoid JavaScript truthiness issues with empty objects
         const hasFirmContext = Boolean(

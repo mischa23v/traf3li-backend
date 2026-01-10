@@ -432,9 +432,22 @@ const verifyOTP = async (req, res) => {
           isSeller: user.isSeller,
           lawyerMode: user.lawyerMode,
           firmId: user.firmId,
+          // Email verification status (Gold Standard - Feature-Based Blocking)
+          isEmailVerified: user.isEmailVerified || false,
+          emailVerifiedAt: user.emailVerifiedAt || null,
           // Security flags from session (authoritative)
           mustChangePassword: mustChangePassword,
           passwordBreached: passwordBreached
+        },
+        // Email verification context for frontend feature blocking
+        emailVerification: {
+          isVerified: user.isEmailVerified || false,
+          requiresVerification: !user.isEmailVerified,
+          verificationSentAt: new Date().toISOString(),
+          // Features allowed without email verification
+          allowedFeatures: ['tasks', 'reminders', 'events', 'gantt', 'calendar', 'notifications', 'profile-view'],
+          // Features blocked until email is verified
+          blockedFeatures: ['cases', 'clients', 'billing', 'invoices', 'documents', 'integrations', 'team', 'reports', 'analytics', 'hr', 'crm-write']
         },
         // Include security warning if password is breached
         ...(passwordBreached && {
