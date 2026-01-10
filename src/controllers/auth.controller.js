@@ -836,23 +836,23 @@ const authLogin = async (request, response) => {
                     createdAt: user.createdAt
                 });
 
-                // Send verification email reminder (non-blocking, fire-and-forget)
-                // Rate limited by emailVerificationService internally
-                emailVerificationService.sendVerificationEmail(
-                    user._id.toString(),
-                    user.email,
-                    `${user.firstName} ${user.lastName}`,
-                    'ar',
-                    {
-                        ipAddress,
-                        userAgent
-                    }
-                ).catch(verifyError => {
-                    logger.warn('Failed to send verification reminder during login', {
-                        error: verifyError.message,
-                        userId: user._id
-                    });
-                });
+                // ═══════════════════════════════════════════════════════════════
+                // GOLD STANDARD: Do NOT auto-send verification email on every login
+                // ═══════════════════════════════════════════════════════════════
+                // AWS, Google, Microsoft pattern:
+                // 1. Send verification email ONCE at registration ✓ (done elsewhere)
+                // 2. User can request resend via "Resend Verification" button
+                // 3. Never spam users with automatic emails on login
+                //
+                // Why this matters:
+                // - Prevents email fatigue / annoyance
+                // - Avoids spam filter triggers
+                // - Protects email sender reputation
+                // - Respects user's inbox
+                //
+                // Frontend should show a banner: "Verify your email to unlock all features"
+                // with a "Resend" button that calls POST /api/auth/resend-verification
+                // ═══════════════════════════════════════════════════════════════
 
                 // Log unverified login event for security monitoring
                 auditLogService.log(
