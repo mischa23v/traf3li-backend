@@ -540,22 +540,50 @@ const authRegister = async (request, response) => {
     }
     catch({message}) {
         logger.error('Registration failed', { error: message });
+
+        // ═══════════════════════════════════════════════════════════════
+        // GOLD STANDARD ERROR RESPONSES (AWS/Google/Stripe Pattern)
+        // ═══════════════════════════════════════════════════════════════
+        // All errors include:
+        // - code: Machine-readable error code
+        // - message: Arabic message
+        // - messageEn: English message
+        // ═══════════════════════════════════════════════════════════════
+
         if(message.includes('E11000')) {
-            // Check if it's email or username duplicate
+            // MongoDB duplicate key error
             if (message.includes('email')) {
-                return response.status(400).send({
+                return response.status(409).send({
                     error: true,
-                    message: 'البريد الإلكتروني مستخدم بالفعل!'
+                    code: 'EMAIL_EXISTS',
+                    message: 'البريد الإلكتروني مستخدم بالفعل',
+                    messageEn: 'Email address is already registered',
+                    field: 'email'
                 });
             }
-            return response.status(400).send({
+            if (message.includes('username')) {
+                return response.status(409).send({
+                    error: true,
+                    code: 'USERNAME_TAKEN',
+                    message: 'اسم المستخدم مستخدم بالفعل',
+                    messageEn: 'Username is already taken',
+                    field: 'username'
+                });
+            }
+            // Generic duplicate (shouldn't happen but handle it)
+            return response.status(409).send({
                 error: true,
-                message: 'اسم المستخدم مستخدم بالفعل!'
+                code: 'DUPLICATE_ENTRY',
+                message: 'هذه البيانات مسجلة بالفعل',
+                messageEn: 'This information is already registered'
             });
         }
+
         return response.status(500).send({
             error: true,
-            message: 'حدث خطأ ما، يرجى المحاولة مرة أخرى'
+            code: 'REGISTRATION_FAILED',
+            message: 'حدث خطأ أثناء التسجيل، يرجى المحاولة مرة أخرى',
+            messageEn: 'Registration failed, please try again'
         });
     }
 };
