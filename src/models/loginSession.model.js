@@ -353,6 +353,73 @@ loginSessionSchema.statics.cleanupExpired = async function() {
     return result.deletedCount;
 };
 
+/**
+ * Verify token signature and extract payload WITHOUT consuming (no DB write)
+ *
+ * GOLD STANDARD: This allows us to:
+ * 1. Extract email from token for OTP verification
+ * 2. Only consume the token AFTER OTP is verified
+ * 3. Prevent token consumption on OTP failure (user can retry)
+ *
+ * Returns: { userId, email, ip, ts, nonce } from token payload
+ * Throws: Error with code if token is invalid
+ */
+loginSessionSchema.statics.verifyTokenSignature = function(token) {
+    // Validate token format
+    if (!token || typeof token !== 'string' || !token.includes('.')) {
+        throw new Error('INVALID_TOKEN_FORMAT');
+    }
+
+    const [encodedPayload, providedSignature] = token.split('.');
+
+    if (!encodedPayload || !providedSignature) {
+        throw new Error('INVALID_TOKEN_FORMAT');
+    }
+
+    // Decode payload
+    let payload;
+    try {
+        payload = Buffer.from(encodedPayload, 'base64').toString('utf8');
+    } catch (e) {
+        throw new Error('INVALID_TOKEN_ENCODING');
+    }
+
+    // Verify signature (timing-safe)
+    const expectedSignature = crypto
+        .createHmac('sha256', LOGIN_SESSION_SECRET)
+        .update(payload)
+        .digest('hex');
+
+    const sigBuffer = Buffer.from(providedSignature, 'hex');
+    const expectedBuffer = Buffer.from(expectedSignature, 'hex');
+
+    if (sigBuffer.length !== expectedBuffer.length ||
+        !crypto.timingSafeEqual(sigBuffer, expectedBuffer)) {
+        throw new Error('INVALID_TOKEN_SIGNATURE');
+    }
+
+    // Parse payload
+    let tokenData;
+    try {
+        tokenData = JSON.parse(payload);
+    } catch (e) {
+        throw new Error('INVALID_TOKEN_PAYLOAD');
+    }
+
+    // Validate required fields
+    if (!tokenData.userId || !tokenData.email) {
+        throw new Error('INVALID_TOKEN_PAYLOAD');
+    }
+
+    return {
+        userId: tokenData.userId,
+        email: tokenData.email.toLowerCase(),
+        ip: tokenData.ip,
+        ts: tokenData.ts,
+        nonce: tokenData.nonce
+    };
+};
+
 const LoginSession = mongoose.model('LoginSession', loginSessionSchema);
 
 module.exports = LoginSession;
