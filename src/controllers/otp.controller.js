@@ -199,14 +199,18 @@ const verifyOTP = async (req, res) => {
     // - This is the source of truth (not client-provided email)
     // - Prevents email substitution attacks
     //
+    // CRITICAL: We verify token SIGNATURE first (no DB write), then verify OTP,
+    // then CONSUME the token. This ensures if OTP fails, user can retry
+    // without needing to re-enter password.
+    //
     // For OTHER purposes: Require email in request body
     // - These flows don't have a prior authentication step
     // ═══════════════════════════════════════════════════════════════
 
-    let sessionData = null;
+    let tokenPayload = null;  // Stores parsed token data (for login purpose)
 
     if (purpose === 'login') {
-      // LOGIN PURPOSE: Verify loginSessionToken FIRST to get email
+      // LOGIN PURPOSE: Validate token signature to get email (WITHOUT consuming)
       if (!loginSessionToken) {
         logger.warn('OTP verification attempted without loginSessionToken', {
           ipAddress,
@@ -220,28 +224,22 @@ const verifyOTP = async (req, res) => {
         });
       }
 
-      // Verify and consume the login session token
+      // Step 3a: Verify token SIGNATURE only (no DB write, no consumption)
+      // This extracts email from the cryptographically signed token
       try {
-        sessionData = await LoginSession.verifyAndConsumeToken(loginSessionToken, {
-          ipAddress,
-          userAgent
-        });
-      } catch (sessionError) {
+        tokenPayload = LoginSession.verifyTokenSignature(loginSessionToken);
+      } catch (signatureError) {
         const errorMessages = {
           'INVALID_TOKEN_FORMAT': { en: 'Invalid login session token format', ar: 'تنسيق رمز الجلسة غير صالح' },
           'INVALID_TOKEN_ENCODING': { en: 'Invalid login session token encoding', ar: 'ترميز رمز الجلسة غير صالح' },
           'INVALID_TOKEN_PAYLOAD': { en: 'Invalid login session token data', ar: 'بيانات رمز الجلسة غير صالحة' },
-          'INVALID_TOKEN_SIGNATURE': { en: 'Invalid login session token', ar: 'رمز جلسة تسجيل الدخول غير صالح' },
-          'TOKEN_ALREADY_USED': { en: 'Login session already used. Please sign in again.', ar: 'تم استخدام جلسة تسجيل الدخول بالفعل. يرجى تسجيل الدخول مرة أخرى.' },
-          'TOKEN_EXPIRED': { en: 'Login session expired. Please sign in again.', ar: 'انتهت صلاحية جلسة تسجيل الدخول. يرجى تسجيل الدخول مرة أخرى.' },
-          'TOKEN_INVALIDATED': { en: 'Login session invalidated. Please sign in again.', ar: 'تم إبطال جلسة تسجيل الدخول. يرجى تسجيل الدخول مرة أخرى.' },
-          'TOKEN_NOT_FOUND': { en: 'Login session not found. Please sign in again.', ar: 'جلسة تسجيل الدخول غير موجودة. يرجى تسجيل الدخول مرة أخرى.' }
+          'INVALID_TOKEN_SIGNATURE': { en: 'Invalid login session token', ar: 'رمز جلسة تسجيل الدخول غير صالح' }
         };
 
-        const errorMsg = errorMessages[sessionError.message] || { en: 'Invalid login session', ar: 'جلسة تسجيل دخول غير صالحة' };
+        const errorMsg = errorMessages[signatureError.message] || { en: 'Invalid login session', ar: 'جلسة تسجيل دخول غير صالحة' };
 
-        logger.warn('Login session validation failed', {
-          error: sessionError.message,
+        logger.warn('Login session token signature validation failed', {
+          error: signatureError.message,
           ipAddress
         });
 
@@ -249,22 +247,23 @@ const verifyOTP = async (req, res) => {
           success: false,
           error: errorMsg.en,
           errorAr: errorMsg.ar,
-          code: sessionError.message || 'INVALID_LOGIN_SESSION'
+          code: signatureError.message || 'INVALID_LOGIN_SESSION'
         });
       }
 
-      // GOLD STANDARD: Extract email from verified session (source of truth)
-      email = sessionData.email;
+      // GOLD STANDARD: Extract email from verified token (source of truth)
+      email = tokenPayload.email;
 
       // Belt-and-suspenders: If frontend also sent email, log if it doesn't match
       // (This is for backwards compatibility and security monitoring)
-      if (req.body.email && req.body.email.toLowerCase() !== email) {
-        logger.warn('Email mismatch detected (using session email)', {
-          sessionEmail: email,
-          providedEmail: req.body.email.toLowerCase(),
+      const providedEmail = req.body.email;
+      if (providedEmail && typeof providedEmail === 'string' && providedEmail.toLowerCase() !== email) {
+        logger.warn('Email mismatch detected (using token email)', {
+          tokenEmail: email,
+          providedEmail: providedEmail.toLowerCase(),
           ipAddress
         });
-        // Use session email (source of truth), don't fail
+        // Use token email (source of truth), don't fail
       }
 
     } else {
@@ -274,6 +273,15 @@ const verifyOTP = async (req, res) => {
           success: false,
           error: 'Email is required',
           errorAr: 'البريد الإلكتروني مطلوب'
+        });
+      }
+
+      // Type safety check
+      if (typeof email !== 'string') {
+        return res.status(400).json({
+          success: false,
+          error: 'Email must be a string',
+          errorAr: 'البريد الإلكتروني يجب أن يكون نصاً'
         });
       }
 
@@ -379,10 +387,48 @@ const verifyOTP = async (req, res) => {
     // LOGIN PURPOSE: Complete authentication
     // ═══════════════════════════════════════════════════════════════
     // At this point:
-    // - loginSessionToken is verified (password was authenticated)
-    // - Email is extracted from session (source of truth)
+    // - loginSessionToken signature is verified
+    // - Email is extracted from token (source of truth)
     // - OTP is verified
+    // - Now we CONSUME the token (mark as used in DB)
     // - Ready to issue tokens
+
+    // Step 6a: NOW consume the loginSessionToken (after OTP verified)
+    // This is the ONLY place we touch the database for the token
+    let sessionData;
+    try {
+      sessionData = await LoginSession.verifyAndConsumeToken(loginSessionToken, {
+        ipAddress,
+        userAgent
+      });
+    } catch (consumeError) {
+      // Token consumption errors (already used, expired, not found, etc.)
+      const errorMessages = {
+        'INVALID_TOKEN_FORMAT': { en: 'Invalid login session token format', ar: 'تنسيق رمز الجلسة غير صالح' },
+        'INVALID_TOKEN_ENCODING': { en: 'Invalid login session token encoding', ar: 'ترميز رمز الجلسة غير صالح' },
+        'INVALID_TOKEN_PAYLOAD': { en: 'Invalid login session token data', ar: 'بيانات رمز الجلسة غير صالحة' },
+        'INVALID_TOKEN_SIGNATURE': { en: 'Invalid login session token', ar: 'رمز جلسة تسجيل الدخول غير صالح' },
+        'TOKEN_ALREADY_USED': { en: 'Login session already used. Please sign in again.', ar: 'تم استخدام جلسة تسجيل الدخول بالفعل. يرجى تسجيل الدخول مرة أخرى.' },
+        'TOKEN_EXPIRED': { en: 'Login session expired. Please sign in again.', ar: 'انتهت صلاحية جلسة تسجيل الدخول. يرجى تسجيل الدخول مرة أخرى.' },
+        'TOKEN_INVALIDATED': { en: 'Login session invalidated. Please sign in again.', ar: 'تم إبطال جلسة تسجيل الدخول. يرجى تسجيل الدخول مرة أخرى.' },
+        'TOKEN_NOT_FOUND': { en: 'Login session not found. Please sign in again.', ar: 'جلسة تسجيل الدخول غير موجودة. يرجى تسجيل الدخول مرة أخرى.' }
+      };
+
+      const errorMsg = errorMessages[consumeError.message] || { en: 'Invalid login session', ar: 'جلسة تسجيل دخول غير صالحة' };
+
+      logger.warn('Login session consumption failed after OTP verification', {
+        error: consumeError.message,
+        email,
+        ipAddress
+      });
+
+      return res.status(401).json({
+        success: false,
+        error: errorMsg.en,
+        errorAr: errorMsg.ar,
+        code: consumeError.message || 'INVALID_LOGIN_SESSION'
+      });
+    }
 
     // Fetch user for token generation
     const user = await User.findById(sessionData.userId)
