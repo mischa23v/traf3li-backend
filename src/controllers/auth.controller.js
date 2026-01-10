@@ -630,7 +630,7 @@ const authLogin = async (request, response) => {
                 { email: loginIdentifier }
             ]
         })
-        .select('_id username email password firstName lastName role isSeller isSoloLawyer lawyerWorkMode firmId firmRole firmStatus lawyerProfile image phone country region city timezone notificationPreferences mfaEnabled')
+        .select('_id username email password firstName lastName role isSeller isSoloLawyer lawyerWorkMode firmId firmRole firmStatus lawyerProfile image phone country region city timezone notificationPreferences mfaEnabled isEmailVerified createdAt')
         .setOptions({ bypassFirmFilter: true })
         .lean();
 
@@ -769,6 +769,114 @@ const authLogin = async (request, response) => {
                 logger.error('Password breach check failed during login', {
                     error: breachError.message,
                     userId: user._id
+                });
+            }
+
+            // ═══════════════════════════════════════════════════════════════
+            // EMAIL VERIFICATION CHECK (Gold Standard - AWS/Google Pattern)
+            // ═══════════════════════════════════════════════════════════════
+            // Users MUST verify their email before accessing the system
+            // This prevents:
+            // 1. Account takeover preparation (attacker registers victim's email)
+            // 2. Spam/abuse with fake emails
+            // 3. Users locked out due to typos in email
+            // 4. Compliance issues (GDPR/SOC2 require verified contact)
+            //
+            // Legacy users (created before enforcement) get a grace period
+            // ═══════════════════════════════════════════════════════════════
+
+            if (!user.isEmailVerified) {
+                // Enforcement date - give existing users time to verify
+                // Users created AFTER this date MUST verify before login
+                const enforcementDateStr = process.env.EMAIL_VERIFICATION_ENFORCEMENT_DATE || '2025-02-01';
+                const enforcementDate = new Date(enforcementDateStr);
+
+                // Validate enforcement date is valid
+                if (isNaN(enforcementDate.getTime())) {
+                    logger.error('Invalid EMAIL_VERIFICATION_ENFORCEMENT_DATE env var', {
+                        value: enforcementDateStr
+                    });
+                    // Fall back to allowing login if date is invalid (fail-open for config errors)
+                    // This prevents lockout due to misconfiguration
+                }
+
+                const userCreatedAt = user.createdAt ? new Date(user.createdAt) : new Date(0);
+                const isLegacyUser = isNaN(enforcementDate.getTime()) || userCreatedAt < enforcementDate;
+
+                if (!isLegacyUser) {
+                    // New users MUST verify email before login
+                    logger.warn('Login blocked: email not verified', {
+                        userId: user._id,
+                        email: user.email,
+                        createdAt: user.createdAt
+                    });
+
+                    // Check rate limit before resending verification email
+                    // Prevents abuse: spamming user's inbox via repeated login attempts
+                    // emailVerificationService.sendVerificationEmail has built-in rate limiting
+                    let verificationResent = false;
+                    try {
+                        const result = await emailVerificationService.sendVerificationEmail(
+                            user._id.toString(),
+                            user.email,
+                            `${user.firstName} ${user.lastName}`,
+                            'ar'
+                        );
+                        // sendVerificationEmail returns { success: false, code: 'RATE_LIMITED' } if rate limited
+                        verificationResent = result?.success !== false;
+                    } catch (verifyError) {
+                        logger.error('Failed to resend verification email during login', {
+                            error: verifyError.message,
+                            userId: user._id
+                        });
+                    }
+
+                    // Mask email for security (u***r@example.com)
+                    // Handle edge case where email might be malformed
+                    let maskedEmail = '***@***.***';
+                    if (user.email && user.email.includes('@')) {
+                        const emailParts = user.email.split('@');
+                        const localPart = emailParts[0];
+                        const domain = emailParts[1];
+                        const maskedLocal = localPart.length > 2
+                            ? localPart[0] + '***' + localPart[localPart.length - 1]
+                            : localPart[0] + '***';
+                        maskedEmail = `${maskedLocal}@${domain}`;
+                    }
+
+                    // Log security event
+                    auditLogService.log(
+                        'login_blocked_email_not_verified',
+                        'user',
+                        user._id,
+                        null,
+                        {
+                            userId: user._id,
+                            userEmail: user.email,
+                            ipAddress,
+                            userAgent,
+                            severity: 'medium',
+                            verificationResent
+                        }
+                    );
+
+                    return response.status(403).json({
+                        error: true,
+                        message: 'يرجى تفعيل بريدك الإلكتروني للمتابعة. تم إرسال رابط التفعيل إلى بريدك.',
+                        messageEn: 'Please verify your email to continue. A verification link has been sent.',
+                        code: 'EMAIL_NOT_VERIFIED',
+                        email: maskedEmail,
+                        verificationResent
+                    });
+                }
+
+                // Legacy users: Log warning but allow login
+                // They should be prompted to verify in the dashboard
+                logger.warn('Legacy user login without email verification', {
+                    userId: user._id,
+                    email: user.email,
+                    createdAt: user.createdAt,
+                    enforcementDate
                 });
             }
 
