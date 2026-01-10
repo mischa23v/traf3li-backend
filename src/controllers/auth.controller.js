@@ -791,11 +791,11 @@ const authLogin = async (request, response) => {
                 // Check rate limit before sending OTP
                 const rateLimit = await EmailOTP.checkRateLimit(user.email, 'login');
 
-                if (!rateLimit.allowed) {
+                if (rateLimit.limited) {
                     return response.status(429).json({
                         error: true,
-                        message: 'تم تجاوز حد إرسال رمز التحقق. يرجى المحاولة لاحقاً',
-                        messageEn: `OTP rate limit exceeded. Please wait ${Math.ceil(rateLimit.waitTime / 60)} minutes`,
+                        message: rateLimit.messageAr,
+                        messageEn: rateLimit.message,
                         code: 'OTP_RATE_LIMITED',
                         retryAfter: rateLimit.waitTime
                     });

@@ -210,10 +210,25 @@ emailOtpSchema.statics.checkRateLimit = async function(email, purpose) {
 
   // Limit: 5 OTP requests per hour per email
   if (count >= 5) {
+    // Calculate actual wait time until oldest OTP in window expires
+    const oldestOtp = await this.findOne({
+      email: email.toLowerCase(),
+      purpose,
+      createdAt: { $gte: oneHourAgo },
+    }).sort({ createdAt: 1 }); // Oldest first
+
+    const calculatedWait = oldestOtp
+      ? Math.ceil((oldestOtp.createdAt.getTime() + 60 * 60 * 1000 - Date.now()) / 1000)
+      : 3600;
+    // Ensure waitSeconds is always positive (minimum 60 seconds)
+    const waitSeconds = Math.max(calculatedWait, 60);
+    const waitMinutes = Math.ceil(waitSeconds / 60);
+
     return {
       limited: true,
-      message: 'Too many OTP requests. Please try again later.',
-      messageAr: 'تم تجاوز عدد الطلبات المسموح بها. يرجى المحاولة لاحقاً',
+      message: `Too many OTP requests. Please try again in ${waitMinutes} minute${waitMinutes > 1 ? 's' : ''}.`,
+      messageAr: `تم تجاوز عدد الطلبات المسموح بها. يرجى المحاولة بعد ${waitMinutes} دقيقة`,
+      waitTime: waitSeconds,
     };
   }
 
