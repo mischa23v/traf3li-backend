@@ -112,11 +112,22 @@ const sendOTPSchema = Joi.object({
 
 /**
  * OTP verify validation schema
+ *
+ * GOLD STANDARD: For login purpose, email is OPTIONAL because:
+ * - The loginSessionToken contains the email (HMAC-signed, tamper-proof)
+ * - Backend extracts email from the signed token (source of truth)
+ * - Frontend doesn't need to parse token or send redundant email
+ *
+ * For other purposes (registration, password_reset, etc.), email IS required.
+ * The controller enforces this business logic.
  */
 const verifyOTPSchema = Joi.object({
     email: Joi.string()
         .email()
-        .required(),
+        .optional()  // Optional for login (extracted from loginSessionToken)
+        .messages({
+            'string.email': 'البريد الإلكتروني غير صالح / Invalid email format'
+        }),
     otp: Joi.string()
         .length(6)
         .pattern(/^[0-9]+$/)
@@ -131,6 +142,11 @@ const verifyOTPSchema = Joi.object({
         .optional()
         .messages({
             'any.only': 'غرض غير صالح / Invalid purpose'
+        }),
+    loginSessionToken: Joi.string()
+        .optional()  // Required for login purpose (enforced in controller)
+        .messages({
+            'string.base': 'رمز جلسة تسجيل الدخول غير صالح / Invalid login session token'
         })
 });
 
