@@ -461,6 +461,109 @@ const timingSafeEqual = (a, b) => {
     }
 };
 
+// ============================================
+// EMAIL VERIFICATION SECURITY (Gold Standard)
+// ============================================
+
+/**
+ * Hash verification token using SHA-256
+ * Tokens are stored hashed in database (like Microsoft/Google pattern)
+ * This way, database breach doesn't expose usable tokens
+ *
+ * @param {string} token - Raw verification token
+ * @returns {string} - SHA-256 hash of token (hex)
+ */
+const hashVerificationToken = (token) => {
+    const crypto = require('crypto');
+    if (!token || typeof token !== 'string') {
+        return '';
+    }
+    return crypto.createHash('sha256').update(token).digest('hex');
+};
+
+/**
+ * Timing-safe comparison for verification tokens
+ * Compares hashed tokens in constant time to prevent timing attacks
+ *
+ * @param {string} providedHash - Hash of user-provided token
+ * @param {string} storedHash - Hash stored in database
+ * @returns {boolean} - Whether hashes match
+ */
+const timingSafeTokenCompare = (providedHash, storedHash) => {
+    const crypto = require('crypto');
+
+    if (!providedHash || !storedHash ||
+        typeof providedHash !== 'string' ||
+        typeof storedHash !== 'string') {
+        // Do a dummy comparison to maintain constant time
+        const dummyHash = crypto.createHash('sha256').update('dummy').digest('hex');
+        try {
+            crypto.timingSafeEqual(Buffer.from(dummyHash), Buffer.from(dummyHash));
+        } catch {}
+        return false;
+    }
+
+    // Hash lengths should be equal (both SHA-256 = 64 hex chars)
+    if (providedHash.length !== storedHash.length) {
+        // Do a comparison anyway to maintain timing
+        try {
+            crypto.timingSafeEqual(
+                Buffer.from(storedHash),
+                Buffer.from(storedHash)
+            );
+        } catch {}
+        return false;
+    }
+
+    try {
+        return crypto.timingSafeEqual(
+            Buffer.from(providedHash, 'hex'),
+            Buffer.from(storedHash, 'hex')
+        );
+    } catch {
+        return false;
+    }
+};
+
+/**
+ * Add random timing delay to prevent user enumeration
+ * Returns same response regardless of user existence, with random delay
+ * to prevent timing-based inference
+ *
+ * @param {number} minMs - Minimum delay in milliseconds (default: 150)
+ * @param {number} maxMs - Maximum delay in milliseconds (default: 400)
+ * @returns {Promise<void>}
+ */
+const randomTimingDelay = async (minMs = 150, maxMs = 400) => {
+    const crypto = require('crypto');
+    // Use crypto.randomInt for cryptographically secure random
+    const delay = crypto.randomInt(minMs, maxMs + 1);
+    return new Promise(resolve => setTimeout(resolve, delay));
+};
+
+/**
+ * Mask email address for safe display
+ * Shows first char + *** + @domain.com
+ * Prevents full email exposure in responses
+ *
+ * @param {string} email - Full email address
+ * @returns {string} - Masked email (e.g., "j***@gmail.com")
+ */
+const maskEmail = (email) => {
+    if (!email || typeof email !== 'string' || !email.includes('@')) {
+        return '***@***.***';
+    }
+
+    const [local, domain] = email.split('@');
+    if (!local || !domain) {
+        return '***@***.***';
+    }
+
+    // Show first character only
+    const maskedLocal = local.charAt(0) + '***';
+    return `${maskedLocal}@${domain}`;
+};
+
 module.exports = {
     // Mass Assignment Protection
     pickAllowedFields,
@@ -485,5 +588,11 @@ module.exports = {
 
     // Safe Operations
     safeJSONParse,
-    timingSafeEqual
+    timingSafeEqual,
+
+    // Email Verification Security (Gold Standard)
+    hashVerificationToken,
+    timingSafeTokenCompare,
+    randomTimingDelay,
+    maskEmail
 };

@@ -1,5 +1,5 @@
 const express = require('express');
-const { authLogin, authLogout, authLogoutAll, authRegister, authStatus, checkAvailability, getOnboardingStatus, refreshAccessToken, sendMagicLink, verifyMagicLink, verifyEmail, resendVerificationEmail, forgotPassword, resetPassword, getCSRFToken } = require('../controllers/auth.controller');
+const { authLogin, authLogout, authLogoutAll, authRegister, authStatus, checkAvailability, getOnboardingStatus, refreshAccessToken, sendMagicLink, verifyMagicLink, verifyEmail, resendVerificationEmail, requestVerificationEmailPublic, forgotPassword, resetPassword, getCSRFToken } = require('../controllers/auth.controller');
 const { anonymousLogin, convertAnonymousUser } = require('../controllers/anonymous.auth.controller');
 const { sendOTP, verifyOTP, resendOTP, checkOTPStatus } = require('../controllers/otp.controller');
 const { sendPhoneOTP, verifyPhoneOTP, resendPhoneOTP, checkPhoneOTPStatus } = require('../controllers/phoneOtp.controller');
@@ -131,6 +131,10 @@ app.post('/reset-password', passwordResetLimiter, validateResetPassword, resetPa
 app.post('/verify-email', publicRateLimiter, verifyEmail);
 
 app.post('/resend-verification', authenticate, authRateLimiter, resendVerificationEmail);
+
+// PUBLIC endpoint - no auth required (solves circular dependency)
+// Users who can't login because email isn't verified can still request verification
+app.post('/request-verification-email', sensitiveRateLimiter, requestVerificationEmailPublic);
 
 // ========== CSRF Token ==========
 app.get('/csrf', authenticate, publicRateLimiter, getCSRFToken);

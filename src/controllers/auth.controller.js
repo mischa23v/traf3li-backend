@@ -540,22 +540,50 @@ const authRegister = async (request, response) => {
     }
     catch({message}) {
         logger.error('Registration failed', { error: message });
+
+        // ═══════════════════════════════════════════════════════════════
+        // GOLD STANDARD ERROR RESPONSES (AWS/Google/Stripe Pattern)
+        // ═══════════════════════════════════════════════════════════════
+        // All errors include:
+        // - code: Machine-readable error code
+        // - message: Arabic message
+        // - messageEn: English message
+        // ═══════════════════════════════════════════════════════════════
+
         if(message.includes('E11000')) {
-            // Check if it's email or username duplicate
+            // MongoDB duplicate key error
             if (message.includes('email')) {
-                return response.status(400).send({
+                return response.status(409).send({
                     error: true,
-                    message: 'البريد الإلكتروني مستخدم بالفعل!'
+                    code: 'EMAIL_EXISTS',
+                    message: 'البريد الإلكتروني مستخدم بالفعل',
+                    messageEn: 'Email address is already registered',
+                    field: 'email'
                 });
             }
-            return response.status(400).send({
+            if (message.includes('username')) {
+                return response.status(409).send({
+                    error: true,
+                    code: 'USERNAME_TAKEN',
+                    message: 'اسم المستخدم مستخدم بالفعل',
+                    messageEn: 'Username is already taken',
+                    field: 'username'
+                });
+            }
+            // Generic duplicate (shouldn't happen but handle it)
+            return response.status(409).send({
                 error: true,
-                message: 'اسم المستخدم مستخدم بالفعل!'
+                code: 'DUPLICATE_ENTRY',
+                message: 'هذه البيانات مسجلة بالفعل',
+                messageEn: 'This information is already registered'
             });
         }
+
         return response.status(500).send({
             error: true,
-            message: 'حدث خطأ ما، يرجى المحاولة مرة أخرى'
+            code: 'REGISTRATION_FAILED',
+            message: 'حدث خطأ أثناء التسجيل، يرجى المحاولة مرة أخرى',
+            messageEn: 'Registration failed, please try again'
         });
     }
 };
@@ -820,7 +848,11 @@ const authLogin = async (request, response) => {
                             user._id.toString(),
                             user.email,
                             `${user.firstName} ${user.lastName}`,
-                            'ar'
+                            'ar',
+                            {
+                                ipAddress,
+                                userAgent
+                            }
                         );
                         // sendVerificationEmail returns { success: false, code: 'RATE_LIMITED' } if rate limited
                         verificationResent = result?.success !== false;
@@ -2210,7 +2242,14 @@ const verifyEmail = async (request, response) => {
             });
         }
 
-        const result = await emailVerificationService.verifyEmail(token);
+        // Get IP and User-Agent for security audit logging
+        const ipAddress = request.ip || request.headers['x-forwarded-for']?.split(',')[0] || 'unknown';
+        const userAgent = request.headers['user-agent'] || 'unknown';
+
+        const result = await emailVerificationService.verifyEmail(token, {
+            ipAddress,
+            userAgent
+        });
 
         if (!result.success) {
             return response.status(400).json({
@@ -2261,7 +2300,7 @@ const verifyEmail = async (request, response) => {
 };
 
 /**
- * Resend verification email
+ * Resend verification email (authenticated)
  * POST /api/auth/resend-verification
  */
 const resendVerificationEmail = async (request, response) => {
@@ -2278,7 +2317,14 @@ const resendVerificationEmail = async (request, response) => {
             });
         }
 
-        const result = await emailVerificationService.resendVerificationEmail(userId);
+        // Get IP and User-Agent for security audit logging
+        const ipAddress = request.ip || request.headers['x-forwarded-for']?.split(',')[0] || 'unknown';
+        const userAgent = request.headers['user-agent'] || 'unknown';
+
+        const result = await emailVerificationService.resendVerificationEmail(userId, {
+            ipAddress,
+            userAgent
+        });
 
         if (!result.success) {
             const statusCode = result.code === 'RATE_LIMITED' ? 429 : 400;
@@ -2287,7 +2333,8 @@ const resendVerificationEmail = async (request, response) => {
                 message: result.message,
                 messageEn: result.messageEn,
                 code: result.code,
-                waitTime: result.waitTime
+                waitSeconds: result.waitSeconds,
+                waitMinutes: result.waitMinutes
             });
         }
 
@@ -2295,7 +2342,8 @@ const resendVerificationEmail = async (request, response) => {
             error: false,
             message: result.message,
             messageEn: result.messageEn,
-            expiresAt: result.expiresAt
+            expiresAt: result.expiresAt,
+            email: result.email
         });
     } catch (error) {
         logger.error('Failed to resend verification email', {
@@ -2307,6 +2355,83 @@ const resendVerificationEmail = async (request, response) => {
             message: 'حدث خطأ أثناء إعادة إرسال رابط التفعيل',
             messageEn: 'An error occurred while resending verification link',
             code: 'RESEND_EMAIL_FAILED'
+        });
+    }
+};
+
+/**
+ * Request verification email by email address (PUBLIC - no auth required)
+ * POST /api/auth/request-verification-email
+ *
+ * Gold Standard (Google/Microsoft/AWS pattern):
+ * - No authentication required (solves circular dependency)
+ * - Prevents user enumeration (same response regardless of email existence)
+ * - Rate limited by IP and email
+ * - Adds random timing delay to prevent timing attacks
+ */
+const requestVerificationEmailPublic = async (request, response) => {
+    try {
+        const { email } = request.body;
+
+        if (!email || typeof email !== 'string') {
+            return response.status(400).json({
+                error: true,
+                message: 'البريد الإلكتروني مطلوب',
+                messageEn: 'Email address required',
+                code: 'EMAIL_REQUIRED'
+            });
+        }
+
+        // Basic email format validation
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            return response.status(400).json({
+                error: true,
+                message: 'صيغة البريد الإلكتروني غير صحيحة',
+                messageEn: 'Invalid email format',
+                code: 'INVALID_EMAIL_FORMAT'
+            });
+        }
+
+        // Get IP and User-Agent for security audit logging
+        const ipAddress = request.ip || request.headers['x-forwarded-for']?.split(',')[0] || 'unknown';
+        const userAgent = request.headers['user-agent'] || 'unknown';
+
+        const result = await emailVerificationService.requestVerificationByEmail(email, {
+            ipAddress,
+            userAgent
+        });
+
+        // Handle rate limiting with specific status code
+        if (!result.success && result.code === 'RATE_LIMITED') {
+            return response.status(429).json({
+                error: true,
+                message: result.message,
+                messageEn: result.messageEn,
+                code: result.code,
+                waitSeconds: result.waitSeconds,
+                waitMinutes: result.waitMinutes
+            });
+        }
+
+        // Always return 200 for successful processing (prevents enumeration)
+        return response.status(200).json({
+            error: false,
+            message: result.message,
+            messageEn: result.messageEn,
+            email: result.email
+        });
+    } catch (error) {
+        logger.error('Failed to process verification email request', {
+            error: error.message,
+            email: request.body?.email ? request.body.email.substring(0, 3) + '***' : undefined
+        });
+
+        // Return generic success message even on error (prevents enumeration)
+        return response.status(200).json({
+            error: false,
+            message: 'إذا كان هذا البريد الإلكتروني مسجلاً وغير مُفعّل، سيتم إرسال رابط التفعيل.',
+            messageEn: 'If this email is registered and not verified, a verification link will be sent.'
         });
     }
 };
@@ -2875,6 +3000,7 @@ module.exports = {
     verifyMagicLink,
     verifyEmail,
     resendVerificationEmail,
+    requestVerificationEmailPublic,
     forgotPassword,
     resetPassword,
     getCSRFToken
