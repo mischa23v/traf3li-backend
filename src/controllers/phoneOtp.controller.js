@@ -221,6 +221,7 @@ const verifyPhoneOTP = async (req, res) => {
 
     // For login, generate tokens
     const user = await User.findOne({ phone: formattedPhone })
+      .select('+isEmailVerified +createdAt')
       .setOptions({ bypassFirmFilter: true });
 
     if (!user) {
@@ -229,6 +230,44 @@ const verifyPhoneOTP = async (req, res) => {
         error: 'User not found with this phone number',
         errorAr: 'المستخدم غير موجود بهذا الرقم'
       });
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // EMAIL VERIFICATION CHECK (Gold Standard)
+    // ═══════════════════════════════════════════════════════════════
+    // Phone OTP does NOT prove email ownership.
+    // Enforce email verification for non-legacy users.
+    // ═══════════════════════════════════════════════════════════════
+    if (!user.isEmailVerified) {
+      const enforcementDateStr = process.env.EMAIL_VERIFICATION_ENFORCEMENT_DATE || '2025-02-01';
+      const enforcementDate = new Date(enforcementDateStr);
+      const userCreatedAt = user.createdAt ? new Date(user.createdAt) : new Date(0);
+      const isLegacyUser = isNaN(enforcementDate.getTime()) || userCreatedAt < enforcementDate;
+
+      if (!isLegacyUser) {
+        logger.warn('Phone OTP login blocked: email not verified', {
+          userId: user._id,
+          phone: formattedPhone
+        });
+
+        // Mask email for security
+        let maskedEmail = '***@***.***';
+        if (user.email && user.email.includes('@')) {
+          const [localPart, domain] = user.email.split('@');
+          const maskedLocal = localPart.length > 2
+            ? localPart[0] + '***' + localPart[localPart.length - 1]
+            : localPart[0] + '***';
+          maskedEmail = `${maskedLocal}@${domain}`;
+        }
+
+        return res.status(403).json({
+          success: false,
+          error: 'Please verify your email to continue',
+          errorAr: 'يرجى تفعيل بريدك الإلكتروني للمتابعة',
+          code: 'EMAIL_NOT_VERIFIED',
+          email: maskedEmail
+        });
+      }
     }
 
     // Get firm context for custom claims (if user belongs to a firm)
