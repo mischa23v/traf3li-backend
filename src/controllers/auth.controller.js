@@ -2360,6 +2360,15 @@ const forgotPassword = async (request, response) => {
         // This prevents email enumeration attacks
         if (!user) {
             logger.warn('Password reset requested for non-existent email', { email });
+
+            // TIMING ATTACK PREVENTION: Add random delay to match real password reset timing
+            // Real resets take 200-500ms (token generation, DB update, email send)
+            // Random delay prevents attackers from distinguishing valid vs invalid emails via timing
+            const minDelay = 200;
+            const maxDelay = 500;
+            const randomDelay = crypto.randomInt(minDelay, maxDelay + 1);
+            await new Promise(resolve => setTimeout(resolve, randomDelay));
+
             return response.status(200).json({
                 error: false,
                 message: 'إذا كان البريد الإلكتروني موجوداً، سيتم إرسال رابط إعادة تعيين كلمة المرور',

@@ -71,8 +71,17 @@ const sendOTP = async (req, res) => {
         userAgent: req.headers['user-agent']
       });
 
+      // TIMING ATTACK PREVENTION: Add random delay to match real OTP send timing
+      // Real OTP sends take 150-400ms (DB write + email API call)
+      // Random delay prevents attackers from distinguishing valid vs invalid emails via timing
+      const crypto = require('crypto');
+      const minDelay = 150; // Minimum delay in ms
+      const maxDelay = 400; // Maximum delay in ms
+      const randomDelay = crypto.randomInt(minDelay, maxDelay + 1);
+
+      await new Promise(resolve => setTimeout(resolve, randomDelay));
+
       // Return identical response structure to successful OTP send
-      // This prevents attackers from distinguishing valid vs invalid emails
       return res.status(200).json({
         success: true,
         message: 'OTP sent successfully',
