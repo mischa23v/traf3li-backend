@@ -877,6 +877,16 @@ app.use('/api', apiVersionMiddleware);
 const { authenticatedApi } = require('./middlewares/authenticatedApi.middleware');
 app.use('/api', authenticatedApi);
 
+// ============================================
+// EMAIL VERIFICATION ENFORCEMENT (Gold Standard)
+// ============================================
+// Feature-based access control for unverified users
+// Unverified users CAN access: tasks, reminders, events, gantt, calendar
+// Unverified users CANNOT access: cases, clients, billing, documents, etc.
+// NOTE: This runs AFTER authenticatedApi sets req.isEmailVerified from JWT claims
+const { emailVerificationRequired } = require('./middlewares/emailVerificationRequired.middleware');
+app.use('/api', emailVerificationRequired());
+
 // ✅ DOCUMENT LOGGING: Debug logging for document operations (Gold Standard)
 // Mount on specific routes only - NOT globally (performance optimization)
 const { documentLoggingMiddleware } = require('./services/documentLogger.service');

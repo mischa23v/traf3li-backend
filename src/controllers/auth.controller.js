@@ -801,115 +801,74 @@ const authLogin = async (request, response) => {
             }
 
             // ═══════════════════════════════════════════════════════════════
-            // EMAIL VERIFICATION CHECK (Gold Standard - AWS/Google Pattern)
+            // EMAIL VERIFICATION STATUS (Gold Standard - Feature-Based Blocking)
             // ═══════════════════════════════════════════════════════════════
-            // Users MUST verify their email before accessing the system
-            // This prevents:
-            // 1. Account takeover preparation (attacker registers victim's email)
-            // 2. Spam/abuse with fake emails
-            // 3. Users locked out due to typos in email
-            // 4. Compliance issues (GDPR/SOC2 require verified contact)
+            // Login is ALLOWED regardless of email verification status
+            // Feature access is RESTRICTED for unverified users via middleware
             //
-            // Legacy users (created before enforcement) get a grace period
+            // ALLOWED features for unverified users:
+            // - Tasks, Reminders, Events, Gantt, Calendar
+            // - Basic profile viewing, Notifications
+            // - Resend verification email
+            //
+            // BLOCKED features for unverified users:
+            // - Cases, Clients, Billing, Documents
+            // - Integrations, Team Management, Reports
+            // - Settings (sensitive operations)
             // ═══════════════════════════════════════════════════════════════
+
+            // Track email verification status for response (used by middleware)
+            const emailVerificationStatus = {
+                isVerified: user.isEmailVerified || false,
+                emailVerifiedAt: user.emailVerifiedAt || null,
+                requiresVerification: !user.isEmailVerified,
+                // Features allowed without email verification
+                allowedFeatures: ['tasks', 'reminders', 'events', 'gantt', 'calendar', 'notifications', 'profile-view'],
+                // Features blocked until email is verified
+                blockedFeatures: ['cases', 'clients', 'billing', 'invoices', 'documents', 'integrations', 'team', 'reports', 'analytics', 'hr', 'crm-write']
+            };
 
             if (!user.isEmailVerified) {
-                // Enforcement date - give existing users time to verify
-                // Users created AFTER this date MUST verify before login
-                const enforcementDateStr = process.env.EMAIL_VERIFICATION_ENFORCEMENT_DATE || '2025-02-01';
-                const enforcementDate = new Date(enforcementDateStr);
-
-                // Validate enforcement date is valid
-                if (isNaN(enforcementDate.getTime())) {
-                    logger.error('Invalid EMAIL_VERIFICATION_ENFORCEMENT_DATE env var', {
-                        value: enforcementDateStr
-                    });
-                    // Fall back to allowing login if date is invalid (fail-open for config errors)
-                    // This prevents lockout due to misconfiguration
-                }
-
-                const userCreatedAt = user.createdAt ? new Date(user.createdAt) : new Date(0);
-                const isLegacyUser = isNaN(enforcementDate.getTime()) || userCreatedAt < enforcementDate;
-
-                if (!isLegacyUser) {
-                    // New users MUST verify email before login
-                    logger.warn('Login blocked: email not verified', {
-                        userId: user._id,
-                        email: user.email,
-                        createdAt: user.createdAt
-                    });
-
-                    // Check rate limit before resending verification email
-                    // Prevents abuse: spamming user's inbox via repeated login attempts
-                    // emailVerificationService.sendVerificationEmail has built-in rate limiting
-                    let verificationResent = false;
-                    try {
-                        const result = await emailVerificationService.sendVerificationEmail(
-                            user._id.toString(),
-                            user.email,
-                            `${user.firstName} ${user.lastName}`,
-                            'ar',
-                            {
-                                ipAddress,
-                                userAgent
-                            }
-                        );
-                        // sendVerificationEmail returns { success: false, code: 'RATE_LIMITED' } if rate limited
-                        verificationResent = result?.success !== false;
-                    } catch (verifyError) {
-                        logger.error('Failed to resend verification email during login', {
-                            error: verifyError.message,
-                            userId: user._id
-                        });
-                    }
-
-                    // Mask email for security (u***r@example.com)
-                    // Handle edge case where email might be malformed
-                    let maskedEmail = '***@***.***';
-                    if (user.email && user.email.includes('@')) {
-                        const emailParts = user.email.split('@');
-                        const localPart = emailParts[0];
-                        const domain = emailParts[1];
-                        const maskedLocal = localPart.length > 2
-                            ? localPart[0] + '***' + localPart[localPart.length - 1]
-                            : localPart[0] + '***';
-                        maskedEmail = `${maskedLocal}@${domain}`;
-                    }
-
-                    // Log security event
-                    auditLogService.log(
-                        'login_blocked_email_not_verified',
-                        'user',
-                        user._id,
-                        null,
-                        {
-                            userId: user._id,
-                            userEmail: user.email,
-                            ipAddress,
-                            userAgent,
-                            severity: 'medium',
-                            verificationResent
-                        }
-                    );
-
-                    return response.status(403).json({
-                        error: true,
-                        message: 'يرجى تفعيل بريدك الإلكتروني للمتابعة. تم إرسال رابط التفعيل إلى بريدك.',
-                        messageEn: 'Please verify your email to continue. A verification link has been sent.',
-                        code: 'EMAIL_NOT_VERIFIED',
-                        email: maskedEmail,
-                        verificationResent
-                    });
-                }
-
-                // Legacy users: Log warning but allow login
-                // They should be prompted to verify in the dashboard
-                logger.warn('Legacy user login without email verification', {
+                // Log unverified user login for monitoring
+                logger.info('Unverified user login allowed with feature restrictions', {
                     userId: user._id,
                     email: user.email,
-                    createdAt: user.createdAt,
-                    enforcementDate
+                    createdAt: user.createdAt
                 });
+
+                // Send verification email reminder (non-blocking, fire-and-forget)
+                // Rate limited by emailVerificationService internally
+                emailVerificationService.sendVerificationEmail(
+                    user._id.toString(),
+                    user.email,
+                    `${user.firstName} ${user.lastName}`,
+                    'ar',
+                    {
+                        ipAddress,
+                        userAgent
+                    }
+                ).catch(verifyError => {
+                    logger.warn('Failed to send verification reminder during login', {
+                        error: verifyError.message,
+                        userId: user._id
+                    });
+                });
+
+                // Log unverified login event for security monitoring
+                auditLogService.log(
+                    'login_unverified_email',
+                    'user',
+                    user._id,
+                    null,
+                    {
+                        userId: user._id,
+                        userEmail: user.email,
+                        ipAddress,
+                        userAgent,
+                        severity: 'low',
+                        restrictedFeatures: emailVerificationStatus.blockedFeatures
+                    }
+                );
             }
 
             // ═══════════════════════════════════════════════════════════════
@@ -1705,7 +1664,21 @@ const authStatus = async (request, response) => {
         const userData = {
             ...user,
             isSoloLawyer: user.isSoloLawyer || false,
-            lawyerWorkMode: user.lawyerWorkMode || null
+            lawyerWorkMode: user.lawyerWorkMode || null,
+            // Email verification status (Gold Standard - Feature-Based Blocking)
+            isEmailVerified: user.isEmailVerified || false,
+            emailVerifiedAt: user.emailVerifiedAt || null
+        };
+
+        // Email verification context for frontend feature blocking
+        const emailVerification = {
+            isVerified: user.isEmailVerified || false,
+            requiresVerification: !user.isEmailVerified,
+            emailVerifiedAt: user.emailVerifiedAt || null,
+            // Features allowed without email verification
+            allowedFeatures: ['tasks', 'reminders', 'events', 'gantt', 'calendar', 'notifications', 'profile-view'],
+            // Features blocked until email is verified
+            blockedFeatures: ['cases', 'clients', 'billing', 'invoices', 'documents', 'integrations', 'team', 'reports', 'analytics', 'hr', 'crm-write']
         };
 
         // If user is a lawyer, get firm/tenant information
@@ -1767,7 +1740,9 @@ const authStatus = async (request, response) => {
         return response.send({
             error: false,
             message: 'Success!',
-            user: userData
+            user: userData,
+            // Email verification context for frontend feature blocking
+            emailVerification
         });
     }
     catch(error) {
@@ -2270,20 +2245,128 @@ const verifyEmail = async (request, response) => {
                 userId: result.user.id,
                 userEmail: result.user.email,
                 userName: result.user.name,
-                ipAddress: request.ip || request.headers['x-forwarded-for']?.split(',')[0] || 'unknown',
-                userAgent: request.headers['user-agent'] || 'unknown',
+                ipAddress,
+                userAgent,
                 method: request.method,
                 endpoint: request.originalUrl,
                 severity: 'low',
             }
         );
 
-        return response.status(200).json({
+        // ═══════════════════════════════════════════════════════════════
+        // GOLD STANDARD: Issue new tokens after verification
+        // ═══════════════════════════════════════════════════════════════
+        // The user's JWT still has email_verified: false
+        // We need to issue new tokens with email_verified: true
+        // This allows immediate access to all features without re-login
+        // ═══════════════════════════════════════════════════════════════
+
+        // Check if user is authenticated (has valid JWT)
+        const isAuthenticated = request.userID || request.userId;
+
+        let newTokens = null;
+        if (isAuthenticated) {
+            try {
+                // Fetch full user for token generation (with updated isEmailVerified)
+                const user = await User.findById(result.user.id)
+                    .select('-password')
+                    .setOptions({ bypassFirmFilter: true })
+                    .lean();
+
+                if (user) {
+                    // Fetch firm for custom claims if user has one
+                    let firm = null;
+                    if (user.firmId) {
+                        firm = await Firm.findById(user.firmId)
+                            .select('name nameEnglish licenseNumber status members subscription')
+                            .lean();
+                    }
+
+                    // Generate new access token with updated email_verified claim
+                    const accessToken = await generateAccessToken(user, { firm });
+
+                    // Generate new refresh token
+                    const deviceInfo = {
+                        userAgent,
+                        ip: ipAddress,
+                        deviceId: request.headers['x-device-id'] || null,
+                        browser: request.headers['sec-ch-ua'] || null,
+                        os: request.headers['sec-ch-ua-platform'] || null,
+                        device: request.headers['sec-ch-ua-mobile'] === '?1' ? 'mobile' : 'desktop'
+                    };
+
+                    const refreshToken = await refreshTokenService.createRefreshToken(
+                        user._id.toString(),
+                        deviceInfo,
+                        user.firmId
+                    );
+
+                    // Set cookies with new tokens
+                    const cookieConfig = getCookieConfig(request);
+                    const refreshCookieConfig = getHttpOnlyRefreshCookieConfig(request);
+
+                    response.cookie('accessToken', accessToken, cookieConfig);
+                    response.cookie(REFRESH_TOKEN_COOKIE_NAME, refreshToken, refreshCookieConfig);
+
+                    newTokens = {
+                        access_token: accessToken,
+                        refresh_token: refreshToken,
+                        token_type: 'Bearer',
+                        expires_in: 900
+                    };
+
+                    logger.info('Issued new tokens after email verification', {
+                        userId: user._id,
+                        email: user.email
+                    });
+                }
+            } catch (tokenError) {
+                // Log but don't fail verification if token generation fails
+                logger.warn('Failed to issue new tokens after email verification', {
+                    error: tokenError.message,
+                    userId: result.user.id
+                });
+                // User can still refresh their token manually or re-login
+            }
+        }
+
+        // Build response
+        const responseData = {
             error: false,
             message: result.message,
             messageEn: result.messageEn,
-            user: result.user
-        });
+            user: {
+                ...result.user,
+                isEmailVerified: true,
+                emailVerifiedAt: new Date().toISOString()
+            },
+            // Email verification context - now verified!
+            emailVerification: {
+                isVerified: true,
+                requiresVerification: false,
+                emailVerifiedAt: new Date().toISOString(),
+                allowedFeatures: 'all',
+                blockedFeatures: []
+            },
+            // Tell frontend that tokens were refreshed
+            tokensRefreshed: !!newTokens,
+            // Include note for frontend
+            note: newTokens
+                ? 'New tokens issued. All features are now unlocked.'
+                : 'Email verified. Please refresh your session to unlock all features.'
+        };
+
+        // Include new tokens if generated
+        if (newTokens) {
+            responseData.tokens = newTokens;
+            // Also include at root level for OAuth 2.0 standard format
+            responseData.access_token = newTokens.access_token;
+            responseData.refresh_token = newTokens.refresh_token;
+            responseData.token_type = 'Bearer';
+            responseData.expires_in = 900;
+        }
+
+        return response.status(200).json(responseData);
     } catch (error) {
         const reqToken = request.body?.token;
         logger.error('Email verification failed', {
