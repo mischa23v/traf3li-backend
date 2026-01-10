@@ -316,6 +316,159 @@ class NotificationDeliveryService {
   }
 
   /**
+   * Send Email Verification (DIRECT - bypasses queue)
+   * CRITICAL: This method sends directly via Resend API
+   * Unlike EmailService.sendEmail() which uses queue (fails silently when DISABLE_QUEUES=true)
+   *
+   * @param {Object} options - Email options
+   * @param {string} options.email - Recipient email
+   * @param {string} options.userName - User's name
+   * @param {string} options.verificationUrl - Verification URL
+   * @param {string} options.token - Verification token (for display)
+   * @param {string} options.language - Language preference (ar/en)
+   * @returns {Promise<Object>} - Send result
+   */
+  static async sendVerificationEmail({ email, userName = 'User', verificationUrl, token, language = 'ar' }) {
+    if (!resend) {
+      logger.warn('⚠️ Resend not configured. Verification email not sent.');
+      return {
+        success: false,
+        error: 'Email service not configured',
+        errorAr: 'خدمة البريد الإلكتروني غير مهيأة'
+      };
+    }
+
+    try {
+      const htmlContent = this.generateVerificationEmailHTML({
+        userName,
+        verificationUrl,
+        token,
+        language
+      });
+
+      const subject = language === 'ar'
+        ? 'تفعيل البريد الإلكتروني - ترافعلي'
+        : 'Email Verification - Traf3li';
+
+      const { data, error } = await resend.emails.send({
+        from: `${RESEND_CONFIG.fromName} <${RESEND_CONFIG.fromEmail}>`,
+        to: [email],
+        subject,
+        html: htmlContent,
+      });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      logger.info(`✅ Verification email sent to ${email}: ${data.id}`);
+      return {
+        success: true,
+        messageId: data.id,
+        email: email,
+      };
+    } catch (error) {
+      logger.error('❌ Verification email error:', error.message);
+      return {
+        success: false,
+        error: error.message,
+        errorAr: 'فشل إرسال بريد التفعيل',
+      };
+    }
+  }
+
+  /**
+   * Generate verification email HTML
+   * @private
+   */
+  static generateVerificationEmailHTML({ userName, verificationUrl, token, language = 'ar' }) {
+    const isArabic = language === 'ar';
+
+    const translations = {
+      ar: {
+        title: 'تفعيل البريد الإلكتروني',
+        greeting: `مرحباً ${userName}!`,
+        message: 'شكراً لتسجيلك في منصة ترافعلي. يرجى تفعيل بريدك الإلكتروني للوصول الكامل إلى جميع مزايا المنصة.',
+        buttonText: 'تفعيل البريد الإلكتروني',
+        expiry: 'هذا الرابط صالح لمدة 24 ساعة.',
+        alternative: 'أو يمكنك نسخ ولصق الرابط التالي في متصفحك:',
+        tokenTitle: 'رمز التفعيل:',
+        security: 'لم تقم بإنشاء حساب؟ يمكنك تجاهل هذا البريد الإلكتروني بأمان.',
+        footer: 'فريق ترافعلي'
+      },
+      en: {
+        title: 'Verify Your Email',
+        greeting: `Hello ${userName}!`,
+        message: 'Thank you for registering with Traf3li. Please verify your email to get full access to all platform features.',
+        buttonText: 'Verify Email',
+        expiry: 'This link is valid for 24 hours.',
+        alternative: 'Or you can copy and paste the following link in your browser:',
+        tokenTitle: 'Verification Code:',
+        security: 'Didn\'t create an account? You can safely ignore this email.',
+        footer: 'The Traf3li Team'
+      }
+    };
+
+    const t = translations[language] || translations.ar;
+
+    return `
+<!DOCTYPE html>
+<html dir="${isArabic ? 'rtl' : 'ltr'}" lang="${language}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${t.title}</title>
+  <style>
+    body { font-family: Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 20px; }
+    .container { max-width: 600px; margin: 0 auto; background: white; padding: 40px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .header { text-align: center; margin-bottom: 30px; }
+    .logo { font-size: 32px; font-weight: bold; color: #1e40af; }
+    .content { line-height: 1.8; }
+    .verify-box { background: #f0f9ff; border: 2px solid #1e40af; border-radius: 8px; padding: 30px; text-align: center; margin: 30px 0; }
+    .button { display: inline-block; background: #1e40af; color: white !important; padding: 15px 40px; text-decoration: none; border-radius: 8px; font-size: 16px; font-weight: bold; }
+    .token-box { background: #f9fafb; border: 1px dashed #d1d5db; border-radius: 6px; padding: 15px; margin: 20px 0; font-family: monospace; font-size: 18px; letter-spacing: 2px; text-align: center; }
+    .url-box { background: #f9fafb; padding: 10px; border-radius: 4px; word-break: break-all; font-size: 12px; color: #4b5563; }
+    .warning { color: #666; font-size: 14px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; }
+    .footer { text-align: center; margin-top: 30px; color: #666; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="logo">ترافعلي | TRAF3LI</div>
+      <p style="color: #666;">منصتك القانونية الموثوقة</p>
+    </div>
+
+    <div class="content">
+      <h2>${t.greeting}</h2>
+      <p>${t.message}</p>
+
+      <div class="verify-box">
+        <a href="${verificationUrl}" class="button">${t.buttonText}</a>
+        <p style="margin-top: 15px; color: #666; font-size: 14px;">${t.expiry}</p>
+      </div>
+
+      <p style="color: #666; font-size: 14px;">${t.alternative}</p>
+      <div class="url-box">${verificationUrl}</div>
+
+      <p style="margin-top: 20px; color: #666; font-size: 14px;">${t.tokenTitle}</p>
+      <div class="token-box">${token}</div>
+
+      <div class="warning">
+        <p>⚠️ ${t.security}</p>
+      </div>
+    </div>
+
+    <div class="footer">
+      <p>© ${new Date().getFullYear()} TRAF3LI. جميع الحقوق محفوظة.</p>
+      <p>المملكة العربية السعودية</p>
+    </div>
+  </div>
+</body>
+</html>`;
+  }
+
+  /**
    * Send OTP via Email (NO rate limit - users must be able to log in)
    * OTP has its own rate limiting in EmailOTP model (5/hour, 1min between)
    * @param {string} email - Recipient email
