@@ -443,19 +443,97 @@ POST /api/auth/request-verification-email
 }
 ```
 
-### Verify Email (Public)
+### Verify Email (Gold Standard)
 
 ```
-GET /api/auth/verify-email?token=<token>
+POST /api/auth/verify-email
+Content-Type: application/json
+Authorization: Bearer <token> (optional - if logged in, new tokens are issued)
 ```
 
-**Success (200):**
+**Request:**
 ```json
 {
-  "success": true,
-  "message": "تم تفعيل البريد الإلكتروني بنجاح",
-  "messageEn": "Email verified successfully"
+  "token": "verification-token-from-email-link"
 }
+```
+
+**Success Response (200) - When Logged In:**
+```json
+{
+  "error": false,
+  "message": "تم تفعيل البريد الإلكتروني بنجاح",
+  "messageEn": "Email verified successfully",
+  "user": {
+    "id": "507f1f77bcf86cd799439011",
+    "email": "user@example.com",
+    "isEmailVerified": true,
+    "emailVerifiedAt": "2025-01-10T12:00:00.000Z"
+  },
+  "emailVerification": {
+    "isVerified": true,
+    "requiresVerification": false,
+    "emailVerifiedAt": "2025-01-10T12:00:00.000Z",
+    "allowedFeatures": "all",
+    "blockedFeatures": []
+  },
+  "tokensRefreshed": true,
+  "note": "New tokens issued. All features are now unlocked.",
+  "access_token": "eyJ...",
+  "refresh_token": "eyJ...",
+  "token_type": "Bearer",
+  "expires_in": 900
+}
+```
+
+**Success Response (200) - When Not Logged In:**
+```json
+{
+  "error": false,
+  "message": "تم تفعيل البريد الإلكتروني بنجاح",
+  "messageEn": "Email verified successfully",
+  "user": {
+    "id": "507f1f77bcf86cd799439011",
+    "email": "user@example.com",
+    "isEmailVerified": true,
+    "emailVerifiedAt": "2025-01-10T12:00:00.000Z"
+  },
+  "emailVerification": {
+    "isVerified": true,
+    "requiresVerification": false,
+    "emailVerifiedAt": "2025-01-10T12:00:00.000Z",
+    "allowedFeatures": "all",
+    "blockedFeatures": []
+  },
+  "tokensRefreshed": false,
+  "note": "Email verified. Please refresh your session to unlock all features."
+}
+```
+
+**Error Responses:**
+- `400 TOKEN_REQUIRED` - Token not provided
+- `400 INVALID_TOKEN` - Token is invalid or expired
+- `400 TOKEN_LOCKED` - Too many failed attempts
+
+**Frontend Implementation:**
+```typescript
+const verifyEmail = async (token: string) => {
+  const response = await api.post('/auth/verify-email', { token });
+
+  if (response.tokensRefreshed) {
+    // Update stored tokens immediately
+    setAccessToken(response.access_token);
+    setRefreshToken(response.refresh_token);
+    // Update auth context
+    updateUser(response.user);
+    // Redirect to dashboard - all features unlocked
+    navigate('/dashboard');
+  } else {
+    // User wasn't logged in - redirect to login
+    toast.success('Email verified! Please login to continue.');
+    navigate('/login');
+  }
+};
 ```
 
 ### Resend Verification (Authenticated)

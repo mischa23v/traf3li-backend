@@ -2245,20 +2245,128 @@ const verifyEmail = async (request, response) => {
                 userId: result.user.id,
                 userEmail: result.user.email,
                 userName: result.user.name,
-                ipAddress: request.ip || request.headers['x-forwarded-for']?.split(',')[0] || 'unknown',
-                userAgent: request.headers['user-agent'] || 'unknown',
+                ipAddress,
+                userAgent,
                 method: request.method,
                 endpoint: request.originalUrl,
                 severity: 'low',
             }
         );
 
-        return response.status(200).json({
+        // ═══════════════════════════════════════════════════════════════
+        // GOLD STANDARD: Issue new tokens after verification
+        // ═══════════════════════════════════════════════════════════════
+        // The user's JWT still has email_verified: false
+        // We need to issue new tokens with email_verified: true
+        // This allows immediate access to all features without re-login
+        // ═══════════════════════════════════════════════════════════════
+
+        // Check if user is authenticated (has valid JWT)
+        const isAuthenticated = request.userID || request.userId;
+
+        let newTokens = null;
+        if (isAuthenticated) {
+            try {
+                // Fetch full user for token generation (with updated isEmailVerified)
+                const user = await User.findById(result.user.id)
+                    .select('-password')
+                    .setOptions({ bypassFirmFilter: true })
+                    .lean();
+
+                if (user) {
+                    // Fetch firm for custom claims if user has one
+                    let firm = null;
+                    if (user.firmId) {
+                        firm = await Firm.findById(user.firmId)
+                            .select('name nameEnglish licenseNumber status members subscription')
+                            .lean();
+                    }
+
+                    // Generate new access token with updated email_verified claim
+                    const accessToken = await generateAccessToken(user, { firm });
+
+                    // Generate new refresh token
+                    const deviceInfo = {
+                        userAgent,
+                        ip: ipAddress,
+                        deviceId: request.headers['x-device-id'] || null,
+                        browser: request.headers['sec-ch-ua'] || null,
+                        os: request.headers['sec-ch-ua-platform'] || null,
+                        device: request.headers['sec-ch-ua-mobile'] === '?1' ? 'mobile' : 'desktop'
+                    };
+
+                    const refreshToken = await refreshTokenService.createRefreshToken(
+                        user._id.toString(),
+                        deviceInfo,
+                        user.firmId
+                    );
+
+                    // Set cookies with new tokens
+                    const cookieConfig = getCookieConfig(request);
+                    const refreshCookieConfig = getHttpOnlyRefreshCookieConfig(request);
+
+                    response.cookie('accessToken', accessToken, cookieConfig);
+                    response.cookie(REFRESH_TOKEN_COOKIE_NAME, refreshToken, refreshCookieConfig);
+
+                    newTokens = {
+                        access_token: accessToken,
+                        refresh_token: refreshToken,
+                        token_type: 'Bearer',
+                        expires_in: 900
+                    };
+
+                    logger.info('Issued new tokens after email verification', {
+                        userId: user._id,
+                        email: user.email
+                    });
+                }
+            } catch (tokenError) {
+                // Log but don't fail verification if token generation fails
+                logger.warn('Failed to issue new tokens after email verification', {
+                    error: tokenError.message,
+                    userId: result.user.id
+                });
+                // User can still refresh their token manually or re-login
+            }
+        }
+
+        // Build response
+        const responseData = {
             error: false,
             message: result.message,
             messageEn: result.messageEn,
-            user: result.user
-        });
+            user: {
+                ...result.user,
+                isEmailVerified: true,
+                emailVerifiedAt: new Date().toISOString()
+            },
+            // Email verification context - now verified!
+            emailVerification: {
+                isVerified: true,
+                requiresVerification: false,
+                emailVerifiedAt: new Date().toISOString(),
+                allowedFeatures: 'all',
+                blockedFeatures: []
+            },
+            // Tell frontend that tokens were refreshed
+            tokensRefreshed: !!newTokens,
+            // Include note for frontend
+            note: newTokens
+                ? 'New tokens issued. All features are now unlocked.'
+                : 'Email verified. Please refresh your session to unlock all features.'
+        };
+
+        // Include new tokens if generated
+        if (newTokens) {
+            responseData.tokens = newTokens;
+            // Also include at root level for OAuth 2.0 standard format
+            responseData.access_token = newTokens.access_token;
+            responseData.refresh_token = newTokens.refresh_token;
+            responseData.token_type = 'Bearer';
+            responseData.expires_in = 900;
+        }
+
+        return response.status(200).json(responseData);
     } catch (error) {
         const reqToken = request.body?.token;
         logger.error('Email verification failed', {
