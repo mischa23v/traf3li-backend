@@ -186,6 +186,54 @@ class MagicLinkService {
             // Mark magic link as used
             await magicLink.markAsUsed();
 
+            // ═══════════════════════════════════════════════════════════════
+            // AUTO-VERIFY EMAIL ON MAGIC LINK LOGIN (Gold Standard)
+            // ═══════════════════════════════════════════════════════════════
+            // If user clicked the magic link, they have access to the email.
+            // This serves as proof of email ownership - auto-verify the email.
+            // Same pattern used by: Slack, Notion, Linear
+            //
+            // SECURITY: Only auto-verify if magic link email matches user's
+            // current email. Prevents edge case where user changes email after
+            // receiving magic link, then clicks old link to verify new email.
+            // ═══════════════════════════════════════════════════════════════
+            const emailsMatch = user.email?.toLowerCase() === magicLink.email?.toLowerCase();
+
+            if (!user.isEmailVerified && emailsMatch) {
+                try {
+                    await User.findByIdAndUpdate(
+                        user._id,
+                        {
+                            isEmailVerified: true,
+                            emailVerifiedAt: new Date()
+                        },
+                        { bypassFirmFilter: true }
+                    );
+
+                    // Update user object for response
+                    user.isEmailVerified = true;
+                    user.emailVerifiedAt = new Date();
+
+                    logger.info('Email auto-verified via magic link login', {
+                        userId: user._id,
+                        email: user.email
+                    });
+                } catch (verifyError) {
+                    // Don't fail login if auto-verification fails
+                    logger.error('Failed to auto-verify email via magic link', {
+                        error: verifyError.message,
+                        userId: user._id
+                    });
+                }
+            } else if (!user.isEmailVerified && !emailsMatch) {
+                // Log the mismatch for security monitoring
+                logger.warn('Magic link email mismatch - not auto-verifying', {
+                    userId: user._id,
+                    userEmail: user.email,
+                    magicLinkEmail: magicLink.email
+                });
+            }
+
             // Log successful verification
             logger.info(`Magic link verified successfully for user ${user._id}`);
 

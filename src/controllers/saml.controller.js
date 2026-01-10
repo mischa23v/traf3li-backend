@@ -245,6 +245,21 @@ const assertionConsumerService = async (request, response) => {
                 // Update last SSO login
                 user.lastSSOLogin = new Date();
                 user.lastLogin = new Date();
+
+                // ═══════════════════════════════════════════════════════════════
+                // AUTO-VERIFY EMAIL ON SAML SSO LOGIN (Gold Standard)
+                // ═══════════════════════════════════════════════════════════════
+                // SAML IdP has verified the email address. Auto-verify in our system.
+                // ═══════════════════════════════════════════════════════════════
+                if (!user.isEmailVerified) {
+                    user.isEmailVerified = true;
+                    user.emailVerifiedAt = new Date();
+                    logger.info('Email auto-verified via SAML SSO login', {
+                        userId: user._id,
+                        email: user.email
+                    });
+                }
+
                 await user.save();
 
                 // Generate JWT access token using proper utility (15-min expiry, custom claims)

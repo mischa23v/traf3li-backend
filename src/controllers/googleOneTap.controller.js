@@ -11,6 +11,7 @@ const { CustomException } = require('../utils');
 const logger = require('../utils/contextLogger');
 const { sanitizeObjectId } = require('../utils/securityUtils');
 const Firm = require('../models/firm.model');
+const { User } = require('../models');
 const { getDefaultPermissions, getSoloLawyerPermissions, isSoloLawyer } = require('../config/permissions.config');
 
 /**
@@ -77,6 +78,40 @@ const authenticateWithOneTap = async (request, response) => {
         );
 
         const { user, isNewUser, accountLinked } = result;
+
+        // ═══════════════════════════════════════════════════════════════
+        // AUTO-VERIFY EMAIL ON GOOGLE ONE TAP LOGIN (Gold Standard)
+        // ═══════════════════════════════════════════════════════════════
+        // Google has verified the email address. Auto-verify in our system.
+        // Same pattern used by: Slack, Notion, Auth0
+        // ═══════════════════════════════════════════════════════════════
+        if (!user.isEmailVerified) {
+            try {
+                await User.findByIdAndUpdate(
+                    user._id,
+                    {
+                        isEmailVerified: true,
+                        emailVerifiedAt: new Date()
+                    },
+                    { bypassFirmFilter: true }
+                );
+
+                // Update user object for response
+                user.isEmailVerified = true;
+                user.emailVerifiedAt = new Date();
+
+                logger.info('Email auto-verified via Google One Tap login', {
+                    userId: user._id,
+                    email: user.email
+                });
+            } catch (verifyError) {
+                // Don't fail login if auto-verification fails
+                logger.error('Failed to auto-verify email via Google One Tap', {
+                    error: verifyError.message,
+                    userId: user._id
+                });
+            }
+        }
 
         // Record session activity for timeout tracking
         recordActivity(user._id.toString());

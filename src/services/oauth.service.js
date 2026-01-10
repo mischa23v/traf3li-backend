@@ -917,6 +917,41 @@ class OAuthService {
             throw CustomException('هذه اللوحة مخصصة للمحامين فقط - This dashboard is for lawyers only', 403);
         }
 
+        // ═══════════════════════════════════════════════════════════════
+        // AUTO-VERIFY EMAIL ON OAUTH SSO LOGIN (Gold Standard)
+        // ═══════════════════════════════════════════════════════════════
+        // OAuth provider (Google, Microsoft, etc.) has verified the email.
+        // Auto-verify in our system. Same pattern: Slack, Notion, Auth0
+        // ═══════════════════════════════════════════════════════════════
+        if (!user.isEmailVerified) {
+            try {
+                await User.findByIdAndUpdate(
+                    user._id,
+                    {
+                        isEmailVerified: true,
+                        emailVerifiedAt: new Date()
+                    },
+                    { bypassFirmFilter: true }
+                );
+
+                // Update user object
+                user.isEmailVerified = true;
+                user.emailVerifiedAt = new Date();
+
+                logger.info('Email auto-verified via OAuth SSO login', {
+                    userId: user._id,
+                    email: user.email,
+                    provider: config.provider.name
+                });
+            } catch (verifyError) {
+                // Don't fail login if auto-verification fails
+                logger.error('Failed to auto-verify email via OAuth SSO', {
+                    error: verifyError.message,
+                    userId: user._id
+                });
+            }
+        }
+
         // Generate JWT access token using proper utility (matches verification requirements)
         // This uses the same issuer, audience, and key rotation as regular login
         let firm = null;

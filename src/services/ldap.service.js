@@ -366,6 +366,38 @@ class LdapService {
                 }
             }
 
+            // ═══════════════════════════════════════════════════════════════
+            // AUTO-VERIFY EMAIL ON LDAP LOGIN (Gold Standard)
+            // ═══════════════════════════════════════════════════════════════
+            // Enterprise LDAP directory has verified the email address.
+            // Auto-verify in our system.
+            // ═══════════════════════════════════════════════════════════════
+            if (!user.isEmailVerified) {
+                try {
+                    await User.findByIdAndUpdate(
+                        user._id,
+                        {
+                            isEmailVerified: true,
+                            emailVerifiedAt: new Date()
+                        },
+                        { bypassFirmFilter: true }
+                    );
+
+                    user.isEmailVerified = true;
+                    user.emailVerifiedAt = new Date();
+
+                    logger.info('Email auto-verified via LDAP login', {
+                        userId: user._id,
+                        email: user.email
+                    });
+                } catch (verifyError) {
+                    logger.error('Failed to auto-verify email via LDAP', {
+                        error: verifyError.message,
+                        userId: user._id
+                    });
+                }
+            }
+
             // 8. Generate JWT access token using proper utility (15-min expiry, custom claims)
             const token = await generateAccessToken(user, { firm });
 
