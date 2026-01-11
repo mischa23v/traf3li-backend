@@ -313,3 +313,193 @@ axios.interceptors.response.use(
 ### CSRF token issues
 - Read `csrfToken` cookie with JavaScript
 - Include in `X-CSRF-Token` header on POST/PUT/DELETE requests
+
+---
+
+## Advanced Security Features
+
+### Logout All Sessions (Back-Channel Logout)
+
+Logout from all devices at once:
+
+```javascript
+// Logout current session only
+await fetch('/api/auth/logout', {
+    method: 'POST',
+    credentials: 'include'
+});
+
+// Logout ALL sessions (all devices)
+await fetch('/api/auth/logout-all', {
+    method: 'POST',
+    credentials: 'include'
+});
+```
+
+This revokes:
+- All refresh tokens for the user
+- All active sessions
+- All access tokens (added to blacklist)
+
+### Duende-Style Custom Header Protection (Optional)
+
+For extra CSRF protection, enable mandatory custom header:
+
+```bash
+# Environment variable
+CSRF_REQUIRE_CUSTOM_HEADER=true
+CSRF_CUSTOM_HEADER_NAME=x-csrf  # default
+CSRF_CUSTOM_HEADER_VALUE=1      # default
+```
+
+When enabled, ALL state-changing requests must include:
+
+```javascript
+fetch('/api/resource', {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+        'Content-Type': 'application/json',
+        'x-csrf': '1'  // Required when CSRF_REQUIRE_CUSTOM_HEADER=true
+    }
+});
+```
+
+This provides CSRF protection without token state management.
+
+---
+
+## SameSite Cookie Policy Explained
+
+### Why We Use `auto` Instead of `strict`
+
+| Policy | Behavior | Use Case |
+|--------|----------|----------|
+| `strict` | Cookie only sent on same-site requests | Maximum security, but breaks OAuth redirects |
+| `lax` | Cookie sent on same-site + top-level navigations | Good balance, recommended default |
+| `none` | Cookie always sent (requires Secure flag) | Required for cross-origin API |
+| `auto` | **Our default** - Adaptive based on request origin | Best flexibility for multi-subdomain apps |
+
+### Why Not `strict`?
+
+`SameSite=Strict` would break these flows:
+
+1. **OAuth/SSO Redirects**
+   ```
+   User clicks "Login with Google"
+   → Redirected to Google
+   → Google redirects back to /auth/callback
+   → Cookie NOT sent (cross-site navigation)
+   → Login fails!
+   ```
+
+2. **Magic Links from Email**
+   ```
+   User clicks magic link in email
+   → Browser navigates to /auth/magic-link/verify
+   → Cookie NOT sent (cross-site navigation)
+   → Verification fails!
+   ```
+
+3. **Cross-Subdomain API**
+   ```
+   Frontend: dashboard.traf3li.com
+   API: api.traf3li.com
+   → Different subdomains = cross-origin
+   → SameSite=Strict blocks cookies
+   ```
+
+### How `auto` Mode Works
+
+```javascript
+// In cookieConfig.js
+if (sameSiteConfig === 'auto') {
+    if (isSameOriginProxy) {
+        return 'lax';    // Same-origin: use secure default
+    } else if (isProduction) {
+        return 'none';   // Cross-origin production: allow with Secure
+    } else {
+        return 'lax';    // Development: use secure default
+    }
+}
+```
+
+### Security Is NOT Compromised
+
+Even with `SameSite=Lax/None`, we have multiple protection layers:
+
+1. **httpOnly** - JavaScript cannot read cookies
+2. **Secure** - HTTPS only in production
+3. **CSRF tokens** - Double-submit cookie pattern
+4. **Origin validation** - Requests must come from allowed origins
+5. **Token rotation** - Refresh tokens rotated on each use
+6. **Token reuse detection** - Entire family revoked if reuse detected
+
+---
+
+## Token Security Features
+
+### Token Rotation
+
+Every time you refresh, you get NEW tokens:
+
+```
+Refresh #1: token_abc → token_def (abc revoked)
+Refresh #2: token_def → token_ghi (def revoked)
+Refresh #3: token_ghi → token_jkl (ghi revoked)
+```
+
+### Token Family Tracking
+
+All tokens from a login session share a family ID:
+
+```
+Login → family: "fam_123"
+  ├── refresh_token_1 (family: fam_123)
+  ├── refresh_token_2 (family: fam_123, rotated from 1)
+  └── refresh_token_3 (family: fam_123, rotated from 2)
+```
+
+### Token Reuse Detection
+
+If an attacker steals `refresh_token_1` and tries to use it:
+
+```
+Attacker uses: refresh_token_1 (already rotated to token_2)
+Server detects: "Token reuse! This token was already rotated"
+Server action: REVOKE ENTIRE FAMILY (fam_123)
+Result: Attacker AND legitimate user both logged out
+User notified: "Security alert - please login again"
+```
+
+This is the **gold standard** pattern used by Auth0 and Okta.
+
+---
+
+## Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `REFRESH_TOKEN_SAMESITE` | `auto` | Cookie SameSite policy (strict/lax/none/auto) |
+| `REFRESH_TOKEN_PATH` | `/api/auth` | Path restriction for refresh token cookie |
+| `REFRESH_TOKEN_DAYS` | `7` | Refresh token expiry (days) |
+| `REMEMBER_ME_DAYS` | `30` | Refresh token expiry with "Remember Me" |
+| `CSRF_REQUIRE_CUSTOM_HEADER` | `false` | Enable Duende-style x-csrf header |
+| `CSRF_CUSTOM_HEADER_NAME` | `x-csrf` | Custom header name |
+| `CSRF_CUSTOM_HEADER_VALUE` | `1` | Expected header value |
+
+---
+
+## Comparison with Industry Standards
+
+| Feature | Our Implementation | Auth0 | Duende BFF | Okta |
+|---------|-------------------|-------|------------|------|
+| httpOnly cookies | ✅ | ✅ | ✅ | ✅ |
+| Token rotation | ✅ | ✅ | ✅ | ✅ |
+| Token reuse detection | ✅ | ✅ | ✅ | ✅ |
+| Family-based revocation | ✅ | ✅ | N/A | ✅ |
+| CSRF protection | ✅ | ✅ | ✅ | ✅ |
+| Custom header option | ✅ | ❌ | ✅ | ❌ |
+| Device fingerprinting | ✅ | ❌ | ❌ | ❌ |
+| Session anomaly detection | ✅ | ❌ | ❌ | ❌ |
+| Logout all sessions | ✅ | ✅ | ✅ | ✅ |
