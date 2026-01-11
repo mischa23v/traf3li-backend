@@ -596,10 +596,115 @@ const attachCSRFToken = async (request, response, next) => {
     }
 };
 
+// ═══════════════════════════════════════════════════════════════
+// DUENDE-STYLE MANDATORY CUSTOM HEADER PROTECTION
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Duende BFF-style custom header requirement (optional extra layer)
+ *
+ * This middleware requires a simple `x-csrf: 1` header on ALL requests.
+ * Unlike traditional CSRF tokens, this doesn't require state management.
+ *
+ * How it works:
+ * - Browser fetch/XHR can add custom headers to same-origin requests
+ * - Cross-origin requests trigger CORS preflight which blocks the header
+ * - Simple forms cannot add custom headers, blocking form-based CSRF
+ *
+ * Enable via: CSRF_REQUIRE_CUSTOM_HEADER=true
+ *
+ * @see https://docs.duendesoftware.com/bff/
+ */
+const CSRF_REQUIRE_CUSTOM_HEADER = process.env.CSRF_REQUIRE_CUSTOM_HEADER === 'true';
+const CSRF_CUSTOM_HEADER_NAME = process.env.CSRF_CUSTOM_HEADER_NAME || 'x-csrf';
+const CSRF_CUSTOM_HEADER_VALUE = process.env.CSRF_CUSTOM_HEADER_VALUE || '1';
+
+/**
+ * Middleware that requires a custom header on all requests (Duende pattern)
+ *
+ * This is simpler than token-based CSRF and provides strong protection:
+ * - No state to manage
+ * - No tokens to rotate
+ * - Relies on browser's inability to set custom headers in cross-origin requests
+ *
+ * Usage:
+ *   // Apply globally (after auth middleware)
+ *   app.use('/api', authenticate, requireCustomHeader);
+ *
+ *   // Or per-route
+ *   app.post('/api/sensitive', requireCustomHeader, controller);
+ */
+const requireCustomHeader = (request, response, next) => {
+    // Skip if feature is disabled
+    if (!CSRF_REQUIRE_CUSTOM_HEADER) {
+        return next();
+    }
+
+    // Skip for safe methods (GET, HEAD, OPTIONS don't change state)
+    const safeMethods = ['GET', 'HEAD', 'OPTIONS'];
+    if (safeMethods.includes(request.method)) {
+        return next();
+    }
+
+    // Skip for CSRF-exempt routes (public endpoints)
+    if (isCSRFExempt(request.path)) {
+        return next();
+    }
+
+    // Check for custom header
+    const headerValue = request.headers[CSRF_CUSTOM_HEADER_NAME.toLowerCase()];
+
+    if (!headerValue || headerValue !== CSRF_CUSTOM_HEADER_VALUE) {
+        logger.warn('CSRF: Custom header validation failed', {
+            endpoint: request.originalUrl,
+            method: request.method,
+            ip: request.ip,
+            expectedHeader: `${CSRF_CUSTOM_HEADER_NAME}: ${CSRF_CUSTOM_HEADER_VALUE}`,
+            receivedHeader: headerValue || 'missing'
+        });
+
+        return response.status(403).json({
+            error: true,
+            message: `Missing required header: ${CSRF_CUSTOM_HEADER_NAME}: ${CSRF_CUSTOM_HEADER_VALUE}`,
+            messageAr: 'رأس الطلب المطلوب مفقود',
+            code: 'CSRF_HEADER_REQUIRED',
+            details: `Include header '${CSRF_CUSTOM_HEADER_NAME}: ${CSRF_CUSTOM_HEADER_VALUE}' in your request`
+        });
+    }
+
+    logger.debug('CSRF custom header validated', {
+        endpoint: request.originalUrl,
+        method: request.method
+    });
+
+    next();
+};
+
+/**
+ * Get CSRF protection status and configuration
+ * Useful for frontend to know what CSRF measures are required
+ */
+const getCSRFConfig = () => {
+    return {
+        enabled: csrfService.isEnabled(),
+        requireCustomHeader: CSRF_REQUIRE_CUSTOM_HEADER,
+        customHeaderName: CSRF_CUSTOM_HEADER_NAME,
+        customHeaderValue: CSRF_CUSTOM_HEADER_VALUE,
+        tokenBased: csrfService.isEnabled(),
+        doubleSubmitCookie: csrfService.isEnabled()
+    };
+};
+
 module.exports = {
     csrfProtection,
     attachCSRFToken,
+    requireCustomHeader,
+    getCSRFConfig,
     // Export for testing
     validateOrigin,
-    getAllowedOrigins
+    getAllowedOrigins,
+    // Export config for documentation
+    CSRF_REQUIRE_CUSTOM_HEADER,
+    CSRF_CUSTOM_HEADER_NAME,
+    CSRF_CUSTOM_HEADER_VALUE
 };
