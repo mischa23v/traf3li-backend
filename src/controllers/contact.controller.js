@@ -539,9 +539,15 @@ const unlinkFromCase = asyncHandler(async (req, res) => {
  */
 const getContactsByCase = asyncHandler(async (req, res) => {
     const { caseId } = req.params;
+    const { page = 1, limit = 20 } = req.query;
     const lawyerId = req.userID;
     const firmId = req.firmId;
     const isSoloLawyer = req.isSoloLawyer;
+
+    // SECURITY: Cap limit to prevent API scraping (Instagram-style attack prevention)
+    const parsedLimit = Math.min(parseInt(limit) || 20, 100);
+    const parsedPage = Math.max(1, parseInt(page) || 1);
+    const skip = (parsedPage - 1) * parsedLimit;
 
     // Build query based on user type
     const query = { linkedCases: caseId };
@@ -551,11 +557,23 @@ const getContactsByCase = asyncHandler(async (req, res) => {
         query.firmId = firmId;
     }
 
-    const contacts = await Contact.find(query).sort({ createdAt: -1 });
+    const [contacts, total] = await Promise.all([
+        Contact.find(query)
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(parsedLimit),
+        Contact.countDocuments(query)
+    ]);
 
     res.json({
         success: true,
-        data: contacts
+        data: contacts,
+        pagination: {
+            page: parsedPage,
+            limit: parsedLimit,
+            total,
+            pages: Math.ceil(total / parsedLimit)
+        }
     });
 });
 
@@ -565,9 +583,15 @@ const getContactsByCase = asyncHandler(async (req, res) => {
  */
 const getContactsByClient = asyncHandler(async (req, res) => {
     const { clientId } = req.params;
+    const { page = 1, limit = 20 } = req.query;
     const lawyerId = req.userID;
     const firmId = req.firmId;
     const isSoloLawyer = req.isSoloLawyer;
+
+    // SECURITY: Cap limit to prevent API scraping (Instagram-style attack prevention)
+    const parsedLimit = Math.min(parseInt(limit) || 20, 100);
+    const parsedPage = Math.max(1, parseInt(page) || 1);
+    const skip = (parsedPage - 1) * parsedLimit;
 
     // Build query based on user type
     const query = { linkedClients: clientId };
@@ -577,11 +601,23 @@ const getContactsByClient = asyncHandler(async (req, res) => {
         query.firmId = firmId;
     }
 
-    const contacts = await Contact.find(query).sort({ createdAt: -1 });
+    const [contacts, total] = await Promise.all([
+        Contact.find(query)
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(parsedLimit),
+        Contact.countDocuments(query)
+    ]);
 
     res.json({
         success: true,
-        data: contacts
+        data: contacts,
+        pagination: {
+            page: parsedPage,
+            limit: parsedLimit,
+            total,
+            pages: Math.ceil(total / parsedLimit)
+        }
     });
 });
 

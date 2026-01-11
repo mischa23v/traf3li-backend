@@ -342,9 +342,9 @@ const getTrades = asyncHandler(async (req, res) => {
     if (brokerId) filters.brokerId = brokerId;
     if (accountId) filters.accountId = accountId;
 
-    // Symbol search (partial match)
+    // Symbol search (partial match) - SECURITY: escape regex to prevent ReDoS
     if (symbol) {
-        filters.symbol = { $regex: symbol.toUpperCase(), $options: 'i' };
+        filters.symbol = { $regex: escapeRegex(symbol.toUpperCase()), $options: 'i' };
     }
 
     // Date range

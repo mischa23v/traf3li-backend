@@ -2,7 +2,7 @@ const EmployeeBenefit = require('../models/employeeBenefit.model');
 const Employee = require('../models/employee.model');
 const { CustomException } = require('../utils');
 const asyncHandler = require('../utils/asyncHandler');
-const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+const { pickAllowedFields, sanitizeObjectId, escapeRegex } = require('../utils/securityUtils');
 
 // ═══════════════════════════════════════════════════════════════
 // CONFIGURABLE POLICIES
@@ -296,7 +296,8 @@ const getBenefits = asyncHandler(async (req, res) => {
     if (benefitCategory) query.benefitCategory = benefitCategory;
     if (status) query.status = status;
     if (enrollmentType) query.enrollmentType = enrollmentType;
-    if (providerName) query.providerName = { $regex: providerName, $options: 'i' };
+    // SECURITY: escape regex to prevent ReDoS injection
+    if (providerName) query.providerName = { $regex: escapeRegex(providerName), $options: 'i' };
 
     // Date range filter
     if (fromDate || toDate) {

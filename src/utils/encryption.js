@@ -16,6 +16,13 @@ const AUTH_TAG_LENGTH = 16; // 16 bytes for GCM auth tag
 const SALT_LENGTH = 32; // 32 bytes for key derivation
 const BCRYPT_ROUNDS = 12; // Bcrypt salt rounds
 
+// ============================================
+// PER-TENANT KEY DERIVATION (CVE-2025-0663 FIX)
+// Each tenant gets a unique derived key via HKDF
+// ============================================
+const TENANT_KEY_SALT = Buffer.from('traf3li-tenant-key-v1', 'utf8');
+const TENANT_KEY_CACHE = new Map(); // Cache derived keys for performance
+
 /**
  * Get encryption key from environment variable
  * Throws error if key is not set or invalid (security requirement)
@@ -47,6 +54,150 @@ const getEncryptionKey = () => {
   }
 
   return Buffer.from(key, 'hex');
+};
+
+/**
+ * Derive per-tenant encryption key using HKDF-SHA256
+ * This ensures each tenant's data is encrypted with a unique key
+ * SECURITY: Fixes CVE-2025-0663 pattern (single key across all tenants)
+ *
+ * @param {string|null} tenantId - firmId or lawyerId (24-char hex ObjectId), null for system-level
+ * @returns {Buffer} - 32-byte derived key unique to this tenant
+ */
+const deriveTenantKey = (tenantId) => {
+  // System-level encryption (no tenant context)
+  if (!tenantId) {
+    return getEncryptionKey();
+  }
+
+  // Check cache first (HKDF is CPU-intensive)
+  const cacheKey = String(tenantId);
+  if (TENANT_KEY_CACHE.has(cacheKey)) {
+    return TENANT_KEY_CACHE.get(cacheKey);
+  }
+
+  const masterKey = getEncryptionKey();
+  const info = Buffer.from(`tenant:${tenantId}`, 'utf8');
+
+  // HKDF-SHA256: deterministic key derivation (RFC 5869)
+  // Same tenantId always produces same derived key
+  const derivedKey = crypto.hkdfSync('sha256', masterKey, TENANT_KEY_SALT, info, 32);
+
+  // Cache for performance (keys are deterministic, safe to cache)
+  TENANT_KEY_CACHE.set(cacheKey, derivedKey);
+
+  // Limit cache size to prevent memory issues
+  if (TENANT_KEY_CACHE.size > 1000) {
+    const firstKey = TENANT_KEY_CACHE.keys().next().value;
+    TENANT_KEY_CACHE.delete(firstKey);
+  }
+
+  return derivedKey;
+};
+
+/**
+ * Clear tenant key cache (for testing or key rotation)
+ */
+const clearTenantKeyCache = () => {
+  TENANT_KEY_CACHE.clear();
+};
+
+/**
+ * Encrypt with per-tenant key (v2 format)
+ * Format: v2:tenantId:iv:authTag:encrypted
+ *
+ * @param {string} plaintext - Data to encrypt
+ * @param {string|null} tenantId - firmId or lawyerId for key derivation
+ * @returns {string} - Encrypted string in v2 format
+ */
+const encryptWithTenant = (plaintext, tenantId = null) => {
+  if (!plaintext) return null;
+
+  try {
+    const key = deriveTenantKey(tenantId);
+    const iv = crypto.randomBytes(IV_LENGTH);
+    const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
+
+    let encrypted = cipher.update(String(plaintext), 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    const authTag = cipher.getAuthTag().toString('hex');
+
+    // v2 format includes tenantId for key derivation on decrypt
+    const tenantMarker = tenantId || 'system';
+    return `v2:${tenantMarker}:${iv.toString('hex')}:${authTag}:${encrypted}`;
+  } catch (error) {
+    logger.error('Tenant encryption failed:', error.message);
+    throw new Error('Encryption failed');
+  }
+};
+
+/**
+ * Decrypt with automatic format detection (v1 or v2)
+ * - v2 format: v2:tenantId:iv:authTag:encrypted (uses per-tenant key)
+ * - v1 format: iv:authTag:encrypted (uses global key for backwards compatibility)
+ *
+ * @param {string} ciphertext - Encrypted string
+ * @param {string|null} tenantId - Optional tenantId for v1 format migration
+ * @returns {string} - Decrypted plaintext
+ */
+const decryptWithTenant = (ciphertext, tenantId = null) => {
+  if (!ciphertext) return null;
+
+  try {
+    const parts = ciphertext.split(':');
+
+    // v2 format: v2:tenantId:iv:authTag:encrypted
+    if (parts[0] === 'v2' && parts.length === 5) {
+      const [, storedTenantId, ivHex, authTagHex, encrypted] = parts;
+      const effectiveTenantId = storedTenantId === 'system' ? null : storedTenantId;
+      const key = deriveTenantKey(effectiveTenantId);
+
+      const iv = Buffer.from(ivHex, 'hex');
+      const authTag = Buffer.from(authTagHex, 'hex');
+      const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
+      decipher.setAuthTag(authTag);
+
+      let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+      decrypted += decipher.final('utf8');
+      return decrypted;
+    }
+
+    // v1 format (legacy): iv:authTag:encrypted - use global key
+    if (parts.length === 3) {
+      const [ivHex, authTagHex, encrypted] = parts;
+      const key = getEncryptionKey(); // Global key for backwards compatibility
+
+      const iv = Buffer.from(ivHex, 'hex');
+      const authTag = Buffer.from(authTagHex, 'hex');
+      const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
+      decipher.setAuthTag(authTag);
+
+      let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+      decrypted += decipher.final('utf8');
+
+      // Log migration opportunity (non-blocking)
+      if (tenantId) {
+        logger.debug(`Legacy v1 encryption detected for tenant ${tenantId} - will upgrade on next save`);
+      }
+
+      return decrypted;
+    }
+
+    throw new Error('Invalid encrypted data format');
+  } catch (error) {
+    logger.error('Tenant decryption failed:', error.message);
+    throw new Error('Decryption failed - data may be corrupted or tampered with');
+  }
+};
+
+/**
+ * Check if ciphertext is v2 format (per-tenant encrypted)
+ * @param {string} ciphertext - Encrypted string
+ * @returns {boolean} - True if v2 format
+ */
+const isV2Format = (ciphertext) => {
+  if (!ciphertext || typeof ciphertext !== 'string') return false;
+  return ciphertext.startsWith('v2:');
 };
 
 /**
@@ -451,6 +602,13 @@ module.exports = {
   hashPassword,
   verifyPassword,
   generateKey,
+
+  // Per-tenant encryption (CVE-2025-0663 fix)
+  deriveTenantKey,
+  encryptWithTenant,
+  decryptWithTenant,
+  isV2Format,
+  clearTenantKeyCache,
 
   // Mongoose field encryption
   encryptField,
