@@ -17,8 +17,8 @@ const escapeRegex = (str) => {
     return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 };
 
-// Get user profile by ID (public)
-// UPDATED: Now uses standardized API response format
+// Get user profile by ID
+// SECURITY: Restricted to same-tenant or self access (IDOR protection)
 const getUserProfile = async (request, response) => {
     const { _id } = request.params;
 
@@ -35,7 +35,54 @@ const getUserProfile = async (request, response) => {
             return apiResponse.notFound(response, 'User not found');
         }
 
-        // Using standardized success response
+        // SECURITY: Check if requester can access this user's profile
+        const requesterId = request.userID;
+        const requesterFirmId = request.firmId;
+        const isSoloLawyer = request.isSoloLawyer;
+
+        // Self-access is always allowed
+        const isSelf = requesterId && sanitizedId.toString() === requesterId.toString();
+
+        // Same-tenant access check
+        let isSameTenant = false;
+        if (!isSelf && requesterId) {
+            if (isSoloLawyer) {
+                // Solo lawyers can only access their own profile
+                isSameTenant = false;
+            } else if (requesterFirmId && user.firmId) {
+                // Firm members can access other firm members
+                isSameTenant = requesterFirmId.toString() === user.firmId.toString();
+            }
+        }
+
+        // Public lawyer profiles are accessible (for marketplace)
+        const isPublicLawyer = user.isSeller === true;
+
+        if (!isSelf && !isSameTenant && !isPublicLawyer) {
+            // SECURITY: Return 404 instead of 403 to prevent user enumeration
+            return apiResponse.notFound(response, 'User not found');
+        }
+
+        // For same-tenant (non-self), return limited public fields
+        if (isSameTenant && !isSelf) {
+            const publicFields = {
+                _id: user._id,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                email: user.email,
+                profilePicture: user.profilePicture,
+                role: user.role,
+                specialization: user.specialization,
+                languages: user.languages
+            };
+            return apiResponse.success(
+                response,
+                { user: publicFields },
+                'User profile retrieved successfully'
+            );
+        }
+
+        // Self-access or public lawyer profile: return full profile
         return apiResponse.success(
             response,
             { user },

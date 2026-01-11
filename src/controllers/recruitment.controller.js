@@ -652,8 +652,17 @@ exports.createApplicant = async (req, res) => {
             baseQuery.firmId = firmId;
         }
 
-        // Check if applicant already exists by email
-        const existingApplicant = await Applicant.findOne({ ...baseQuery, email: req.body.email });
+        // SECURITY: Validate email format to prevent NoSQL operator injection
+        const email = req.body.email;
+        if (!email || typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid email format'
+            });
+        }
+
+        // Check if applicant already exists by email (now safe - validated as string)
+        const existingApplicant = await Applicant.findOne({ ...baseQuery, email });
 
         if (existingApplicant) {
             // If applying to a new job, add the application

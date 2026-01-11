@@ -1378,8 +1378,14 @@ const generateTotalRewardsStatement = asyncHandler(async (req, res) => {
         baseQuery.firmId = firmId;
     }
 
+    // SECURITY: Sanitize ObjectId to prevent NoSQL injection
+    const sanitizedId = sanitizeObjectId(req.params.id);
+    if (!sanitizedId) {
+        throw CustomException('معرف غير صالح', 400);
+    }
+
     const record = await CompensationReward.findOne({
-        $or: [{ _id: req.params.id }, { compensationId: req.params.id }],
+        $or: [{ _id: sanitizedId }, { compensationId: req.params.id }],
         ...baseQuery
     });
 
