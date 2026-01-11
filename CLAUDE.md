@@ -104,6 +104,8 @@ Every feature is complete. Every security vulnerability is fixed. Every bug is h
 | **Security** | IDOR protection on all CRUD | ✅ | OWASP Top 10 |
 | **Security** | Mass assignment protection | ✅ | OWASP |
 | **Security** | Regex injection prevention | ✅ | OWASP |
+| **Security** | API scraping prevention (pagination max 100) | ✅ | Instagram/Facebook |
+| **Security** | Per-tenant encryption (HKDF-SHA256) | ✅ | AWS KMS/Google |
 | **Security** | Sensitive data redaction (ICS export) | ✅ | Apple Privacy |
 | **Reliability** | Proactive token refresh (5-min buffer) | ✅ | AWS/Google |
 | **Reliability** | Background token refresh job (24h ahead) | ✅ | Calendly/Cal.com |
@@ -137,6 +139,10 @@ Every feature is complete. Every security vulnerability is fixed. Every bug is h
 | Data leakage in ICS | Credit card/SSN pattern redaction | `icsGenerator.service.js` |
 | Missing event conflicts | Added organizer to conflict query | `appointment.controller.js` |
 | endTime not recalculated | Changed to .save() for pre-save hooks | `appointment.controller.js` |
+| CVE-2025-0663 pattern (single key) | Per-tenant key derivation via HKDF | `encryption.js` |
+| NoSQL regex injection | escapeRegex() on all search inputs | `trades/employeeBenefit.controller.js` |
+| API scraping (unpaginated) | Max 100 limit on all list endpoints | `contact/task/appointment.controller.js` |
+| IDOR on user profile | Tenant check + 404 for cross-tenant | `user.controller.js` |
 
 ---
 
@@ -387,6 +393,89 @@ app.get('/:id', getItem);
 
 // WRONG - redundant middleware
 app.get('/', userMiddleware, firmFilter, getItems);  // DON'T DO THIS
+```
+
+### 6. Pagination on ALL List Endpoints (API Scraping Prevention)
+
+**CRITICAL: Every endpoint returning a list MUST have pagination with max limit.**
+
+This prevents Instagram-style data scraping attacks where attackers enumerate entire datasets.
+
+**Required Pattern:**
+```javascript
+const getItems = asyncHandler(async (req, res) => {
+    const { page = 1, limit = 20 } = req.query;
+
+    // CRITICAL: Cap limit at 100 to prevent scraping
+    const parsedLimit = Math.min(Math.max(1, parseInt(limit) || 20), 100);
+    const parsedPage = Math.max(1, parseInt(page) || 1);
+    const skip = (parsedPage - 1) * parsedLimit;
+
+    const query = { ...req.firmQuery };
+
+    // Use Promise.all for parallel execution
+    const [items, total] = await Promise.all([
+        Model.find(query)
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(parsedLimit)
+            .lean(),
+        Model.countDocuments(query)
+    ]);
+
+    res.json({
+        success: true,
+        data: items,
+        pagination: {
+            page: parsedPage,
+            limit: parsedLimit,
+            total,
+            pages: Math.ceil(total / parsedLimit)
+        }
+    });
+});
+```
+
+**Anti-Patterns (WRONG):**
+```javascript
+// ❌ WRONG - No pagination, returns ALL records
+const items = await Model.find({ ...req.firmQuery });
+res.json({ success: true, data: items });
+
+// ❌ WRONG - No max limit, attacker can request limit=999999
+const limit = parseInt(req.query.limit) || 20;
+const items = await Model.find(query).limit(limit);
+
+// ❌ WRONG - Using count instead of pagination object
+res.json({ success: true, data: items, count: items.length });
+```
+
+**Pagination Response Shape (REQUIRED):**
+```json
+{
+    "success": true,
+    "data": [...],
+    "pagination": {
+        "page": 1,
+        "limit": 20,
+        "total": 156,
+        "pages": 8
+    }
+}
+```
+
+**Key Rules:**
+| Rule | Why |
+|------|-----|
+| Max limit = 100 | Prevents scraping entire dataset |
+| Default limit = 20 | Reasonable page size for UI |
+| Return `pagination` object | Frontend needs total for pagination UI |
+| Use `Promise.all` | Parallel query + count for performance |
+
+**Verify with grep:**
+```bash
+# Find unpaginated list endpoints (potential vulnerabilities)
+grep -rn "\.find(" src/controllers/ | grep -v "findOne\|findById\|skip\|limit"
 ```
 
 ## Technology Stack

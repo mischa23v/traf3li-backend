@@ -1749,15 +1749,21 @@ const getOverdueTasks = asyncHandler(async (req, res) => {
     });
 });
 
-// Get tasks by case
+// Get tasks by case (with pagination to prevent API scraping)
 const getTasksByCase = asyncHandler(async (req, res) => {
     // Validate tenant context first
     // Centralized middleware handles tenant validation
 
     const { caseId } = req.params;
+    const { page = 1, limit = 20 } = req.query;
 
     // IDOR protection
     const sanitizedCaseId = sanitizeObjectId(caseId);
+
+    // Pagination with max limit to prevent scraping (Gold Standard)
+    const parsedLimit = Math.min(Math.max(1, parseInt(limit) || 20), 100);
+    const parsedPage = Math.max(1, parseInt(page) || 1);
+    const skip = (parsedPage - 1) * parsedLimit;
 
     // Verify case exists and user has access using req.firmQuery
     const caseDoc = await Case.findOne({ _id: sanitizedCaseId, ...req.firmQuery });
@@ -1765,24 +1771,43 @@ const getTasksByCase = asyncHandler(async (req, res) => {
         throw CustomException('Case not found', 404);
     }
 
+    const query = { caseId: sanitizedCaseId, ...req.firmQuery };
+
     // Use req.firmQuery for proper tenant isolation (solo + firm)
-    const tasks = await Task.find({ caseId: sanitizedCaseId, ...req.firmQuery })
-        .populate('assignedTo', 'firstName lastName image')
-        .populate('createdBy', 'firstName lastName')
-        .sort({ dueDate: 1, priority: -1 })
-        .lean();
+    const [tasks, total] = await Promise.all([
+        Task.find(query)
+            .populate('assignedTo', 'firstName lastName image')
+            .populate('createdBy', 'firstName lastName')
+            .sort({ dueDate: 1, priority: -1 })
+            .skip(skip)
+            .limit(parsedLimit)
+            .lean(),
+        Task.countDocuments(query)
+    ]);
 
     res.status(200).json({
         success: true,
         data: tasks,
-        count: tasks.length
+        pagination: {
+            page: parsedPage,
+            limit: parsedLimit,
+            total,
+            pages: Math.ceil(total / parsedLimit)
+        }
     });
 });
 
-// Get tasks due today
+// Get tasks due today (with pagination to prevent API scraping)
 const getTasksDueToday = asyncHandler(async (req, res) => {
     // Validate tenant context first
     // Centralized middleware handles tenant validation
+
+    const { page = 1, limit = 20 } = req.query;
+
+    // Pagination with max limit to prevent scraping (Gold Standard)
+    const parsedLimit = Math.min(Math.max(1, parseInt(limit) || 20), 100);
+    const parsedPage = Math.max(1, parseInt(page) || 1);
+    const skip = (parsedPage - 1) * parsedLimit;
 
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
@@ -1790,23 +1815,35 @@ const getTasksDueToday = asyncHandler(async (req, res) => {
     const endOfDay = new Date();
     endOfDay.setHours(23, 59, 59, 999);
 
-    // Use req.firmQuery for proper tenant isolation (solo + firm)
-    const tasks = await Task.find({
+    const query = {
         ...req.firmQuery,
         dueDate: { $gte: startOfDay, $lte: endOfDay },
         status: { $nin: ['done', 'canceled'] }
-    })
-        .populate('assignedTo', 'firstName lastName image')
-        .populate('createdBy', 'firstName lastName image')
-        .populate('caseId', 'title caseNumber')
-        .sort({ dueTime: 1, priority: -1 })
-        .lean();
+    };
+
+    // Use req.firmQuery for proper tenant isolation (solo + firm)
+    const [tasks, total] = await Promise.all([
+        Task.find(query)
+            .populate('assignedTo', 'firstName lastName image')
+            .populate('createdBy', 'firstName lastName image')
+            .populate('caseId', 'title caseNumber')
+            .sort({ dueTime: 1, priority: -1 })
+            .skip(skip)
+            .limit(parsedLimit)
+            .lean(),
+        Task.countDocuments(query)
+    ]);
 
     res.status(200).json({
         success: true,
         data: tasks,
-        count: tasks.length,
-        date: startOfDay.toISOString().split('T')[0]
+        date: startOfDay.toISOString().split('T')[0],
+        pagination: {
+            page: parsedPage,
+            limit: parsedLimit,
+            total,
+            pages: Math.ceil(total / parsedLimit)
+        }
     });
 });
 
