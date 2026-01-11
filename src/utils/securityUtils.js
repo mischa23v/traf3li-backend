@@ -355,6 +355,33 @@ const sanitizePhone = (phone) => {
 };
 
 /**
+ * Escape special regex characters to prevent ReDoS attacks
+ * CRITICAL: Use this for ALL user input that goes into MongoDB $regex queries
+ *
+ * Without escaping, attackers can:
+ * 1. Cause ReDoS (Regular Expression Denial of Service) with patterns like (a|b|c|d){50}
+ * 2. Match unintended data with patterns like .* or .*sensitive.*
+ * 3. Extract data through regex-based enumeration
+ *
+ * @param {string} str - User input string
+ * @returns {string} - Escaped string safe for regex use
+ *
+ * @example
+ * // UNSAFE - allows regex injection
+ * const results = await Model.find({ name: { $regex: req.query.search, $options: 'i' } });
+ *
+ * // SAFE - escapes special characters
+ * const results = await Model.find({ name: { $regex: escapeRegex(req.query.search), $options: 'i' } });
+ */
+const escapeRegex = (str) => {
+    if (!str || typeof str !== 'string') {
+        return '';
+    }
+    // Escape all regex special characters: . * + ? ^ $ { } ( ) | [ ] \
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
+/**
  * Validate and sanitize pagination parameters
  * Prevents DoS attacks from unbounded limit/skip/page values
  *
@@ -585,6 +612,7 @@ module.exports = {
     sanitizeEmail,
     sanitizePhone,
     sanitizePagination,
+    escapeRegex,
 
     // Safe Operations
     safeJSONParse,

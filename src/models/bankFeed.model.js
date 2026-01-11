@@ -214,78 +214,110 @@ bankFeedSchema.index({ firmId: 1, bankAccountId: 1 });
 bankFeedSchema.index({ lawyerId: 1, status: 1 });
 bankFeedSchema.index({ status: 1, nextImportAt: 1 });
 
-// Encryption key for credentials - MUST be set in environment
-const ENCRYPTION_KEY = process.env.FEED_ENCRYPTION_KEY;
-if (!ENCRYPTION_KEY) {
-    throw new Error('FEED_ENCRYPTION_KEY environment variable is required');
-}
-if (ENCRYPTION_KEY.length !== 32) {
-    throw new Error('FEED_ENCRYPTION_KEY must be exactly 32 characters');
-}
-const ALGORITHM = 'aes-256-cbc';
+// ============================================
+// SECURITY: AES-256-GCM Encryption for Bank Feed Credentials
+// UPGRADED from CBC to GCM for authenticated encryption
+// ============================================
+const ALGORITHM = 'aes-256-gcm';
+const IV_LENGTH = 16;
+
+const getEncryptionKey = () => {
+    const key = process.env.FEED_ENCRYPTION_KEY || process.env.ENCRYPTION_KEY;
+    if (!key) {
+        throw new Error('FEED_ENCRYPTION_KEY or ENCRYPTION_KEY environment variable is required');
+    }
+    // Accept either 64 hex chars (new standard) or 32 chars (legacy compatibility)
+    if (key.length === 64 && /^[0-9a-fA-F]{64}$/.test(key)) {
+        return Buffer.from(key, 'hex'); // 64 hex = 32 bytes
+    } else if (key.length === 32) {
+        logger.warn('FEED_ENCRYPTION_KEY: Using legacy 32-char format. Upgrade to 64 hex chars for security.');
+        return Buffer.from(key, 'utf8'); // Legacy 32 char string
+    }
+    throw new Error('FEED_ENCRYPTION_KEY must be 64 hex characters (or 32 chars for legacy)');
+};
+
+const encryptToken = (token) => {
+    if (!token) return null;
+    // Check if already in new GCM format (iv:authTag:encrypted)
+    if (token.includes(':') && token.split(':').length === 3) return token;
+    try {
+        const iv = crypto.randomBytes(IV_LENGTH);
+        const key = getEncryptionKey();
+        const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
+        let encrypted = cipher.update(token, 'utf8', 'hex');
+        encrypted += cipher.final('hex');
+        const authTag = cipher.getAuthTag().toString('hex');
+        // Format: iv:authTag:encrypted (GCM authenticated encryption)
+        return `${iv.toString('hex')}:${authTag}:${encrypted}`;
+    } catch (error) {
+        logger.error('Error encrypting feed token:', error.message);
+        throw new Error('Token encryption failed');
+    }
+};
+
+const decryptToken = (encryptedToken) => {
+    if (!encryptedToken) return null;
+    const parts = encryptedToken.split(':');
+    // Handle new GCM format (iv:authTag:encrypted)
+    if (parts.length === 3) {
+        try {
+            const [ivHex, authTagHex, encrypted] = parts;
+            const iv = Buffer.from(ivHex, 'hex');
+            const authTag = Buffer.from(authTagHex, 'hex');
+            const key = getEncryptionKey();
+            const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
+            decipher.setAuthTag(authTag);
+            let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+            decrypted += decipher.final('utf8');
+            return decrypted;
+        } catch (error) {
+            logger.error('Error decrypting feed token (GCM):', error.message);
+            throw new Error('Token decryption failed - data may be corrupted');
+        }
+    }
+    // Handle legacy CBC format (iv:encrypted) - for migration
+    if (parts.length === 2) {
+        try {
+            const [ivHex, encrypted] = parts;
+            const iv = Buffer.from(ivHex, 'hex');
+            const key = getEncryptionKey();
+            // Use CBC for legacy decryption only
+            const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+            let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+            decrypted += decipher.final('utf8');
+            logger.info('Legacy CBC token decrypted - will be re-encrypted with GCM on next save');
+            return decrypted;
+        } catch (error) {
+            logger.error('Error decrypting feed token (legacy CBC):', error.message);
+            throw new Error('Token decryption failed');
+        }
+    }
+    // Not encrypted
+    return encryptedToken;
+};
 
 // Encrypt credentials before saving
 bankFeedSchema.pre('save', function(next) {
-    if (this.credentials && this.credentials.accessToken && !this.credentials.accessToken.includes(':')) {
-        try {
-            const iv = crypto.randomBytes(16);
-            const cipher = crypto.createCipheriv(ALGORITHM, Buffer.from(ENCRYPTION_KEY.slice(0, 32)), iv);
-            let encrypted = cipher.update(this.credentials.accessToken, 'utf8', 'hex');
-            encrypted += cipher.final('hex');
-            this.credentials.accessToken = iv.toString('hex') + ':' + encrypted;
-        } catch (error) {
-            logger.error('Error encrypting access token:', error);
+    if (this.credentials && this.isModified('credentials')) {
+        if (this.credentials.accessToken) {
+            this.credentials.accessToken = encryptToken(this.credentials.accessToken);
+        }
+        if (this.credentials.refreshToken) {
+            this.credentials.refreshToken = encryptToken(this.credentials.refreshToken);
         }
     }
-
-    if (this.credentials && this.credentials.refreshToken && !this.credentials.refreshToken.includes(':')) {
-        try {
-            const iv = crypto.randomBytes(16);
-            const cipher = crypto.createCipheriv(ALGORITHM, Buffer.from(ENCRYPTION_KEY.slice(0, 32)), iv);
-            let encrypted = cipher.update(this.credentials.refreshToken, 'utf8', 'hex');
-            encrypted += cipher.final('hex');
-            this.credentials.refreshToken = iv.toString('hex') + ':' + encrypted;
-        } catch (error) {
-            logger.error('Error encrypting refresh token:', error);
-        }
-    }
-
     next();
 });
 
 // Instance method: Decrypt credentials
 bankFeedSchema.methods.decryptCredentials = function() {
-    const decrypted = { ...this.credentials.toObject() };
-
-    if (decrypted.accessToken && decrypted.accessToken.includes(':')) {
-        try {
-            const parts = decrypted.accessToken.split(':');
-            const iv = Buffer.from(parts[0], 'hex');
-            const encryptedText = parts[1];
-            const decipher = crypto.createDecipheriv(ALGORITHM, Buffer.from(ENCRYPTION_KEY.slice(0, 32)), iv);
-            let decryptedToken = decipher.update(encryptedText, 'hex', 'utf8');
-            decryptedToken += decipher.final('utf8');
-            decrypted.accessToken = decryptedToken;
-        } catch (error) {
-            logger.error('Error decrypting access token:', error);
-        }
-    }
-
-    if (decrypted.refreshToken && decrypted.refreshToken.includes(':')) {
-        try {
-            const parts = decrypted.refreshToken.split(':');
-            const iv = Buffer.from(parts[0], 'hex');
-            const encryptedText = parts[1];
-            const decipher = crypto.createDecipheriv(ALGORITHM, Buffer.from(ENCRYPTION_KEY.slice(0, 32)), iv);
-            let decryptedToken = decipher.update(encryptedText, 'hex', 'utf8');
-            decryptedToken += decipher.final('utf8');
-            decrypted.refreshToken = decryptedToken;
-        } catch (error) {
-            logger.error('Error decrypting refresh token:', error);
-        }
-    }
-
-    return decrypted;
+    if (!this.credentials) return null;
+    const credObj = this.credentials.toObject ? this.credentials.toObject() : { ...this.credentials };
+    return {
+        ...credObj,
+        accessToken: decryptToken(credObj.accessToken),
+        refreshToken: decryptToken(credObj.refreshToken)
+    };
 };
 
 // Instance method: Record import

@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const logger = require('../utils/logger');
+const { escapeRegex } = require('../utils/securityUtils');
 const {
     arabicNameSchema,
     nationalAddressSchema,
@@ -1041,13 +1042,15 @@ leadSchema.statics.getLeads = async function(lawyerId, filters = {}) {
     if (filters.convertedToClient !== undefined) query.convertedToClient = filters.convertedToClient;
 
     if (filters.search) {
+        // SECURITY: Escape regex special chars to prevent ReDoS attacks
+        const safeSearch = escapeRegex(filters.search);
         query.$or = [
-            { firstName: { $regex: filters.search, $options: 'i' } },
-            { lastName: { $regex: filters.search, $options: 'i' } },
-            { companyName: { $regex: filters.search, $options: 'i' } },
-            { email: { $regex: filters.search, $options: 'i' } },
-            { phone: { $regex: filters.search, $options: 'i' } },
-            { leadId: { $regex: filters.search, $options: 'i' } }
+            { firstName: { $regex: safeSearch, $options: 'i' } },
+            { lastName: { $regex: safeSearch, $options: 'i' } },
+            { companyName: { $regex: safeSearch, $options: 'i' } },
+            { email: { $regex: safeSearch, $options: 'i' } },
+            { phone: { $regex: safeSearch, $options: 'i' } },
+            { leadId: { $regex: safeSearch, $options: 'i' } }
         ];
     }
 

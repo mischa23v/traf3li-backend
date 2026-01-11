@@ -20,10 +20,17 @@ const CustomException = require('../utils/CustomException');
 const createSLO = asyncHandler(async (req, res) => {
   const { firmId } = req;
 
-  // Add firmId to the SLO data
+  // SECURITY: Use req.addFirmId or explicit firmId from middleware only
+  // Never accept firmId from request body - prevents cross-tenant data injection
+  const { name, category, target, description, thresholds, isActive } = req.body;
   const sloData = {
-    ...req.body,
-    firmId: req.body.firmId || firmId,
+    name,
+    category,
+    target,
+    description,
+    thresholds,
+    isActive,
+    firmId, // From middleware only, never from req.body
   };
 
   // Validate required fields
