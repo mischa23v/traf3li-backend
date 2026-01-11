@@ -419,19 +419,16 @@ const finishAuthentication = asyncHandler(async (req, res) => {
     res.cookie('accessToken', token, accessCookieConfig);
     res.cookie(REFRESH_TOKEN_COOKIE_NAME, refreshToken, refreshCookieConfig);
 
+    // BFF Pattern: Tokens in httpOnly cookies ONLY - never in response body
     res.status(200).json({
         success: true,
         message: 'Authentication successful',
-        // OAuth 2.0 standard format (snake_case)
-        access_token: token,
-        refresh_token: refreshToken,
+        // Token metadata only (NOT the actual tokens)
         token_type: 'Bearer',
         expires_in: 900, // 15 minutes in seconds
-        // Backwards compatibility (camelCase)
-        accessToken: token,
-        refreshToken: refreshToken,
+        // SECURITY: access_token and refresh_token are httpOnly cookies ONLY
+        // Frontend uses credentials: 'include' to auto-attach cookies
         data: {
-            token,
             user: {
                 id: user._id,
                 email: user.email,

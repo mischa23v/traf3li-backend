@@ -742,17 +742,15 @@ const login = async (request, response) => {
         response.cookie('accessToken', result.token, accessCookieConfig);
         response.cookie(REFRESH_TOKEN_COOKIE_NAME, result.refreshToken, refreshCookieConfig);
 
+        // BFF Pattern: Tokens in httpOnly cookies ONLY - never in response body
         return response.status(200).json({
             error: false,
             message: result.message,
-            // OAuth 2.0 standard format (snake_case) - Industry standard for tokens
-            access_token: result.access_token,
-            refresh_token: result.refresh_token,
+            // Token metadata only (NOT the actual tokens)
             token_type: result.token_type || 'Bearer',
             expires_in: result.expires_in || 900,
-            // Backwards compatibility (camelCase)
-            accessToken: result.token,
-            refreshToken: result.refreshToken,
+            // SECURITY: access_token and refresh_token are httpOnly cookies ONLY
+            // Frontend uses credentials: 'include' to auto-attach cookies
             user: result.user,
             data: result.user // Legacy field for backwards compat
         });

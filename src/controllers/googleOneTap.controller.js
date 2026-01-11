@@ -305,7 +305,7 @@ const authenticateWithOneTap = async (request, response) => {
             }
         })();
 
-        // Return success response with OAuth 2.0 standard format
+        // Return success response with BFF pattern (tokens in httpOnly cookies ONLY)
         return response
             .cookie('accessToken', accessToken, accessCookieConfig)
             .cookie(REFRESH_TOKEN_COOKIE_NAME, refreshToken, refreshCookieConfig)
@@ -323,14 +323,11 @@ const authenticateWithOneTap = async (request, response) => {
                         ? 'Account linked to Google successfully'
                         : 'Login successful'
                     ),
-                // OAuth 2.0 standard format (snake_case) - Industry standard for tokens
-                access_token: accessToken,
-                refresh_token: refreshToken,
+                // Token metadata only (NOT the actual tokens)
                 token_type: 'Bearer',
                 expires_in: 900, // 15 minutes in seconds (access token lifetime)
-                // Backwards compatibility (camelCase) - for existing frontend code
-                accessToken: accessToken,
-                refreshToken: refreshToken,
+                // SECURITY: access_token and refresh_token are httpOnly cookies ONLY
+                // Frontend uses credentials: 'include' to auto-attach cookies
                 user: userData,
                 // Email verification context for frontend (SSO users are auto-verified)
                 emailVerification: {
