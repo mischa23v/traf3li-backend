@@ -151,12 +151,27 @@ const sendOTP = async (req, res) => {
  * Body: { otp, purpose?, loginSessionToken? } OR { email, otp, purpose? }
  */
 const verifyOTP = async (req, res) => {
+  // Debug flag - enabled by default, set AUTH_DEBUG=false to disable
+  const DEBUG = process.env.AUTH_DEBUG !== 'false';
+
   try {
     const { otp, purpose = 'login', loginSessionToken } = req.body;
     let { email } = req.body;
 
     const ipAddress = req.ip || req.headers['x-forwarded-for'];
     const userAgent = req.headers['user-agent'] || 'unknown';
+
+    // Debug: Log OTP verification attempt
+    if (DEBUG) {
+      // eslint-disable-next-line no-console
+      console.log(`[OTP-DEBUG] ${new Date().toISOString()} | verifyOTP called`, {
+        purpose,
+        hasOtp: !!otp,
+        hasEmail: !!email,
+        hasLoginSessionToken: !!loginSessionToken,
+        ip: ipAddress
+      });
+    }
 
     // ═══════════════════════════════════════════════════════════════
     // STEP 1: Validate OTP format (required for all purposes)
@@ -458,6 +473,23 @@ const verifyOTP = async (req, res) => {
 
     // Generate JWT access token using proper utility (15-min expiry, custom claims)
     const accessToken = await generateAccessToken(user, { firm });
+
+    // Debug: Log token generation with timing info
+    if (DEBUG) {
+      const jwt = require('jsonwebtoken');
+      const decoded = jwt.decode(accessToken);
+      // eslint-disable-next-line no-console
+      console.log('[OTP-DEBUG] Login tokens issued', {
+        userId: user._id.toString(),
+        email: user.email,
+        tokenIssuedAt: decoded?.iat ? new Date(decoded.iat * 1000).toISOString() : null,
+        tokenExpiresAt: decoded?.exp ? new Date(decoded.exp * 1000).toISOString() : null,
+        tokenDurationMinutes: decoded ? ((decoded.exp - decoded.iat) / 60).toFixed(2) : null,
+        serverTime: new Date().toISOString(),
+        firmId: user.firmId || null,
+        isSoloLawyer: user.isSoloLawyer || false
+      });
+    }
 
     // Create device info for refresh token
     const deviceInfo = {

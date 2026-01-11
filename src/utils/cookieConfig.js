@@ -87,18 +87,18 @@ const REFRESH_TOKEN_PATH = validateRefreshTokenPath(REFRESH_TOKEN_PATH_RAW);
 
 /**
  * SameSite policy for refresh tokens
- * Default: 'strict' for maximum CSRF protection
+ * Default: 'auto' for adaptive behavior based on request origin
  *
- * ⚠️  WARNING: 'strict' will break OAuth/SSO redirect flows!
- * If using OAuth (Google, Microsoft, etc.) or magic links, use 'lax' instead.
+ * GOLD STANDARD: For multi-subdomain apps (dashboard.x.com → api.x.com),
+ * 'auto' mode automatically uses 'none' for cross-origin requests in production.
  *
  * Options:
- * - 'strict': Maximum security, breaks cross-site navigations (OAuth redirects, magic links)
+ * - 'strict': Maximum security, breaks cross-site navigations (OAuth redirects, magic links, cross-origin API)
  * - 'lax': Secure default, allows top-level navigations (recommended for OAuth/SSO)
  * - 'none': Required for cross-origin requests (use with caution)
- * - 'auto': Adaptive behavior based on same-origin detection
+ * - 'auto': Adaptive behavior - 'lax' for same-origin, 'none' for cross-origin in production (RECOMMENDED)
  */
-const REFRESH_TOKEN_SAMESITE_RAW = process.env.REFRESH_TOKEN_SAMESITE || 'strict';
+const REFRESH_TOKEN_SAMESITE_RAW = process.env.REFRESH_TOKEN_SAMESITE || 'auto';
 
 /**
  * Validate SameSite value
@@ -108,13 +108,13 @@ const validateSameSite = (value) => {
     const valid = ['strict', 'lax', 'none', 'auto'];
 
     if (!valid.includes(normalized)) {
-        logger.warn(`[CookieConfig] Invalid REFRESH_TOKEN_SAMESITE="${value}", defaulting to strict`);
-        return 'strict';
+        logger.warn(`[CookieConfig] Invalid REFRESH_TOKEN_SAMESITE="${value}", defaulting to auto`);
+        return 'auto';
     }
 
     // Warn about strict mode implications
     if (normalized === 'strict') {
-        logger.info('[CookieConfig] SameSite=Strict enabled. OAuth/SSO redirects and magic links will NOT include the refresh token cookie.');
+        logger.warn('[CookieConfig] SameSite=Strict enabled. Cross-origin API calls, OAuth/SSO redirects, and magic links will NOT include the refresh token cookie. Consider using "auto" for multi-subdomain apps.');
     }
 
     return normalized;
