@@ -34,8 +34,8 @@ const SESSION_TTL_SECONDS = 24 * 60 * 60;
  * Validates that the session hasn't exceeded idle or absolute timeout
  */
 const checkSessionTimeout = async (req, res, next) => {
-    // Debug flag - set AUTH_DEBUG=true in env to enable detailed logging
-    const DEBUG = process.env.AUTH_DEBUG === 'true';
+    // Debug flag - enabled by default, set AUTH_DEBUG=false to disable
+    const DEBUG = process.env.AUTH_DEBUG !== 'false';
 
     try {
         // Skip if no user (not authenticated)

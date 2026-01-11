@@ -2534,8 +2534,8 @@ const requestVerificationEmailPublic = async (request, response) => {
  * - Cookie: Set-Cookie: refresh_token=<new_token>; HttpOnly; Secure; SameSite=Strict; Path=/api/auth
  */
 const refreshAccessToken = async (request, response) => {
-    // Debug flag - set AUTH_DEBUG=true in env to enable detailed logging
-    const DEBUG = process.env.AUTH_DEBUG === 'true';
+    // Debug flag - enabled by default, set AUTH_DEBUG=false to disable
+    const DEBUG = process.env.AUTH_DEBUG !== 'false';
 
     try {
         // SECURITY: Read ONLY from httpOnly cookie - never from body

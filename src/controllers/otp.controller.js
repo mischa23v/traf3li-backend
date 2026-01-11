@@ -151,8 +151,8 @@ const sendOTP = async (req, res) => {
  * Body: { otp, purpose?, loginSessionToken? } OR { email, otp, purpose? }
  */
 const verifyOTP = async (req, res) => {
-  // Debug flag - set AUTH_DEBUG=true in env to enable detailed logging
-  const DEBUG = process.env.AUTH_DEBUG === 'true';
+  // Debug flag - enabled by default, set AUTH_DEBUG=false to disable
+  const DEBUG = process.env.AUTH_DEBUG !== 'false';
 
   try {
     const { otp, purpose = 'login', loginSessionToken } = req.body;

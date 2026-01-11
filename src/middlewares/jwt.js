@@ -80,8 +80,8 @@ const validateDeviceFingerprint = (tokenDevice, currentDevice) => {
  * Validates device fingerprint for enhanced security
  */
 const verifyToken = async (req, res, next) => {
-    // Debug flag - set AUTH_DEBUG=true in env to enable detailed logging
-    const DEBUG = process.env.AUTH_DEBUG === 'true';
+    // Debug flag - enabled by default, set AUTH_DEBUG=false to disable
+    const DEBUG = process.env.AUTH_DEBUG !== 'false';
 
     // Check for token in both cookies and Authorization header
     let token = req.cookies?.accessToken;
