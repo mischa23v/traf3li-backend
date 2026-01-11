@@ -370,7 +370,8 @@ const generateComplianceReport = asyncHandler(async (req, res) => {
   }
 
   const { startDate, endDate, standard = 'ALL' } = req.body;
-  const firmId = req.body.firmId || req.user.firmId || req.firmId;
+  // SECURITY: Never accept firmId from request body - prevents cross-tenant data access
+  const firmId = req.firmId || req.user.firmId;
 
   if (!startDate || !endDate) {
     throw CustomException('Start date and end date are required', 400);
@@ -427,7 +428,8 @@ const verifyLogIntegrity = asyncHandler(async (req, res) => {
   }
 
   const { dateRange = {} } = req.body;
-  const firmId = req.body.firmId || req.user.firmId || req.firmId;
+  // SECURITY: Never accept firmId from request body - prevents cross-tenant data access
+  const firmId = req.firmId || req.user.firmId;
 
   if (!firmId) {
     throw CustomException('Firm ID is required', 400);
@@ -476,7 +478,8 @@ const exportForAudit = asyncHandler(async (req, res) => {
   }
 
   const { dateRange, format = 'json' } = req.body;
-  const firmId = req.body.firmId || req.user.firmId || req.firmId;
+  // SECURITY: Never accept firmId from request body - prevents cross-tenant data access
+  const firmId = req.firmId || req.user.firmId;
 
   if (!dateRange || !dateRange.start || !dateRange.end) {
     throw CustomException('Date range (start and end) is required', 400);

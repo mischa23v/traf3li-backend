@@ -283,13 +283,15 @@ const validateOrigin = (request) => {
             // Be strict in production, lenient in development
             const isProduction = process.env.NODE_ENV === 'production';
             if (isProduction) {
-                logger.warn('CSRF: No Origin or Referer header in production', {
+                logger.warn('CSRF: No Origin or Referer header in production - REJECTING', {
                     method: request.method,
                     path: request.path,
                     ip: request.ip
                 });
-                // Still allow but log - some legitimate requests may not have these
-                return { valid: true, origin: null, reason: 'no_origin_header' };
+                // SECURITY FIX: Reject requests without Origin/Referer in production
+                // This prevents CSRF attacks from form submissions that don't include these headers
+                // Legitimate browser requests ALWAYS include Origin or Referer for state-changing operations
+                return { valid: false, origin: null, reason: 'missing_origin_production' };
             }
             return { valid: true, origin: null, reason: 'development_mode' };
         }

@@ -7,6 +7,7 @@
  */
 
 const mongoose = require('mongoose');
+const { escapeRegex } = require('../utils/securityUtils');
 
 // ═══════════════════════════════════════════════════════════════
 // SUB-SCHEMAS
@@ -302,10 +303,12 @@ salesTeamSchema.statics.getTeams = async function(firmId, filters = {}) {
     }
 
     if (filters.search) {
+        // SECURITY: Escape regex special chars to prevent ReDoS attacks
+        const safeSearch = escapeRegex(filters.search);
         query.$or = [
-            { name: { $regex: filters.search, $options: 'i' } },
-            { nameAr: { $regex: filters.search, $options: 'i' } },
-            { teamId: { $regex: filters.search, $options: 'i' } }
+            { name: { $regex: safeSearch, $options: 'i' } },
+            { nameAr: { $regex: safeSearch, $options: 'i' } },
+            { teamId: { $regex: safeSearch, $options: 'i' } }
         ];
     }
 

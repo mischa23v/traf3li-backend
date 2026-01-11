@@ -1,4 +1,62 @@
 const mongoose = require('mongoose');
+const crypto = require('crypto');
+const logger = require('../utils/logger');
+
+// ============================================
+// SECURITY: AES-256-GCM Encryption for Bank Tokens
+// Encrypts accessToken and refreshToken at rest
+// ============================================
+const ALGORITHM = 'aes-256-gcm';
+const IV_LENGTH = 16;
+
+const getEncryptionKey = () => {
+    const key = process.env.BANK_TOKEN_ENCRYPTION_KEY || process.env.ENCRYPTION_KEY;
+    if (!key || key.length !== 64) {
+        throw new Error('BANK_TOKEN_ENCRYPTION_KEY or ENCRYPTION_KEY must be 64 hex characters');
+    }
+    return Buffer.from(key, 'hex');
+};
+
+const encryptToken = (token) => {
+    if (!token) return null;
+    // Skip if already encrypted (contains colons)
+    if (token.includes(':') && token.split(':').length === 3) return token;
+    try {
+        const iv = crypto.randomBytes(IV_LENGTH);
+        const key = getEncryptionKey();
+        const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
+        let encrypted = cipher.update(token, 'utf8', 'hex');
+        encrypted += cipher.final('hex');
+        const authTag = cipher.getAuthTag().toString('hex');
+        // Format: iv:authTag:encrypted (authenticated encryption)
+        return `${iv.toString('hex')}:${authTag}:${encrypted}`;
+    } catch (error) {
+        logger.error('Bank token encryption failed:', error.message);
+        throw new Error('Token encryption failed');
+    }
+};
+
+const decryptToken = (encryptedToken) => {
+    if (!encryptedToken) return null;
+    // Check if it's encrypted (format: iv:authTag:encrypted)
+    if (!encryptedToken.includes(':')) return encryptedToken; // Legacy unencrypted
+    const parts = encryptedToken.split(':');
+    if (parts.length !== 3) return encryptedToken; // Not our format
+    try {
+        const [ivHex, authTagHex, encrypted] = parts;
+        const iv = Buffer.from(ivHex, 'hex');
+        const authTag = Buffer.from(authTagHex, 'hex');
+        const key = getEncryptionKey();
+        const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
+        decipher.setAuthTag(authTag);
+        let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+        decrypted += decipher.final('utf8');
+        return decrypted;
+    } catch (error) {
+        logger.error('Bank token decryption failed:', error.message);
+        throw new Error('Token decryption failed - data may be corrupted');
+    }
+};
 
 const bankConnectionSchema = new mongoose.Schema({
     provider: {
@@ -203,8 +261,28 @@ bankAccountSchema.pre('save', async function(next) {
         this.availableBalance = this.openingBalance;
     }
 
+    // SECURITY: Encrypt bank connection tokens before saving
+    if (this.connection) {
+        if (this.connection.accessToken && this.isModified('connection.accessToken')) {
+            this.connection.accessToken = encryptToken(this.connection.accessToken);
+        }
+        if (this.connection.refreshToken && this.isModified('connection.refreshToken')) {
+            this.connection.refreshToken = encryptToken(this.connection.refreshToken);
+        }
+    }
+
     next();
 });
+
+// Instance method: Get decrypted connection credentials
+bankAccountSchema.methods.getDecryptedConnection = function() {
+    if (!this.connection) return null;
+    return {
+        ...this.connection.toObject(),
+        accessToken: decryptToken(this.connection.accessToken),
+        refreshToken: decryptToken(this.connection.refreshToken)
+    };
+};
 
 // Static method: Get account summary
 // SECURITY FIX: Accept firmQuery for proper tenant isolation

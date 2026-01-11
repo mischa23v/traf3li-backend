@@ -164,11 +164,15 @@ preparedReportSchema.index({ 'autoRefresh.nextRefreshAt': 1, 'autoRefresh.enable
 
 /**
  * Generate parameter hash for cache key
+ * SECURITY: Upgraded from MD5 to SHA-256 for gold standard compliance
+ * While MD5 is acceptable for non-security hashing, SHA-256 is preferred
  */
 preparedReportSchema.statics.generateParameterHash = function(params) {
     const crypto = require('crypto');
     const normalized = JSON.stringify(params, Object.keys(params).sort());
-    return crypto.createHash('md5').update(normalized).digest('hex');
+    // Using SHA-256 instead of MD5 for consistency with security best practices
+    // Truncated to 32 chars for cache key efficiency (still collision-resistant)
+    return crypto.createHash('sha256').update(normalized).digest('hex').substring(0, 32);
 };
 
 /**

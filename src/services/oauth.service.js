@@ -130,9 +130,16 @@ class OAuthService {
      * @returns {string} Secret key for HMAC signing
      */
     getStateSigningSecret() {
-        // Use JWT_SECRET for consistency with other signed tokens
-        // This is the same pattern as googleCalendar.service.js
-        return process.env.JWT_SECRET || process.env.OAUTH_STATE_SECRET || 'oauth-state-fallback-secret';
+        // SECURITY: Require explicit secret - no fallbacks allowed
+        // This prevents CSRF attacks via state forgery
+        const secret = process.env.OAUTH_STATE_SECRET || process.env.JWT_SECRET;
+        if (!secret) {
+            throw new Error('CRITICAL: OAUTH_STATE_SECRET or JWT_SECRET environment variable is required for OAuth state signing');
+        }
+        if (secret.length < 32) {
+            throw new Error('CRITICAL: OAuth state signing secret must be at least 32 characters');
+        }
+        return secret;
     }
 
     /**
@@ -197,12 +204,14 @@ class OAuthService {
             // Parse and return state data
             const stateData = JSON.parse(payload);
 
-            // Validate timestamp (15 minute expiry)
+            // Validate timestamp (5 minute expiry - OAuth 2.0 best practice)
+            // Reduced from 15 minutes to minimize CSRF attack window
+            const STATE_EXPIRY_MS = parseInt(process.env.OAUTH_STATE_EXPIRY_MS, 10) || 5 * 60 * 1000;
             const timestamp = stateData.timestamp;
-            if (timestamp && (Date.now() - timestamp > 15 * 60 * 1000)) {
+            if (timestamp && (Date.now() - timestamp > STATE_EXPIRY_MS)) {
                 logger.warn('OAuth: State token expired', {
                     age: Math.round((Date.now() - timestamp) / 1000),
-                    maxAge: 900
+                    maxAge: Math.round(STATE_EXPIRY_MS / 1000)
                 });
                 return null;
             }

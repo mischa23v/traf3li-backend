@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { escapeRegex } = require('../utils/securityUtils');
 
 // Key contact sub-schema
 const keyContactSchema = new mongoose.Schema({
@@ -658,16 +659,18 @@ organizationSchema.statics.getOrganizations = async function(lawyerId, filters =
     if (filters.tags && filters.tags.length > 0) query.tags = { $in: filters.tags };
 
     if (filters.search) {
+        // SECURITY: Escape regex special chars to prevent ReDoS attacks
+        const safeSearch = escapeRegex(filters.search);
         query.$or = [
-            { legalName: { $regex: filters.search, $options: 'i' } },
-            { legalNameAr: { $regex: filters.search, $options: 'i' } },
-            { tradeName: { $regex: filters.search, $options: 'i' } },
-            { tradeNameAr: { $regex: filters.search, $options: 'i' } },
-            { name: { $regex: filters.search, $options: 'i' } },
-            { nameAr: { $regex: filters.search, $options: 'i' } },
-            { email: { $regex: filters.search, $options: 'i' } },
-            { commercialRegistration: { $regex: filters.search, $options: 'i' } },
-            { vatNumber: { $regex: filters.search, $options: 'i' } }
+            { legalName: { $regex: safeSearch, $options: 'i' } },
+            { legalNameAr: { $regex: safeSearch, $options: 'i' } },
+            { tradeName: { $regex: safeSearch, $options: 'i' } },
+            { tradeNameAr: { $regex: safeSearch, $options: 'i' } },
+            { name: { $regex: safeSearch, $options: 'i' } },
+            { nameAr: { $regex: safeSearch, $options: 'i' } },
+            { email: { $regex: safeSearch, $options: 'i' } },
+            { commercialRegistration: { $regex: safeSearch, $options: 'i' } },
+            { vatNumber: { $regex: safeSearch, $options: 'i' } }
         ];
     }
 
@@ -697,13 +700,15 @@ organizationSchema.statics.checkConflicts = async function(lawyerId, checkData) 
 
     // Search for matches
     for (const term of searchTerms) {
+        // SECURITY: Escape regex special chars to prevent ReDoS attacks
+        const safeTerm = escapeRegex(term);
         const results = await this.find({
             lawyerId: new mongoose.Types.ObjectId(lawyerId),
             $or: [
-                { legalName: { $regex: term, $options: 'i' } },
-                { legalNameAr: { $regex: term, $options: 'i' } },
-                { tradeName: { $regex: term, $options: 'i' } },
-                { email: { $regex: term, $options: 'i' } },
+                { legalName: { $regex: safeTerm, $options: 'i' } },
+                { legalNameAr: { $regex: safeTerm, $options: 'i' } },
+                { tradeName: { $regex: safeTerm, $options: 'i' } },
+                { email: { $regex: safeTerm, $options: 'i' } },
                 { commercialRegistration: term },
                 { vatNumber: term }
             ]

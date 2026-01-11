@@ -662,11 +662,12 @@ exports.getStats = asyncHandler(async (req, res) => {
         throw CustomException('Admin access required', 403);
     }
 
-    // Get all sections
+    // Get all sections (sections are global/system-level, not tenant-scoped)
     const sections = await SetupSection.find({ isActive: true }).lean();
 
-    // Get all progress records
-    const allProgress = await UserSetupProgress.find({}).lean();
+    // SECURITY FIX: Filter progress records by firmQuery to prevent cross-tenant data exposure
+    // Previously: UserSetupProgress.find({}) returned ALL firms' data
+    const allProgress = await UserSetupProgress.find({ ...req.firmQuery }).lean();
 
     // Calculate stats per section
     const sectionStats = await Promise.all(sections.map(async (section) => {

@@ -721,14 +721,23 @@ const handleWebhook = asyncHandler(async (req, res) => {
     const signature = req.headers['x-xero-signature'];
     const payload = req.body;
 
-    // Extract firm ID from webhook payload or query params
-    // Note: In production, you'd need to map tenantId to firmId
-    const firmId = req.query.firmId || req.body.firmId;
+    // SECURITY: Extract tenantId from verified webhook payload, NOT from query/body params
+    // This prevents attackers from spoofing firmId via query params
+    const tenantId = payload?.events?.[0]?.tenantId;
+
+    if (!tenantId) {
+        logger.warn('Webhook received without tenantId in payload');
+        // Return 200 to acknowledge receipt even if we can't process
+        return res.json({ received: true });
+    }
+
+    // Securely map Xero tenantId to our firmId via database lookup
+    const Firm = require('../models/firm.model');
+    const firm = await Firm.findOne({ 'integrations.xero.tenantId': tenantId }).select('_id');
+    const firmId = firm?._id;
 
     if (!firmId) {
-        logger.warn('Webhook received without firm ID', {
-            tenantId: payload?.events?.[0]?.tenantId
-        });
+        logger.warn('Webhook received for unknown Xero tenant', { tenantId });
         // Return 200 to acknowledge receipt even if we can't process
         return res.json({ received: true });
     }
