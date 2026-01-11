@@ -2573,6 +2573,12 @@ const refreshAccessToken = async (request, response) => {
                 refreshTokenPreview: refreshToken ? `${refreshToken.substring(0, 20)}...` : null,
                 hasAccessToken: !!accessToken,
                 accessTokenInfo,
+                // Debug: Show ALL cookies received to diagnose cookie issues
+                allCookieNames: Object.keys(request.cookies || {}),
+                expectedCookieName: REFRESH_TOKEN_COOKIE_NAME,
+                cookieHeader: request.headers.cookie ? `${request.headers.cookie.substring(0, 100)}...` : 'NO COOKIE HEADER',
+                origin: request.headers.origin,
+                host: request.headers.host,
                 ip: request.ip || request.headers['x-forwarded-for']?.split(',')[0],
                 userAgent: request.headers['user-agent']?.substring(0, 50)
             });

@@ -746,11 +746,28 @@ const callbackPost = async (request, response) => {
             console.log('[SSO CALLBACK] Setting cookies:', {
                 accessTokenLength: result.token.length,
                 hasRefreshToken: !!result.refreshToken,
-                refreshTokenLength: result.refreshToken?.length
+                refreshTokenLength: result.refreshToken?.length,
+                // Debug: Show the actual cookie config being used
+                refreshCookieConfig: {
+                    httpOnly: refreshCookieConfig.httpOnly,
+                    secure: refreshCookieConfig.secure,
+                    sameSite: refreshCookieConfig.sameSite,
+                    path: refreshCookieConfig.path,
+                    domain: refreshCookieConfig.domain,
+                    partitioned: refreshCookieConfig.partitioned,
+                    maxAgeDays: refreshCookieConfig.maxAge ? (refreshCookieConfig.maxAge / 1000 / 60 / 60 / 24).toFixed(1) : null
+                },
+                requestOrigin: request.headers.origin,
+                requestHost: request.headers.host
             });
             response.cookie('accessToken', result.token, accessCookieConfig);
             if (result.refreshToken) {
                 response.cookie(REFRESH_TOKEN_COOKIE_NAME, result.refreshToken, refreshCookieConfig);
+                // eslint-disable-next-line no-console
+                console.log('[SSO CALLBACK] refresh_token cookie SET with name:', REFRESH_TOKEN_COOKIE_NAME);
+            } else {
+                // eslint-disable-next-line no-console
+                console.log('[SSO CALLBACK] WARNING: No refresh token to set as cookie!');
             }
 
             // Update step-up auth timestamp for OAuth login (required for sensitive operations like password change)
