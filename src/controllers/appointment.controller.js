@@ -2030,7 +2030,7 @@ exports.bulkUpdateAvailability = async (req, res) => {
 // ═══════════════════════════════════════════════════════════════
 
 /**
- * Get blocked times
+ * Get blocked times (with pagination to prevent API scraping)
  */
 exports.getBlockedTimes = async (req, res) => {
     debugLog('getBlockedTimes', req);
@@ -2043,8 +2043,13 @@ exports.getBlockedTimes = async (req, res) => {
         }
 
         const userId = req.userID;
-        const { startDate, endDate } = req.query;
+        const { startDate, endDate, page = 1, limit = 20 } = req.query;
         debugLog('getBlockedTimes', req, { step: 'starting', startDate, endDate });
+
+        // Pagination with max limit to prevent scraping (Gold Standard)
+        const parsedLimit = Math.min(Math.max(1, parseInt(limit) || 20), 100);
+        const parsedPage = Math.max(1, parseInt(page) || 1);
+        const skip = (parsedPage - 1) * parsedLimit;
 
         // IDOR Protection: Use firmQuery for firm isolation
         const query = {
@@ -2066,11 +2071,23 @@ exports.getBlockedTimes = async (req, res) => {
             }
         }
 
-        const blockedTimes = await BlockedTime.find(query).sort({ startDateTime: 1 });
+        const [blockedTimes, total] = await Promise.all([
+            BlockedTime.find(query)
+                .sort({ startDateTime: 1 })
+                .skip(skip)
+                .limit(parsedLimit),
+            BlockedTime.countDocuments(query)
+        ]);
 
         res.json({
             success: true,
-            data: blockedTimes
+            data: blockedTimes,
+            pagination: {
+                page: parsedPage,
+                limit: parsedLimit,
+                total,
+                pages: Math.ceil(total / parsedLimit)
+            }
         });
     } catch (error) {
         debugError('getBlockedTimes', error, { query: req.query });
