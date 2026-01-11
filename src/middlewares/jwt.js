@@ -80,19 +80,43 @@ const validateDeviceFingerprint = (tokenDevice, currentDevice) => {
  * Validates device fingerprint for enhanced security
  */
 const verifyToken = async (req, res, next) => {
+    // Debug flag - set AUTH_DEBUG=true in env to enable detailed logging
+    const DEBUG = process.env.AUTH_DEBUG === 'true';
+
     // Check for token in both cookies and Authorization header
     let token = req.cookies?.accessToken;
+    let tokenSource = 'cookie';
 
     // If no token in cookies, check Authorization header
     if (!token && req.headers.authorization) {
         const authHeader = req.headers.authorization;
         if (authHeader.startsWith('Bearer ')) {
             token = authHeader.substring(7); // Remove 'Bearer ' prefix
+            tokenSource = 'header';
         }
+    }
+
+    // Debug: Log token source
+    if (DEBUG) {
+        const now = new Date();
+        // eslint-disable-next-line no-console
+        console.log(`[AUTH-DEBUG] ${now.toISOString()} | verifyToken called`, {
+            path: req.path,
+            method: req.method,
+            hasToken: !!token,
+            tokenSource: token ? tokenSource : 'none',
+            tokenPreview: token ? `${token.substring(0, 20)}...` : null,
+            hasCookie: !!req.cookies?.accessToken,
+            hasAuthHeader: !!req.headers.authorization
+        });
     }
 
     try {
         if (!token) {
+            if (DEBUG) {
+                // eslint-disable-next-line no-console
+                console.log('[AUTH-DEBUG] No token found - returning 401');
+            }
             throw CustomException('Authentication required', 401);
         }
 
@@ -101,16 +125,60 @@ const verifyToken = async (req, res, next) => {
         let decoded;
         try {
             decoded = verifyAccessToken(token);
+
+            // Debug: Log successful decode with timing info
+            if (DEBUG && decoded) {
+                const now = Math.floor(Date.now() / 1000);
+                const issuedAt = decoded.iat;
+                const expiresAt = decoded.exp;
+                const tokenAgeSeconds = now - issuedAt;
+                const timeToExpirySeconds = expiresAt - now;
+
+                // eslint-disable-next-line no-console
+                console.log('[AUTH-DEBUG] Token decoded successfully', {
+                    userId: decoded._id || decoded.id,
+                    issuedAt: new Date(issuedAt * 1000).toISOString(),
+                    expiresAt: new Date(expiresAt * 1000).toISOString(),
+                    tokenAgeMinutes: (tokenAgeSeconds / 60).toFixed(2),
+                    timeToExpiryMinutes: (timeToExpirySeconds / 60).toFixed(2),
+                    isExpiringSoon: timeToExpirySeconds < 300, // < 5 min
+                    firmId: decoded.firm_id || null,
+                    isSoloLawyer: decoded.is_solo_lawyer || false
+                });
+            }
         } catch (verifyError) {
+            // Debug: Log verification failure with details
+            if (DEBUG) {
+                // Try to decode without verification to see expiry info
+                const rawDecoded = jwt.decode(token);
+                const now = Math.floor(Date.now() / 1000);
+
+                // eslint-disable-next-line no-console
+                console.log('[AUTH-DEBUG] Token verification FAILED', {
+                    error: verifyError.message,
+                    errorName: verifyError.name,
+                    userId: rawDecoded?._id || rawDecoded?.id || 'unknown',
+                    issuedAt: rawDecoded?.iat ? new Date(rawDecoded.iat * 1000).toISOString() : null,
+                    expiresAt: rawDecoded?.exp ? new Date(rawDecoded.exp * 1000).toISOString() : null,
+                    expiredAgoMinutes: rawDecoded?.exp ? ((now - rawDecoded.exp) / 60).toFixed(2) : null,
+                    serverTime: new Date().toISOString()
+                });
+            }
+
             // Map verification errors to appropriate error codes
             if (verifyError.message === 'TOKEN_EXPIRED') {
+                // Add debug header for frontend
+                res.setHeader('X-Token-Debug', 'expired');
                 return res.status(401).json({
                     error: true,
                     message: 'Token expired',
-                    code: 'TOKEN_EXPIRED'
+                    code: 'TOKEN_EXPIRED',
+                    // Include debug info in response if DEBUG enabled
+                    ...(DEBUG && { debug: { serverTime: new Date().toISOString() } })
                 });
             }
             if (verifyError.message === 'INVALID_TOKEN') {
+                res.setHeader('X-Token-Debug', 'invalid');
                 return res.status(401).json({
                     error: true,
                     message: 'Invalid token',

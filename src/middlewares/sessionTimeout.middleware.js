@@ -34,6 +34,9 @@ const SESSION_TTL_SECONDS = 24 * 60 * 60;
  * Validates that the session hasn't exceeded idle or absolute timeout
  */
 const checkSessionTimeout = async (req, res, next) => {
+    // Debug flag - set AUTH_DEBUG=true in env to enable detailed logging
+    const DEBUG = process.env.AUTH_DEBUG === 'true';
+
     try {
         // Skip if no user (not authenticated)
         if (!req.userID) {
@@ -58,7 +61,35 @@ const checkSessionTimeout = async (req, res, next) => {
         const tokenIssuedAt = decoded.iat * 1000; // JWT iat is in seconds
         const absoluteExpiry = tokenIssuedAt + SESSION_POLICY.absoluteTimeout;
 
+        // Debug: Log session timing info
+        if (DEBUG) {
+            const lastActivityFromCache = await cacheService.get(sessionKey);
+            // eslint-disable-next-line no-console
+            console.log(`[SESSION-DEBUG] ${new Date().toISOString()} | Session check`, {
+                userId: req.userID,
+                path: req.path,
+                tokenIssuedAt: new Date(tokenIssuedAt).toISOString(),
+                absoluteExpiry: new Date(absoluteExpiry).toISOString(),
+                absoluteRemainingMinutes: ((absoluteExpiry - now) / 60000).toFixed(2),
+                lastActivity: lastActivityFromCache ? new Date(lastActivityFromCache).toISOString() : 'none (using tokenIssuedAt)',
+                idleTimeoutMinutes: SESSION_POLICY.idleTimeout / 60000,
+                absoluteTimeoutHours: SESSION_POLICY.absoluteTimeout / 3600000
+            });
+        }
+
         if (now > absoluteExpiry) {
+            // Debug: Log absolute timeout trigger
+            if (DEBUG) {
+                // eslint-disable-next-line no-console
+                console.log('[SESSION-DEBUG] ABSOLUTE TIMEOUT triggered', {
+                    userId: req.userID,
+                    tokenIssuedAt: new Date(tokenIssuedAt).toISOString(),
+                    absoluteExpiry: new Date(absoluteExpiry).toISOString(),
+                    currentTime: new Date(now).toISOString(),
+                    expiredAgoMinutes: ((now - absoluteExpiry) / 60000).toFixed(2)
+                });
+            }
+
             // Clear the last activity record from Redis
             await cacheService.del(sessionKey);
 
@@ -69,6 +100,9 @@ const checkSessionTimeout = async (req, res, next) => {
                 sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
                 path: '/',
             });
+
+            // Add debug header for frontend
+            res.setHeader('X-Session-Debug', 'absolute_timeout');
 
             return res.status(401).json({
                 error: true,
@@ -77,6 +111,15 @@ const checkSessionTimeout = async (req, res, next) => {
                 code: 'SESSION_ABSOLUTE_TIMEOUT',
                 reason: 'absolute_timeout',
                 loggedOut: true,
+                // Include debug info in response if DEBUG enabled
+                ...(DEBUG && {
+                    debug: {
+                        serverTime: new Date().toISOString(),
+                        tokenIssuedAt: new Date(tokenIssuedAt).toISOString(),
+                        absoluteExpiry: new Date(absoluteExpiry).toISOString(),
+                        sessionDurationHours: ((now - tokenIssuedAt) / 3600000).toFixed(2)
+                    }
+                })
             });
         }
 
@@ -85,6 +128,19 @@ const checkSessionTimeout = async (req, res, next) => {
         const idleExpiry = lastActivity + SESSION_POLICY.idleTimeout;
 
         if (now > idleExpiry) {
+            // Debug: Log idle timeout trigger
+            if (DEBUG) {
+                // eslint-disable-next-line no-console
+                console.log('[SESSION-DEBUG] IDLE TIMEOUT triggered', {
+                    userId: req.userID,
+                    lastActivity: new Date(lastActivity).toISOString(),
+                    idleExpiry: new Date(idleExpiry).toISOString(),
+                    currentTime: new Date(now).toISOString(),
+                    idleDurationMinutes: ((now - lastActivity) / 60000).toFixed(2),
+                    expiredAgoMinutes: ((now - idleExpiry) / 60000).toFixed(2)
+                });
+            }
+
             // Clear the last activity record from Redis
             await cacheService.del(sessionKey);
 
@@ -96,6 +152,9 @@ const checkSessionTimeout = async (req, res, next) => {
                 path: '/',
             });
 
+            // Add debug header for frontend
+            res.setHeader('X-Session-Debug', 'idle_timeout');
+
             return res.status(401).json({
                 error: true,
                 message: 'انتهت صلاحية الجلسة بسبب عدم النشاط. الرجاء تسجيل الدخول مرة أخرى',
@@ -103,6 +162,15 @@ const checkSessionTimeout = async (req, res, next) => {
                 code: 'SESSION_IDLE_TIMEOUT',
                 reason: 'idle_timeout',
                 loggedOut: true,
+                // Include debug info in response if DEBUG enabled
+                ...(DEBUG && {
+                    debug: {
+                        serverTime: new Date().toISOString(),
+                        lastActivity: new Date(lastActivity).toISOString(),
+                        idleExpiry: new Date(idleExpiry).toISOString(),
+                        idleDurationMinutes: ((now - lastActivity) / 60000).toFixed(2)
+                    }
+                })
             });
         }
 
@@ -117,11 +185,27 @@ const checkSessionTimeout = async (req, res, next) => {
         if (idleRemaining < SESSION_POLICY.warningBefore) {
             res.setHeader('X-Session-Idle-Warning', 'true');
             res.setHeader('X-Session-Idle-Remaining', Math.ceil(idleRemaining / 1000));
+
+            if (DEBUG) {
+                // eslint-disable-next-line no-console
+                console.log('[SESSION-DEBUG] Idle warning issued', {
+                    userId: req.userID,
+                    idleRemainingSeconds: Math.ceil(idleRemaining / 1000)
+                });
+            }
         }
 
         if (absoluteRemaining < SESSION_POLICY.warningBefore) {
             res.setHeader('X-Session-Absolute-Warning', 'true');
             res.setHeader('X-Session-Absolute-Remaining', Math.ceil(absoluteRemaining / 1000));
+
+            if (DEBUG) {
+                // eslint-disable-next-line no-console
+                console.log('[SESSION-DEBUG] Absolute warning issued', {
+                    userId: req.userID,
+                    absoluteRemainingSeconds: Math.ceil(absoluteRemaining / 1000)
+                });
+            }
         }
 
         next();

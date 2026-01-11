@@ -2534,12 +2534,55 @@ const requestVerificationEmailPublic = async (request, response) => {
  * - Cookie: Set-Cookie: refresh_token=<new_token>; HttpOnly; Secure; SameSite=Strict; Path=/api/auth
  */
 const refreshAccessToken = async (request, response) => {
+    // Debug flag - set AUTH_DEBUG=true in env to enable detailed logging
+    const DEBUG = process.env.AUTH_DEBUG === 'true';
+
     try {
         // SECURITY: Read ONLY from httpOnly cookie - never from body
         // This ensures refresh token can't be intercepted via request logs/proxies
         const refreshToken = request.cookies?.[REFRESH_TOKEN_COOKIE_NAME];
 
+        // Debug: Log refresh attempt
+        if (DEBUG) {
+            const jwt = require('jsonwebtoken');
+            const accessToken = request.cookies?.accessToken;
+            let accessTokenInfo = null;
+
+            if (accessToken) {
+                try {
+                    const decoded = jwt.decode(accessToken);
+                    if (decoded) {
+                        const now = Math.floor(Date.now() / 1000);
+                        accessTokenInfo = {
+                            userId: decoded._id || decoded.id,
+                            issuedAt: new Date(decoded.iat * 1000).toISOString(),
+                            expiresAt: new Date(decoded.exp * 1000).toISOString(),
+                            isExpired: now > decoded.exp,
+                            expiredAgoMinutes: now > decoded.exp ? ((now - decoded.exp) / 60).toFixed(2) : null,
+                            timeToExpiryMinutes: now <= decoded.exp ? ((decoded.exp - now) / 60).toFixed(2) : null
+                        };
+                    }
+                } catch (e) {
+                    accessTokenInfo = { error: 'Failed to decode access token' };
+                }
+            }
+
+            // eslint-disable-next-line no-console
+            console.log(`[REFRESH-DEBUG] ${new Date().toISOString()} | Refresh token request`, {
+                hasRefreshToken: !!refreshToken,
+                refreshTokenPreview: refreshToken ? `${refreshToken.substring(0, 20)}...` : null,
+                hasAccessToken: !!accessToken,
+                accessTokenInfo,
+                ip: request.ip || request.headers['x-forwarded-for']?.split(',')[0],
+                userAgent: request.headers['user-agent']?.substring(0, 50)
+            });
+        }
+
         if (!refreshToken) {
+            if (DEBUG) {
+                // eslint-disable-next-line no-console
+                console.log('[REFRESH-DEBUG] No refresh token in cookie - returning 401');
+            }
             return response.status(401).json({
                 error: true,
                 message: 'Refresh token required',
@@ -2550,6 +2593,19 @@ const refreshAccessToken = async (request, response) => {
 
         // Refresh the access token (with rotation)
         const result = await refreshTokenService.refreshAccessToken(refreshToken);
+
+        // Debug: Log successful refresh
+        if (DEBUG) {
+            const jwt = require('jsonwebtoken');
+            const newDecoded = jwt.decode(result.accessToken);
+            // eslint-disable-next-line no-console
+            console.log('[REFRESH-DEBUG] Token refresh SUCCESSFUL', {
+                userId: result.user?.id,
+                newTokenIssuedAt: newDecoded?.iat ? new Date(newDecoded.iat * 1000).toISOString() : null,
+                newTokenExpiresAt: newDecoded?.exp ? new Date(newDecoded.exp * 1000).toISOString() : null,
+                tokenDurationMinutes: newDecoded ? ((newDecoded.exp - newDecoded.iat) / 60).toFixed(2) : null
+            });
+        }
 
         // Get cookie configs for access and httpOnly refresh tokens
         // TODO: Preserve rememberMe from original login session
@@ -2581,10 +2637,23 @@ const refreshAccessToken = async (request, response) => {
                 error: false,
                 // Access token in body per frontend contract
                 accessToken: result.accessToken,
-                expiresIn: 900 // 15 minutes in seconds
+                expiresIn: 900, // 15 minutes in seconds
+                // Include debug info if DEBUG enabled
+                ...(DEBUG && { debug: { serverTime: new Date().toISOString() } })
                 // SECURITY: refresh_token is httpOnly cookie ONLY - never in response body
             });
     } catch (error) {
+        // Debug: Log refresh failure with details
+        if (DEBUG) {
+            // eslint-disable-next-line no-console
+            console.log('[REFRESH-DEBUG] Token refresh FAILED', {
+                error: error.message,
+                errorCode: error.code,
+                hasRefreshToken: !!request.cookies?.[REFRESH_TOKEN_COOKIE_NAME],
+                serverTime: new Date().toISOString()
+            });
+        }
+
         // Sanitize error logging - don't log sensitive token data
         const hasToken = !!request.cookies?.[REFRESH_TOKEN_COOKIE_NAME];
         logger.error('Token refresh failed', {
