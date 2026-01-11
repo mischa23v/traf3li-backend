@@ -9,6 +9,7 @@ const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
 const { Firm, User, Client, Case, Invoice, Lead, FirmInvitation } = require('../models');
 const { generateAccessToken } = require('../utils/generateToken');
+const { getCookieConfig } = require('../utils/cookieConfig');
 
 // Helper function to escape regex special characters
 const escapeRegex = (str) => {
@@ -306,24 +307,26 @@ const switchFirm = asyncHandler(async (req, res) => {
     // Issue new JWT with updated firm context using proper utility
     const token = await generateAccessToken(user, { firm });
 
-    res.json({
-        success: true,
-        data: {
-            activeFirm: {
-                id: firm._id,
-                name: firm.name,
-                nameArabic: firm.nameArabic,
-                logo: firm.logo,
-                role: member.role
-            },
-            // OAuth 2.0 standard format
-            access_token: token,
-            token_type: 'Bearer',
-            expires_in: 900, // 15 minutes
-            // Backwards compatibility
-            token
-        }
-    });
+    // BFF Pattern: Set token in httpOnly cookie, not response body
+    const accessCookieConfig = getCookieConfig(req, 'access');
+
+    res.cookie('accessToken', token, accessCookieConfig)
+        .json({
+            success: true,
+            data: {
+                activeFirm: {
+                    id: firm._id,
+                    name: firm.name,
+                    nameArabic: firm.nameArabic,
+                    logo: firm.logo,
+                    role: member.role
+                },
+                // Token metadata only (NOT the actual token)
+                token_type: 'Bearer',
+                expires_in: 900 // 15 minutes
+                // SECURITY: access_token is httpOnly cookie ONLY - never in response body
+            }
+        });
 });
 
 /**

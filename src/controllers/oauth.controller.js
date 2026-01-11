@@ -788,20 +788,19 @@ const callbackPost = async (request, response) => {
             });
         }
 
+        // BFF Pattern: Tokens are httpOnly cookies ONLY - never in response body
         const responseData = {
             error: false,
             message: result.isNewUser ? 'New user detected, please complete registration' : 'Authentication successful',
             user: result.user,
             isNewUser: result.isNewUser,
             registrationRequired: result.isNewUser,  // Explicit flag for frontend clarity
-            // OAuth 2.0 standard format (snake_case) - Industry standard for tokens
-            access_token: result.isNewUser ? null : result.token,
-            refresh_token: result.isNewUser ? null : result.refreshToken || null,
+            // Token metadata only (NOT the actual tokens)
             token_type: 'Bearer',
             expires_in: 900, // 15 minutes in seconds (standard access token lifetime)
-            // Backwards compatibility (camelCase) - for existing frontend code
-            accessToken: result.isNewUser ? null : result.token,
-            refreshToken: result.isNewUser ? null : result.refreshToken || null
+            // SECURITY: access_token and refresh_token are httpOnly cookies ONLY - never in response body
+            // Frontend uses credentials: 'include' to auto-attach cookies
+            authenticated: !result.isNewUser
         };
 
         // Add clear logging for new user detection
@@ -823,9 +822,9 @@ const callbackPost = async (request, response) => {
             hasUser: !!responseData.user,
             isNewUser: responseData.isNewUser,
             registrationRequired: responseData.registrationRequired,
-            hasAccessToken: !!responseData.accessToken,
-            accessTokenLength: responseData.accessToken?.length,
-            hasRefreshToken: !!responseData.refreshToken
+            authenticated: responseData.authenticated,
+            // BFF Pattern: Tokens are in httpOnly cookies, not response body
+            tokensInCookies: true
         });
         // eslint-disable-next-line no-console
         console.log('[SSO CALLBACK] ========== END ==========');

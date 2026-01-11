@@ -307,21 +307,18 @@ const verifyPhoneOTP = async (req, res) => {
     const cookieConfig = getCookieConfig(req);
     const refreshCookieConfig = getHttpOnlyRefreshCookieConfig(req);
 
-    // Set cookies and return response
+    // Set cookies and return response (BFF Pattern: tokens in httpOnly cookies ONLY)
     res.cookie('accessToken', accessToken, cookieConfig)
       .cookie(REFRESH_TOKEN_COOKIE_NAME, refreshToken, refreshCookieConfig)
       .status(200).json({
         success: true,
         message: 'Login successful',
         messageAr: 'تم تسجيل الدخول بنجاح',
-        // OAuth 2.0 standard format (snake_case)
-        access_token: accessToken,
-        refresh_token: refreshToken,
+        // Token metadata only (NOT the actual tokens)
         token_type: 'Bearer',
         expires_in: 900, // 15 minutes in seconds
-        // Backwards compatibility (camelCase)
-        accessToken: accessToken,
-        refreshToken: refreshToken,
+        // SECURITY: access_token and refresh_token are httpOnly cookies ONLY
+        // Frontend uses credentials: 'include' to auto-attach cookies
         user: {
           _id: user._id,
           email: user.email,

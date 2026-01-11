@@ -524,16 +524,13 @@ const authRegister = async (request, response) => {
             response.cookie('accessToken', accessToken, accessCookieConfig);
             response.cookie(REFRESH_TOKEN_COOKIE_NAME, refreshToken, refreshCookieConfig);
 
-            // OAuth 2.0 standard format (snake_case)
-            responseData.access_token = accessToken;
-            // Note: refresh_token NOT in body - it's httpOnly cookie only (security best practice)
+            // BFF PATTERN (Gold Standard): Tokens are httpOnly cookies ONLY
+            // Frontend uses credentials: 'include' to auto-attach cookies
+            // NO tokens in response body - prevents XSS token theft
             responseData.token_type = 'Bearer';
             responseData.expires_in = 900; // 15 minutes
-            // Backwards compatibility
-            responseData.token = accessToken;
-            responseData.accessToken = accessToken;
-            responseData.refreshToken = refreshToken;
             responseData.message = 'تم إنشاء الحساب بنجاح عبر ' + oauthProvider;
+            // SECURITY: access_token and refresh_token are httpOnly cookies ONLY - never in response body
         }
 
         return response.status(201).send(responseData);
@@ -1331,14 +1328,14 @@ const authLogin = async (request, response) => {
                 }
             })();
 
-            // Build login response per frontend contract
-            // SECURITY: refresh_token is httpOnly cookie ONLY - never in response body
+            // Build login response per BFF pattern (Gold Standard)
+            // SECURITY: ALL tokens are httpOnly cookies ONLY - never in response body
+            // Frontend uses credentials: 'include' to auto-attach cookies on all requests
             const loginResponse = {
                 error: false,
                 message: 'Success!',
-                // Access token in body (frontend stores in memory)
-                accessToken,
-                expiresIn: 900, // 15 minutes in seconds
+                // Token metadata (NOT the actual token) for frontend UX
+                expiresIn: 900, // 15 minutes in seconds - frontend can show countdown
                 // User data with MFA status for frontend routing
                 user: {
                     ...userData,
@@ -1346,6 +1343,7 @@ const authLogin = async (request, response) => {
                     mfaEnabled: user?.mfaEnabled || false,
                     mfaPending: false // Login succeeded, MFA was verified if enabled
                 }
+                // SECURITY: accessToken is httpOnly cookie ONLY - never in response body
             };
 
             // Include CSRF token in response if generated
@@ -2172,6 +2170,7 @@ const verifyMagicLink = async (request, response) => {
         // Get httpOnly refresh token cookie config
         const refreshCookieConfig = getHttpOnlyRefreshCookieConfig(request);
 
+        // BFF Pattern: Tokens in httpOnly cookies ONLY
         return response
             .cookie('accessToken', accessToken, getCookieConfig(request, 'access'))
             .cookie(REFRESH_TOKEN_COOKIE_NAME, refreshToken, refreshCookieConfig)
@@ -2179,10 +2178,9 @@ const verifyMagicLink = async (request, response) => {
                 error: false,
                 message: 'تم تسجيل الدخول بنجاح',
                 messageEn: 'Login successful',
-                // Access token in body (frontend stores in memory)
-                accessToken,
+                // Token metadata only - NOT the actual token
                 expiresIn: 900, // 15 minutes in seconds
-                // SECURITY: refresh_token is httpOnly cookie ONLY
+                // SECURITY: ALL tokens are httpOnly cookies ONLY - never in response body
                 user: userData,
                 redirectUrl: result.redirectUrl
             });
@@ -2305,14 +2303,16 @@ const verifyEmail = async (request, response) => {
                     const cookieConfig = getCookieConfig(request);
                     const refreshCookieConfig = getHttpOnlyRefreshCookieConfig(request);
 
+                    // BFF Pattern: Set tokens in httpOnly cookies ONLY
                     response.cookie('accessToken', accessToken, cookieConfig);
                     response.cookie(REFRESH_TOKEN_COOKIE_NAME, refreshToken, refreshCookieConfig);
 
+                    // Track that new tokens were issued (metadata only, NOT the actual tokens)
                     newTokens = {
-                        access_token: accessToken,
-                        refresh_token: refreshToken,
                         token_type: 'Bearer',
-                        expires_in: 900
+                        expires_in: 900,
+                        issued: true
+                        // SECURITY: access_token and refresh_token are httpOnly cookies ONLY
                     };
 
                     logger.info('Issued new tokens after email verification', {
@@ -2356,14 +2356,15 @@ const verifyEmail = async (request, response) => {
                 : 'Email verified. Please refresh your session to unlock all features.'
         };
 
-        // Include new tokens if generated
+        // Include token metadata if tokens were issued (NOT the actual tokens)
+        // BFF Pattern: Tokens are httpOnly cookies ONLY - never in response body
         if (newTokens) {
-            responseData.tokens = newTokens;
-            // Also include at root level for OAuth 2.0 standard format
-            responseData.access_token = newTokens.access_token;
-            responseData.refresh_token = newTokens.refresh_token;
-            responseData.token_type = 'Bearer';
-            responseData.expires_in = 900;
+            responseData.tokenMetadata = {
+                token_type: newTokens.token_type,
+                expires_in: newTokens.expires_in,
+                issued: newTokens.issued
+            };
+            // SECURITY: access_token and refresh_token are httpOnly cookies ONLY
         }
 
         return response.status(200).json(responseData);
@@ -2633,20 +2634,21 @@ const refreshAccessToken = async (request, response) => {
             }
         );
 
-        // Response per frontend contract:
-        // - accessToken in body (frontend stores in memory)
+        // Response per BFF pattern (Gold Standard):
+        // - accessToken as httpOnly cookie ONLY (rotated)
         // - refresh_token as httpOnly cookie ONLY (rotated)
+        // - NO tokens in response body - prevents XSS token theft
         return response
             .cookie('accessToken', result.accessToken, accessCookieConfig)
             .cookie(REFRESH_TOKEN_COOKIE_NAME, result.refreshToken, refreshCookieConfig)
             .status(200).json({
                 error: false,
-                // Access token in body per frontend contract
-                accessToken: result.accessToken,
-                expiresIn: 900, // 15 minutes in seconds
+                // Token metadata only - NOT the actual token
+                expiresIn: 900, // 15 minutes in seconds - frontend can schedule next refresh
+                refreshedAt: new Date().toISOString(), // When token was refreshed
                 // Include debug info if DEBUG enabled
                 ...(DEBUG && { debug: { serverTime: new Date().toISOString() } })
-                // SECURITY: refresh_token is httpOnly cookie ONLY - never in response body
+                // SECURITY: ALL tokens are httpOnly cookies ONLY - never in response body
             });
     } catch (error) {
         // Debug: Log refresh failure with details
